@@ -404,7 +404,7 @@ const VenueEntry = () => {
       key: "ven_name",
       sorter: true,
       sortOrder: sortField === "ven_name" ? sortOrder : null,
-      render: (text) => <span className="font-medium">{text}</span>,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "ID",
@@ -412,6 +412,7 @@ const VenueEntry = () => {
       key: "ven_id",
       sorter: true,
       sortOrder: sortField === "ven_id" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "Occupancy",
@@ -422,7 +423,7 @@ const VenueEntry = () => {
       render: (text) => (
         <Tag
           color="blue"
-          className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
+          className="rounded-full px-2 py-1 text-xs  font-medium flex items-center justify-center"
         >
           {text} people
         </Tag>
@@ -435,6 +436,7 @@ const VenueEntry = () => {
       sorter: true,
       sortOrder: sortField === "ven_operating_hours" ? sortOrder : null,
       render: (text) => text || "N/A",
+      className: "font-medium text-black"
     },
     {
       title: "Status",
@@ -460,6 +462,7 @@ const VenueEntry = () => {
       sorter: true,
       sortOrder: sortField === "ven_created_at" ? sortOrder : null,
       render: (text) => dayjs(text).format("MMM D, YYYY HH:mm"),
+      className: "font-medium text-black"
     },
     {
       title: "Action",

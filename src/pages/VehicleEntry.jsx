@@ -466,7 +466,7 @@ const VehicleEntry = () => {
       render: (text, record) => (
         <div className="flex items-center">
           <CarOutlined className="mr-2 text-blue-500" />
-          <span className="font-medium">{text}</span>
+          <span className="font-medium text-black">{text}</span>
         </div>
       ),
     },
@@ -476,6 +476,7 @@ const VehicleEntry = () => {
       key: "vehicle_license",
       sorter: true,
       sortOrder: sortField === "vehicle_license" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "Make",
@@ -483,6 +484,7 @@ const VehicleEntry = () => {
       key: "vehicle_make_name",
       sorter: true,
       sortOrder: sortField === "vehicle_make_name" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "Category",
@@ -490,6 +492,7 @@ const VehicleEntry = () => {
       key: "vehicle_category_name",
       sorter: true,
       sortOrder: sortField === "vehicle_category_name" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "Year",
@@ -497,6 +500,7 @@ const VehicleEntry = () => {
       key: "year",
       sorter: true,
       sortOrder: sortField === "year" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "Status",
@@ -520,6 +524,7 @@ const VehicleEntry = () => {
       sorter: true,
       sortOrder: sortField === "vehicle_created_at" ? sortOrder : null,
       render: (text) => new Date(text).toLocaleString(),
+      className: "font-medium text-black",
     },
     {
       title: "Action",

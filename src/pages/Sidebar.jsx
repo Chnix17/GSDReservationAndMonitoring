@@ -100,7 +100,7 @@ const Sidebar = () => {
     // Save loginAttempts
     const loginAttempts = localStorage.getItem("loginAttempts");
     const url = localStorage.getItem("url");
-    
+
     // Clear everything
     sessionStorage.clear();
     localStorage.clear();
@@ -108,7 +108,7 @@ const Sidebar = () => {
     // Restore critical data
     if (loginAttempts) localStorage.setItem("loginAttempts", loginAttempts);
     if (url) localStorage.setItem("url", url);
-    
+
     // Navigate to login
     navigate("/gsd");
     window.location.reload();
@@ -232,26 +232,26 @@ const Sidebar = () => {
               } py-1 space-y-1`}
             >
               {/* Main Menu Items */}
-              <MiniSidebarItem 
-                icon={FaTachometerAlt} 
-                text="Dashboard" 
-                link="/adminDashboard" 
+              <MiniSidebarItem
+                icon={FaTachometerAlt}
+                text="Dashboard"
+                link="/adminDashboard"
                 active={activeItem === "/adminDashboard"}
                 isExpanded={isDesktopSidebarOpen}
               />
-              
-              <MiniSidebarItem 
-                icon={FaCalendarAlt} 
-                text="Calendar" 
-                link="/LandCalendar" 
+
+              <MiniSidebarItem
+                icon={FaCalendarAlt}
+                text="Calendar"
+                link="/LandCalendar"
                 active={activeItem === "/LandCalendar"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              <MiniSidebarItem 
-                icon={FaComments} 
-                text="Chat" 
-                link="/chatAdmin" 
+              <MiniSidebarItem
+                icon={FaComments}
+                text="Chat"
+                link="/chatAdmin"
                 active={activeItem === "/chat"}
                 badge={unreadMessages}
                 isExpanded={isDesktopSidebarOpen}
@@ -261,66 +261,66 @@ const Sidebar = () => {
                 <SectionLabel text="Resource Management" />
               )}
 
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Master" 
-                link="/Master" 
+              <MiniSidebarItem
+                icon={FaFileAlt}
+                text="Master"
+                link="/Master"
                 active={activeItem === "/Master"}
                 isExpanded={isDesktopSidebarOpen}
               />
-              
-              <MiniSidebarDropdown 
-                icon={FaFileAlt} 
-                text="Resources" 
+
+              <MiniSidebarDropdown
+                icon={FaFileAlt}
+                text="Resources"
                 active={["/Venue", "/VehicleEntry", "/Equipment"].includes(
                   activeItem
                 )}
                 isExpanded={isDesktopSidebarOpen}
               >
-                <MiniSidebarSubItem 
-                  icon={FaHome} 
-                  text="Venue" 
-                  link="/Venue" 
+                <MiniSidebarSubItem
+                  icon={FaHome}
+                  text="Venue"
+                  link="/Venue"
                   active={activeItem === "/Venue"}
                   isExpanded={isDesktopSidebarOpen}
                 />
-                <MiniSidebarSubItem 
-                  icon={FaCar} 
-                  text="Vehicle" 
-                  link="/VehicleEntry" 
+                <MiniSidebarSubItem
+                  icon={FaCar}
+                  text="Vehicle"
+                  link="/VehicleEntry"
                   active={activeItem === "/VehicleEntry"}
                   isExpanded={isDesktopSidebarOpen}
                 />
-                <MiniSidebarSubItem 
-                  icon={FaTools} 
-                  text="Equipment" 
-                  link="/Equipment" 
+                <MiniSidebarSubItem
+                  icon={FaTools}
+                  text="Equipment"
+                  link="/Equipment"
                   active={activeItem === "/Equipment"}
                   isExpanded={isDesktopSidebarOpen}
                 />
               </MiniSidebarDropdown>
-              <MiniSidebarItem 
-                icon={FaArchive} 
-                text="Archive" 
-                link="/archive" 
+              <MiniSidebarItem
+                icon={FaArchive}
+                text="Archive"
+                link="/archive"
                 active={activeItem === "/archive"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               {isDesktopSidebarOpen && <SectionLabel text="Personnel" />}
 
-              <MiniSidebarItem 
-                icon={FaUserCircle} 
-                text="Assign Personnel" 
-                link="/AssignPersonnel" 
+              <MiniSidebarItem
+                icon={FaUserCircle}
+                text="Assign Personnel"
+                link="/AssignPersonnel"
                 active={activeItem === "/AssignPersonnel"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Checklist" 
-                link="/Checklist" 
+              <MiniSidebarItem
+                icon={FaFileAlt}
+                text="Checklist"
+                link="/Checklist"
                 active={activeItem === "/Checklist"}
                 isExpanded={isDesktopSidebarOpen}
               />
@@ -329,45 +329,45 @@ const Sidebar = () => {
                 <SectionLabel text="Manage Reservation" />
               )}
 
-              <MiniSidebarItem 
-                icon={FaFolder} 
-                text="View Requests" 
-                link="/ViewRequest" 
+              <MiniSidebarItem
+                icon={FaFolder}
+                text="View Requests"
+                link="/ViewRequest"
                 active={activeItem === "/ViewRequest"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Records" 
-                link="/record" 
+              <MiniSidebarItem
+                icon={FaFileAlt}
+                text="Records"
+                link="/record"
                 active={activeItem === "/record"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               {isDesktopSidebarOpen && <SectionLabel text="User Management" />}
 
-              <MiniSidebarItem 
-                icon={FaUserCircle} 
-                text="Faculty" 
-                link="/Faculty" 
+              <MiniSidebarItem
+                icon={FaUserCircle}
+                text="Faculty"
+                link="/Faculty"
                 active={activeItem === "/Faculty"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               {isDesktopSidebarOpen && <SectionLabel text="Personal Info" />}
-  
-              <MiniSidebarItem 
-                icon={FaCogs} 
-                text="Account Settings" 
-                link="/settings" 
+
+              <MiniSidebarItem
+                icon={FaCogs}
+                text="Account Settings"
+                link="/settings"
                 active={activeItem === "/settings"}
                 isExpanded={isDesktopSidebarOpen}
               />
             </nav>
 
             {/* User Profile - Show only icon when collapsed */}
-            <div className="mt-auto border-t border-gray-200 dark:border-gray-800">
+            <div className="mt-auto  bg-green-900 border-t border-gray-200 dark:border-gray-800">
               <Popover className="relative w-full">
                 {({ open }) => (
                   <>
@@ -376,25 +376,25 @@ const Sidebar = () => {
                         isDesktopSidebarOpen
                           ? "justify-between"
                           : "justify-center"
-                      } hover:bg-[#538c4c] dark:hover:bg-[#83b383]`}
+                      } hover:bg-[#4d8246] dark:hover:bg-[#325032] `}
                     >
                       {isDesktopSidebarOpen ? (
                         <>
                           <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 rounded-full bg-[#d4f4dc] dark:bg-[#145414] flex items-center justify-center">
-                              <FaUserCircle className="text-[#145414] dark:text-[#d4f4dc]" />
+                            <div className="w-8 h-8 rounded-full bg-[#214a2b] dark:bg-[#e1f6e1] flex items-center justify-center">
+                              <FaUserCircle className="text-[#145414] dark:text-[#253729]" />
                             </div>
                             <div className="text-left">
-                              <p className="font-medium text-sm text-black dark:text-white">
+                              <p className="font-semibold text-sm text-white dark:text-black ">
                                 {name}
                               </p>
-                              <p className="text-xs text-gray-600 dark:text-gray-400">
+                              <p className="text-xs font-semibold text-gray-100 dark:text-green-100 ">
                                 Administrator
                               </p>
                             </div>
                           </div>
                           <FaChevronDown
-                            className={`text-gray-600 transform ${
+                            className={`text-gray-100 transform ${
                               open ? "rotate-180" : ""
                             }`}
                             size={14}
@@ -455,7 +455,7 @@ const Sidebar = () => {
 
           {/* Mobile Sidebar */}
           <div
-            className={`fixed lg:hidden h-[calc(100vh-60px)] bg-white dark:bg-gray-900 text-black dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
+            className={`fixed lg:hidden h-[calc(100vh-60px)] bg-b dark:bg-gray-100 text-black dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
               isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
@@ -488,71 +488,71 @@ const Sidebar = () => {
 
             {/* Navigation - Same as desktop but separate instance */}
             <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
-              <SidebarItem 
-                icon={FaTachometerAlt} 
-                text="Dashboard" 
-                link="/adminDashboard" 
+              <SidebarItem
+                icon={FaTachometerAlt}
+                text="Dashboard"
+                link="/adminDashboard"
                 active={activeItem === "/adminDashboard"}
               />
-              
-              <SidebarItem 
-                icon={FaCalendarAlt} 
-                text="Calendar" 
-                link="/LandCalendar" 
+
+              <SidebarItem
+                icon={FaCalendarAlt}
+                text="Calendar"
+                link="/LandCalendar"
                 active={activeItem === "/LandCalendar"}
               />
 
-              <SidebarItem 
-                icon={FaComments} 
-                text="Chat" 
-                link="/chatAdmin" 
+              <SidebarItem
+                icon={FaComments}
+                text="Chat"
+                link="/chatAdmin"
                 active={activeItem === "/chat"}
                 badge={unreadMessages}
               />
 
               <SectionLabel text="Resource Management" />
-              
-              <SidebarDropdown 
-                icon={FaFileAlt} 
-                text="Resources" 
+
+              <SidebarDropdown
+                icon={FaFileAlt}
+                text="Resources"
                 active={["/Venue", "/VehicleEntry", "/Equipment"].includes(
                   activeItem
                 )}
               >
-                <SidebarSubItem 
-                  icon={FaHome} 
-                  text="Venue" 
-                  link="/Venue" 
+                <SidebarSubItem
+                  icon={FaHome}
+                  text="Venue"
+                  link="/Venue"
                   active={activeItem === "/Venue"}
                 />
-                <SidebarSubItem 
-                  icon={FaCar} 
-                  text="Vehicle" 
-                  link="/VehicleEntry" 
+                <SidebarSubItem
+                  icon={FaCar}
+                  text="Vehicle"
+                  link="/VehicleEntry"
                   active={activeItem === "/VehicleEntry"}
                 />
-                <SidebarSubItem 
-                  icon={FaTools} 
-                  text="Equipment" 
-                  link="/Equipment" 
+                <SidebarSubItem
+                  icon={FaTools}
+                  text="Equipment"
+                  link="/Equipment"
                   active={activeItem === "/Equipment"}
                 />
               </SidebarDropdown>
 
               {/* Continuing with more menu items... */}
-              <SidebarItem 
-                icon={FaUserCircle} 
-                text="Personnel" 
-                link="/AssignPersonnel" 
+              <SidebarItem
+                icon={FaUserCircle}
+                text="Personnel"
+                link="/AssignPersonnel"
                 active={activeItem === "/AssignPersonnel"}
               />
 
               <SectionLabel text="Account" />
-              
-              <SidebarItem 
-                icon={FaCogs} 
-                text="Settings" 
-                link="/settings" 
+
+              <SidebarItem
+                icon={FaCogs}
+                text="Settings"
+                link="/settings"
                 active={activeItem === "/settings"}
               />
             </nav>
@@ -562,7 +562,7 @@ const Sidebar = () => {
           {!isDesktopSidebarOpen && (
             <button
               onClick={toggleDesktopSidebar}
-              className="hidden lg:flex fixed top-4 left-4 z-50 bg-[#829e89] dark:bg-gray-100 shadow-md rounded-full p-2 text-[#0f380f] dark:text-[#193c21] hover:bg-[#beffb6] dark:hover:bg-[#9dff9d]"
+              className="hidden lg:flex fixed top-4 left-4 z-50 bg-[#253d2b] dark:bg-gray-100 shadow-md rounded-full p-2 text-[#0f380f] dark:text-[#193c21] hover:bg-[#1f431a] dark:hover:bg-[#44ae44]"
             >
               <FaAngleRight size={20} />
             </button>
@@ -637,7 +637,7 @@ const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
     <Link
       to={link}
       className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
-        active 
+        active
           ? "bg-[#145414] text-white font-medium"
           : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
       }`}
@@ -674,7 +674,7 @@ const SidebarDropdown = React.memo(({ icon: Icon, text, active, children }) => {
       <button
         onClick={() => setIsOpen(!isOpen)}
         className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-all ${
-          active 
+          active
             ? "bg-[#145414] text-white font-medium"
             : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
         }`}
@@ -716,7 +716,7 @@ const SidebarSubItem = React.memo(({ icon: Icon, text, link, active }) => {
     <Link
       to={link}
       className={`flex items-center space-x-2.5 p-2 pl-4 ml-2 rounded-md transition-all ${
-        active 
+        active
           ? "bg-[#145414] text-white font-medium"
           : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
       }`}
@@ -729,80 +729,80 @@ const SidebarSubItem = React.memo(({ icon: Icon, text, link, active }) => {
 
 const MiniSidebarItem = React.memo(
   ({ icon: Icon, text, link, active, isExpanded, badge }) => {
-  return (
-    <Link 
-      to={link} 
+    return (
+      <Link
+        to={link}
         className={`flex items-center ${
           isExpanded ? "justify-between p-2.5" : "justify-center p-2"
         } rounded-lg transition-all ${
-        active 
+          active
             ? "bg-[#145414] text-white font-medium"
             : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
-      }`}
-      title={!isExpanded ? text : undefined}
-    >
+        }`}
+        title={!isExpanded ? text : undefined}
+      >
         <div className={`flex items-center ${isExpanded ? "space-x-3" : ""}`}>
           <Icon
             size={16}
             className={active ? "text-white" : "text-[#145414]"}
           />
-        {isExpanded && <span className="text-sm">{text}</span>}
-      </div>
-      
-      {badge && isExpanded && (
+          {isExpanded && <span className="text-sm">{text}</span>}
+        </div>
+
+        {badge && isExpanded && (
           <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
-          {badge}
-        </span>
-      )}
-      
-      {badge && !isExpanded && (
-        <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-      )}
-    </Link>
-  );
+            {badge}
+          </span>
+        )}
+
+        {badge && !isExpanded && (
+          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+        )}
+      </Link>
+    );
   }
 );
 
 const MiniSidebarDropdown = React.memo(
   ({ icon: Icon, text, active, children, isExpanded }) => {
-  const [isOpen, setIsOpen] = useState(false);
+    const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    if (active) setIsOpen(true);
-  }, [active]);
+    useEffect(() => {
+      if (active) setIsOpen(true);
+    }, [active]);
 
-  if (!isExpanded) {
-    return (
-      <Popover className="relative">
-        {({ open }) => (
-          <>
-            <Popover.Button
-              className={`w-full flex items-center justify-center p-2 rounded-lg transition-all ${
-                active 
+    if (!isExpanded) {
+      return (
+        <Popover className="relative">
+          {({ open }) => (
+            <>
+              <Popover.Button
+                className={`w-full flex items-center justify-center p-2 rounded-lg transition-all ${
+                  active
                     ? "bg-[#145414] text-white"
                     : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
-              }`}
-              title={text}
-            >
+                }`}
+                title={text}
+              >
                 <Icon
                   size={16}
                   className={active ? "text-white" : "text-[#145414]"}
                 />
-            </Popover.Button>
-            <Transition
-              as={React.Fragment}
-              enter="transition ease-out duration-200"
-              enterFrom="opacity-0 translate-y-1"
-              enterTo="opacity-100 translate-y-0"
-              leave="transition ease-in duration-150"
-              leaveFrom="opacity-100 translate-y-0"
-              leaveTo="opacity-0 translate-y-1"
-            >
-              <Popover.Panel className="absolute left-full top-0 ml-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-50">
+              </Popover.Button>
+              <Transition
+                as={React.Fragment}
+                enter="transition ease-out duration-200"
+                enterFrom="opacity-0 translate-y-1"
+                enterTo="opacity-100 translate-y-0"
+                leave="transition ease-in duration-150"
+                leaveFrom="opacity-100 translate-y-0"
+                leaveTo="opacity-0 translate-y-1"
+              >
+                <Popover.Panel className="absolute left-full top-0 ml-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-50">
                   <div className="py-1">{children}</div>
-              </Popover.Panel>
-            </Transition>
-          </>
+                </Popover.Panel>
+              </Transition>
+            </>
           )}
         </Popover>
       );

@@ -1,16 +1,44 @@
-import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import React, {
+  useState,
+  useEffect,
+  createContext,
+  useContext,
+  useMemo,
+} from "react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import {
-  FaSignOutAlt, FaTachometerAlt, FaCar, FaCog, FaFileAlt, FaHeadset,
-  FaChevronDown, FaBars, FaHome, FaTools, FaUserCircle, FaFolder,
-  FaCalendarAlt, FaChartBar, FaArchive, FaChevronRight, FaTimes,
-  FaComments, FaCogs, FaBell, FaSearch, FaEllipsisV, FaChevronUp,
-  FaAngleRight, FaAngleLeft, FaClipboardCheck, FaTasks
-} from 'react-icons/fa';
-import { motion, AnimatePresence } from 'framer-motion';
-import { Popover, Transition } from '@headlessui/react';
-import { clearAllExceptLoginAttempts } from '../../utils/loginAttempts';
-import { SecureStorage } from '../../utils/encryption';
+  FaSignOutAlt,
+  FaTachometerAlt,
+  FaCar,
+  FaCog,
+  FaFileAlt,
+  FaHeadset,
+  FaChevronDown,
+  FaBars,
+  FaHome,
+  FaTools,
+  FaUserCircle,
+  FaFolder,
+  FaCalendarAlt,
+  FaChartBar,
+  FaArchive,
+  FaChevronRight,
+  FaTimes,
+  FaComments,
+  FaCogs,
+  FaBell,
+  FaSearch,
+  FaEllipsisV,
+  FaChevronUp,
+  FaAngleRight,
+  FaAngleLeft,
+  FaClipboardCheck,
+  FaTasks,
+} from "react-icons/fa";
+import { motion, AnimatePresence } from "framer-motion";
+import { Popover, Transition } from "@headlessui/react";
+import { clearAllExceptLoginAttempts } from "../../utils/loginAttempts";
+import { SecureStorage } from "../../utils/encryption";
 
 const SidebarContext = createContext();
 
@@ -18,17 +46,17 @@ const Sidebar = () => {
   // Same state management as before
   const navigate = useNavigate();
   const location = useLocation();
-  const [activeItem, setActiveItem] = useState('');
+  const [activeItem, setActiveItem] = useState("");
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedMode = localStorage.getItem('darkMode');
+    const savedMode = localStorage.getItem("darkMode");
     return savedMode ? JSON.parse(savedMode) : false;
   });
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState("");
   const [unreadMessages, setUnreadMessages] = useState(0);
 
-  const name = SecureStorage.getSessionItem('name') || 'Personnel';
+  const name = SecureStorage.getSessionItem("name") || "Personnel";
 
   // Same effects as before
   useEffect(() => {
@@ -38,42 +66,56 @@ const Sidebar = () => {
         setIsMobileSidebarOpen(false);
       }
     };
-    window.addEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
     handleResize();
-    return () => window.removeEventListener('resize', handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, [location]);
 
   useEffect(() => {
-    document.body.classList.toggle('dark', isDarkMode);
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
+    document.body.classList.toggle("dark", isDarkMode);
+    localStorage.setItem("darkMode", JSON.stringify(isDarkMode));
   }, [isDarkMode]);
 
-  const toggleDesktopSidebar = () => setIsDesktopSidebarOpen(!isDesktopSidebarOpen);
-  const toggleMobileSidebar = () => setIsMobileSidebarOpen(!isMobileSidebarOpen);
+  const toggleDesktopSidebar = () =>
+    setIsDesktopSidebarOpen(!isDesktopSidebarOpen);
+  const toggleMobileSidebar = () =>
+    setIsMobileSidebarOpen(!isMobileSidebarOpen);
   const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
 
   const handleLogout = () => {
     clearAllExceptLoginAttempts();
     localStorage.clear();
     sessionStorage.clear();
-    navigate('/gsd');
+    navigate("/gsd");
     window.location.reload();
   };
 
-  const contextValue = useMemo(() => ({ isDesktopSidebarOpen }), [isDesktopSidebarOpen]);
+  const contextValue = useMemo(
+    () => ({ isDesktopSidebarOpen }),
+    [isDesktopSidebarOpen]
+  );
 
   return (
     <SidebarContext.Provider value={contextValue}>
-      <div className={`flex flex-col h-screen ${isDarkMode ? 'dark' : ''}`}>
+      <div className={`flex flex-col h-screen ${isDarkMode ? "dark" : ""}`}>
         {/* Mobile Header - Same as before */}
         <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 fixed top-0 left-0 right-0 z-30 lg:hidden flex items-center justify-between">
           <div className="flex items-center space-x-3">
-            <button onClick={toggleMobileSidebar} className="text-green-600 dark:text-green-400 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800">
+            <button
+              onClick={toggleMobileSidebar}
+              className="text-green-900 dark:text-green-100 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            >
               <FaBars size={20} />
             </button>
             <div className="flex items-center">
-              <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
-              <span className="ml-2 font-bold text-green-600 dark:text-green-400">GSD Portal</span>
+              <img
+                src="/images/assets/phinma.png"
+                alt="Logo"
+                className="w-8 h-8"
+              />
+              <span className="ml-2 font-bold text-green-600 dark:text-green-400">
+                GSD Portal
+              </span>
             </div>
           </div>
 
@@ -85,9 +127,9 @@ const Sidebar = () => {
         {/* Sidebar Overlay - Same as before */}
         <AnimatePresence>
           {isMobileSidebarOpen && (
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 0.5 }} 
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black z-30 lg:hidden"
               onClick={toggleMobileSidebar}
@@ -98,25 +140,41 @@ const Sidebar = () => {
         {/* Main Content Area */}
         <div className="flex flex-1 pt-[60px] lg:pt-0">
           {/* Desktop Sidebar */}
-          <div className={`hidden lg:flex lg:flex-col h-screen bg-white dark:bg-gray-900 shadow-lg z-40 transition-all duration-300 ${
-            isDesktopSidebarOpen ? 'w-64' : 'w-16'
-          }`}>
+          <div
+            className={`hidden lg:flex lg:flex-col h-screen bg-white dark:bg-gray-900 shadow-lg z-40 transition-all duration-300 ${
+              isDesktopSidebarOpen ? "w-64" : "w-16"
+            }`}
+          >
             {/* Sidebar Header */}
-            <div className={`flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800 ${
-              !isDesktopSidebarOpen && 'justify-center'
-            }`}>
+            <div
+              className={`flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800 ${
+                !isDesktopSidebarOpen && "justify-center"
+              }`}
+            >
               {isDesktopSidebarOpen ? (
                 <>
                   <div className="flex items-center space-x-2">
-                    <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
-                    <span className="font-bold text-green-600 dark:text-green-400">GSD Portal</span>
+                    <img
+                      src="/images/assets/phinma.png"
+                      alt="Logo"
+                      className="w-8 h-8"
+                    />
+                    <span className="font-bold text-green-600 dark:text-green-400">
+                      GSD Portal
+                    </span>
                   </div>
-                  <button onClick={toggleDesktopSidebar} className="text-green-600 dark:text-green-400 p-1 rounded-full hover:bg-green-50 dark:hover:bg-green-900">
+                  <button
+                    onClick={toggleDesktopSidebar}
+                    className="text-green-600 dark:text-green-400 p-1 rounded-full hover:bg-green-50 dark:hover:bg-green-900"
+                  >
                     <FaAngleLeft size={16} />
                   </button>
                 </>
               ) : (
-                <button onClick={toggleDesktopSidebar} className="text-green-600 dark:text-green-400 p-1 rounded-full hover:bg-green-50 dark:hover:bg-green-900">
+                <button
+                  onClick={toggleDesktopSidebar}
+                  className="text-green-600 dark:text-green-400 p-1 rounded-full hover:bg-green-50 dark:hover:bg-green-900"
+                >
                   <FaAngleRight size={16} />
                 </button>
               )}
@@ -133,57 +191,64 @@ const Sidebar = () => {
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
-                  <FaSearch className="absolute left-3 top-2.5 text-gray-400" size={14} />
+                  <FaSearch
+                    className="absolute left-3 top-2.5 text-gray-400"
+                    size={14}
+                  />
                 </div>
               </div>
             )}
 
             {/* Navigation - Personnel specific menu items */}
-            <nav className={`flex-grow overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`}>
-              <MiniSidebarItem 
-                icon={FaTachometerAlt} 
-                text="Dashboard" 
-                link="/personnel/dashboard" 
-                active={activeItem === '/personnel/dashboard'}
+            <nav
+              className={`flex-grow overflow-y-auto ${
+                isDesktopSidebarOpen ? "px-3" : "px-2"
+              } py-1 space-y-1`}
+            >
+              <MiniSidebarItem
+                icon={FaTachometerAlt}
+                text="Dashboard"
+                link="/personnel/dashboard"
+                active={activeItem === "/personnel/dashboard"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               {isDesktopSidebarOpen && <SectionLabel text="Tasks Management" />}
 
-              <MiniSidebarItem 
-                icon={FaTasks} 
-                text="View Tasks" 
-                link="/viewTask" 
-                active={activeItem === '/viewTask'}
+              <MiniSidebarItem
+                icon={FaTasks}
+                text="View Tasks"
+                link="/viewTask"
+                active={activeItem === "/viewTask"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              <MiniSidebarItem 
-                icon={FaClipboardCheck} 
-                text="Task History" 
-                link="/personnel/taskHistory" 
-                active={activeItem === '/personnel/taskHistory'}
+              <MiniSidebarItem
+                icon={FaClipboardCheck}
+                text="Task History"
+                link="/personnel/taskHistory"
+                active={activeItem === "/personnel/taskHistory"}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               {isDesktopSidebarOpen && <SectionLabel text="Communication" />}
 
-              <MiniSidebarItem 
-                icon={FaComments} 
-                text="Chat" 
-                link="/personnel/chat" 
-                active={activeItem === '/personnel/chat'}
+              <MiniSidebarItem
+                icon={FaComments}
+                text="Chat"
+                link="/personnel/chat"
+                active={activeItem === "/personnel/chat"}
                 badge={unreadMessages}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               {isDesktopSidebarOpen && <SectionLabel text="Account" />}
 
-              <MiniSidebarItem 
-                icon={FaCogs} 
-                text="Account Settings" 
-                link="/personnel/settings" 
-                active={activeItem === '/personnel/settings'}
+              <MiniSidebarItem
+                icon={FaCogs}
+                text="Account Settings"
+                link="/personnel/settings"
+                active={activeItem === "/personnel/settings"}
                 isExpanded={isDesktopSidebarOpen}
               />
             </nav>
@@ -193,7 +258,13 @@ const Sidebar = () => {
               <Popover className="relative w-full">
                 {({ open }) => (
                   <>
-                    <Popover.Button className={`w-full p-3 flex items-center ${isDesktopSidebarOpen ? 'justify-between' : 'justify-center'} hover:bg-green-50 dark:hover:bg-green-900/20`}>
+                    <Popover.Button
+                      className={`w-full p-3 flex items-center ${
+                        isDesktopSidebarOpen
+                          ? "justify-between"
+                          : "justify-center"
+                      } hover:bg-green-50 dark:hover:bg-green-900/20`}
+                    >
                       {isDesktopSidebarOpen ? (
                         <>
                           <div className="flex items-center space-x-3">
@@ -202,10 +273,17 @@ const Sidebar = () => {
                             </div>
                             <div className="text-left">
                               <p className="font-medium text-sm">{name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">Personnel</p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Personnel
+                              </p>
                             </div>
                           </div>
-                          <FaChevronDown className={`text-gray-400 transform ${open ? 'rotate-180' : ''}`} size={14} />
+                          <FaChevronDown
+                            className={`text-gray-400 transform ${
+                              open ? "rotate-180" : ""
+                            }`}
+                            size={14}
+                          />
                         </>
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center">
@@ -226,7 +304,9 @@ const Sidebar = () => {
                       <Popover.Panel className="absolute bottom-full mb-2 left-0 z-50 w-64 origin-bottom-left rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                         <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                           <p className="font-medium text-sm">{name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">Personnel</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            Personnel
+                          </p>
                         </div>
                         <div className="p-2">
                           <button
@@ -246,54 +326,58 @@ const Sidebar = () => {
           </div>
 
           {/* Mobile Sidebar */}
-          <div className={`fixed lg:hidden h-[calc(100vh-60px)] bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
-            isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
-          }`}>
+          <div
+            className={`fixed lg:hidden h-[calc(100vh-60px)] bg-white dark:bg-gray-200 text-gray-700 dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
+              isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
             <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
-              <SidebarItem 
-                icon={FaTachometerAlt} 
-                text="Dashboard" 
-                link="/personnel/dashboard" 
-                active={activeItem === '/personnel/dashboard'} 
+              <SidebarItem
+                icon={FaTachometerAlt}
+                text="Dashboard"
+                link="/personnel/dashboard"
+                active={activeItem === "/personnel/dashboard"}
               />
 
-              <SidebarItem 
-                icon={FaTasks} 
-                text="View Tasks" 
-                link="/viewTask" 
-                active={activeItem === '/viewTask'} 
+              <SidebarItem
+                icon={FaTasks}
+                text="View Tasks"
+                link="/viewTask"
+                active={activeItem === "/viewTask"}
               />
 
-              <SidebarItem 
-                icon={FaClipboardCheck} 
-                text="Task History" 
-                link="/personnel/taskHistory" 
-                active={activeItem === '/personnel/taskHistory'} 
+              <SidebarItem
+                icon={FaClipboardCheck}
+                text="Task History"
+                link="/personnel/taskHistory"
+                active={activeItem === "/personnel/taskHistory"}
               />
 
-              <SidebarItem 
-                icon={FaComments} 
-                text="Chat" 
-                link="/personnel/chat" 
-                active={activeItem === '/personnel/chat'} 
+              <SidebarItem
+                icon={FaComments}
+                text="Chat"
+                link="/personnel/chat"
+                active={activeItem === "/personnel/chat"}
                 badge={unreadMessages}
               />
-              
+
               <SectionLabel text="Account" />
-              
-              <SidebarItem 
-                icon={FaCogs} 
-                text="Settings" 
-                link="/personnel/settings" 
-                active={activeItem === '/personnel/settings'} 
+
+              <SidebarItem
+                icon={FaCogs}
+                text="Settings"
+                link="/personnel/settings"
+                active={activeItem === "/personnel/settings"}
               />
             </nav>
           </div>
 
           {/* Main Content */}
-          <main className={`flex-1 bg-gray-50 dark:bg-gray-800 min-h-screen overflow-x-hidden transition-all duration-300 ${
-            !isDesktopSidebarOpen ? 'pl-0' : 'lg:pl-0'
-          }`}>
+          <main
+            className={`flex-1 bg-gray-50 dark:bg-gray-800 min-h-screen overflow-x-hidden transition-all duration-300 ${
+              !isDesktopSidebarOpen ? "pl-0" : "lg:pl-0"
+            }`}
+          >
             {/* Content will be rendered here */}
           </main>
         </div>
@@ -311,7 +395,10 @@ const HeaderUserMenu = ({ name, handleLogout }) => {
       {({ open }) => (
         <>
           <Popover.Button className="flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
-            <FaUserCircle size={20} className="text-gray-600 dark:text-gray-300" />
+            <FaUserCircle
+              size={20}
+              className="text-gray-600 dark:text-gray-300"
+            />
           </Popover.Button>
 
           <Transition
@@ -355,16 +442,21 @@ const SectionLabel = ({ text }) => (
 
 const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
   return (
-    <Link 
-      to={link} 
+    <Link
+      to={link}
       className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
-        active 
-          ? 'bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 font-medium' 
-          : 'text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-600'
+        active
+          ? "bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 font-medium"
+          : "text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-600"
       }`}
     >
       <div className="flex items-center space-x-3">
-        <Icon size={16} className={active ? 'text-green-600 dark:text-green-400' : 'text-gray-400'} />
+        <Icon
+          size={16}
+          className={
+            active ? "text-green-600 dark:text-green-400" : "text-gray-400"
+          }
+        />
         <span className="text-sm">{text}</span>
       </div>
       {badge && (
@@ -376,33 +468,42 @@ const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
   );
 });
 
-const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge }) => {
-  return (
-    <Link 
-      to={link} 
-      className={`flex items-center ${isExpanded ? 'justify-between p-2.5' : 'justify-center p-2'} rounded-lg transition-all ${
-        active 
-          ? 'bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 font-medium' 
-          : 'text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-600'
-      }`}
-      title={!isExpanded ? text : undefined}
-    >
-      <div className={`flex items-center ${isExpanded ? 'space-x-3' : ''}`}>
-        <Icon size={16} className={active ? 'text-green-600 dark:text-green-400' : 'text-gray-400'} />
-        {isExpanded && <span className="text-sm">{text}</span>}
-      </div>
-      
-      {badge && isExpanded && (
-        <span className="px-1.5 py-0.5 text-xs font-bold text-red-100 bg-red-500 rounded-full">
-          {badge}
-        </span>
-      )}
-      
-      {badge && !isExpanded && (
-        <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
-      )}
-    </Link>
-  );
-});
+const MiniSidebarItem = React.memo(
+  ({ icon: Icon, text, link, active, isExpanded, badge }) => {
+    return (
+      <Link
+        to={link}
+        className={`flex items-center ${
+          isExpanded ? "justify-between p-2.5" : "justify-center p-2"
+        } rounded-lg transition-all ${
+          active
+            ? "bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 font-medium"
+            : "text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-600"
+        }`}
+        title={!isExpanded ? text : undefined}
+      >
+        <div className={`flex items-center ${isExpanded ? "space-x-3" : ""}`}>
+          <Icon
+            size={16}
+            className={
+              active ? "text-green-600 dark:text-green-400" : "text-gray-400"
+            }
+          />
+          {isExpanded && <span className="text-sm">{text}</span>}
+        </div>
+
+        {badge && isExpanded && (
+          <span className="px-1.5 py-0.5 text-xs font-bold text-red-100 bg-red-500 rounded-full">
+            {badge}
+          </span>
+        )}
+
+        {badge && !isExpanded && (
+          <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
+        )}
+      </Link>
+    );
+  }
+);
 
 export default Sidebar;

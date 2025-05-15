@@ -413,7 +413,7 @@ const EquipmentEntry = () => {
       render: (text, record) => (
         <div className="flex items-center">
           <BuildOutlined className="mr-2 text-orange-500" />
-          <span className="font-medium">{text}</span>
+          <span className="font-medium text-black">{text}</span>
                             </div>
       ),
     },
@@ -423,6 +423,7 @@ const EquipmentEntry = () => {
       key: "equip_id",
       sorter: true,
       sortOrder: sortField === "equip_id" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-black">{text}</span>,
     },
     {
       title: "Quantity",
@@ -446,6 +447,7 @@ const EquipmentEntry = () => {
       sorter: true,
       sortOrder: sortField === "equipment_category_name" ? sortOrder : null,
       render: (text) => text || "N/A",
+      className: "font-medium text-black",
     },
     {
       title: "Status",
@@ -469,6 +471,7 @@ const EquipmentEntry = () => {
       sorter: true,
       sortOrder: sortField === "equip_created_at" ? sortOrder : null,
       render: (text) => new Date(text).toLocaleString(),
+      className: "font-medium text-black",
     },
     {
       title: "Action",

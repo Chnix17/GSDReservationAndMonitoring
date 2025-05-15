@@ -1,298 +1,569 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Button, Form } from 'react-bootstrap';
-import { toast, Toaster } from 'sonner';
-import Sidebar from './Sidebar';
-import { FaArrowLeft, FaPlus, FaTrash, FaSearch, FaCar } from 'react-icons/fa';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
-import { sanitizeInput, validateInput } from '../utils/sanitize';
-import { SecureStorage } from '../utils/encryption';
+import {
+  Alert,
+  Button,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Pagination,
+  Table,
+  Tag,
+  Tooltip,
+} from "antd";
+import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  ExclamationCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  CarOutlined,
+} from "@ant-design/icons";
+import React, { useEffect, useState } from "react";
+import { sanitizeInput, validateInput } from "../utils/sanitize";
+import { SecureStorage } from "../utils/encryption";
+import Sidebar from "./Sidebar";
+import axios from "axios";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+import dayjs from "dayjs";
+
+const { Search } = Input;
 
 const VehicleCategories = () => {
-  const navigate = useNavigate();
   const [categories, setCategories] = useState([]);
   const [filteredCategories, setFilteredCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [formData, setFormData] = useState({ id: '', name: '' });
-  const [showModal, setShowModal] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
-  const [editMode, setEditMode] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategory, setEditingCategory] = useState(null);
+  const [categoryToDelete, setCategoryToDelete] = useState(null);
+  const [form] = Form.useForm();
+  const [sortField, setSortField] = useState("vehicle_category_created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+  const navigate = useNavigate();
+
+  const user_level_id = SecureStorage.getSessionItem("user_level_id");
   const encryptedUrl = SecureStorage.getLocalItem("url");
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-    console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    if (
+      user_level_id !== "1" &&
+      user_level_id !== "2" &&
+      user_level_id !== "4"
+    ) {
       localStorage.clear();
-      navigate('/gsd');
+      navigate("/gsd");
     }
-  }, [navigate]);
+  }, [user_level_id, navigate]);
 
   useEffect(() => {
     fetchCategories();
   }, []);
 
+  useEffect(() => {
+    const filtered = categories.filter(
+      (category) =>
+        category.vehicle_category_name &&
+        category.vehicle_category_name
+          .toLowerCase()
+          .includes(searchTerm.toLowerCase())
+    );
+    setFilteredCategories(filtered);
+    setCurrentPage(1);
+  }, [searchTerm, categories]);
+
   const fetchCategories = async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
-        new URLSearchParams({ operation: 'fetchVehicleCategories' })
+      const response = await axios.post(
+        `${encryptedUrl}/fetchMaster.php`,
+        { operation: "fetchVehicleCategories" },
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
       );
-      if (response.data.status === 'success') {
+
+      if (response.data.status === "success") {
         setCategories(response.data.data);
-        setFilteredCategories(response.data.data);
       } else {
-        toast.error(response.data.message);
+        toast.error("Error fetching categories: " + response.data.message);
       }
     } catch (error) {
-      toast.error('Error fetching vehicle categories');
+      console.error("Error fetching categories:", error);
+      toast.error("An error occurred while fetching categories.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleEdit = (id) => {
-    const categoryToEdit = categories.find((category) => category.vehicle_category_id === id);
-    if (categoryToEdit) {
-      setFormData({ id: categoryToEdit.vehicle_category_id, name: categoryToEdit.vehicle_category_name });
-      setEditMode(true);
-      setShowModal(true);
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
     }
   };
 
-  const handleDelete = (id) => {
-    setSelectedCategoryId(id);
-    setShowConfirmDelete(true);
+  const handleCategoryNameChange = (e) => {
+    const sanitized = sanitizeInput(e.target.value);
+    if (!validateInput(sanitized)) {
+      toast.error(
+        "Invalid input detected. Please avoid special characters and scripts."
+      );
+      return;
+    }
+    setNewCategoryName(sanitized);
+    form.setFieldsValue({ categoryName: sanitized });
+  };
+
+  const handleSubmit = async () => {
+    try {
+      await form.validateFields();
+
+      if (!validateInput(newCategoryName)) {
+        toast.error("Category name contains invalid characters.");
+        return;
+      }
+
+      const user_admin_id = SecureStorage.getSessionItem("user_id");
+      const user_level = SecureStorage.getSessionItem("user_level_id");
+
+      const requestData = editingCategory
+        ? {
+            operation: "updateVehicleCategory",
+            categoryData: {
+              categoryId: editingCategory.vehicle_category_id,
+              name: newCategoryName,
+              user_admin_id: user_level === "1" ? user_admin_id : null,
+              super_admin_id: user_level === "4" ? user_admin_id : null,
+            },
+          }
+        : {
+            operation: "saveVehicleCategory",
+            data: {
+              name: newCategoryName,
+              user_admin_id: user_level === "1" ? user_admin_id : null,
+              super_admin_id: user_level === "4" ? user_admin_id : null,
+            },
+          };
+
+      const url = editingCategory
+        ? `${encryptedUrl}/update_master1.php`
+        : `${encryptedUrl}/insert_master.php`;
+
+      setLoading(true);
+      const response = await axios.post(url, JSON.stringify(requestData), {
+        headers: { "Content-Type": "application/json" },
+      });
+
+      if (response.data.status === "success") {
+        toast.success(
+          `Category successfully ${editingCategory ? "updated" : "added"}!`
+        );
+        fetchCategories();
+        resetForm();
+        setIsAddModalOpen(false);
+        setIsEditModalOpen(false);
+      } else {
+        toast.error(
+          `Failed to ${editingCategory ? "update" : "add"} category: ${
+            response.data.message || "Unknown error"
+          }`
+        );
+      }
+    } catch (error) {
+      toast.error(
+        `An error occurred while ${
+          editingCategory ? "updating" : "adding"
+        } category.`
+      );
+      console.error("Error saving category:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const resetForm = () => {
+    setNewCategoryName("");
+    setEditingCategory(null);
+    form.resetFields();
+  };
+
+  const handleEditClick = async (category) => {
+    try {
+      const response = await axios.post(
+        `${encryptedUrl}/fetchMaster.php`,
+        {
+          operation: "fetchVehicleCategoryById",
+          id: category.vehicle_category_id,
+        },
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+
+      if (response.data.status === "success") {
+        const categoryData = response.data.data[0];
+        setNewCategoryName(categoryData.vehicle_category_name);
+        setEditingCategory(categoryData);
+
+        form.setFieldsValue({
+          categoryName: categoryData.vehicle_category_name,
+        });
+
+        setIsEditModalOpen(true);
+      } else {
+        toast.error(
+          "Error fetching category details: " + response.data.message
+        );
+      }
+    } catch (error) {
+      toast.error("An error occurred while fetching category details.");
+      console.error("Error fetching category details:", error);
+    }
+  };
+
+  const handleDeleteClick = (category) => {
+    setCategoryToDelete(category);
+    setIsDeleteModalOpen(true);
   };
 
   const confirmDelete = async () => {
+    if (!categoryToDelete) return;
+
+    const requestData = {
+      operation: "archiveResource",
+      resourceType: "vehicle_category",
+      resourceId: categoryToDelete.vehicle_category_id,
+    };
+
+    setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/delete_master.php', {
-        operation: 'deleteVehicleCategory',
-        vehicleCategoryId: selectedCategoryId
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.data.status === 'success') {
-        setCategories(categories.filter(category => category.vehicle_category_id !== selectedCategoryId));
-        setFilteredCategories(filteredCategories.filter(category => category.vehicle_category_id !== selectedCategoryId));
-        toast.success('Vehicle category deleted successfully!');
-      } else {
-        toast.error(response.data.message || 'Failed to delete vehicle category.');
-      }
-    } catch (error) {
-      toast.error('Error deleting vehicle category.');
-    } finally {
-      setShowConfirmDelete(false);
-    }
-  };
+      const response = await axios.post(
+        `${encryptedUrl}/delete_master.php`,
+        JSON.stringify(requestData),
+        { headers: { "Content-Type": "application/json" } }
+      );
 
-  const handleSave = async () => {
-    const sanitizedName = sanitizeInput(formData.name);
-    
-    if (!sanitizedName.trim()) {
-      toast.error("Please enter a category name.");
-      return;
-    }
-
-    if (!validateInput(sanitizedName)) {
-      toast.error("Input contains invalid characters.");
-      return;
-    }
-
-    setIsSubmitting(true);
-    try {
-      const response = await axios.post(`${encryptedUrl}update_master1.php`, {
-        operation: editMode ? 'updateVehicleCategory' : 'saveVehicleCategory',
-        id: formData.id,
-        name: sanitizedName
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.data.status === 'success') {
-        toast.success(editMode ? 'Vehicle category updated successfully!' : 'Vehicle category added successfully!');
+      if (response.data.status === "success") {
+        toast.success("Category archived successfully!");
         fetchCategories();
-        closeModal();
       } else {
-        toast.error(response.data.message || `Failed to ${editMode ? 'update' : 'add'} vehicle category.`);
+        toast.error("Failed to archive category: " + response.data.message);
       }
     } catch (error) {
-      toast.error(`Error ${editMode ? 'updating' : 'adding'} vehicle category.`);
+      toast.error(
+        "An error occurred while archiving category: " + error.message
+      );
     } finally {
-      setIsSubmitting(false);
+      setLoading(false);
+      setIsDeleteModalOpen(false);
+      setCategoryToDelete(null);
     }
   };
 
-  const closeModal = () => {
-    setShowModal(false);
-    setEditMode(false);
-    setFormData({ id: '', name: '' });
+  const handleRefresh = () => {
+    fetchCategories();
   };
 
-  const handleSearchChange = (e) => {
-    const searchTerm = e.target.value.toLowerCase();
-    const results = categories.filter(category =>
-      category.vehicle_category_name.toLowerCase().includes(searchTerm)
-    );
-    setFilteredCategories(results);
-  };
+  const EnhancedFilters = () => (
+    <div className="bg-white p-4 rounded-lg shadow-sm mb-6 border-1">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row gap-4 flex-1">
+          <div className="flex-1">
+            <Search
+              placeholder="Search category by name"
+              allowClear
+              enterButton={<SearchOutlined />}
+              size="large"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Tooltip title="Refresh data">
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleRefresh}
+              size="large"
+              className="bg-[#334e33] hover:bg-[#273e24] text-white"
+            />
+          </Tooltip>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-[#145414] hover:bg-[#538c4c]"
+          >
+            Add Category
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
 
-  const handleAddCategory = () => {
-    setFormData({ id: '', name: '' });
-    setEditMode(false);
-    setShowModal(true);
-  };
+  const columns = [
+    {
+      title: "Category Name",
+      dataIndex: "vehicle_category_name",
+      key: "vehicle_category_name",
+      sorter: true,
+      sortOrder: sortField === "vehicle_category_name" ? sortOrder : null,
+      render: (text) => <span className="font-medium">{text}</span>,
+    },
+    {
+      title: "ID",
+      dataIndex: "vehicle_category_id",
+      key: "vehicle_category_id",
+      sorter: true,
+      sortOrder: sortField === "vehicle_category_id" ? sortOrder : null,
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      sorter: true,
+      sortOrder: sortField === "status" ? sortOrder : null,
+      render: (_, record) => (
+        <Tag
+          color={record.status_availability_id === "1" ? "green" : "red"}
+          className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
+        >
+          {record.status_availability_id === "1"
+            ? "Available"
+            : "Not Available"}
+        </Tag>
+      ),
+    },
+    {
+      title: "Created At",
+      dataIndex: "vehicle_category_created_at",
+      key: "created_at",
+      sorter: true,
+      sortOrder: sortField === "vehicle_category_created_at" ? sortOrder : null,
+      render: (text) => dayjs(text).format("MMM D, YYYY HH:mm"),
+    },
+    {
+      title: "Action",
+      key: "action",
+      render: (_, record) => (
+        <div className="flex space-x-2">
+          <Tooltip title="Edit">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => handleEditClick(record)}
+              className="bg-[#2f7126] hover:bg-[#145414] text-white"
+            />
+          </Tooltip>
+          <Tooltip title="Archive">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteClick(record)}
+              className="hover:bg-red-600"
+            />
+          </Tooltip>
+        </div>
+      ),
+    },
+  ];
 
   return (
-    <div className="flex flex-col lg:flex-row min-h-screen bg-gradient-to-br from-white to-green-100">
-      <Sidebar />
-      <motion.div 
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="flex-grow p-6 lg:p-10"
-      >
-        <div className="mb-4">
-          <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-            <FaArrowLeft className="mr-2" /> Back to Master
-          </Button>
-        </div>
-        <h2 className="text-4xl font-bold mb-6 text-green-800 drop-shadow-lg">Vehicle Categories</h2>
-        <div className="bg-white bg-opacity-90 rounded-lg shadow-xl p-6 mb-6 backdrop-filter backdrop-blur-lg">
-          <div className="flex flex-col md:flex-row items-center justify-between mb-4">
-            <motion.div 
-              whileHover={{ scale: 1.05 }}
-              className="relative w-full md:w-64 mb-4 md:mb-0"
-            >
-              <input
-                type="text"
-                onChange={handleSearchChange}
-                placeholder="Search by category name"
-                className="w-full pl-10 pr-4 py-2 rounded-full border border-green-300 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
-              />
-              <FaSearch className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-400" />
-            </motion.div>
-            <motion.button 
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={handleAddCategory}
-              className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out flex items-center justify-center shadow-md"
-            >
-              <FaPlus className="mr-2" /> Add Category
-            </motion.button>
-          </div>
-          {loading ? (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              className="flex justify-center items-center h-64"
-            >
-              <div className="loader"></div>
-            </motion.div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full table-auto">
-                <thead>
-                  <tr className="bg-green-600 text-white">
-                    <th className="py-3 px-4 text-left rounded-tl-lg">Name</th>
-                    <th className="py-3 px-4 text-center rounded-tr-lg">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="text-gray-600 text-sm font-light">
-                  <AnimatePresence>
-                    {filteredCategories.map((category) => (
-                      <motion.tr 
-                        key={category.vehicle_category_id}
-                        initial={{ opacity: 0 }}
-                        animate={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        className="border-b border-green-200 hover:bg-green-50 transition-colors duration-200"
-                      >
-                        <td className="py-3 px-4">{category.vehicle_category_name}</td>
-                        <td className="py-3 px-4 text-center">
-                          <motion.button 
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleDelete(category.vehicle_category_id)}
-                            className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-full transition duration-300 ease-in-out mr-2"
-                          >
-                            <FaTrash />
-                          </motion.button>
-                          <motion.button 
-                            whileHover={{ scale: 1.1 }}
-                            whileTap={{ scale: 0.9 }}
-                            onClick={() => handleEdit(category.vehicle_category_id)}
-                            className="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-full transition duration-300 ease-in-out"
-                          >
-                            Edit
-                          </motion.button>
-                        </td>
-                      </motion.tr>
-                    ))}
-                  </AnimatePresence>
-                </tbody>
-              </table>
+    <div className="flex h-screen overflow-hidden">
+      {/* Fixed Sidebar */}
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto ">
+        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8"
+          >
+            <div className="flex items-center gap-4">
+              <CarOutlined className="text-[#1c511c] text-4xl" />
+              <h2 className="text-4xl font-bold text-[#145414] m-0">
+                Vehicle Categories
+              </h2>
             </div>
-          )}
-        </div>
-      </motion.div>
+          </motion.div>
 
-      {/* Add/Edit Category Modal */}
-      <Modal show={showModal} onHide={closeModal} centered>
-        <Modal.Header closeButton className="bg-green-600 text-white">
-          <Modal.Title><FaCar className="inline-block mr-2" /> {editMode ? 'Edit' : 'Add'} Vehicle Category</Modal.Title>
-        </Modal.Header>
-        <Modal.Body className="bg-green-50">
-          <Form>
-            <Form.Group controlId="formCategoryName">
-              <Form.Label>Name:</Form.Label>
-              <Form.Control
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          {/* Search and Filters */}
+          <EnhancedFilters />
+
+          {/* Table */}
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-white">
+            <table className="w-full text-sm text-left rtl:text-right text-gray-700">
+              <thead className="text-xs text-white uppercase bg-[#145414]">
+                <tr>
+                  {columns.map((column) => (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      className="px-6 py-3"
+                      onClick={() =>
+                        column.sorter && handleSort(column.dataIndex)
+                      }
+                    >
+                      <div className="flex items-center cursor-pointer hover:text-[#83b383]">
+                        {column.title}
+                        {sortField === column.dataIndex && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCategories.length > 0 ? (
+                  filteredCategories
+                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                    .map((record) => (
+                      <tr
+                        key={record.vehicle_category_id}
+                        className="bg-white border-b border-gray-200 hover:bg-[#d4f4dc]"
+                      >
+                        {columns.map((column) => (
+                          <td
+                            key={`${record.vehicle_category_id}-${column.key}`}
+                            className="px-6 py-4"
+                          >
+                            {column.render
+                              ? column.render(record[column.dataIndex], record)
+                              : record[column.dataIndex]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      className="px-6 py-24 text-center"
+                    >
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={
+                          <span className="text-gray-500">
+                            No categories found
+                          </span>
+                        }
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Always show pagination, even when empty */}
+            <div className="p-4 border-t border-gray-200">
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={filteredCategories.length}
+                onChange={(page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size);
+                }}
+                showSizeChanger={true}
+                showTotal={(total, range) =>
+                  `${range[0]}-${range[1]} of ${total} items`
+                }
+                className="flex justify-end"
               />
-            </Form.Group>
-          </Form>
-        </Modal.Body>
-        <Modal.Footer className="bg-green-50">
-          <Button variant="secondary" onClick={closeModal}>
-            Close
-          </Button>
-          <Button variant="primary" onClick={handleSave} disabled={isSubmitting} className="bg-green-600 hover:bg-green-700">
-            {isSubmitting ? 'Saving...' : 'Save'}
-          </Button>
-        </Modal.Footer>
-      </Modal>
+            </div>
+          </div>
 
-      {/* Confirm Delete Modal */}
-      <Modal show={showConfirmDelete} onHide={() => setShowConfirmDelete(false)} centered>
-        <Modal.Header closeButton className="bg-red-600 text-white">
-          <Modal.Title>Confirm Deletion</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p>Are you sure you want to delete this vehicle category?</p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" onClick={() => setShowConfirmDelete(false)}>
-            Cancel
-          </Button>
-          <Button variant="danger" onClick={confirmDelete}>
-            Delete
-          </Button>
-        </Modal.Footer>
-      </Modal>
+          {/* Add/Edit Modal */}
+          <Modal
+            title={editingCategory ? "Edit Category" : "Add Category"}
+            open={isAddModalOpen || isEditModalOpen}
+            onCancel={() => {
+              setIsAddModalOpen(false);
+              setIsEditModalOpen(false);
+              resetForm();
+            }}
+            onOk={handleSubmit}
+            confirmLoading={loading}
+            width={700}
+            okButtonProps={{
+              className: "bg-[#145414] hover:bg-[#538c4c] text-white",
+            }}
+          >
+            <Form
+              form={form}
+              layout="vertical"
+              initialValues={{
+                categoryName: newCategoryName,
+              }}
+            >
+              <Form.Item
+                label="Category Name"
+                name="categoryName"
+                rules={[
+                  {
+                    required: true,
+                    message: "Please input category name!",
+                  },
+                ]}
+              >
+                <Input
+                  placeholder="Enter category name"
+                  onChange={handleCategoryNameChange}
+                />
+              </Form.Item>
+            </Form>
+          </Modal>
 
-      <Toaster position="top-right" />
+          {/* Delete Confirmation Modal */}
+          <Modal
+            title="Confirm Archive"
+            open={isDeleteModalOpen}
+            onCancel={() => setIsDeleteModalOpen(false)}
+            footer={[
+              <Button key="back" onClick={() => setIsDeleteModalOpen(false)}>
+                Cancel
+              </Button>,
+              <Button
+                key="submit"
+                type="primary"
+                danger
+                loading={loading}
+                onClick={confirmDelete}
+                icon={<DeleteOutlined />}
+                className="bg-red-600 hover:bg-red-700 text-white"
+              >
+                Archive
+              </Button>,
+            ]}
+          >
+            <Alert
+              message="Warning"
+              description={`Are you sure you want to archive "${categoryToDelete?.vehicle_category_name}"? This action cannot be undone.`}
+              type="warning"
+              showIcon
+              icon={<ExclamationCircleOutlined />}
+            />
+          </Modal>
+        </div>
+      </div>
     </div>
   );
 };

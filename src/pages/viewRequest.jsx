@@ -679,7 +679,7 @@ const ReservationRequests = () => {
             type="primary"
             onClick={() => fetchReservationDetails(record.reservation_id)}
             icon={<EyeOutlined />}
-            className="font-medium text-blue-600 hover:underline"
+            className="font-medium  hover:underline text-white"
           >
             View
           </Button>
