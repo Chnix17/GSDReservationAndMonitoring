@@ -1,75 +1,108 @@
-import React, { useState, useEffect, useRef } from 'react';
-import dayjs from 'dayjs';
-import Sidebar from './Sidebar';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'sonner';
-import axios from 'axios';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
-import '../vehicle.css';
-import { Modal, Input, Form, TimePicker, Select } from 'antd';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import { motion } from 'framer-motion';
-import { FileUpload } from 'primereact/fileupload';
-import 'primereact/resources/themes/lara-light-indigo/theme.css';
-import 'primereact/resources/primereact.min.css';
-import 'primeicons/primeicons.css';
-import { DataView } from 'primereact/dataview';
-import { Tag } from 'primereact/tag';
-import { Card } from 'primereact/card';
-import { Divider } from 'primereact/divider';
-import { sanitizeInput, validateInput } from '../utils/sanitize';
-import { SecureStorage } from '../utils/encryption';
+import {
+  Alert,
+  Button,
+  Empty,
+  Form,
+  Input,
+  Modal,
+  Pagination,
+  Select,
+  Table,
+  Tag,
+  TimePicker,
+  Tooltip,
+  Upload,
+} from "antd";
+import {
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  DeleteOutlined,
+  EditOutlined,
+  ExclamationCircleOutlined,
+  PlusOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  UploadOutlined,
+} from "@ant-design/icons";
+import React, { useEffect, useState } from "react";
+import { sanitizeInput, validateInput } from "../utils/sanitize";
+
+import { SecureStorage } from "../utils/encryption";
+import Sidebar from "./Sidebar";
+import axios from "axios";
+import dayjs from "dayjs";
+import { motion } from "framer-motion";
+import { toast } from "sonner";
+import { useNavigate } from "react-router-dom";
+
+const { Search } = Input;
+const { Option } = Select;
 
 const VenueEntry = () => {
-
-    const user_level_id = localStorage.getItem('user_level_id');
     const [venues, setVenues] = useState([]);
+  const [filteredVenues, setFilteredVenues] = useState([]);
+  const [statusAvailability, setStatusAvailability] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
+  const [searchTerm, setSearchTerm] = useState("");
     const [currentPage, setCurrentPage] = useState(1);
-    const [entriesPerPage] = useState(10);
-    const [showModal, setShowModal] = useState(false);
-    const [venueName, setVenueName] = useState('');
-    const [maxOccupancy, setMaxOccupancy] = useState('');
-    const [venuePic, setVenuePic] = useState(null);
-    const [operatingHours, setOperatingHours] = useState('');
-    const [venueExists, setVenueExists] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-    const [currentVenueId, setCurrentVenueId] = useState(null);
+  const [pageSize, setPageSize] = useState(10);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [newVenueName, setNewVenueName] = useState("");
+  const [newVenueOccupancy, setNewVenueOccupancy] = useState("");
+  const [operatingHours, setOperatingHours] = useState("");
     const [operatingHoursStart, setOperatingHoursStart] = useState(null);
     const [operatingHoursEnd, setOperatingHoursEnd] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [selectedStatus, setSelectedStatus] = useState('1');
-    const [statusOptions, setStatusOptions] = useState([]);
+  const [selectedStatus, setSelectedStatus] = useState("1");
+  const [editingVenue, setEditingVenue] = useState(null);
+  const [venueToDelete, setVenueToDelete] = useState(null);
+  const [fileList, setFileList] = useState([]);
+  const [venueImage, setVenueImage] = useState(null);
+  const [form] = Form.useForm();
+  const [sortField, setSortField] = useState("ven_created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
     const navigate = useNavigate();
-    const user_id = SecureStorage.getSessionItem('user_id');
-    const fileUploadRef = useRef(null);
-    const encryptedUrl = SecureStorage.getLocalItem("url");
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
 
+  const user_level_id = SecureStorage.getSessionItem("user_level_id");
+    const encryptedUrl = SecureStorage.getLocalItem("url");
 
     useEffect(() => {
-        console.log("this is encryptedUserLevel", encryptedUserLevel);
-        if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    if (
+      user_level_id !== "1" &&
+      user_level_id !== "2" &&
+      user_level_id !== "4"
+    ) {
             localStorage.clear();
-            navigate('/gsd');
+      navigate("/gsd");
         }
-    }, [navigate]);
+  }, [user_level_id, navigate]);
 
     useEffect(() => {
         fetchVenues();
+    fetchStatusAvailability();
     }, []);
 
     useEffect(() => {
-        fetchStatusAvailability();
-    }, []);
+    const filtered = venues.filter(
+      (venue) =>
+        venue.ven_name &&
+        venue.ven_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+    setFilteredVenues(filtered);
+    setCurrentPage(1);
+  }, [searchTerm, venues]);
 
     const fetchVenues = async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({ operation: "fetchVenue" }));
-            if (response.data.status === 'success') {
+      const response = await axios.post(
+        `${encryptedUrl}/user.php`,
+        { operation: "fetchVenue" },
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
+
+      if (response.data.status === "success") {
                 setVenues(response.data.data);
             } else {
                 toast.error("Error fetching venues: " + response.data.message);
@@ -84,548 +117,545 @@ const VenueEntry = () => {
 
     const fetchStatusAvailability = async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
-                new URLSearchParams({
-                    operation: 'fetchStatusAvailability'
-                })
+      const response = await axios.post(
+        `${encryptedUrl}/fetchMaster.php`,
+        { operation: "fetchStatusAvailability" },
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
             );
             
-            if (response.data.status === 'success') {
-                setStatusOptions(response.data.data);
+      if (response.data.status === "success") {
+        setStatusAvailability(response.data.data);
             } else {
-                console.error("Failed to fetch status options");
+        toast.error(
+          "Error fetching status availability: " + response.data.message
+        );
             }
         } catch (error) {
             console.error("Error fetching status availability:", error);
+      toast.error("An error occurred while fetching status availability.");
         }
     };
 
-    const handleAddVenue = () => {
-        setVenueName('');
-        setMaxOccupancy('');
-        setShowModal(true);
-        setEditMode(false);
-        setVenueExists(false);
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
     };
 
-    const getVenueDetails = async (venueId) => {
-        try {
-            const formData = new URLSearchParams();
-            formData.append('operation', 'fetchVenueById');
-            formData.append('id', venueId);
-    
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    }
-                }
-            );
-    
-            console.log('Venue details response:', response.data); // Debug log
-    
-            if (response.data.status === 'success' && response.data.data && response.data.data.length > 0) {
-                const venue = response.data.data[0];
-                setVenueName(venue.ven_name);
-                setMaxOccupancy(venue.ven_occupancy);
-                setCurrentVenueId(venue.ven_id);
-                setSelectedStatus(venue.status_availability_id);
-                
-                if (venue.ven_operating_hours) {
-                    const [start, end] = venue.ven_operating_hours.split(' - ');
-                    setOperatingHours(venue.ven_operating_hours);
-                    if (start && end) {
-                        setOperatingHoursStart(dayjs(start, 'HH:mm:ss'));
-                        setOperatingHoursEnd(dayjs(end, 'HH:mm:ss'));
-                    }
-                }
-                
-                if (venue.ven_pic) {
-                    const imageUrl = `${encryptedUrl}/${venue.ven_pic}`;
-                    setPreviewUrl(imageUrl);
-                } else {
-                    setPreviewUrl(null);
-                }
-                
-                setShowModal(true);
-                setEditMode(true);
+  const handleVenueNameChange = (e) => {
+    const sanitized = sanitizeInput(e.target.value);
+    if (!validateInput(sanitized)) {
+      toast.error(
+        "Invalid input detected. Please avoid special characters and scripts."
+      );
+      return;
+    }
+    setNewVenueName(sanitized);
+    form.setFieldsValue({ venueName: sanitized });
+  };
+
+  const handleVenueOccupancyChange = (e) => {
+    const sanitized = sanitizeInput(e.target.value);
+    if (!/^\d*$/.test(sanitized)) {
+      toast.error("Please enter only numbers for occupancy.");
+      return;
+    }
+    setNewVenueOccupancy(sanitized);
+    form.setFieldsValue({ venueOccupancy: sanitized });
+  };
+
+  const handleTimeChange = (times, timeStrings) => {
+    if (times) {
+      setOperatingHoursStart(times[0]);
+      setOperatingHoursEnd(times[1]);
+      setOperatingHours(`${timeStrings[0]} - ${timeStrings[1]}`);
             } else {
-                toast.error("Failed to fetch venue details");
-            }
-        } catch (error) {
-            console.error("Error fetching venue details:", error);
-            toast.error("An error occurred while fetching venue details");
+      setOperatingHoursStart(null);
+      setOperatingHoursEnd(null);
+      setOperatingHours("");
         }
     };
-    
 
-    const handleEditVenue = (venue) => {
-        getVenueDetails(venue.ven_id);
-    };
-
-    const checkVenueExists = async () => {
-        const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({
-            operation: "venueExists",
-            json: JSON.stringify({ venue_name: venueName })
-        }));
-
-        if (response.data.status === 'success' && response.data.exists) {
-            setVenueExists(true);
+  const handleImageUpload = ({ fileList: newFileList }) => {
+    setFileList(newFileList);
+    if (newFileList.length > 0) {
+      const file = newFileList[0].originFileObj;
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setVenueImage(reader.result);
+      };
+      reader.readAsDataURL(file);
         } else {
-            setVenueExists(false);
+      setVenueImage(null);
         }
     };
 
-    const handleUpdateVenue = async () => {
-       
+  const handleSubmit = async () => {
+    try {
+      await form.validateFields();
 
-        setLoading(true);
-        try {
-            let requestData = {
-                operation: 'updateVenue',
+      if (!validateInput(newVenueName)) {
+        toast.error("Venue name contains invalid characters.");
+        return;
+      }
+
+      const user_admin_id = SecureStorage.getSessionItem("user_id");
+      const user_level = SecureStorage.getSessionItem("user_level_id");
+
+      const requestData = editingVenue
+        ? {
+            operation: "updateVenue",
                 venueData: {
-                    venue_id: currentVenueId,
-                    venue_name: venueName,
-                    max_occupancy: maxOccupancy,
-                    operating_hours: operatingHours,
-                    status_availability_id: parseInt(selectedStatus)
-                }
-            };
+              venueId: editingVenue.ven_id,
+              name: newVenueName,
+              occupancy: newVenueOccupancy,
+              operatingHours: operatingHours,
+              statusId: selectedStatus,
+              ven_pic: venueImage || null,
+              user_admin_id: user_level === "1" ? user_admin_id : null,
+              super_admin_id: user_level === "4" ? user_admin_id : null,
+            },
+          }
+        : {
+            operation: "saveVenue",
+            data: {
+              name: newVenueName,
+              occupancy: newVenueOccupancy,
+              operatingHours: operatingHours,
+              ven_pic: venueImage,
+              status_availability_id: selectedStatus,
+              user_admin_id: user_level === "1" ? user_admin_id : null,
+              super_admin_id: user_level === "4" ? user_admin_id : null,
+            },
+          };
 
-            // If there's a new image file
-            if (venuePic instanceof File) {
-                const reader = new FileReader();
-                const base64Image = await new Promise((resolve) => {
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.readAsDataURL(venuePic);
-                });
-                requestData.venueData.ven_pic = base64Image;
-            }
+      const url = editingVenue
+        ? `${encryptedUrl}/update_master1.php`
+        : `${encryptedUrl}/insert_master.php`;
 
-            const response = await axios.post(
-                `${encryptedUrl}/update_master1.php`,
-                requestData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+      setLoading(true);
+      const response = await axios.post(url, JSON.stringify(requestData), {
+        headers: { "Content-Type": "application/json" },
+      });
 
-            if (response.data.status === 'success') {
-                toast.success("Venue successfully updated!");
+      if (response.data.status === "success") {
+        toast.success(
+          `Venue successfully ${editingVenue ? "updated" : "added"}!`
+        );
                 fetchVenues();
-                setShowModal(false);
                 resetForm();
+        setIsAddModalOpen(false);
+        setIsEditModalOpen(false);
             } else {
-                toast.error(response.data.message || "Failed to update venue");
+        toast.error(
+          `Failed to ${editingVenue ? "update" : "add"} venue: ${
+            response.data.message || "Unknown error"
+          }`
+        );
             }
         } catch (error) {
-            console.error("Error updating venue:", error);
-            toast.error("An error occurred while updating the venue.");
+      toast.error(
+        `An error occurred while ${editingVenue ? "updating" : "adding"} venue.`
+      );
+      console.error("Error saving venue:", error);
         } finally {
             setLoading(false);
         }
     };
 
     const resetForm = () => {
-        setVenueName('');
-        setMaxOccupancy('');
-        setOperatingHours('');
-        setVenuePic(null);
-        setPreviewUrl(null);
+    setNewVenueName("");
+    setNewVenueOccupancy("");
+    setOperatingHours("");
         setOperatingHoursStart(null);
         setOperatingHoursEnd(null);
-    };
+    setSelectedStatus("1");
+    setEditingVenue(null);
+    setVenueImage(null);
+    setFileList([]);
+    form.resetFields();
+  };
 
-    const validateVenueData = () => {
-        const sanitizedName = sanitizeInput(venueName);
-        const sanitizedOccupancy = sanitizeInput(maxOccupancy);
-        const sanitizedHours = sanitizeInput(operatingHours);
+  const handleEditClick = async (venue) => {
+    try {
+      const response = await axios.post(
+        `${encryptedUrl}/fetchMaster.php`,
+        { operation: "fetchVenueById", id: venue.ven_id },
+        { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+      );
 
-        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy)) {
-            toast.error("Invalid input detected. Please check your entries.");
-            return false;
-        }
+      if (response.data.status === "success") {
+        const venueData = response.data.data[0];
+        setNewVenueName(venueData.ven_name);
+        setNewVenueOccupancy(venueData.ven_occupancy);
+        setSelectedStatus(venueData.status_availability_id);
+        setEditingVenue(venueData);
 
-        if (!sanitizedName || !sanitizedOccupancy || !sanitizedHours) {
-            toast.error("Please fill in all required fields!");
-            return false;
-        }
-
-        // Validate occupancy
-        if (parseInt(sanitizedOccupancy) <= 0) {
-            toast.error("Maximum occupancy must be greater than zero!");
-            return false;
-        }
-
-        return {
-            name: sanitizedName,
-            occupancy: sanitizedOccupancy,
-            hours: sanitizedHours
-        };
-    };
-
-    const handleSubmit = async () => {
-        if (editMode) {
-            await handleUpdateVenue();
-        } else {
-            const validatedData = validateVenueData();
-            if (!validatedData) return;
-
-            setLoading(true);
-            try {
-                let imageBase64 = null;
-                if (venuePic) {
-                    imageBase64 = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => resolve(e.target.result);
-                        reader.readAsDataURL(venuePic);
-                    });
-                }
-
-                const requestData = {
-                    operation: 'saveVenue',
-                    data: {
-                        name: validatedData.name,
-                        occupancy: validatedData.occupancy,
-                        operating_hours: validatedData.hours,
-                        user_admin_id: encryptedUserLevel === '1' ? user_id : null,  // Set for user admin (level 1)
-                        status_availability_id: parseInt(selectedStatus),
-                        ven_pic: imageBase64
+        if (venueData.ven_operating_hours) {
+          const [start, end] = venueData.ven_operating_hours.split(" - ");
+          setOperatingHours(venueData.ven_operating_hours);
+          if (start && end) {
+            setOperatingHoursStart(dayjs(start, "HH:mm:ss"));
+            setOperatingHoursEnd(dayjs(end, "HH:mm:ss"));
                     }
-                };
+        }
 
-                console.log(requestData);
+        form.setFieldsValue({
+          venueName: venueData.ven_name,
+          venueOccupancy: venueData.ven_occupancy,
+          status: venueData.status_availability_id,
+        });
 
-                const response = await axios.post(
-                    `${encryptedUrl}/insert_master.php`,
-                    requestData,
-                    {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-
-                if (response.data.status === 'success') {
-                    toast.success("Venue successfully added!");
-                    fetchVenues();
-                    setShowModal(false);
-                    resetForm();
+        setIsEditModalOpen(true);
                 } else {
-                    toast.error(response.data.message || "Failed to save venue");
+        toast.error("Error fetching venue details: " + response.data.message);
                 }
             } catch (error) {
-                console.error("Error saving venue:", error);
-                toast.error("An error occurred while saving the venue.");
-            } finally {
-                setLoading(false);
-            }
+      toast.error("An error occurred while fetching venue details.");
+      console.error("Error fetching venue details:", error);
         }
     };
 
-    const handleVenueNameChange = (e) => {
-        const sanitizedValue = sanitizeInput(e.target.value);
-        setVenueName(sanitizedValue);
-        if (!editMode) {
-            checkVenueExists();
-        }
+  const handleDeleteClick = (venue) => {
+    setVenueToDelete(venue);
+    setIsDeleteModalOpen(true);
     };
 
-    const handleOccupancyChange = (e) => {
-        const sanitizedValue = sanitizeInput(e.target.value);
-        if (/^\d*$/.test(sanitizedValue)) { // Only allow digits
-            setMaxOccupancy(sanitizedValue);
-        }
-    };
+  const confirmDelete = async () => {
+    if (!venueToDelete) return;
 
-    const handleArchiveVenue = async (venueId) => {
-        const confirmArchive = window.confirm("Are you sure you want to archive this venue?");
-        if (!confirmArchive) return;
+    const requestData = {
+      operation: "archiveResource",
+      resourceType: "venue",
+      resourceId: venueToDelete.ven_id,
+    };
 
         setLoading(true);
         try {
             const response = await axios.post(
                 `${encryptedUrl}/delete_master.php`,
-                {
-                    operation: "archiveResource",
-                    resourceType: "venue",
-                    resourceId: venueId
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
+        JSON.stringify(requestData),
+        { headers: { "Content-Type": "application/json" } }
             );
 
-            if (response.data.status === 'success') {
-                toast.success("Venue successfully archived!");
+      if (response.data.status === "success") {
+        toast.success("Venue archived successfully!");
                 fetchVenues();
             } else {
                 toast.error("Failed to archive venue: " + response.data.message);
             }
         } catch (error) {
-            console.error("Error archiving venue:", error);
-            toast.error("An error occurred while archiving the venue.");
+      toast.error("An error occurred while archiving venue: " + error.message);
         } finally {
             setLoading(false);
+      setIsDeleteModalOpen(false);
+      setVenueToDelete(null);
         }
     };
 
-    const handleTimeChange = (times, timeStrings) => {
-        if (times) {
-            setOperatingHoursStart(times[0]);
-            setOperatingHoursEnd(times[1]);
-            setOperatingHours(`${timeStrings[0]} - ${timeStrings[1]}`);
-        } else {
-            setOperatingHoursStart(null);
-            setOperatingHoursEnd(null);
-            setOperatingHours('');
-        }
+  const handleRefresh = () => {
+    fetchVenues();
     };
 
-    const onFileUpload = (event) => {
-        if (event.files && event.files[0]) {
-            const file = event.files[0];
-            setVenuePic(file);
-            setPreviewUrl(URL.createObjectURL(file));
-            toast.success('File uploaded successfully');
-        }
-    };
-
-    const onFileRemove = () => {
-        setVenuePic(null);
-        setPreviewUrl(null);
-        if (fileUploadRef.current) {
-            fileUploadRef.current.clear();
-        }
-    };
-
-    const filteredVenues = venues.filter(venue =>
-        venue.ven_name && venue.ven_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
-    const totalPages = Math.ceil(filteredVenues.length / entriesPerPage);
-
-    const paginate = (pageNumber) => setCurrentPage(pageNumber);
-
-    const getImageUrl = (venuePic) => {
-        if (!venuePic) return null;
-        return `${encryptedUrl}/${venuePic}`;
-    };
-
-    const itemTemplate = (venue) => {
-        const imageUrl = getImageUrl(venue.ven_pic);
-
-        return (
-            <Card className="mb-4 transform hover:scale-[1.01] transition-transform duration-200">
-                <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                    <div className="md:col-span-3 flex justify-center items-start">
-                        <div className="relative group w-full min-h-[200px] bg-gray-100 rounded-lg">
-                            {imageUrl ? (
-                                <img 
-                                    src={imageUrl}
-                                    alt={venue.ven_name}
-                                    className="w-full h-48 md:h-64 object-cover rounded-lg"
-                                />
-                            ) : (
-                                <div className="flex items-center justify-center h-48 md:h-64">
-                                    <p className="text-gray-500">No image available</p>
-                                </div>
-                            )}
+  const EnhancedFilters = () => (
+    <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="flex flex-col md:flex-row gap-4 flex-1">
+          <div className="flex-1">
+            <Search
+              placeholder="Search venue by name"
+              allowClear
+              enterButton={<SearchOutlined />}
+              size="large"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full"
+            />
                         </div>
                     </div>
-                    <div className="md:col-span-9">
-                        <div className="flex flex-col h-full">
-                            <div className="flex justify-between items-start mb-4">
-                                <div>
-                                    <h3 className="text-2xl font-bold text-green-800 mb-2">{venue.ven_name}</h3>
-                                    <p className="text-gray-600 text-sm">
-                                        ID: <span className="font-semibold">#{venue.ven_id}</span>
-                                    </p>
-                                </div>
-                                <Tag 
-                                    value={venue.status_availability_id === '1' ? 'Available' : 'Not Available'} 
-                                    severity={venue.status_availability_id === '1' ? 'success' : 'danger'}
-                                    className="px-4 py-2 text-sm font-semibold"
-                                />
-                            </div>
-
-                            <Divider className="my-3" />
-
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                <div className="flex items-center gap-2">
-                                    <i className="pi pi-users text-green-600"></i>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Max Occupancy</p>
-                                        <p className="font-semibold">{venue.ven_occupancy} people</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <i className="pi pi-clock text-green-600"></i>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Operating Hours</p>
-                                        <p className="font-semibold">{venue.ven_operating_hours || 'Not specified'}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <i className="pi pi-calendar text-green-600"></i>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Created</p>
-                                        <p className="font-semibold">{dayjs(venue.ven_created_at).format('MMM D, YYYY HH:mm')}</p>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2">
-                                    <i className="pi pi-refresh text-green-600"></i>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Last Updated</p>
-                                        <p className="font-semibold">{dayjs(venue.ven_updated_at).format('MMM D, YYYY HH:mm')}</p>
+        <div className="flex gap-2">
+          <Tooltip title="Refresh data">
+            <Button
+              icon={<ReloadOutlined />}
+              onClick={handleRefresh}
+              size="large"
+            />
+          </Tooltip>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            size="large"
+            onClick={() => setIsAddModalOpen(true)}
+          >
+            Add Venue
+          </Button>
                                     </div>
                                 </div>
                             </div>
+  );
 
-                            <div className="flex justify-end gap-3 mt-auto">
-                                <motion.button 
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleEditVenue(venue)}
-                                    className="flex items-center gap-2 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-full transition-colors duration-300"
-                                >
-                                    <FontAwesomeIcon icon={faEdit} />
-                                    <span>Edit</span>
-                                </motion.button>
-                                <motion.button 
-                                    whileHover={{ scale: 1.05 }}
-                                    whileTap={{ scale: 0.95 }}
-                                    onClick={() => handleArchiveVenue(venue.ven_id)}
-                                    className="flex items-center gap-2 bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-full transition-colors duration-300"
-                                >
-                                    <i className="pi pi-inbox"></i>
-                                    <span>Archive</span>
-                                </motion.button>
-                            </div>
-                        </div>
-                    </div>
+  const columns = [
+    {
+      title: "Venue",
+      dataIndex: "ven_name",
+      key: "ven_name",
+      sorter: true,
+      sortOrder: sortField === "ven_name" ? sortOrder : null,
+      render: (text) => <span className="font-medium">{text}</span>,
+    },
+    {
+      title: "ID",
+      dataIndex: "ven_id",
+      key: "ven_id",
+      sorter: true,
+      sortOrder: sortField === "ven_id" ? sortOrder : null,
+    },
+    {
+      title: "Occupancy",
+      dataIndex: "ven_occupancy",
+      key: "ven_occupancy",
+      sorter: true,
+      sortOrder: sortField === "ven_occupancy" ? sortOrder : null,
+      render: (text) => (
+        <Tag
+          color="blue"
+          className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
+        >
+          {text} people
+        </Tag>
+      ),
+    },
+    {
+      title: "Operating Hours",
+      dataIndex: "ven_operating_hours",
+      key: "operating_hours",
+      sorter: true,
+      sortOrder: sortField === "ven_operating_hours" ? sortOrder : null,
+      render: (text) => text || "N/A",
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      sorter: true,
+      sortOrder: sortField === "status" ? sortOrder : null,
+      render: (_, record) => (
+        <Tag
+          color={record.status_availability_id === "1" ? "green" : "red"}
+          className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
+        >
+          {record.status_availability_id === "1"
+            ? "Available"
+            : "Not Available"}
+        </Tag>
+      ),
+    },
+    {
+      title: "Created At",
+      dataIndex: "ven_created_at",
+      key: "created_at",
+      sorter: true,
+      sortOrder: sortField === "ven_created_at" ? sortOrder : null,
+      render: (text) => dayjs(text).format("MMM D, YYYY HH:mm"),
+    },
+    {
+      title: "Action",
+      key: "action",
+      render: (_, record) => (
+        <div className="flex space-x-2">
+          <Tooltip title="Edit">
+            <Button
+              type="primary"
+              icon={<EditOutlined />}
+              onClick={() => handleEditClick(record)}
+              className="bg-blue-500 hover:bg-blue-600"
+            />
+          </Tooltip>
+          <Tooltip title="Archive">
+            <Button
+              danger
+              icon={<DeleteOutlined />}
+              onClick={() => handleDeleteClick(record)}
+            />
+          </Tooltip>
                 </div>
-            </Card>
-        );
-    };
+      ),
+    },
+  ];
 
     return (
-        <div className="flex h-screen bg-gradient-to-br from-white to-green-500 overflow-hidden">
-            <div className="flex-none">
+    <div className="flex h-screen overflow-hidden">
+      {/* Fixed Sidebar */}
+      <div className="flex-shrink-0">
                 <Sidebar />
             </div>
+
+      {/* Scrollable Content Area */}
             <div className="flex-1 overflow-y-auto">
+        <div className="p-[2.5rem] lg:p-12 min-h-screen">
                 <motion.div 
-                    initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: -20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5 }}
-                    className="p-6 lg:p-10"
-                >
-                    <h2 className="text-4xl font-bold mb-6 text-green-800 drop-shadow-lg">Venue Management</h2>
-                    <div className="bg-white bg-opacity-90 rounded-lg shadow-xl p-6 mb-6 backdrop-filter backdrop-blur-lg">
-                        <div className="flex flex-col md:flex-row items-center justify-between mb-4">
-                            <motion.div 
-                                whileHover={{ scale: 1.05 }}
-                                className="relative w-full md:w-64 mb-4 md:mb-0"
-                            >
-                                <input
-                                    type="text"
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                    placeholder="Search venues..."
-                                    className="w-full pl-10 pr-4 py-2 rounded-full border border-green-300 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
-                                />
-                                <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-400" />
-                            </motion.div>
-                            <motion.button 
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={handleAddVenue}
-                                className="w-full md:w-auto bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out flex items-center justify-center shadow-md"
-                            >
-                                <FontAwesomeIcon icon={faPlus} className="mr-2" /> Add Venue
-                            </motion.button>
+            className="mb-8"
+          >
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <h2 className="text-4xl font-bold text-gray-800 mt-5">
+                Venue Management
+              </h2>
                         </div>
-
-                        {loading ? (
-                            <motion.div
-                                initial={{ opacity: 0 }}
-                                animate={{ opacity: 1 }}
-                                exit={{ opacity: 0 }}
-                                className="flex justify-center items-center h-64"
-                            >
-                                <div className="loader"></div>
                             </motion.div>
-                        ) : (
-                            <DataView
-                                value={filteredVenues}
-                                itemTemplate={itemTemplate}
-                                paginator
-                                rows={entriesPerPage}
-                                currentPageReportTemplate="Showing {first} to {last} of {totalRecords} venues"
-                                rowsPerPageOptions={[5, 10, 20]}
-                                emptyMessage={
-                                    <div className="text-center py-8">
-                                        <i className="pi pi-search text-6xl text-gray-300 mb-4"></i>
-                                        <p className="text-xl text-gray-500">No venues found</p>
-                                    </div>
-                                }
-                                className="p-4"
-                            />
-                        )}
 
-                        {totalPages > 1 && (
-                            <div className="flex justify-center mt-6">
-                                {Array.from({ length: totalPages }, (_, i) => (
-                                    <button
-                                        key={i}
-                                        onClick={() => paginate(i + 1)}
-                                        className={`mx-1 px-4 py-2 rounded-md ${currentPage === i + 1 ? 'bg-green-600 text-white' : 'bg-green-200 text-green-800 hover:bg-green-300'}`}
-                                    >
-                                        {i + 1}
-                                    </button>
-                                ))}
-                            </div>
+          {/* Search and Filters */}
+          <EnhancedFilters />
+
+          {/* Table */}
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-white dark:bg-gray-800">
+            <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+                <tr>
+                  {columns.map((column) => (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      className="px-6 py-3"
+                      onClick={() =>
+                        column.sorter && handleSort(column.dataIndex)
+                      }
+                    >
+                      <div className="flex items-center cursor-pointer hover:text-gray-900">
+                        {column.title}
+                        {sortField === column.dataIndex && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
                         )}
                     </div>
-                </motion.div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVenues.length > 0 ? (
+                  filteredVenues
+                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                    .map((record) => (
+                      <tr
+                        key={record.ven_id}
+                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                      >
+                        {columns.map((column) => (
+                          <td
+                            key={`${record.ven_id}-${column.key}`}
+                            className="px-6 py-4"
+                          >
+                            {column.render
+                              ? column.render(record[column.dataIndex], record)
+                              : record[column.dataIndex]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      className="px-6 py-24 text-center"
+                    >
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={
+                          <span className="text-gray-500 dark:text-gray-400">
+                            No venues found
+                          </span>
+                        }
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Always show pagination, even when empty */}
+            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={filteredVenues.length}
+                onChange={(page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size);
+                }}
+                showSizeChanger={true}
+                showTotal={(total, range) =>
+                  `${range[0]}-${range[1]} of ${total} items`
+                }
+                className="flex justify-end"
+              />
+            </div>
             </div>
 
-            {/* Venue Modal */}
+          {/* Add/Edit Modal */}
             <Modal
-                title={editMode ? 'Edit Venue' : 'Add Venue'}
-                open={showModal}
-                onCancel={() => setShowModal(false)}
-                okText={editMode ? 'Update' : 'Add'}
+            title={editingVenue ? "Edit Venue" : "Add Venue"}
+            open={isAddModalOpen || isEditModalOpen}
+            onCancel={() => {
+              setIsAddModalOpen(false);
+              setIsEditModalOpen(false);
+              resetForm();
+            }}
                 onOk={handleSubmit}
                 confirmLoading={loading}
+            width={700}
             >
-                <Form layout="vertical">
+            <Form
+              form={form}
+              layout="vertical"
+              initialValues={{
+                venueName: newVenueName,
+                venueOccupancy: newVenueOccupancy,
+                status: selectedStatus,
+              }}
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
                     <Form.Item
                         label="Venue Name"
-                        validateStatus={venueExists ? 'error' : ''}
-                        help={venueExists && 'Venue already exists!'}
+                    name="venueName"
+                    rules={[
+                      {
+                        required: true,
+                        message: "Please input venue name!",
+                      },
+                    ]}
                     >
                         <Input
-                            value={venueName}
-                            onChange={handleVenueNameChange}
                             placeholder="Enter venue name"
+                      onChange={handleVenueNameChange}
                         />
                     </Form.Item>
-                    <Form.Item label="Max Occupancy">
+
+                  <Form.Item
+                    label="Max Occupancy"
+                    name="venueOccupancy"
+                    rules={[
+                      { required: true, message: "Please input occupancy!" },
+                      {
+                        pattern: /^[1-9]\d*$/,
+                        message: "Please enter a valid number greater than 0",
+                      },
+                    ]}
+                  >
                         <Input
                             type="number"
-                            value={maxOccupancy}
-                            onChange={handleOccupancyChange}
-                            placeholder="Enter maximum occupancy"
-                            min="1"
+                      placeholder="Enter max occupancy"
+                      onChange={handleVenueOccupancyChange}
                         />
                     </Form.Item>
+
                     <Form.Item 
                         label="Operating Hours"
                         required
@@ -636,74 +666,104 @@ const VenueEntry = () => {
                             value={[operatingHoursStart, operatingHoursEnd]}
                             onChange={handleTimeChange}
                             className="w-full"
-                            placeholder={['Start Time', 'End Time']}
+                      placeholder={["Start Time", "End Time"]}
                         />
                     </Form.Item>
-                    <Form.Item 
-                        label="Venue Picture" 
-                        tooltip="Upload venue image (max 5MB, formats: jpg, png)"
-                    >
-                        <FileUpload
-                            ref={fileUploadRef}
-                            mode="advanced"
-                            name="venue-pic"
-                            multiple={false}
-                            accept="image/*"
-                            maxFileSize={5000000}
-                            onSelect={onFileUpload}
-                            onClear={onFileRemove}
-                            headerTemplate={options => {
-                                const { className, chooseButton, } = options;
-                                return (
-                                    <div className={className} style={{backgroundColor: 'transparent', display: 'flex', alignItems: 'center'}}>
-                                        {chooseButton}
-                                    </div>
-                                );
-                            }}
-                            emptyTemplate={
-                                <div className="flex flex-col items-center p-6 border-2 border-dashed border-gray-300 rounded-lg">
-                                    <i className="pi pi-image mb-2 text-4xl text-gray-400" />
-                                    <p className="m-0 text-gray-500">
-                                        Drag and drop image here or click to browse
-                                    </p>
-                                </div>
-                            }
-                        />
-                        {previewUrl && (
-                            <div className="mt-4">
-                                <img
-                                    src={previewUrl}
-                                    alt="Preview"
-                                    className="w-32 h-32 object-cover rounded shadow-md"
-                                />
-                            </div>
-                        )}
-                    </Form.Item>
+
                     <Form.Item 
                         label="Status" 
-                        required
-                        tooltip="Select venue availability status"
+                    name="status"
+                    rules={[
+                      { required: true, message: "Please select status!" },
+                    ]}
                     >
                         <Select
-                            value={selectedStatus}
+                      placeholder="Select status"
                             onChange={(value) => setSelectedStatus(value)}
-                            className="w-full"
                         >
-                            {statusOptions.map(status => (
-                                <Select.Option 
+                      {statusAvailability.map((status) => (
+                        <Option
                                     key={status.status_availability_id} 
                                     value={status.status_availability_id}
                                 >
                                     {status.status_availability_name}
-                                </Select.Option>
+                        </Option>
                             ))}
                         </Select>
                     </Form.Item>
+                </div>
+
+                <div>
+                  <Form.Item
+                    label="Venue Image"
+                    tooltip="Upload venue image (max 5MB)"
+                  >
+                    <Upload
+                      listType="picture-card"
+                      fileList={fileList}
+                      onChange={handleImageUpload}
+                      beforeUpload={() => false}
+                      maxCount={1}
+                    >
+                      {fileList.length < 1 && (
+                        <div>
+                          <PlusOutlined />
+                          <div style={{ marginTop: 8 }}>Upload</div>
+                        </div>
+                      )}
+                    </Upload>
+                  </Form.Item>
+
+                  {editingVenue?.ven_pic && !venueImage && (
+                    <div className="mt-4">
+                      <img
+                        src={`${encryptedUrl}/${editingVenue.ven_pic}`}
+                        alt="Current Venue"
+                        className="max-w-full h-auto rounded-lg shadow-lg"
+                      />
+                      <p className="text-sm text-gray-500 mt-2">
+                        Current Image
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
                 </Form>
             </Modal>
+
+          {/* Delete Confirmation Modal */}
+          <Modal
+            title="Confirm Archive"
+            open={isDeleteModalOpen}
+            onCancel={() => setIsDeleteModalOpen(false)}
+            footer={[
+              <Button key="back" onClick={() => setIsDeleteModalOpen(false)}>
+                Cancel
+              </Button>,
+              <Button
+                key="submit"
+                type="primary"
+                danger
+                loading={loading}
+                onClick={confirmDelete}
+                icon={<DeleteOutlined />}
+              >
+                Archive
+              </Button>,
+            ]}
+          >
+            <Alert
+              message="Warning"
+              description={`Are you sure you want to archive "${venueToDelete?.ven_name}"? This action cannot be undone.`}
+              type="warning"
+              showIcon
+              icon={<ExclamationCircleOutlined />}
+            />
+          </Modal>
+        </div>
+      </div>
         </div>
     );
 };
 
 export default VenueEntry;
-

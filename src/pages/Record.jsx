@@ -1,82 +1,386 @@
-import { useState, useEffect } from 'react';
-import axios from 'axios';
-import { ToastContainer, toast } from 'react-toastify';
-import 'react-toastify/dist/ReactToastify.css';
-import Sidebar from './Sidebar';
+import "react-toastify/dist/ReactToastify.css";
+import "bootstrap/dist/css/bootstrap.min.css";
+
 import {
-  Table,
-  Badge,
-  Input,
-  Select,
-  Space,
-  Typography,
-  Card,
-  DatePicker,
-  Modal,
+  BuildOutlined,
+  CalendarOutlined,
+  CarOutlined,
+  ClockCircleOutlined,
+  EyeOutlined,
+  HistoryOutlined,
+  ReloadOutlined,
+  SearchOutlined,
+  TeamOutlined,
+  ToolOutlined,
+  UserOutlined,
+} from "@ant-design/icons";
+import {
   Button,
-  Tabs,
-  Timeline,
-  Avatar,
-  Statistic,
-  Row,
-  Col,
   Descriptions,
+  Empty,
+  Input,
+  Modal,
+  Pagination,
+  Space,
+  Spin,
+  Table,
   Tag,
-  Spin
-} from 'antd';
-import { EyeOutlined, UserOutlined, ClockCircleOutlined, TeamOutlined, CarOutlined, ToolOutlined } from '@ant-design/icons';
-import moment from 'moment';
+  Tooltip,
+  Typography,
+} from "antd";
+import { ToastContainer, toast } from "react-toastify";
+import { useEffect, useState } from "react";
+
+import Sidebar from "./Sidebar";
+import axios from "axios";
+import moment from "moment";
+import { motion } from "framer-motion";
 
 const { Search } = Input;
-const { Title, Text } = Typography;  // Add Text here
+const { Title, Text } = Typography;
 
-// Add theme constants
-const themeColors = {
-  primary: '#2E7D32', // dark green
-  secondary: '#4CAF50', // medium green
-  light: '#E8F5E9', // light green
-  white: '#FFFFFF',
-  success: '#388E3C',
-  warning: '#FFA000',
-  error: '#D32F2F',
-  text: '#2C3E50',
-  // Add new status colors
-  pending: '#FFA000',
-  approved: '#388E3C',
-  declined: '#D32F2F',
-  expired: '#9E9E9E',
-  completed: '#1976D2'
+const Record = () => {
+  const [reservations, setReservations] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchText, setSearchText] = useState("");
+  const [isModalVisible, setIsModalVisible] = useState(false);
+  const [selectedRecord, setSelectedRecord] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [sortField, setSortField] = useState("reservation_created_at");
+  const [sortOrder, setSortOrder] = useState("desc");
+
+  useEffect(() => {
+    fetchReservations();
+  }, []);
+
+  const fetchReservations = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(
+        "http://localhost/coc/gsd/records&reports.php",
+        {
+          operation: "fetchRecord",
+          json: {},
+        },
+        {
+            headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      if (
+        response.data?.status === "success" &&
+        Array.isArray(response.data.data)
+      ) {
+        const uniqueData = [
+          ...new Map(
+            response.data.data.map((item) => [item.reservation_id, item])
+          ).values(),
+        ];
+        const consolidatedData = consolidateReservations(uniqueData);
+            setReservations(consolidatedData);
+        } else { 
+        toast.error("No reservations found.");
+            setReservations([]);
+        }
+    } catch (error) {
+      console.error("Error fetching reservations:", error);
+      toast.error("Error fetching reservations. Please try again later.");
+        setReservations([]);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const consolidateReservations = (data) => {
+    return data.map((item) => ({
+      key: item.reservation_id,
+      reservation_id: item.reservation_id,
+      title: item.reservation_title || "Untitled Reservation",
+      description: item.reservation_description || "No description",
+      start_date: item.reservation_start_date,
+      end_date: item.reservation_end_date,
+      status: item.reservation_status_name || "Unknown",
+      requester: item.user_full_name || "Unknown",
+      created_at: item.reservation_created_at,
+    }));
+  };
+
+  const getStatusColor = (status) => {
+    switch (status?.toLowerCase()) {
+      case "approve":
+      case "approved":
+        return "green";
+      case "pending":
+        return "blue";
+      case "decline":
+      case "declined":
+        return "red";
+      case "reserved":
+        return "blue";
+      case "cancelled":
+        return "gray";
+      default:
+        return "default";
+    }
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  const getFilteredReservations = () => {
+    return reservations.filter((reservation) => {
+      const searchLower = searchText.toLowerCase();
+      return (
+        reservation.title?.toLowerCase().includes(searchLower) ||
+        reservation.description?.toLowerCase().includes(searchLower) ||
+        reservation.requester?.toLowerCase().includes(searchLower) ||
+        reservation.reservation_id?.toString().includes(searchLower)
+      );
+    });
+  };
+
+  const showModal = (record) => {
+    setSelectedRecord(record);
+    setIsModalVisible(true);
+  };
+
+  const handleRefresh = () => {
+    fetchReservations();
+  };
+  
+  const columns = [
+    {
+      title: "Title",
+      dataIndex: "title",
+      key: "title",
+      sorter: true,
+      sortOrder: sortField === "title" ? sortOrder : null,
+      render: (text) => <span className="font-medium">{text}</span>,
+    },
+    {
+      title: "Description",
+      dataIndex: "description",
+      key: "description",
+      render: (text) => <span className="line-clamp-2">{text}</span>,
+    },
+    {
+      title: "Requester",
+      dataIndex: "requester",
+      key: "requester",
+      sorter: true,
+      sortOrder: sortField === "requester" ? sortOrder : null,
+    },
+    {
+      title: "Created At",
+      dataIndex: "created_at",
+      key: "created_at",
+      sorter: true,
+      sortOrder: sortField === "created_at" ? sortOrder : null,
+      render: (text) => moment(text).format("MMM D, YYYY h:mm A"),
+    },
+    {
+      title: "Status",
+      dataIndex: "status",
+      key: "status",
+      render: (status) => (
+        <Tag color={getStatusColor(status)} className="capitalize">
+          {status}
+        </Tag>
+      ),
+    },
+    {
+      title: "Action",
+      key: "action",
+      render: (_, record) => (
+        <Button
+          type="primary"
+          onClick={() => showModal(record)}
+          icon={<EyeOutlined />}
+          className="font-medium text-blue-100 hover:underline"
+        >
+          View
+        </Button>
+      ),
+    },
+  ];
+
+  const filteredReservations = getFilteredReservations();
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      {/* Fixed Sidebar */}
+      <div className="flex-shrink-0">
+      <Sidebar />
+      </div>
+
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8"
+          >
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <h2 className="text-4xl font-bold text-gray-800 mt-5">
+                Reservation Records
+              </h2>
+            </div>
+          </motion.div>
+
+          {/* Search and Filters */}
+          <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row gap-4 flex-1">
+                <div className="flex-1">
+              <Search
+                    placeholder="Search by ID, title, or requester"
+                allowClear
+                    enterButton={<SearchOutlined />}
+                    size="large"
+                    value={searchText}
+                onChange={(e) => setSearchText(e.target.value)}
+                    className="w-full"
+              />
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Tooltip title="Refresh data">
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleRefresh}
+                    size="large"
+              />
+                </Tooltip>
+              </div>
+            </div>
+          </div>
+
+          {/* Table */}
+          <div className="relative overflow-x-auto   shadow-md sm:rounded-lg bg-white dark:bg-green-100">
+            <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+              <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                <tr>
+                  {columns.map((column) => (
+                    <th
+                      key={column.key}
+                      scope="col"
+                      className="px-6 py-3"
+                      onClick={() =>
+                        column.sorter && handleSort(column.dataIndex)
+                      }
+                    >
+                      <div className="flex items-center cursor-pointer hover:text-gray-900">
+                        {column.title}
+                        {sortField === column.dataIndex && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      className="px-6 py-24 text-center"
+                    >
+                      <Spin size="large" />
+                    </td>
+                  </tr>
+                ) : filteredReservations.length > 0 ? (
+                  filteredReservations.map((reservation) => (
+                    <tr
+                      key={reservation.reservation_id}
+                      className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                    >
+                      {columns.map((column) => (
+                        <td
+                          key={`${reservation.reservation_id}-${column.key}`}
+                          className="px-6 py-4"
+                        >
+                          {column.render
+                            ? column.render(
+                                reservation[column.dataIndex],
+                                reservation
+                              )
+                            : reservation[column.dataIndex]}
+                        </td>
+                      ))}
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan={columns.length}
+                      className="px-6 py-24 text-center"
+                    >
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={
+                          <span className="text-gray-500 dark:text-gray-400">
+                            No reservation records found
+                          </span>
+                        }
+                      />
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            {/* Pagination */}
+            {filteredReservations.length > 0 && (
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <Pagination
+                  current={currentPage}
+                  pageSize={pageSize}
+                  total={filteredReservations.length}
+                  onChange={(page, size) => {
+                    setCurrentPage(page);
+                    setPageSize(size);
+                  }}
+                  showSizeChanger={true}
+                  showTotal={(total, range) =>
+                    `${range[0]}-${range[1]} of ${total} items`
+                  }
+                  className="flex justify-end"
+                />
+              </div>
+            )}
+          </div>
+
+          {/* Detail Modal */}
+          <DetailModal
+            visible={isModalVisible}
+            record={selectedRecord}
+            onClose={() => {
+              setIsModalVisible(false);
+              setSelectedRecord(null);
+            }}
+          />
+        </div>
+      </div>
+      <ToastContainer />
+    </div>
+  );
 };
 
-// Add this style block
-const styles = {
-  searchInput: {
-    borderColor: themeColors.primary
-  }
-};
-
-// Add this function before DetailModal
-const getStatusColor = (status) => {
-  switch(status?.toLowerCase()) {
-    case 'approve':
-    case 'approved':
-      return 'green';
-    case 'pending':
-      return 'gold';
-    case 'decline':
-    case 'declined':
-      return 'red';
-    case 'reserved':
-      return 'blue';
-    case 'cancelled':
-      return 'gray';
-    default:
-      return 'default';
-  }
-};
-
-// Move DetailModal outside of Record component
-const DetailModal = ({ visible, record, onClose, theme }) => {
+const DetailModal = ({ visible, record, onClose }) => {
   const [modalData, setModalData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -85,22 +389,26 @@ const DetailModal = ({ visible, record, onClose, theme }) => {
       if (visible && record?.reservation_id) {
         setIsLoading(true);
         try {
-          const response = await axios.post('http://localhost/coc/gsd/records&reports.php', {
-            operation: 'getReservationDetailsById',
-            json: {
-              reservation_id: record.reservation_id
+          const response = await axios.post(
+            "http://localhost/coc/gsd/records&reports.php",
+            {
+              operation: "getReservationDetailsById",
+              json: {
+                reservation_id: record.reservation_id,
+              },
+            },
+            {
+              headers: {
+                "Content-Type": "application/json",
+              },
             }
-          }, {
-            headers: {
-              'Content-Type': 'application/json'
-            }
-          });
+          );
 
-          if (response.data?.status === 'success') {
+          if (response.data?.status === "success") {
             setModalData(response.data.data);
           }
         } catch (error) {
-          toast.error('Error fetching details');
+          toast.error("Error fetching details");
         } finally {
           setIsLoading(false);
         }
@@ -110,360 +418,302 @@ const DetailModal = ({ visible, record, onClose, theme }) => {
     fetchData();
   }, [visible, record]);
 
-  const ReservedItemsList = ({ items, type }) => {
+  const getIconForType = (type) => {
+    const icons = {
+      Equipment: <ToolOutlined className="mr-2 text-orange-500" />,
+      Venue: <BuildOutlined className="mr-2 text-green-500" />,
+      Vehicle: <CarOutlined className="mr-2 text-blue-500" />,
+    };
+    return icons[type] || null;
+  };
+
+  const formatDateRange = (startDate, endDate) => {
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+
+    const isSameDay = start.toDateString() === end.toDateString();
+    const monthNames = [
+      "January",
+      "February",
+      "March",
+      "April",
+      "May",
+      "June",
+      "July",
+      "August",
+      "September",
+      "October",
+      "November",
+      "December",
+    ];
+
+    const formatTime = (date) => {
+      return date.toLocaleTimeString("en-US", {
+        hour: "numeric",
+        minute: "2-digit",
+        hour12: true,
+      });
+    };
+
+    if (isSameDay) {
+      return `${monthNames[start.getMonth()]} ${start.getDate()} ${formatTime(
+        start
+      )} to ${formatTime(end)}`;
+    } else {
+      return `${monthNames[start.getMonth()]} ${start.getDate()}-${
+        monthNames[end.getMonth()]
+      } ${end.getDate()}\n${formatTime(start)} to ${formatTime(end)}`;
+    }
+  };
+
+  const ReservedItemsTable = ({ items, type }) => {
     if (!items || items.length === 0) return null;
-    
+
+    const columns = {
+      venue: [
+        {
+          title: "Venue Name",
+          dataIndex: "venue_name",
+          key: "venue_name",
+          render: (text) => (
+            <div className="flex items-center">
+              <BuildOutlined className="mr-2 text-purple-500" />
+              <span className="font-medium">{text}</span>
+            </div>
+          ),
+        },
+      ],
+      vehicle: [
+        {
+          title: "Vehicle",
+          dataIndex: "vehicle_name",
+          key: "vehicle_name",
+          render: (text) => (
+            <div className="flex items-center">
+              <CarOutlined className="mr-2 text-blue-500" />
+              <span className="font-medium">{text}</span>
+            </div>
+          ),
+        },
+        {
+          title: "Driver",
+          dataIndex: "driver_name",
+          key: "driver_name",
+          render: (text) => (
+            <div className="flex items-center">
+              <UserOutlined className="mr-2 text-blue-500" />
+              <span className="font-medium">
+                {text || "No driver assigned"}
+              </span>
+            </div>
+          ),
+        },
+      ],
+      equipment: [
+        {
+          title: "Equipment",
+          dataIndex: "equipment_name",
+          key: "equipment_name",
+          render: (text) => (
+            <div className="flex items-center">
+              <ToolOutlined className="mr-2 text-orange-500" />
+              <span className="font-medium">{text}</span>
+            </div>
+          ),
+        },
+        {
+          title: "Quantity",
+          dataIndex: "quantity",
+          key: "quantity",
+          render: (text) => <Tag color="orange">Qty: {text}</Tag>,
+        },
+      ],
+    };
+
     return (
-      <div style={{ marginBottom: '12px' }}>
-        {items.map((item, index) => (
-          <Tag
-            key={index}
-            style={{
-              padding: '4px 12px',
-              margin: '4px',
-              borderRadius: '4px',
-              fontSize: '14px',
-              background: '#f5f5f5',
-              border: '1px solid #d9d9d9'
-            }}
-          >
-            {type === 'venue' ? item.venue_name :
-             type === 'vehicle' ? item.vehicle_name :
-             item.equipment_name}
-          </Tag>
-        ))}
-      </div>
+      <Table
+        dataSource={items}
+        columns={columns[type]}
+        pagination={false}
+        size="small"
+        className="mb-4"
+      />
     );
   };
 
   return (
     <Modal
-      title={
-        <span style={{ color: theme.primary }}>
-          Reservation Details - {modalData?.reservation_title}
-        </span>
-      }
-      open={visible}
+      title={null}
+      visible={visible}
       onCancel={onClose}
       width={800}
       footer={[
-        <Button 
-          key="close-button"
-          onClick={onClose}
-          style={{
-            backgroundColor: theme.primary,
-            color: theme.white
-          }}
-        >
+        <Button key="close" onClick={onClose} size="large">
           Close
-        </Button>
+        </Button>,
       ]}
-      style={{
-        borderRadius: '12px',
-        overflow: 'hidden'
-      }}
+      className="reservation-detail-modal"
+      bodyStyle={{ padding: "0" }}
+      maskClosable={false}
+      zIndex={1000}
+      closable={false}
     >
-      {isLoading ? (
-        <div style={{ textAlign: 'center', padding: '20px' }}>
-          <Spin size="large" />
+      <div className="p-0">
+        {/* Header Section */}
+        <div className="bg-gradient-to-r from-blue-600 to-green-500 p-6 rounded-t-lg">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-white">
+                {modalData?.reservation_title || "Reservation Details"}
+              </h2>
+              <div className="flex items-center gap-2 mt-2">
+                <Tag
+                  color={
+                    modalData?.status_request === "Approved"
+                      ? "green"
+                      : modalData?.status_request === "Declined"
+                      ? "red"
+                      : "blue"
+                  }
+                  className="text-sm px-3 py-1"
+                >
+                  {modalData?.status_request || "Unknown Status"}
+                </Tag>
+              </div>
+            </div>
+            <div className="text-white text-right">
+              <p className="text-white opacity-90 text-sm">Created on</p>
+              <p className="font-semibold">
+                {modalData?.reservation_created_at
+                  ? new Date(modalData.reservation_created_at).toLocaleString()
+                  : "Unknown date"}
+              </p>
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="p-4">
-          <Descriptions bordered column={1}>
-            <Descriptions.Item label="Event Title">{modalData?.reservation_title}</Descriptions.Item>
-            <Descriptions.Item label="Description">{modalData?.reservation_description}</Descriptions.Item>
-            <Descriptions.Item label="Requester">
-              <Space>
-                <UserOutlined />
-                {modalData?.full_name}
-                <Tag color="blue">{modalData?.department_name}</Tag>
-              </Space>
-            </Descriptions.Item>
-            <Descriptions.Item label="Participants">{modalData?.reservation_participants}</Descriptions.Item>
-            <Descriptions.Item label="Start Date">
-              {moment(modalData?.reservation_start_date).format('MMM DD, YYYY hh:mm A')}
-            </Descriptions.Item>
-            <Descriptions.Item label="End Date">
-              {moment(modalData?.reservation_end_date).format('MMM DD, YYYY hh:mm A')}
-            </Descriptions.Item>
-            <Descriptions.Item label="Status">
-              <Tag color={getStatusColor(modalData?.status_request)}>{modalData?.status_request}</Tag>
-            </Descriptions.Item>
-          </Descriptions>
 
-          {(modalData?.venues?.length > 0 ||
-            modalData?.vehicles?.length > 0 ||
-            modalData?.equipment?.length > 0) && (
-            <>
-              <hr style={{ margin: '24px 0', border: '1px solid #f0f0f0' }} />
-              
-              <div style={{ marginTop: '20px' }}>
-                <Title level={5} style={{ marginBottom: '16px' }}>Reserved Items</Title>
-                
-                {modalData?.venues?.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>Venues</Text>
-                    <ReservedItemsList items={modalData.venues} type="venue" />
+        {/* Main Content */}
+        <div className="p-6">
+          {isLoading ? (
+            <div className="flex justify-center items-center h-64">
+              <Spin size="large" />
+            </div>
+          ) : (
+            <div className="space-y-6">
+              <div className="bg-white p-4 rounded-lg border border-blue-200 shadow-sm">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Requester Information */}
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-medium mb-4 text-gray-800">
+                      Requester Details
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <UserOutlined className="text-blue-500" />
+                        <div>
+                          <p className="text-sm text-gray-500">Name</p>
+                          <p className="font-medium">
+                            {modalData?.full_name || "Unknown"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <TeamOutlined className="text-green-500" />
+                        <div>
+                          <p className="text-sm text-gray-500">Department</p>
+                          <p className="font-medium">
+                            {modalData?.department_name || "Unknown"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
 
-                {modalData?.vehicles?.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>Vehicles</Text>
-                    <ReservedItemsList items={modalData.vehicles} type="vehicle" />
+                  {/* Schedule */}
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <h3 className="text-lg font-medium mb-4 text-gray-800">
+                      Schedule
+                    </h3>
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-2">
+                        <CalendarOutlined className="text-orange-500" />
+                        <div>
+                          <p className="text-sm text-gray-500">Date & Time</p>
+                          <p className="font-medium">
+                            {modalData?.reservation_start_date &&
+                            modalData?.reservation_end_date
+                              ? formatDateRange(
+                                  modalData.reservation_start_date,
+                                  modalData.reservation_end_date
+                                )
+                              : "Unknown schedule"}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <TeamOutlined className="text-purple-500" />
+                        <div>
+                          <p className="text-sm text-gray-500">Participants</p>
+                          <p className="font-medium">
+                            {modalData?.reservation_participants || "Unknown"}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </div>
-                )}
+                </div>
 
-                {modalData?.equipment?.length > 0 && (
-                  <div style={{ marginBottom: '16px' }}>
-                    <Text type="secondary" style={{ fontSize: '13px' }}>Equipment</Text>
-                    <ReservedItemsList items={modalData.equipment} type="equipment" />
+                {/* Resources Section */}
+                <div className="mt-6">
+                  <h3 className="text-lg font-medium mb-4 text-gray-800">
+                    Requested Resources
+                  </h3>
+                  <div className="space-y-4">
+                    {/* Venues */}
+                    {modalData?.venues?.length > 0 && (
+                      <ReservedItemsTable
+                        items={modalData.venues}
+                        type="venue"
+                      />
+                    )}
+
+                    {/* Vehicles */}
+                    {modalData?.vehicles?.length > 0 && (
+                      <ReservedItemsTable
+                        items={modalData.vehicles}
+                        type="vehicle"
+                      />
+                    )}
+
+                    {/* Equipment */}
+                    {modalData?.equipment?.length > 0 && (
+                      <ReservedItemsTable
+                        items={modalData.equipment}
+                        type="equipment"
+                      />
+                    )}
+                  </div>
+                </div>
+
+                {/* Description */}
+                {modalData?.reservation_description && (
+                  <div className="mt-6">
+                    <h3 className="text-lg font-medium mb-2 text-gray-800">
+                      Description
+                    </h3>
+                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                      <p className="text-gray-700">
+                        {modalData.reservation_description}
+                      </p>
+                    </div>
                   </div>
                 )}
               </div>
-            </>
+            </div>
           )}
         </div>
-      )}
-    </Modal>
-  );
-};
-
-const Record = () => {
-  const [reservations, setReservations] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [searchText, setSearchText] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [isModalVisible, setIsModalVisible] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState(null);
-  const [activeTab, setActiveTab] = useState('1');
-
-  useEffect(() => {
-    fetchReservations();
-  }, []);
-
-  const fetchReservations = async () => {
-    setLoading(true);
-    try {
-        const response = await axios.post('http://localhost/coc/gsd/records&reports.php', {
-            operation: 'fetchRecord',
-            json: {}
-        }, {
-            headers: {
-                'Content-Type': 'application/json'
-            }
-        });
-
-        if (response.data?.status === 'success') {
-            const consolidatedData = consolidateReservations(response.data.data);
-            setReservations(consolidatedData);
-            console.log('Consolidated reservations:', consolidatedData);
-        } else { 
-            toast.error('No pending reservations found.');
-            setReservations([]);
-        }
-    } catch (error) {
-        toast.error('Error fetching reservations. Please try again later.');
-        setReservations([]);
-    } finally {
-        setLoading(false);
-    }
-  };
-
-  const consolidateReservations = (data) => {
-    return data.map(item => ({
-      reservation_id: item.reservation_id,
-      title: item.reservation_title,
-      description: item.reservation_description,
-      start_date: item.reservation_start_date,
-      end_date: item.reservation_end_date,
-      status: item.reservation_status_name,
-      requester: item.user_full_name
-    }));
-  };
-  
-  const columns = [
-    {
-      title: 'Title',
-      dataIndex: 'title',
-      sorter: (a, b) => a.title.localeCompare(b.title),
-    },
-    {
-      title: 'Description',
-      dataIndex: 'description',
-      ellipsis: true,
-    },
-    {
-      title: 'Start Date',
-      dataIndex: 'start_date',
-      render: (date) => moment(date).format('MMM DD, YYYY hh:mm A'),
-      sorter: (a, b) => moment(a.start_date).unix() - moment(b.start_date).unix(),
-    },
-    {
-      title: 'End Date',
-      dataIndex: 'end_date',
-      render: (date) => moment(date).format('MMM DD, YYYY hh:mm A'),
-      sorter: (a, b) => moment(a.end_date).unix() - moment(b.end_date).unix(),
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      render: (status) => (
-        <Tag color={getStatusColor(status)}>{status}</Tag>
-      ),
-    },
-    {
-      title: 'Requester',
-      dataIndex: 'requester',
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => (
-        <Button
-          type="primary"
-          icon={<EyeOutlined />}
-          onClick={() => showModal(record)}
-          size="small"
-        >
-          View
-        </Button>
-      ),
-    }
-  ];
-
-  const getFilteredReservations = (status) => {
-    return reservations.filter(reservation => {
-      const searchLower = searchText.toLowerCase();
-      const matchesSearch = (
-        reservation.title?.toLowerCase().includes(searchLower) ||
-        reservation.description?.toLowerCase().includes(searchLower) ||
-        reservation.requester?.toLowerCase().includes(searchLower)
-      );
-
-      if (status === 'active') {
-        return matchesSearch && reservation.status === 'Reserved';
-      } else {
-        return matchesSearch && reservation.status === 'Decline';
-      }
-    });
-  };
-
-  const tabItems = [
-    {
-      key: '1',
-      label: 'Active Reservations',
-      children: (
-        <Table
-          columns={columns}
-          dataSource={getFilteredReservations('active')}
-          rowKey="approval_id"
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} reservations`,
-          }}
-          scroll={{ x: 1000 }}
-          style={{
-            borderRadius: '8px',
-            overflow: 'hidden'
-          }}
-          className="record-table"
-        />
-      )
-    },
-    {
-      key: '2',
-      label: 'Completed/Declined Reservations',
-      children: (
-        <Table
-          columns={columns}
-          dataSource={getFilteredReservations('completed')}
-          rowKey="approval_id"
-          loading={loading}
-          pagination={{
-            pageSize: 10,
-            showSizeChanger: true,
-            showTotal: (total) => `Total ${total} reservations`,
-          }}
-          scroll={{ x: 1000 }}
-          style={{
-            borderRadius: '8px',
-            overflow: 'hidden'
-          }}
-          className="record-table"
-        />
-      )
-    }
-  ];
-
-  const showModal = (record) => {
-    setSelectedRecord(record);
-    setIsModalVisible(true);
-  };
-
-  return (
-    <div style={{ display: 'flex' }}>
-      <Sidebar />
-      <div className="p-4" style={{ 
-        backgroundColor: themeColors.light, 
-        minHeight: '100vh',
-        width: '100%' 
-      }}>
-        <Card 
-          className="m-4"
-          style={{ 
-            boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-            borderRadius: '12px',
-            border: 'none'
-          }}
-        >
-          <ToastContainer />
-          <div className="mb-4">
-            <Title level={2} style={{ color: themeColors.primary }}>Reservation Records</Title>
-            <Space className="mb-4" size="large">
-              <Search
-                placeholder="Search reservations..."
-                allowClear
-                onChange={(e) => setSearchText(e.target.value)}
-                style={{ width: 300 }}
-                className="search-input"
-              />
-              <Select
-                defaultValue="all"
-                style={{ width: 120 }}
-                className="status-select"
-                onChange={setStatusFilter}
-                options={[
-                  { value: 'all', label: 'All Status' },
-                  { value: '1', label: 'Pending' },
-                  { value: '2', label: 'Approved' },
-                  { value: '3', label: 'Declined' }
-                ]}
-              />
-            </Space>
-          </div>
-
-          <Tabs 
-            activeKey={activeTab}
-            onChange={setActiveTab}
-            items={tabItems}
-            style={{ marginTop: '16px' }}
-          />
-
-          <DetailModal
-            visible={isModalVisible}
-            record={selectedRecord}
-            onClose={() => {
-              setIsModalVisible(false);
-              setSelectedRecord(null);
-            }}
-            theme={themeColors}
-          />
-        </Card>
       </div>
-    </div>
+    </Modal>
   );
 };
 
