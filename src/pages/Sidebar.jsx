@@ -72,7 +72,7 @@ const Sidebar = () => {
         return false;
     }
   };
-  
+
   useEffect(() => {
     setActiveItem(location.pathname);
     const handleResize = () => {
@@ -104,7 +104,7 @@ const Sidebar = () => {
     // Clear everything
     sessionStorage.clear();
     localStorage.clear();
-    
+
     // Restore critical data
     if (loginAttempts) localStorage.setItem("loginAttempts", loginAttempts);
     if (url) localStorage.setItem("url", url);
@@ -151,9 +151,9 @@ const Sidebar = () => {
         {/* Sidebar Overlay for Mobile */}
         <AnimatePresence>
           {isMobileSidebarOpen && (
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 0.5 }} 
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 0.5 }}
               exit={{ opacity: 0 }}
               className="fixed inset-0 bg-black z-30 lg:hidden"
               onClick={toggleMobileSidebar}
@@ -224,7 +224,7 @@ const Sidebar = () => {
                 </div>
               </div>
             )}
-            
+
             {/* Navigation */}
             <nav
               className={`flex-grow overflow-y-auto ${
@@ -509,7 +509,7 @@ const Sidebar = () => {
                 active={activeItem === "/chat"}
                 badge={unreadMessages}
               />
-              
+
               <SectionLabel text="Resource Management" />
               
               <SidebarDropdown 
@@ -538,7 +538,7 @@ const Sidebar = () => {
                   active={activeItem === "/Equipment"}
                 />
               </SidebarDropdown>
-              
+
               {/* Continuing with more menu items... */}
               <SidebarItem 
                 icon={FaUserCircle} 
@@ -546,7 +546,7 @@ const Sidebar = () => {
                 link="/AssignPersonnel" 
                 active={activeItem === "/AssignPersonnel"}
               />
-              
+
               <SectionLabel text="Account" />
               
               <SidebarItem 
@@ -560,7 +560,7 @@ const Sidebar = () => {
 
           {/* Toggle Button - Always visible when sidebar is closed */}
           {!isDesktopSidebarOpen && (
-            <button 
+            <button
               onClick={toggleDesktopSidebar}
               className="hidden lg:flex fixed top-4 left-4 z-50 bg-[#829e89] dark:bg-gray-100 shadow-md rounded-full p-2 text-[#0f380f] dark:text-[#193c21] hover:bg-[#beffb6] dark:hover:bg-[#9dff9d]"
             >
@@ -634,8 +634,8 @@ const SectionLabel = ({ text }) => (
 // Simplified SidebarItem
 const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
   return (
-    <Link 
-      to={link} 
+    <Link
+      to={link}
       className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
         active 
           ? "bg-[#145414] text-white font-medium"
@@ -646,13 +646,13 @@ const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
         <Icon size={16} className={active ? "text-white" : "text-[#145414]"} />
         <span className="text-sm">{text}</span>
       </div>
-      
+
       {badge && (
         <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
           {badge}
         </span>
       )}
-      
+
       {active && (
         <div className="absolute left-0 w-1 h-7 bg-[#145414] rounded-r-full" />
       )}
@@ -713,8 +713,8 @@ const SidebarDropdown = React.memo(({ icon: Icon, text, active, children }) => {
 // Simplified SidebarSubItem
 const SidebarSubItem = React.memo(({ icon: Icon, text, link, active }) => {
   return (
-    <Link 
-      to={link} 
+    <Link
+      to={link}
       className={`flex items-center space-x-2.5 p-2 pl-4 ml-2 rounded-md transition-all ${
         active 
           ? "bg-[#145414] text-white font-medium"
@@ -803,70 +803,70 @@ const MiniSidebarDropdown = React.memo(
               </Popover.Panel>
             </Transition>
           </>
-        )}
-      </Popover>
-    );
-  }
+          )}
+        </Popover>
+      );
+    }
 
-  return (
-    <div>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-all ${
-          active 
+    return (
+      <div>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-all ${
+            active
               ? "bg-[#145414] text-white font-medium"
               : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
-        }`}
-      >
-        <div className="flex items-center space-x-3">
+          }`}
+        >
+          <div className="flex items-center space-x-3">
             <Icon
               size={16}
               className={active ? "text-white" : "text-[#145414]"}
             />
-          <span className="text-sm">{text}</span>
-        </div>
+            <span className="text-sm">{text}</span>
+          </div>
           <FaChevronDown
             className={`transition-transform ${
               isOpen ? "rotate-180" : ""
             } text-[#145414]`}
             size={12}
           />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
+        </button>
+        <AnimatePresence>
+          {isOpen && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
               animate={{ opacity: 1, height: "auto" }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="ml-3 mt-1 space-y-1 overflow-hidden"
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2 }}
+              className="ml-3 mt-1 space-y-1 overflow-hidden"
+            >
+              {children}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+    );
   }
 );
 
 const MiniSidebarSubItem = React.memo(
   ({ icon: Icon, text, link, active, isExpanded }) => {
-  return (
-    <Link 
-      to={link} 
+    return (
+      <Link
+        to={link}
         className={`flex items-center ${
           isExpanded ? "space-x-2.5 p-2 pl-4 ml-2" : "p-2"
         } rounded-md transition-all ${
-        active 
+          active
             ? "bg-[#145414] text-white font-medium"
             : "text-black hover:bg-[#d4f4dc] hover:text-[#145414]"
-      }`}
-    >
+        }`}
+      >
         <Icon size={14} className={active ? "text-white" : "text-[#145414]"} />
-      {isExpanded && <span className="text-xs">{text}</span>}
-    </Link>
-  );
+        {isExpanded && <span className="text-xs">{text}</span>}
+      </Link>
+    );
   }
 );
 

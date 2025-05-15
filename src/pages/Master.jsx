@@ -75,17 +75,17 @@ const Master = () => {
   }, [fetchCategoriesAndMakes]);
 
   useEffect(() => {
-            const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-            console.log("this is encryptedUserLevel", encryptedUserLevel);
+    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
+    console.log("this is encryptedUserLevel", encryptedUserLevel);
     if (
       encryptedUserLevel !== "1" &&
       encryptedUserLevel !== "2" &&
       encryptedUserLevel !== "4"
     ) {
-                localStorage.clear();
+      localStorage.clear();
       navigate("/gsd");
-            }
-        }, [navigate]);
+    }
+  }, [navigate]);
 
   const handleSaveData = async (operation, data) => {
     const isValid = Object.values(data).every((value) => validateInput(value));
@@ -236,18 +236,18 @@ const Master = () => {
         <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
           {/* Masters Header */}
           <div className="bg-[#fafff4] p-4 border rounded-lg shadow-md mb-6 mt-[5rem] md:mt-0 w-full">
-        <motion.h1 
-          initial={{ opacity: 0, y: -50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
+            <motion.h1
+              initial={{ opacity: 0, y: -50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
               className="text-2xl font-custom-font font-bold text-green-900"
-        >
-           Masters
-        </motion.h1>
+            >
+              Masters
+            </motion.h1>
           </div>
           {/* Responsive Grid for Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-          {[
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {[
               {
                 title: "Vehicle Category",
                 icon: <FaCar />,
@@ -284,15 +284,15 @@ const Master = () => {
                 action: () => setIsAddConditionModalOpen(true),
                 viewPath: "/condition",
               },
-          ].map((card, index) => (
-            <motion.div 
-              key={index}
+            ].map((card, index) => (
+              <motion.div
+                key={index}
                 initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ duration: 0.3, delay: index * 0.1 }}
                 whileHover={{ scale: 1.02 }}
                 className="bg-[#fafff4] rounded-2xl shadow-md overflow-hidden w-full flex items-center justify-between p-4 md:block md:flex-none md:items-start md:justify-normal md:p-0"
-            >
+              >
                 {/* Mobile View (simple list item) */}
                 <div className="md:hidden flex items-center gap-4 w-full">
                   <div className="text-green-900 text-2xl">{card.icon}</div>
@@ -319,7 +319,7 @@ const Master = () => {
                     >
                       <FaEye className="text-sm" />
                     </motion.button>
-              </div>
+                  </div>
                 </div>
 
                 {/* Desktop View (card) */}
@@ -333,29 +333,29 @@ const Master = () => {
                     </h3>
                   </div>
                   <div className="pr-4 pt-4 flex justify-between items-center gap-4">
-                <motion.button 
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
                       onClick={() => {
                         card.action();
                         setMessage("");
                       }}
                       className="flex-1 py-2 bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300 text-sm"
-                >
+                    >
                       <FaPlus className="mx-auto" />
-                </motion.button>
-                <motion.button 
-                  whileHover={{ scale: 1.1 }}
-                  whileTap={{ scale: 0.9 }}
-                  onClick={() => navigate(card.viewPath)} 
+                    </motion.button>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => navigate(card.viewPath)}
                       className="flex-1 py-2 bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300 text-sm"
-                >
+                    >
                       <FaEye className="mx-auto" />
-                </motion.button>
-              </div>
+                    </motion.button>
+                  </div>
                 </div>
-            </motion.div>
-          ))}
+              </motion.div>
+            ))}
         </div>
         </div>
 
@@ -627,7 +627,7 @@ const Master = () => {
         )}
 
         {popupMessage && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
@@ -638,7 +638,7 @@ const Master = () => {
         )}
 
         {message && (
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}

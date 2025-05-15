@@ -64,7 +64,7 @@ const Record = () => {
           json: {},
         },
         {
-            headers: {
+          headers: {
             "Content-Type": "application/json",
           },
         }
@@ -80,17 +80,17 @@ const Record = () => {
           ).values(),
         ];
         const consolidatedData = consolidateReservations(uniqueData);
-            setReservations(consolidatedData);
-        } else { 
+        setReservations(consolidatedData);
+      } else {
         toast.error("No reservations found.");
-            setReservations([]);
-        }
+        setReservations([]);
+      }
     } catch (error) {
       console.error("Error fetching reservations:", error);
       toast.error("Error fetching reservations. Please try again later.");
-        setReservations([]);
+      setReservations([]);
     } finally {
-        setLoading(false);
+      setLoading(false);
     }
   };
 
@@ -219,7 +219,7 @@ const Record = () => {
     <div className="flex h-screen overflow-hidden">
       {/* Fixed Sidebar */}
       <div className="flex-shrink-0">
-      <Sidebar />
+        <Sidebar />
       </div>
 
       {/* Scrollable Content Area */}
@@ -243,15 +243,15 @@ const Record = () => {
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex flex-col md:flex-row gap-4 flex-1">
                 <div className="flex-1">
-              <Search
+                  <Search
                     placeholder="Search by ID, title, or requester"
-                allowClear
+                    allowClear
                     enterButton={<SearchOutlined />}
                     size="large"
                     value={searchText}
-                onChange={(e) => setSearchText(e.target.value)}
+                    onChange={(e) => setSearchText(e.target.value)}
                     className="w-full"
-              />
+                  />
                 </div>
               </div>
               <div className="flex gap-2">
@@ -260,7 +260,7 @@ const Record = () => {
                     icon={<ReloadOutlined />}
                     onClick={handleRefresh}
                     size="large"
-              />
+                  />
                 </Tooltip>
               </div>
             </div>

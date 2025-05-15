@@ -4,8 +4,10 @@ import "react-datepicker/dist/react-datepicker.css";
 import {
   Alert,
   Button,
+  Empty,
   Input,
   Modal,
+  Pagination,
   Radio,
   Space,
   Table,
@@ -14,21 +16,20 @@ import {
   Tooltip,
 } from "antd";
 import {
-  AppstoreOutlined,
-  BuildOutlined,
-  CalendarOutlined,
-  CarOutlined,
-  CheckCircleOutlined,
-  ClockCircleOutlined,
-  CloseCircleOutlined,
-  EyeOutlined,
-  HistoryOutlined,
-  InfoCircleOutlined,
-  ReloadOutlined,
-  SearchOutlined,
-  TeamOutlined,
-  ToolOutlined,
-  UserOutlined,
+BuildOutlined,
+CalendarOutlined,
+CarOutlined,
+CheckCircleOutlined,
+ClockCircleOutlined,
+CloseCircleOutlined,
+EyeOutlined,
+HistoryOutlined,
+InfoCircleOutlined,
+ReloadOutlined,
+SearchOutlined,
+TeamOutlined,
+ToolOutlined,
+UserOutlined,
 } from "@ant-design/icons";
 import { FaBuilding, FaCar, FaTools } from "react-icons/fa";
 import React, { useCallback, useEffect, useState } from "react";
@@ -44,7 +45,9 @@ const { Search } = Input;
 
 const ReservationRequests = () => {
   const [reservations, setReservations] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [userLevel, setUserLevel] = useState(null);
+  // eslint-disable-next-line no-unused-vars
   const [loading, setLoading] = useState(false);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
@@ -605,140 +608,178 @@ const ReservationRequests = () => {
 
   // Add this new Table component
   const RequestTable = ({ data, onView }) => {
-    const getStatusColor = (status, active) => {
-      if (active === "0") return "bg-y-400 text-yellow-800";
-      switch (status) {
-        case "Pending":
-          return "bg-blue-100 text-blue-800";
-        case "Approved":
-          return "bg-green-100 text-green-800";
-        case "Declined":
-          return "bg-red-100 text-red-800";
-        default:
-          return "bg-gray-100 text-gray-800";
-      }
-    };
-
-    const getStatusText = (status, active) => {
-      return active === "0" ? "Final Confirmation" : "Waiting for Approval";
-    };
+    const columns = [
+      {
+        title: "Title",
+        dataIndex: "reservation_title",
+        key: "reservation_title",
+        sorter: true,
+        sortOrder: sortField === "reservation_title" ? sortOrder : null,
+        render: (text, record) => (
+          <div className="flex items-center">
+            {getIconForType(record.type)}
+            <span className="ml-2">
+              {text || record.reservation_destination || "Untitled"}
+            </span>
+          </div>
+        ),
+      },
+      {
+        title: "Description",
+        dataIndex: "reservation_description",
+        key: "reservation_description",
+        render: (text) => (
+          <span className="line-clamp-2">{text || "No description"}</span>
+        ),
+      },
+      {
+        title: "Requester",
+        dataIndex: "requester_name",
+        key: "requester_name",
+        sorter: true,
+        sortOrder: sortField === "requester_name" ? sortOrder : null,
+      },
+      {
+        title: "Created At",
+        dataIndex: "reservation_created_at",
+        key: "reservation_created_at",
+        sorter: true,
+        sortOrder: sortField === "reservation_created_at" ? sortOrder : null,
+        render: (text) => new Date(text).toLocaleString(),
+      },
+      {
+        title: "Status",
+        dataIndex: "reservation_status",
+        key: "reservation_status",
+        render: (status, record) => (
+          <Tag
+            color={
+              record.active === "0"
+                ? "gold"
+                : status === "Pending"
+                ? "blue"
+                : status === "Approved"
+                ? "green"
+                : status === "Declined"
+                ? "red"
+                : "default"
+            }
+          >
+            {record.active === "0"
+              ? "Final Confirmation"
+              : "Waiting for Approval"}
+          </Tag>
+        ),
+      },
+      {
+        title: "Action",
+        key: "action",
+        render: (_, record) => (
+          <Button
+            type="primary"
+            onClick={() => fetchReservationDetails(record.reservation_id)}
+            icon={<EyeOutlined />}
+            className="font-medium text-blue-600 hover:underline"
+          >
+            View
+          </Button>
+        ),
+      },
+    ];
 
     return (
-      <div className="relative overflow-x-auto shadow-md sm:rounded-lg">
-        <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-          <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-            <tr>
-              <th scope="col" className="px-6 py-3">
-                Title
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Description
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Requester
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Created At
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Status
-              </th>
-              <th scope="col" className="px-6 py-3">
-                Action
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {data.map((record) => (
-              <tr
-                key={record.reservation_id}
-                className="odd:bg-white odd:dark:bg-gray-900 even:bg-gray-50 even:dark:bg-gray-800 border-b dark:border-gray-700 border-gray-200"
-              >
-                <th
-                  scope="row"
-                  className="px-6 py-4 font-medium text-gray-900 whitespace-nowrap dark:text-white"
-                >
-                  <div className="flex items-center">
-                    {getIconForType(record.type)}
-                    <span className="ml-2">
-                      {record.reservation_title ||
-                        record.reservation_destination ||
-                        "Untitled"}
-                    </span>
-                  </div>
-                </th>
-                <td className="px-6 py-4">{record.reservation_description}</td>
-                <td className="px-6 py-4">{record.requester_name}</td>
-                <td className="px-6 py-4">
-                  {new Date(record.reservation_created_at).toLocaleString()}
-                </td>
-                <td className="px-6 py-4">
-                  <span
-                    className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
-                      record.reservation_status,
-                      record.active
-                    )}`}
+      <div className="flex flex-col-reverse md:flex-col">
+        {/* Table */}
+        <div className="relative overflow-x-auto   shadow-md sm:rounded-lg bg-white dark:bg-green-100">
+          <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+            <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+              <tr>
+                {columns.map((column) => (
+                  <th
+                    key={column.key}
+                    scope="col"
+                    className="px-6 py-3"
+                    onClick={() =>
+                      column.sorter && handleSort(column.dataIndex)
+                    }
                   >
-                    {getStatusText(record.reservation_status, record.active)}
-                  </span>
-                </td>
-                <td className="px-6 py-4">
-                  <button
-                    onClick={() => onView(record.reservation_id)}
-                    className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
-                  >
-                    View
-                  </button>
-                </td>
+                    <div className="flex items-center cursor-pointer hover:text-gray-900">
+                      {column.title}
+                      {sortField === column.dataIndex && (
+                        <span className="ml-1">
+                          {sortOrder === "asc" ? "↑" : "↓"}
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {data.length > 0 ? (
+                data.map((record) => (
+                  <tr
+                    key={record.reservation_id}
+                    className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                  >
+                    {columns.map((column) => (
+                      <td
+                        key={`${record.reservation_id}-${column.key}`}
+                        className="px-6 py-4"
+                      >
+                        {column.render
+                          ? column.render(record[column.dataIndex], record)
+                          : record[column.dataIndex]}
+                      </td>
+                    ))}
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-6 py-24 text-center"
+                  >
+                    <Empty
+                      image={Empty.PRESENTED_IMAGE_SIMPLE}
+                      description={
+                        <span className="text-gray-500 dark:text-gray-400">
+                          No reservation requests found
+                        </span>
+                      }
+                    />
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
 
-        {/* Pagination - You'll need to implement this part */}
-        <div className="flex items-center justify-between p-4">
-          <div>
-            Showing {(currentPage - 1) * pageSize + 1}-
-            {Math.min(currentPage * pageSize, filteredReservations.length)} of{" "}
-            {filteredReservations.length} items
-          </div>
-          <div className="flex space-x-2">
-            <select
-              value={pageSize}
-              onChange={(e) => setPageSize(Number(e.target.value))}
-              className="border rounded px-2 py-1"
-            >
-              {[10, 20, 50, 100].map((size) => (
-                <option key={size} value={size}>
-                  {size} per page
-                </option>
-              ))}
-            </select>
-            <button
-              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-              disabled={currentPage === 1}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Previous
-            </button>
-            <button
-              onClick={() => setCurrentPage((p) => p + 1)}
-              disabled={currentPage * pageSize >= filteredReservations.length}
-              className="px-3 py-1 border rounded disabled:opacity-50"
-            >
-              Next
-            </button>
+          {/* Always show pagination, even when empty */}
+          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+            <Pagination
+              current={currentPage}
+              pageSize={pageSize}
+              total={filteredReservations.length}
+              onChange={(page, size) => {
+                setCurrentPage(page);
+                setPageSize(size);
+              }}
+              showSizeChanger={true}
+              showTotal={(total, range) =>
+                `${range[0]}-${range[1]} of ${total} items`
+              }
+              className="flex justify-end"
+            />
           </div>
         </div>
       </div>
     );
   };
-
   const EnhancedFilters = () => (
     <div className="bg-white p-4 rounded-lg shadow-sm mb-6">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <div className="flex flex-col md:flex-row gap-4 flex-1">
-          <div className="w-full md:w-auto md:flex-1">
+          <div className="flex-1">
             <Search
               placeholder="Search by ID, title, or requester"
               allowClear
@@ -817,85 +858,93 @@ const ReservationRequests = () => {
 
   // Replace the existing card rendering code in the return statement
   return (
-    <div className="flex flex-col lg:flex-row bg-gradient-to-br from-white to-green-100 min-h-screen">
-      <Sidebar />
-      <div className="flex-grow p-8 lg:p-12">
-        <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className="mb-8"
-        >
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <h2 className="text-4xl font-bold text-gray-800">
-              Reservation Requests
-            </h2>
-          </div>
-        </motion.div>
+    <div className="flex h-screen overflow-hidden">
+      {/* Fixed Sidebar */}
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
 
-        {/* Enhanced Filters */}
-        <EnhancedFilters />
+      {/* Scrollable Content Area */}
+      <div className="flex-1 overflow-y-auto">
+        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+          <motion.div
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8"
+          >
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <h2 className="text-4xl font-bold text-gray-800 mt-5">
+                Reservation Requests
+              </h2>
+            </div>
+          </motion.div>
 
-        <Tabs
-          activeKey={activeTab}
-          onChange={handleTabChange}
-          items={items}
-          className="bg-white p-4 rounded-lg shadow-sm"
-        />
+          {/* Search and Filters */}
+          <EnhancedFilters />
 
-        {/* Detail Modal for Accepting */}
-        <DetailModal
-          visible={isDetailModalOpen}
-          onClose={() => {
-            setIsDetailModalOpen(false);
-            setCurrentRequest(null);
-            setReservationDetails(null);
-          }}
-          reservationDetails={reservationDetails}
-          setReservationDetails={setReservationDetails}
-          onAccept={handleAccept}
-          onDecline={() => setIsDeclineModalOpen(true)}
-          isAccepting={isAccepting}
-          isDeclining={isDeclining}
-        />
+          {/* Tabs */}
+          <Tabs
+            activeKey={activeTab}
+            onChange={handleTabChange}
+            items={items}
+            className="bg-white p-4 rounded-lg shadow-sm"
+          />
 
-        {/* Confirmation Modal for Declining */}
-        <Modal
-          title="Confirm Decline"
-          visible={isDeclineModalOpen}
-          onCancel={() => setIsDeclineModalOpen(false)}
-          maskClosable={false}
-          zIndex={1001}
-          footer={[
-            <Button key="back" onClick={() => setIsDeclineModalOpen(false)}>
-              Cancel
-            </Button>,
-            <Button
-              key="submit"
-              type="primary"
-              danger
-              loading={isDeclining}
-              onClick={() => {
-                handleDecline();
-              }}
-            >
-              Decline
-            </Button>,
-          ]}
-        >
-          <p>
-            Are you sure you want to decline this reservation? This action
-            cannot be undone.
-          </p>
-        </Modal>
+          {/* Table content will appear here and scroll with the rest */}
 
-        {/* Priority Conflict Modal */}
-        <PriorityConflictModal
-          visible={isPriorityConflictModalOpen}
-          onClose={() => setIsPriorityConflictModalOpen(false)}
-          conflictingReservations={conflictingReservations}
-          onConfirm={handleAcceptWithOverride}
-        />
+          {/* Modals (positioned outside scrollable area) */}
+          <DetailModal
+            visible={isDetailModalOpen}
+            onClose={() => {
+              setIsDetailModalOpen(false);
+              setCurrentRequest(null);
+              setReservationDetails(null);
+            }}
+            reservationDetails={reservationDetails}
+            setReservationDetails={setReservationDetails}
+            onAccept={handleAccept}
+            onDecline={() => setIsDeclineModalOpen(true)}
+            isAccepting={isAccepting}
+            isDeclining={isDeclining}
+          />
+
+          <Modal
+            title="Confirm Decline"
+            visible={isDeclineModalOpen}
+            onCancel={() => setIsDeclineModalOpen(false)}
+            maskClosable={false}
+            zIndex={1001}
+            footer={[
+              <Button key="back" onClick={() => setIsDeclineModalOpen(false)}>
+                Cancel
+              </Button>,
+              <Button
+                key="submit"
+                type="primary"
+                danger
+                loading={isDeclining}
+                onClick={() => {
+                  handleDecline();
+                }}
+              >
+                Decline
+              </Button>,
+            ]}
+          >
+            <p>
+              Are you sure you want to decline this reservation? This action
+              cannot be undone.
+            </p>
+          </Modal>
+
+          <PriorityConflictModal
+            visible={isPriorityConflictModalOpen}
+            onClose={() => setIsPriorityConflictModalOpen(false)}
+            conflictingReservations={conflictingReservations}
+            onConfirm={handleAcceptWithOverride}
+          />
+        </div>
       </div>
     </div>
   );
@@ -1334,15 +1383,14 @@ const DetailModal = ({
       title={null}
       visible={visible}
       onCancel={onClose}
-      width={window.innerWidth < 768 ? "90%" : 800} // Responsive width
+      width={800}
       footer={getModalFooter()}
       className="reservation-detail-modal"
       bodyStyle={{ padding: "0" }}
       maskClosable={false}
       zIndex={1000}
-      style={{ top: 20 }}
     >
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="p-0">
         {/* Header Section */}
         <div className="bg-gradient-to-r from-blue-600 to-green-500 p-6 rounded-t-lg">
           <div className="flex justify-between items-center">

@@ -1,3 +1,8 @@
+*{
+  background-color:  --light-cream #d4f4dc;
+}
+
+
 /* Color Palette */
 :root {
   --primary-green: #548e54;

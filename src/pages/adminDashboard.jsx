@@ -2,21 +2,49 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { initializeSessionManager } from '../utils/sessionManager';
-
-import { FaClipboardList, FaCar, FaUsers, FaBuilding, FaTools, FaUserTie, FaEye, FaCheckCircle, FaSun, FaMoon, FaClock, FaTimesCircle, FaClipboardCheck, FaCalendar, FaChartLine, FaChartBar, FaCalendarDay, FaFileAlt } from 'react-icons/fa';
+import {
+  FaClipboardList, FaCar, FaUsers, FaBuilding, FaTools, FaUserTie,
+  FaEye, FaCheckCircle, FaSun, FaMoon, FaClock, FaTimesCircle,
+  FaClipboardCheck, FaCalendar, FaChartLine, FaChartBar,
+  FaCalendarDay, FaFileAlt, FaBell, FaEllipsisH, FaArrowUp,
+  FaArrowDown, FaPercent
+} from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
-// Replace the Ant Design imports with Chart.js imports
-import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend } from 'chart.js';
-import { Line } from 'react-chartjs-2';
-import { Select } from 'antd';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  DoughnutController,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+import { Line, Bar, Doughnut } from 'react-chartjs-2';
+import { Select, Badge, Progress, Dropdown, Menu, Avatar } from 'antd';
 import { SecureStorage } from '../utils/encryption';
 
 // Register ChartJS components
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  BarElement,
+  ArcElement,
+  DoughnutController,
+  Title,
+  Tooltip,
+  Legend
+);
 
+// Utility functions
 const formatDate = (dateInput) => {
     if (!dateInput) return 'N/A';
     
@@ -48,6 +76,45 @@ const formatDate = (dateInput) => {
     
     return 'Invalid Date';
 };
+
+// New component for Stats Card
+const StatsCard = ({ title, value, icon: Icon, trend, color }) => (
+  <motion.div
+    className={`p-6 rounded-xl shadow-lg ${color} dark:bg-gray-800`}
+    whileHover={{ scale: 1.02 }}
+    transition={{ type: "spring", stiffness: 300 }}
+  >
+    <div className="flex items-center justify-between">
+      <div>
+        <p className="text-sm font-medium text-gray-600 dark:text-gray-400">{title}</p>
+        <h3 className="text-2xl font-bold mt-2">{value}</h3>
+        {trend && (
+          <p className={`flex items-center mt-2 ${trend > 0 ? 'text-green-500' : 'text-red-500'}`}>
+            {trend > 0 ? <FaArrowUp className="mr-1" /> : <FaArrowDown className="mr-1" />}
+            {Math.abs(trend)}%
+          </p>
+        )}
+      </div>
+      <div className={`p-3 rounded-full ${color} bg-opacity-20`}>
+        <Icon className="w-6 h-6" />
+      </div>
+    </div>
+  </motion.div>
+);
+
+// New component for Activity Card
+const ActivityCard = ({ activity }) => (
+  <div className="flex items-center space-x-4 p-4 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-lg transition-colors">
+    <div className={`p-2 rounded-full ${activity.color} bg-opacity-20`}>
+      {activity.icon}
+    </div>
+    <div className="flex-1">
+      <p className="font-medium dark:text-white">{activity.title}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">{activity.description}</p>
+    </div>
+    <span className="text-sm text-gray-400">{activity.time}</span>
+  </div>
+);
 
 const Dashboard = () => {
     const navigate = useNavigate();
@@ -593,54 +660,31 @@ const Dashboard = () => {
     const transformReservationData = (data) => {
         if (!data || data.length === 0) return { labels: [], datasets: [] };
         
-        // Extract unique dates
-        const uniqueDates = [...new Set(data.map(item => item.date))];
-        
-        // Get reserved and declined counts for each date
-        const reservedCounts = uniqueDates.map(date => {
-            const found = data.find(item => item.date === date && item.status === 'Reserved');
-            return found ? found.count : 0;
-        });
-        
-        const declinedCounts = uniqueDates.map(date => {
-            const found = data.find(item => item.date === date && item.status === 'Declined');
-            return found ? found.count : 0;
-        });
+        // Calculate total counts for reserved and declined
+        const totalReserved = data.reduce((sum, item) => 
+            item.status === 'Reserved' ? sum + item.count : sum, 0);
+        const totalDeclined = data.reduce((sum, item) => 
+            item.status === 'Declined' ? sum + item.count : sum, 0);
         
         return {
-            labels: uniqueDates,
-            datasets: [
-                {
-                    label: 'Reserved',
-                    data: reservedCounts,
-                    borderColor: '#8E24AA',
-                    backgroundColor: 'rgba(142, 36, 170, 0.1)',
-                    borderWidth: 3,
-                    tension: 0.4,
-                    pointBackgroundColor: '#8E24AA',
-                    pointBorderColor: '#fff',
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    fill: true,
-                },
-                {
-                    label: 'Declined',
-                    data: declinedCounts,
-                    borderColor: '#F57C00',
-                    backgroundColor: 'rgba(245, 124, 0, 0.1)',
-                    borderWidth: 3,
-                    tension: 0.4,
-                    pointBackgroundColor: '#F57C00',
-                    pointBorderColor: '#fff',
-                    pointRadius: 5,
-                    pointHoverRadius: 7,
-                    fill: true,
-                }
-            ]
+            labels: ['Reserved', 'Declined'],
+            datasets: [{
+                data: [totalReserved, totalDeclined],
+                backgroundColor: [
+                    'rgba(142, 36, 170, 0.8)',
+                    'rgba(245, 124, 0, 0.8)'
+                ],
+                borderColor: [
+                    '#8E24AA',
+                    '#F57C00'
+                ],
+                borderWidth: 1,
+                hoverOffset: 4
+            }]
         };
     };
 
-    // Chart.js options
+    // Chart.js options for Doughnut chart
     const chartOptions = {
         responsive: true,
         maintainAspectRatio: false,
@@ -659,8 +703,6 @@ const Dashboard = () => {
                 }
             },
             tooltip: {
-                mode: 'index',
-                intersect: false,
                 backgroundColor: darkMode ? 'rgba(30, 41, 59, 0.9)' : 'rgba(255, 255, 255, 0.9)',
                 titleColor: darkMode ? '#d1d5db' : '#1f2937',
                 bodyColor: darkMode ? '#9ca3af' : '#4b5563',
@@ -676,65 +718,22 @@ const Dashboard = () => {
                     size: 13
                 },
                 callbacks: {
-                    title: (tooltipItems) => {
-                        return `Date: ${tooltipItems[0].label}`;
-                    },
                     label: (context) => {
-                        return `${context.dataset.label}: ${context.raw} reservations`;
+                        const label = context.label || '';
+                        const value = context.raw || 0;
+                        const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                        const percentage = ((value / total) * 100).toFixed(1);
+                        return `${label}: ${value} (${percentage}%)`;
                     }
                 }
             }
         },
-        scales: {
-            x: {
-                grid: {
-                    color: darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(229, 231, 235, 0.7)',
-                    drawBorder: false
-                },
-                ticks: {
-                    color: darkMode ? '#9ca3af' : '#6b7280',
-                    maxRotation: 45,
-                    minRotation: 45
-                },
-                title: {
-                    display: true,
-                    text: timeFilter === '365' ? 'Month' : timeFilter === '90' ? 'Week' : 'Date',
-                    color: darkMode ? '#d1d5db' : '#4b5563',
-                    font: {
-                        size: 14,
-                        weight: 'bold'
-                    }
-                }
-            },
-            y: {
-                grid: {
-                    color: darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(229, 231, 235, 0.7)',
-                    drawBorder: false
-                },
-                ticks: {
-                    color: darkMode ? '#9ca3af' : '#6b7280',
-                    precision: 0
-                },
-                title: {
-                    display: true,
-                    text: 'Number of Reservations',
-                    color: darkMode ? '#d1d5db' : '#4b5563',
-                    font: {
-                        size: 14,
-                        weight: 'bold'
-                    }
-                },
-                beginAtZero: true
-            }
-        },
-        animations: {
-            tension: {
-                duration: 1000,
-                easing: 'linear',
-                from: 0.4,
-                to: 0.4,
-                loop: false
-            }
+        cutout: '60%',
+        rotation: -90,
+        circumference: 360,
+        animation: {
+            animateRotate: true,
+            animateScale: true
         }
     };
 
@@ -810,8 +809,7 @@ const Dashboard = () => {
 
                     {/* Main Content with scrollable area */}
                     <div className="flex-1 overflow-y-auto p-6 space-y-6">
-                        {/* Statistics Overview */}
-                        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                             
                             <StatCard
                                 title="Venues"
@@ -838,430 +836,126 @@ const Dashboard = () => {
                                 color="bg-red-500"
                             />
                         </div>
-
-                        {/* Recent Requests and Completed Tasks Row */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Recent Requests Section */}
+                        {/* Top Row with Reservation Activity and Active Reservations */}
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {/* Reservation Activity Chart */}
                             <motion.div
-                                className="bg-white rounded-lg shadow-sm p-6"
-                                variants={cardVariants}
+                                variants={containerVariants}
                                 initial="hidden"
-                                animate="visible"
+                                animate="visible" 
+                                className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg dark:bg-gray-900 overflow-hidden border border-green-100 dark:border-green-900"
+                                style={{
+                                    background: `linear-gradient(to bottom, ${darkMode ? '#1f2937' : '#f8fafc'}, ${darkMode ? '#111827' : '#ffffff'})`,
+                                    backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23${darkMode ? '4b5563' : 'e2e8f0'}' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
+                                    boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)'
+                                }}
                             >
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-                                        <FaClipboardList className="text-green-500 text-xl mr-2" />
-                                        Recent Requests
-                                    </h2>
-                                    <span className="text-sm text-gray-500">{recentRequests.length} requests</span>
-                                </div>
-                                <div className="space-y-4">
-                                    {paginateItems(recentRequests, requestsPage, itemsPerPage).map((request, index) => (
-                                        <motion.div
-                                            key={index}
-                                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200 cursor-pointer border border-gray-100"
-                                            whileHover={{ scale: 1.01 }}
-                                            whileTap={{ scale: 0.99 }}
-                                        >
-                                            <div className="flex items-start space-x-4">
-                                                <div className="bg-green-100 p-2 rounded-full">
-                                                    <FaFileAlt className="text-green-600 text-lg" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-medium text-gray-800 mb-1">
-                                                        {request.reservation_form_name}
-                                                    </h3>
-                                                    <div className="flex items-center space-x-2 text-sm">
-                                                        <span className="text-green-600">
-                                                            {format(new Date(request.reservation_date), 'PPp')}
-                                                        </span>
-                                                        
-                                                        
-                                                    </div>
-                                                </div>
+                                <div className="p-5">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
+                                        <div className="flex items-center">
+                                            <div className="flex items-center justify-center w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900 mr-3">
+                                                <FaChartLine className="text-teal-600 dark:text-teal-400" />
                                             </div>
-                                            
-                                        </motion.div>
-                                    ))}
-                                    {recentRequests.length === 0 && (
-                                        <div className="text-center py-6 text-gray-500">
-                                            No recent requests found
+                                            <div>
+                                                <h2 className="text-xl font-bold text-gray-900 dark:text-white">Reservation Activity</h2>
+                                                <p className="text-sm text-gray-500 dark:text-gray-400">Monitoring reservation trends</p>
+                                            </div>
                                         </div>
-                                    )}
+                                        <div className="flex items-center mt-4 sm:mt-0 space-x-3">
+                                            <Select
+                                                defaultValue="365"
+                                                style={{ width: 130, borderRadius: '0.375rem' }}
+                                                onChange={setTimeFilter}
+                                                options={[
+                                                    { value: '7', label: 'Last 7 Days' },
+                                                    { value: '30', label: 'Last 30 Days' },
+                                                    { value: '90', label: 'Last 90 Days' },
+                                                    { value: '365', label: 'Yearly' },
+                                                ]}
+                                            />
+                                        </div>
+                                    </div>
+                                    
+                                    <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md" style={{ minHeight: '280px' }}>
+                                        <Doughnut 
+                                            data={transformReservationData(reservationData)}
+                                            options={chartOptions}
+                                            height={250}
+                                        />
+                                    </div>
                                 </div>
                             </motion.div>
 
-                            {/* Completed Tasks Section */}
+                            {/* Active Reservations Section */}
                             <motion.div
-                                className="bg-white rounded-lg shadow-sm p-6"
-                                variants={cardVariants}
+                                variants={containerVariants}
                                 initial="hidden"
                                 animate="visible"
+                                className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg dark:bg-gray-800/90 overflow-hidden border border-green-100 dark:border-green-900"
                             >
-                                <div className="flex justify-between items-center mb-6">
-                                    <h2 className="text-xl font-semibold text-gray-800 flex items-center">
-                                        <FaClipboardCheck className="text-blue-500 text-xl mr-2" />
-                                        Completed Tasks
+                                <div className="bg-gradient-to-r from-amber-500 to-amber-700 p-4 flex justify-between items-center">
+                                    <h2 className="text-white text-lg font-semibold flex items-center">
+                                        <FaClock className="mr-2" /> Active Reservations
                                     </h2>
-                                    <span className="text-sm text-gray-500">{completedTasks.length} tasks</span>
+                                    <div className="bg-white/20 px-2 py-1 rounded text-xs font-medium text-white">
+                                        {ongoingReservations.length} Active
+                                    </div>
                                 </div>
-                                <div className="space-y-4">
-                                    {paginateItems(completedTasks, tasksPage, itemsPerPage).map((task, index) => (
-                                        <motion.div
-                                            key={index}
-                                            className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all duration-200 cursor-pointer border border-gray-100"
-                                            whileHover={{ scale: 1.01 }}
-                                            whileTap={{ scale: 0.99 }}
-                                        >
-                                            <div className="flex items-start space-x-4">
-                                                <div className="bg-blue-100 p-2 rounded-full">
-                                                    <FaCheckCircle className="text-blue-600 text-lg" />
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-medium text-gray-800 mb-1">
-                                                        {task.task_name}
-                                                    </h3>
-                                                    <div className="flex items-center space-x-2 text-sm">
-                                                        <span className="text-blue-600">
-                                                            {format(new Date(task.date_completed), 'PPp')}
-                                                        </span>
-                                                        
-                                                        
-                                                    </div>
-                                                </div>
-                                            </div>
-                                            
-                                        </motion.div>
-                                    ))}
-                                    {completedTasks.length === 0 && (
-                                        <div className="text-center py-6 text-gray-500">
-                                            No completed tasks found
+                                <div className="p-4 overflow-y-auto" style={{ maxHeight: 'calc(100% - 64px)' }}>
+                                    {ongoingReservations.length > 0 ? (
+                                        <div className="overflow-x-auto">
+                                            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                                <thead className="bg-gray-50 dark:bg-gray-700">
+                                                    <tr>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Reservation</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Requestor</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
+                                                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Details</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
+                                                    {ongoingReservations.slice(0, 5).map((reservation, index) => (
+                                                        <motion.tr 
+                                                            key={index}
+                                                            variants={itemVariants}
+                                                            className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                                                        >
+                                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                                <div className="text-sm font-medium text-gray-900 dark:text-white">{reservation.reservation_form_name || 'N/A'}</div>
+                                                                <div className="text-xs text-gray-500 dark:text-gray-400">{formatDate(reservation.reservation_start_date)}</div>
+                                                            </td>
+                                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                                <div className="text-sm text-gray-500 dark:text-gray-300">{reservation.requestor_name || 'N/A'}</div>
+                                                            </td>
+                                                            <td className="px-4 py-3 whitespace-nowrap">
+                                                                <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(reservation.status_name)}`}>
+                                                                    {reservation.status_name || 'N/A'}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 whitespace-nowrap text-right text-sm font-medium">
+                                                                <button
+                                                                    onClick={() => fetchReservationDetails(reservation.reservation_id)}
+                                                                    className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
+                                                                >
+                                                                    <FaEye />
+                                                                </button>
+                                                            </td>
+                                                        </motion.tr>
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-12">
+                                            <FaCalendar className="mx-auto text-gray-300 dark:text-gray-600 text-5xl mb-4" />
+                                            <p className="text-gray-500 dark:text-gray-400">No ongoing reservations at the moment</p>
                                         </div>
                                     )}
                                 </div>
                             </motion.div>
                         </div>
 
-                        {/* Dashboard Stats Overview */}
-                        <motion.div 
-                            className="grid grid-cols-2 sm:grid-cols-4 gap-4"
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible"
-                        >
-                            <motion.div variants={itemVariants}>
-                                <StatCard
-                                    title="Venues"
-                                    value={totals.venues}
-                                    icon={<FaBuilding />}
-                                    color="bg-gradient-to-br from-green-500 to-green-700"
-                                />
-                            </motion.div>
-                            <motion.div variants={itemVariants}>
-                                <StatCard
-                                    title="Equipment"
-                                    value={totals.equipments}
-                                    icon={<FaTools />}
-                                    color="bg-gradient-to-br from-purple-500 to-purple-700"
-                                />
-                            </motion.div>
-                            <motion.div variants={itemVariants}>
-                                <StatCard
-                                    title="Vehicles"
-                                    value={totals.vehicles}
-                                    icon={<FaCar />}
-                                    color="bg-gradient-to-br from-blue-500 to-blue-700"
-                                />
-                            </motion.div>
-                            <motion.div variants={itemVariants}>
-                                <StatCard
-                                    title="Users"
-                                    value={totals.users}
-                                    icon={<FaUsers />}
-                                    color="bg-gradient-to-br from-amber-500 to-amber-700"
-                                />
-                            </motion.div>
-                        </motion.div>
-
-                        {/* Facility Usage Lists Section */}
-                       
-
-                        {/* Reservation Activity Chart - COMPLETELY NEW DESIGN */}
-                        <motion.div
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible" 
-                            className="bg-white dark:bg-gray-900 rounded-xl shadow-lg overflow-hidden"
-                            style={{
-                                background: `linear-gradient(to bottom, ${darkMode ? '#1f2937' : '#f8fafc'}, ${darkMode ? '#111827' : '#ffffff'})`,
-                                backgroundImage: `url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23${darkMode ? '4b5563' : 'e2e8f0'}' fill-opacity='0.15'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")`,
-                                boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
-                                border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
-                            }}
-                        >
-                            <div className="p-5">
-                                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6">
-                                    <div className="flex items-center">
-                                        <div className="flex items-center justify-center w-10 h-10 rounded-full bg-teal-100 dark:bg-teal-900 mr-3">
-                                            <FaChartLine className="text-teal-600 dark:text-teal-400" />
-                                        </div>
-                                        <div>
-                                            <h2 className="text-xl font-bold text-gray-900 dark:text-white">Reservation Activity</h2>
-                                            <p className="text-sm text-gray-500 dark:text-gray-400">Monitoring reservation trends and patterns</p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center mt-4 sm:mt-0 space-x-3">
-                                        <div className="flex items-center">
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10B981', marginRight: '6px' }}></div>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Reserved</span>
-                                        </div>
-                                        <div className="flex items-center">
-                                            <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#EF4444', marginRight: '6px' }}></div>
-                                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Declined</span>
-                                        </div>
-                                        <Select
-                                            defaultValue="365"
-                                            style={{ 
-                                                width: 130,
-                                                borderRadius: '0.375rem'
-                                            }}
-                                            onChange={setTimeFilter}
-                                            options={[
-                                                { value: '7', label: 'Last 7 Days' },
-                                                { value: '30', label: 'Last 30 Days' },
-                                                { value: '90', label: 'Last 90 Days' },
-                                                { value: '365', label: 'Yearly' },
-                                            ]}
-                                        />
-                                    </div>
-                                </div>
-                                
-                                <div className="bg-white dark:bg-gray-800 rounded-lg p-4 shadow-md mb-6" style={{ minHeight: '320px' }}>
-                                    <Line 
-                                        data={transformReservationData(reservationData)}
-                                        options={chartOptions}
-                                        height={300}
-                                    />
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                    {/* Peak Period Card */}
-                                    <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/20 dark:to-purple-800/20 p-4 rounded-lg border border-purple-200 dark:border-purple-800">
-                                        <div className="flex items-center mb-2">
-                                            <div className="w-8 h-8 rounded-full bg-purple-100 dark:bg-purple-800 flex items-center justify-center mr-2">
-                                                <FaCalendarDay className="text-purple-600 dark:text-purple-300" />
-                                            </div>
-                                            <h3 className="text-xs uppercase text-purple-700 dark:text-purple-300 tracking-wider font-semibold">PEAK PERIOD</h3>
-                                        </div>
-                                        <p className="text-lg font-bold text-gray-800 dark:text-white">
-                                            {(() => {
-                                                if (timeFilter === '365') return 'December';
-                                                if (timeFilter === '90') return 'Week 3, June';
-                                                if (timeFilter === '30') return 'June 13';
-                                                return 'June 18';
-                                            })()}
-                                        </p>
-                                        <p className="text-sm text-purple-600 dark:text-purple-300">
-                                            {(() => {
-                                                if (timeFilter === '365') return '180 reservations';
-                                                if (timeFilter === '90') return '45 reservations';
-                                                if (timeFilter === '30') return '18 reservations';
-                                                return '14 reservations';
-                                            })()}
-                                        </p>
-                                    </div>
-
-                                    {/* Total Approvals Card */}
-                                    <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/20 dark:to-green-800/20 p-4 rounded-lg border border-green-200 dark:border-green-800">
-                                        <div className="flex items-center mb-2">
-                                            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center mr-2">
-                                                <FaCheckCircle className="text-green-600 dark:text-green-300" />
-                                            </div>
-                                            <h3 className="text-xs uppercase text-green-700 dark:text-green-300 tracking-wider font-semibold">TOTAL APPROVALS</h3>
-                                        </div>
-                                        <p className="text-lg font-bold text-gray-800 dark:text-white">
-                                            {(() => {
-                                                if (timeFilter === '365') return '1,392';
-                                                if (timeFilter === '90') return '371';
-                                                if (timeFilter === '30') return '67';
-                                                return '71';
-                                            })()}
-                                        </p>
-                                        <p className="text-sm text-green-600 dark:text-green-300">
-                                            {(() => {
-                                                if (timeFilter === '365') return '+12.5% from last year';
-                                                if (timeFilter === '90') return '+8.7% from last quarter';
-                                                if (timeFilter === '30') return '+15.2% from last month';
-                                                return '+22.4% from last week';
-                                            })()}
-                                        </p>
-                                    </div>
-
-                                    {/* Decline Rate Card */}
-                                    <div className="bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/20 dark:to-red-800/20 p-4 rounded-lg border border-red-200 dark:border-red-800">
-                                        <div className="flex items-center mb-2">
-                                            <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-800 flex items-center justify-center mr-2">
-                                                <FaTimesCircle className="text-red-600 dark:text-red-300" />
-                                            </div>
-                                            <h3 className="text-xs uppercase text-red-700 dark:text-red-300 tracking-wider font-semibold">DECLINE RATE</h3>
-                                        </div>
-                                        <p className="text-lg font-bold text-gray-800 dark:text-white">
-                                            {(() => {
-                                                if (timeFilter === '365') return '36%';
-                                                if (timeFilter === '90') return '32%';
-                                                if (timeFilter === '30') return '37%';
-                                                return '35%';
-                                            })()}
-                                        </p>
-                                        <p className="text-sm text-red-600 dark:text-red-300">
-                                            {(() => {
-                                                if (timeFilter === '365') return '-2.8% from last year';
-                                                if (timeFilter === '90') return '-1.5% from last quarter';
-                                                if (timeFilter === '30') return '+3.2% from last month';
-                                                return '-0.7% from last week';
-                                            })()}
-                                        </p>
-                                    </div>
-
-                                    {/* Average Card */}
-                                    <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/20 dark:to-blue-800/20 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
-                                        <div className="flex items-center mb-2">
-                                            <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-800 flex items-center justify-center mr-2">
-                                                <FaChartBar className="text-blue-600 dark:text-blue-300" />
-                                            </div>
-                                            <h3 className="text-xs uppercase text-blue-700 dark:text-blue-300 tracking-wider font-semibold">AVERAGE/MONTH</h3>
-                                        </div>
-                                        <p className="text-lg font-bold text-gray-800 dark:text-white">
-                                            {(() => {
-                                                if (timeFilter === '365') return '116';
-                                                if (timeFilter === '90') return '123';
-                                                if (timeFilter === '30') return '134';
-                                                return '142';
-                                            })()}
-                                        </p>
-                                        <p className="text-sm text-blue-600 dark:text-blue-300">
-                                            {(() => {
-                                                if (timeFilter === '365') return 'Annual average';
-                                                if (timeFilter === '90') return 'Quarterly average';
-                                                if (timeFilter === '30') return 'Monthly average';
-                                                return 'Weekly average';
-                                            })()}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-
-                        {/* Additional Reservation Statistics Module */}
-                        <motion.div
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible" 
-                            className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg dark:bg-gray-800/90 overflow-hidden border border-green-100 dark:border-green-900"
-                        >
-                            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 p-4">
-                                <h2 className="text-white text-lg font-semibold flex items-center">
-                                    <FaClipboardCheck className="mr-2" /> Reservation Trends Analysis
-                                </h2>
-                            </div>
-                            <div className="p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-                                {/* Monthly Comparison */}
-                                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                    <h3 className="text-gray-700 dark:text-gray-300 font-medium mb-2 flex items-center">
-                                        <FaCalendar className="mr-2 text-purple-500" /> Monthly Comparison
-                                    </h3>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400">Current Month</span>
-                                            <span className="font-semibold text-green-600">{timeFilter === '365' ? '180' : '142'}</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
-                                            <div className="bg-green-500 h-2.5 rounded-full" style={{ width: '85%' }}></div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400">Previous Month</span>
-                                            <span className="font-semibold text-purple-600">{timeFilter === '365' ? '160' : '128'}</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2.5">
-                                            <div className="bg-purple-500 h-2.5 rounded-full" style={{ width: '75%' }}></div>
-                                        </div>
-                                        <div className="text-center mt-2">
-                                            <span className="text-xs px-2 py-1 rounded bg-green-100 text-green-800">
-                                                +12.5% Increase
-                                            </span>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Status Distribution */}
-                                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                    <h3 className="text-gray-700 dark:text-gray-300 font-medium mb-2 flex items-center">
-                                        <FaClipboardList className="mr-2 text-indigo-500" /> Status Distribution
-                                    </h3>
-                                    <div className="space-y-3">
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center">
-                                                <div className="w-3 h-3 rounded-full bg-green-500 mr-2"></div>
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">Reserved</span>
-                                            </div>
-                                            <span className="font-semibold">64%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                                            <div className="bg-green-500 h-2 rounded-full" style={{ width: '64%' }}></div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <div className="flex items-center">
-                                                <div className="w-3 h-3 rounded-full bg-red-500 mr-2"></div>
-                                                <span className="text-sm text-gray-600 dark:text-gray-400">Declined</span>
-                                            </div>
-                                            <span className="font-semibold">36%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                                            <div className="bg-red-500 h-2 rounded-full" style={{ width: '36%' }}></div>
-                                        </div>
-                                        
-                                        
-                                    </div>
-                                </div>
-
-                                {/* Department Activity */}
-                                <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-                                    <h3 className="text-gray-700 dark:text-gray-300 font-medium mb-2 flex items-center">
-                                        <FaUserTie className="mr-2 text-amber-500" /> Department Activity
-                                    </h3>
-                                    <div className="space-y-2">
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400 truncate">IT Department</span>
-                                            <span className="font-semibold text-amber-600">35%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                                            <div className="bg-amber-500 h-2 rounded-full" style={{ width: '35%' }}></div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400 truncate">College of Engineering</span>
-                                            <span className="font-semibold text-amber-600">25%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                                            <div className="bg-amber-500 h-2 rounded-full" style={{ width: '25%' }}></div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400 truncate">College of Education</span>
-                                            <span className="font-semibold text-amber-600">20%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                                            <div className="bg-amber-500 h-2 rounded-full" style={{ width: '20%' }}></div>
-                                        </div>
-                                        <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600 dark:text-gray-400 truncate">Other Departments</span>
-                                            <span className="font-semibold text-amber-600">20%</span>
-                                        </div>
-                                        <div className="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-2">
-                                            <div className="bg-amber-500 h-2 rounded-full" style={{ width: '20%' }}></div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </motion.div>
-
+                        {/* Facility Usage Lists */}
                         <motion.div
                             variants={containerVariants}
                             initial="hidden"
@@ -1330,95 +1024,6 @@ const Dashboard = () => {
                                     />
                                 </div>
                             </motion.div>
-                        </motion.div>
-
-                        {/* Ongoing Reservations Section */}
-                        <motion.div
-                            variants={containerVariants}
-                            initial="hidden"
-                            animate="visible"
-                            className="bg-white/90 backdrop-blur-sm rounded-xl shadow-lg dark:bg-gray-800/90 overflow-hidden border border-green-100 dark:border-green-900"
-                        >
-                            <div className="bg-gradient-to-r from-amber-500 to-amber-700 p-4 flex justify-between items-center">
-                                <h2 className="text-white text-lg font-semibold flex items-center">
-                                    <FaClock className="mr-2" /> Active Reservations
-                                </h2>
-                                <div className="bg-white/20 px-2 py-1 rounded text-xs font-medium text-white">
-                                    {ongoingReservations.length} Active
-                                </div>
-                            </div>
-                            <div className="p-6">
-                                {ongoingReservations.length > 0 ? (
-                                    <div className="overflow-x-auto">
-                                        <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-                                            <thead className="bg-gray-50 dark:bg-gray-700">
-                                                <tr>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Reservation</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Requestor</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Start Date</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">End Date</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Status</th>
-                                                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Details</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody className="bg-white divide-y divide-gray-200 dark:bg-gray-800 dark:divide-gray-700">
-                                                {ongoingReservations.slice(0, 5).map((reservation, index) => (
-                                                    <motion.tr 
-                                                        key={index}
-                                                        variants={itemVariants}
-                                                        className="hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
-                                                    >
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm font-medium text-gray-900 dark:text-white">{reservation.reservation_form_name || 'N/A'}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm text-gray-500 dark:text-gray-300">{reservation.requestor_name || 'N/A'}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm text-gray-500 dark:text-gray-300">{formatDate(reservation.reservation_start_date)}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <div className="text-sm text-gray-500 dark:text-gray-300">{formatDate(reservation.reservation_end_date)}</div>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap">
-                                                            <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(reservation.status_name)}`}>
-                                                                {reservation.status_name || 'N/A'}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                                            <button
-                                                                onClick={() => fetchReservationDetails(reservation.reservation_id)}
-                                                                className="text-green-600 hover:text-green-900 dark:text-green-400 dark:hover:text-green-300"
-                                                            >
-                                                                <FaEye />
-                                                            </button>
-                                                        </td>
-                                                    </motion.tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                        
-                                        {ongoingReservations.length > 5 && (
-                                            <div className="flex justify-center mt-4">
-                                                <nav className="flex items-center space-x-2">
-                                                    <button className="px-3 py-1 rounded-md bg-green-500 text-white hover:bg-green-600 transition-colors">1</button>
-                                                    <button className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors">2</button>
-                                                    <button className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors">3</button>
-                                                    <span className="text-gray-500">...</span>
-                                                    <button className="px-3 py-1 rounded-md bg-gray-200 text-gray-700 hover:bg-gray-300 transition-colors">
-                                                        {Math.ceil(ongoingReservations.length / 5)}
-                                                    </button>
-                                                </nav>
-                                            </div>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-12">
-                                        <FaCalendar className="mx-auto text-gray-300 dark:text-gray-600 text-5xl mb-4" />
-                                        <p className="text-gray-500 dark:text-gray-400">No ongoing reservations at the moment</p>
-                                    </div>
-                                )}
-                            </div>
                         </motion.div>
                     </div>
                 </div>
@@ -1610,7 +1215,7 @@ const FacilityList = ({ items, type, nameKey, idKey, ongoingReservations }) => {
                             className={`p-1 rounded-md ${currentPage === 1 ? 'text-gray-400 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-200 dark:text-gray-300 dark:hover:bg-gray-600'}`}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
+                                <path fillRule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clipRule="evenodd" />
                             </svg>
                         </button>
                         

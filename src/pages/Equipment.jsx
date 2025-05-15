@@ -76,11 +76,11 @@ const EquipmentEntry = () => {
         }
     }, [user_level_id, navigate]);
 
-    useEffect(() => {
-        fetchEquipments();
-        fetchCategories();
-        fetchStatusAvailability();
-    }, []);
+  useEffect(() => {
+    fetchEquipments();
+    fetchCategories();
+    fetchStatusAvailability();
+  }, []);
 
     useEffect(() => {
     const filtered = equipments.filter(
@@ -241,9 +241,9 @@ const EquipmentEntry = () => {
             },
             };
 
-        const url = editingEquipment 
-            ? "http://localhost/coc/gsd/update_master1.php"
-            : "http://localhost/coc/gsd/insert_master.php";
+      const url = editingEquipment
+        ? "http://localhost/coc/gsd/update_master1.php"
+        : "http://localhost/coc/gsd/insert_master.php";
 
         setLoading(true);
             const response = await axios.post(url, JSON.stringify(requestData), {

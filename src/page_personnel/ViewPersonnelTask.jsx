@@ -149,8 +149,6 @@ const handleChecklistUpdate = async (type, checklistId, value) => {
         
         return updatedData;
       });
-
-      toast.success('Task updated successfully');
     } else {
       // Revert to unchecked state on failure
       setSelectedTask(prevData => {
@@ -555,59 +553,98 @@ const handleSubmitTask = async () => {
   };
 
   const renderModalContent = () => (
-    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] overflow-hidden">
-      <div className="sticky top-0 bg-white px-4 py-3 border-b border-gray-200 flex justify-between items-center">
-        <div>
-          <h2 className="text-lg font-semibold text-gray-900">
-            {selectedTask?.reservation_title || 'Task Checklist'}
-          </h2>
-          <p className="text-xs text-gray-500">
-            Reservation ID: {selectedTask?.reservation_id}
-          </p>
+    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
+      <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200">
+        <div className="flex justify-between items-start">
+          <button
+            onClick={() => setIsModalOpen(false)}
+            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <button
-          onClick={() => setIsModalOpen(false)}
-          className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
-        >
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
       </div>
 
-      <div className="p-4 space-y-4 overflow-y-auto max-h-[calc(80vh-120px)]">
+      <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-180px)]">
         {selectedTask ? (
-          <div className="space-y-4">
-            {/* Date Information */}
-            <div className="bg-white rounded-lg p-4 border border-gray-200">
-              <div className="flex flex-col gap-2">
-                <p className="text-sm text-gray-600">
-                  Start: {formatDateTime(selectedTask.reservation_start_date)}
-                </p>
-                <p className="text-sm text-gray-600">
-                  End: {formatDateTime(selectedTask.reservation_end_date)}
-                </p>
-                {!isTaskInProgress(selectedTask) && (
-                  <p className="text-sm text-amber-600 bg-amber-50 p-2 rounded">
-                    This task can only be submitted during its scheduled time
-                  </p>
-                )}
+          <div className="space-y-6">
+            {/* Event Details Section */}
+            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Event Information</h3>
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Title</label>
+                      <p className="mt-1 text-base text-gray-900">{selectedTask.reservation_title}</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-500">Description</label>
+                      <p className="mt-1 text-base text-gray-900">{selectedTask.reservation_description || 'No description provided'}</p>
+                    </div>
+                    <div className="flex gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">Start Date</label>
+                        <p className="mt-1 text-base text-gray-900">{formatDateTime(selectedTask.reservation_start_date)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-500">End Date</label>
+                        <p className="mt-1 text-base text-gray-900">{formatDateTime(selectedTask.reservation_end_date)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Requester Information</h3>
+                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                    <div className="flex items-start space-x-4">
+                      <div className="flex-shrink-0">
+                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                        </div>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-gray-900">{selectedTask.user_details?.full_name || 'N/A'}</p>
+                        <p className="text-sm text-gray-500">{selectedTask.user_details?.department || 'N/A'}</p>
+                        <p className="text-sm text-gray-500">{selectedTask.user_details?.role || 'N/A'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
+              
+              {!isTaskInProgress(selectedTask) && (
+                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <svg className="w-5 h-5 text-amber-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <p className="text-sm text-amber-700">
+                      This task can only be submitted during its scheduled time
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Venue Checklist Section */}
+            {/* Checklists Sections */}
             {selectedTask.venue?.checklists?.length > 0 && (
-              <div className="bg-white rounded-lg p-4 border border-gray-200">
+              <div className="bg-white rounded-xl p-6 border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-md font-semibold">
-                    Venue: {selectedTask.venue.name}
-                  </h3>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Venue Inspection</h3>
+                    <p className="text-sm text-gray-500">Location: {selectedTask.venue.name}</p>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-600">Condition:</label>
                     <select
                       value={venueCondition}
                       onChange={(e) => setVenueCondition(e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg p-1.5"
+                      className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select condition</option>
                       {conditions.map((condition) => (
@@ -618,14 +655,12 @@ const handleSubmitTask = async () => {
                     </select>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {selectedTask.venue.checklists.map((item) => (
                     <div key={item.checklist_venue_id} 
-                         className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{item.checklist_name || 'Unnamed Item'}</p>
-                        </div>
+                         className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-gray-900">{item.checklist_name || 'Unnamed Item'}</p>
                         <div className="flex gap-4">
                           <label className="inline-flex items-center">
                             <input
@@ -633,12 +668,10 @@ const handleSubmitTask = async () => {
                               name={`venue-${item.checklist_venue_id}`}
                               value="1"
                               checked={item.isChecked === "1"}
-                              onChange={() => {
-                                handleChecklistUpdate('venue', item.checklist_venue_id, "1");
-                              }}
-                              className="form-radio h-4 w-4 text-green-600"
+                              onChange={() => handleChecklistUpdate('venue', item.checklist_venue_id, "1")}
+                              className="form-radio h-4 w-4 text-green-600 focus:ring-green-500"
                             />
-                            <span className="ml-2 text-sm text-green-600">Yes</span>
+                            <span className="ml-2 text-sm text-green-600">Pass</span>
                           </label>
                           <label className="inline-flex items-center">
                             <input
@@ -647,9 +680,9 @@ const handleSubmitTask = async () => {
                               value="0"
                               checked={item.isChecked === "0"}
                               onChange={() => handleChecklistUpdate('venue', item.checklist_venue_id, "0")}
-                              className="form-radio h-4 w-4 text-red-600"
+                              className="form-radio h-4 w-4 text-red-600 focus:ring-red-500"
                             />
-                            <span className="ml-2 text-sm text-red-600">No</span>
+                            <span className="ml-2 text-sm text-red-600">Fail</span>
                           </label>
                         </div>
                       </div>
@@ -659,7 +692,7 @@ const handleSubmitTask = async () => {
               </div>
             )}
 
-            {/* Vehicle Checklist Section */}
+            {/* Similar enhanced styling for Vehicle and Equipment sections */}
             {selectedTask.vehicle?.checklists?.length > 0 && (
               <div className="bg-white rounded-lg p-4 border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
@@ -725,15 +758,15 @@ const handleSubmitTask = async () => {
             {selectedTask.equipment?.checklists?.length > 0 && (
               <div className="bg-white rounded-lg p-4 border border-gray-200">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-md font-semibold">
-                    Equipment Inspection
-                  </h3>
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900">Equipment Inspection</h3>
+                    <p className="text-sm text-gray-500">Equipment: {selectedTask.equipment.name}</p>
+                  </div>
                   <div className="flex items-center gap-2">
-                    <label className="text-sm text-gray-600">Condition:</label>
                     <select
                       value={equipmentCondition}
                       onChange={(e) => setEquipmentCondition(e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg p-1.5"
+                      className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     >
                       <option value="">Select condition</option>
                       {conditions.map((condition) => (
@@ -744,7 +777,7 @@ const handleSubmitTask = async () => {
                     </select>
                   </div>
                 </div>
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {selectedTask.equipment.checklists.map((item) => (
                     <div key={item.checklist_equipment_id} 
                          className="bg-gray-50 p-3 rounded-lg border border-gray-100">
@@ -783,14 +816,19 @@ const handleSubmitTask = async () => {
               </div>
             )}
 
-            {/* Updated Submit Button Section */}
-            {renderSubmitButton()}
           </div>
         ) : (
-          <div className="text-center text-gray-500">
-            Failed to load checklist details
+          <div className="text-center py-12">
+            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M12 14h.01M12 16h.01M12 18h.01M10 20h4a8 8 0 10-16 0h4a4 4 0 118 0z" />
+            </svg>
+            <p className="mt-2 text-sm text-gray-500">Failed to load checklist details</p>
           </div>
         )}
+      </div>
+
+      <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200">
+        {renderSubmitButton()}
       </div>
     </div>
   );

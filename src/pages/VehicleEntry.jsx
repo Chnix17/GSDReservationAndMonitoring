@@ -879,7 +879,7 @@ const VehicleEntry = () => {
         </div>
       </div>
         </div>
-    );
+  );
 };
 
 export default VehicleEntry;

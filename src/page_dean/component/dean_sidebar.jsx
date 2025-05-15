@@ -192,16 +192,16 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaCar} 
                 text="Make Reservation" 
-                link="/addReservation" 
-                active={activeItem === '/addReservation'}
+                link="/deanAddReservation" 
+                active={activeItem === '/deanAddReservation'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="View Reservations" 
-                link="/viewReserve" 
-                active={activeItem === '/viewReserve'}
+                text="My Reservation" 
+                link="/deanViewReserve" 
+                active={activeItem === '/deanViewReserve'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -317,7 +317,7 @@ const Sidebar = () => {
 
               <SidebarItem 
                 icon={FaFileAlt} 
-                text="View Reservations" 
+                text="My Reservation" 
                 link="/viewReserve" 
                 active={activeItem === '/viewReserve'} 
               />

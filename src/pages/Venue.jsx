@@ -513,9 +513,9 @@ const VenueEntry = () => {
           <EnhancedFilters />
 
           {/* Table */}
-          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-white dark:bg-gray-800">
+          <div className="relative overflow-x-auto   shadow-md sm:rounded-lg bg-white dark:bg-green-100">
             <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-              <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+              <thead className="text-xs text-gray-700 uppercase bg-green-400/90 dark:bg-green-900/20 dark:text-green-900">
                 <tr>
                   {columns.map((column) => (
                     <th
@@ -533,7 +533,7 @@ const VenueEntry = () => {
                             {sortOrder === "asc" ? "↑" : "↓"}
                           </span>
                         )}
-                    </div>
+                      </div>
                     </th>
                   ))}
                 </tr>
@@ -596,10 +596,10 @@ const VenueEntry = () => {
                 className="flex justify-end"
               />
             </div>
-            </div>
+          </div>
 
           {/* Add/Edit Modal */}
-            <Modal
+          <Modal
             title={editingVenue ? "Edit Venue" : "Add Venue"}
             open={isAddModalOpen || isEditModalOpen}
             onCancel={() => {
@@ -607,10 +607,10 @@ const VenueEntry = () => {
               setIsEditModalOpen(false);
               resetForm();
             }}
-                onOk={handleSubmit}
-                confirmLoading={loading}
+            onOk={handleSubmit}
+            confirmLoading={loading}
             width={700}
-            >
+          >
             <Form
               form={form}
               layout="vertical"
@@ -622,8 +622,8 @@ const VenueEntry = () => {
             >
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                    <Form.Item
-                        label="Venue Name"
+                  <Form.Item
+                    label="Venue Name"
                     name="venueName"
                     rules={[
                       {
@@ -631,12 +631,12 @@ const VenueEntry = () => {
                         message: "Please input venue name!",
                       },
                     ]}
-                    >
-                        <Input
-                            placeholder="Enter venue name"
+                  >
+                    <Input
+                      placeholder="Enter venue name"
                       onChange={handleVenueNameChange}
-                        />
-                    </Form.Item>
+                    />
+                  </Form.Item>
 
                   <Form.Item
                     label="Max Occupancy"
@@ -649,48 +649,48 @@ const VenueEntry = () => {
                       },
                     ]}
                   >
-                        <Input
-                            type="number"
+                    <Input
+                      type="number"
                       placeholder="Enter max occupancy"
                       onChange={handleVenueOccupancyChange}
-                        />
-                    </Form.Item>
+                    />
+                  </Form.Item>
 
-                    <Form.Item 
-                        label="Operating Hours"
-                        required
-                        tooltip="Select start and end time"
-                    >
-                        <TimePicker.RangePicker 
-                            format="HH:mm:ss"
-                            value={[operatingHoursStart, operatingHoursEnd]}
-                            onChange={handleTimeChange}
-                            className="w-full"
+                  <Form.Item
+                    label="Operating Hours"
+                    required
+                    tooltip="Select start and end time"
+                  >
+                    <TimePicker.RangePicker
+                      format="HH:mm:ss"
+                      value={[operatingHoursStart, operatingHoursEnd]}
+                      onChange={handleTimeChange}
+                      className="w-full"
                       placeholder={["Start Time", "End Time"]}
-                        />
-                    </Form.Item>
+                    />
+                  </Form.Item>
 
-                    <Form.Item 
-                        label="Status" 
+                  <Form.Item
+                    label="Status"
                     name="status"
                     rules={[
                       { required: true, message: "Please select status!" },
                     ]}
-                    >
-                        <Select
+                  >
+                    <Select
                       placeholder="Select status"
-                            onChange={(value) => setSelectedStatus(value)}
-                        >
+                      onChange={(value) => setSelectedStatus(value)}
+                    >
                       {statusAvailability.map((status) => (
                         <Option
-                                    key={status.status_availability_id} 
-                                    value={status.status_availability_id}
-                                >
-                                    {status.status_availability_name}
+                          key={status.status_availability_id}
+                          value={status.status_availability_id}
+                        >
+                          {status.status_availability_name}
                         </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                      ))}
+                    </Select>
+                  </Form.Item>
                 </div>
 
                 <div>
@@ -728,8 +728,8 @@ const VenueEntry = () => {
                   )}
                 </div>
               </div>
-                </Form>
-            </Modal>
+            </Form>
+          </Modal>
 
           {/* Delete Confirmation Modal */}
           <Modal
@@ -762,8 +762,8 @@ const VenueEntry = () => {
           </Modal>
         </div>
       </div>
-        </div>
-    );
+    </div>
+  );
 };
 
 export default VenueEntry;

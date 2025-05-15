@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import axios from 'axios';
-import { format, isSameDay, isPast, endOfDay, addDays, isBefore } from 'date-fns';
+import { format, isSameDay, isPast, endOfDay, addDays, isBefore, isWithinInterval } from 'date-fns';
 import { toast } from 'react-toastify';
 import { DatePicker, TimePicker, Spin } from 'antd';
 import dayjs from 'dayjs';
@@ -151,44 +151,50 @@ const ReservationCalendar = ({ onDateSelect, selectedResource }) => {
   }, []);
 
   const fetchReservations = async () => {
-    setIsLoading(true);
-    try {
-      // Ensure selectedResource.id is treated as an array
-      const itemIds = Array.isArray(selectedResource.id) ? selectedResource.id : [selectedResource.id];
-      
-      const response = await axios.post(
-        'http://localhost/coc/gsd/user.php',
-        {
-          operation: 'fetchAvailability',
-          itemType: selectedResource.type,
-          itemId: selectedResource.id
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
+  setIsLoading(true);
+  try {
+    const itemIds = Array.isArray(selectedResource.id) ? selectedResource.id : [selectedResource.id];
+    
+    const response = await axios.post(
+      'http://localhost/coc/gsd/user.php',
+      {
+        operation: 'fetchAvailability',
+        itemType: selectedResource.type,
+        itemId: itemIds
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
         }
-      );
-
-      console.log(response.data); // Debugging line
-
-      if (response.data.status === 'success') {
-        const formattedReservations = response.data.data.map(res => ({
-          id: res.reservation_form_venue_id || res.reservation_form_vehicle_id || res.reservation_form_equipment_id,
-          startDate: new Date(res.reservation_start_date),
-          endDate: new Date(res.reservation_end_date),
-          status: res.reservation_status_status_id,
-          isReserved: res.reservation_status_status_id === '6',
-          venueName: res.ven_name // Store venue name
-        }));
-        setReservations(formattedReservations);
       }
-    } catch (error) {
-      toast.error('Failed to fetch reservations');
-    } finally {
-      setIsLoading(false);
+    );
+
+    if (response.data.status === 'success') {
+      const formattedReservations = response.data.data.map(res => ({
+        id: res.reservation_id,
+        startDate: new Date(res.reservation_start_date),
+        endDate: new Date(res.reservation_end_date),
+        status: res.reservation_status_status_id,
+        isReserved: res.reservation_status_status_id === '6',
+        // Venue details
+        venueName: res.ven_name,
+        venueOccupancy: res.ven_occupancy,
+        // Vehicle details
+        vehicleMake: res.vehicle_make_name,
+        vehicleModel: res.vehicle_model_name,
+        vehicleLicense: res.vehicle_license,
+        // Common
+        resourceType: selectedResource.type,
+        title: res.reservation_title
+      }));
+      setReservations(formattedReservations);
     }
-  };
+  } catch (error) {
+    toast.error('Failed to fetch reservations');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   const fetchEquipmentAvailability = async () => {
     setIsLoading(true);
@@ -596,53 +602,49 @@ const renderCalendarGrid = () => {
                 )}
                 
                 {/* Equipment availability display */}
-                {isCurrentMonth && selectedResource.type === 'equipment' && !isPastDate && (
+                {isCurrentMonth && selectedResource.type !== 'equipment' && (
                   <div className="mt-1 space-y-1">
-                    {equipmentAvailability
-                      .filter(item => {
-                        const itemDate = new Date(item.startDate);
-                        return isSameDay(day, itemDate);
-                      })
-                      .map((item, idx) => {
-                        const availableRatio = parseInt(item.totalAvailable);
-                        const totalQuantity = parseInt(item.currentQuantity);
-                        const requested = parseInt(item.requestedQuantity);
-                        
-                        let statusColor = '';
-                        if (availableRatio < requested) {
-                          statusColor = 'bg-rose-100 dark:bg-rose-900/30 text-rose-800 dark:text-rose-300 border-rose-200 dark:border-rose-800/30';
-                        } else if (availableRatio < totalQuantity) {
-                          statusColor = 'bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-300 border-amber-200 dark:border-amber-800/30';
-                        } else {
-                          statusColor = 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 border-emerald-200 dark:border-emerald-800/30';
+                    {getReservedTimeSlots(day).timeRanges.map((range, idx) => {
+                      const reservation = reservations.find(res => 
+                        isSameDay(new Date(res.startDate), range.start) && 
+                        new Date(res.startDate).getHours() === range.start.getHours()
+                      );
+                      
+                      // Determine what to display based on resource type
+                      let displayText = '';
+                      if (reservation?.resourceType === 'venue') {
+                        displayText = reservation.venueName;
+                      } else if (reservation?.resourceType === 'vehicle') {
+                        displayText = `${reservation.vehicleMake} ${reservation.vehicleModel}`;
+                        if (reservation.vehicleLicense) {
+                          displayText += ` (${reservation.vehicleLicense})`;
                         }
+                      } 
 
-                        return (
-                          <div
-                            key={idx}
-                            className={`text-[8px] sm:text-xs py-0.5 px-1.5 rounded-md border ${statusColor}`}
-                          >
-                            {item.name}: {item.totalAvailable}/{item.currentQuantity} units
-                          </div>
-                        );
-                      })}
+                      return (
+                        <div
+                          key={idx}
+                          className="text-[8px] sm:text-xs py-0.5 px-1.5 rounded-md border
+                                  bg-gray-100 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/30
+                                  text-gray-600 dark:text-gray-400 truncate"
+                        >
+                          {displayText}
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
 
                 {/* Keep existing time slot indicators for non-equipment resources */}
                 {isCurrentMonth && selectedResource.type !== 'equipment' && status !== 'past' && (
                   <div className="mt-1 space-y-1">
-                    {getReservedTimeSlots(day).timeRanges.map((range, idx) => (
-                      <div
-                        key={idx}
-                        className="text-[8px] sm:text-xs py-0.5 px-1.5 rounded-md border
-                                 bg-gray-100 dark:bg-gray-800/60 border-gray-200 dark:border-gray-700/30
-                                 text-gray-600 dark:text-gray-400"
-                        title={`${format(range.start, 'HH:mm')} - ${format(range.end, 'HH:mm')}`}
-                      >
-                        {format(range.start, 'HH:mm')} - {format(range.end, 'HH:mm')}
-                      </div>
-                    ))}
+                    {getReservedTimeSlots(day).timeRanges.map((range, idx) => {
+                      const reservation = reservations.find(res => 
+                        isSameDay(new Date(res.startDate), range.start) && 
+                        new Date(res.startDate).getHours() === range.start.getHours()
+                      );
+
+                    })}
                   </div>
                 )}
               </div>
@@ -727,24 +729,41 @@ const renderCalendarGrid = () => {
     }
     
     // For venue/vehicle resources
-    const reservations = getReservedTimeSlots(date);
-    
-    // Check if there are any reservations for this time slot
-    const hasReservationsInHour = reservations.timeRanges.some(range => {
-      const rangeHour = new Date(range.start).getHours();
-      return rangeHour === hour;
+    const matchingReservations = reservations.filter(res => {
+      if (!res.isReserved) return false;
+  
+      const resStart = new Date(res.startDate);
+      const resEnd = new Date(res.endDate);
+      const slotDate = new Date(date);
+      slotDate.setHours(hour, 0, 0, 0);
+  
+      // If it's a multi-day reservation
+      if (!isSameDay(resStart, resEnd)) {
+        const resStartHour = resStart.getHours();
+        
+        // For all days in the reservation period, use the same time range (start hour to end hour)
+        if (isWithinInterval(slotDate, { start: resStart, end: resEnd })) {
+          return hour >= resStartHour && hour < resEnd.getHours();
+        }
+      } else {
+        // Same day reservation
+        return isSameDay(slotDate, resStart) && 
+               hour >= resStart.getHours() && 
+               hour < resEnd.getHours();
+      }
+  
+      return false;
     });
-    
-    // Check for partial reservations (if there's space for some but not all)
-    const hasPartialReservations = reservations.timeRanges.some(range => {
-      const rangeHour = new Date(range.start).getHours();
-      return rangeHour === hour && range.isPartial;
-    });
-    
-    if (hasReservationsInHour) {
-      return hasPartialReservations ? 'partial' : 'reserved';
+  
+    if (matchingReservations.length > 0) {
+      // If any fully booked slots exist
+      if (matchingReservations.some(res => !res.isPartial)) {
+        return 'reserved';
+      }
+      // If only partially booked slots exist
+      return 'partial';
     }
-    
+  
     return 'available';
   };
 
@@ -915,21 +934,42 @@ const renderCalendarGrid = () => {
                           )}
 
                           {/* Venue/vehicle rendering */}
-                          {!selectedResource.type === 'equipment' && (
+                          {selectedResource.type !== 'equipment' && (
                             <div className="space-y-1">
                               {getReservedTimeSlots(day).timeRanges
-                                .filter(range => {
-                                  const rangeHour = new Date(range.start).getHours();
-                                  return rangeHour === hour;
+                                .filter(range => new Date(range.start).getHours() === hour)
+                                .map((range, idx) => {
+                                  const reservation = reservations.find(res => 
+                                    isSameDay(new Date(res.startDate), range.start) && 
+                                    new Date(res.startDate).getHours() === hour
+                                  );
+                                  
+                                  if (!reservation) return null;
+
+                                  let displayText = '';
+                                  let details = '';
+                                  
+                                  if (reservation.venueName) {
+                                    displayText = reservation.venueName;
+                                    if (reservation.venueOccupancy) {
+                                      details = `Capacity: ${reservation.venueOccupancy}`;
+                                    }
+                                  } else if (reservation.vehicleMake) {
+                                    displayText = `${reservation.vehicleMake} ${reservation.vehicleModel}`;
+                                    if (reservation.vehicleLicense) {
+                                      details = `License: ${reservation.vehicleLicense}`;
+                                    }
+                                  } else {
+                                    displayText = 'Reserved';
+                                  }
+
+                                  return (
+                                    <div key={idx} className={`text-[8px] sm:text-xs p-1 rounded border ${textClass}`}>
+                                      <div className="font-medium truncate">{displayText}</div>
+                                      {details && <div className="truncate">{details}</div>}
+                                    </div>
+                                  );
                                 })
-                                .map((range, idx) => (
-                                  <div
-                                    key={idx}
-                                    className={`text-[8px] sm:text-xs py-0.5 px-1.5 rounded-md mb-1 border border-gray-200 dark:border-gray-700/30 ${textClass} ${isPastHour ? 'opacity-60' : ''}`}
-                                  >
-                                    {format(range.start, 'HH:mm')} - {format(range.end, 'HH:mm')}
-                                  </div>
-                                ))
                               }
                             </div>
                           )}
@@ -1143,20 +1183,42 @@ const renderCalendarGrid = () => {
                       })
                   )}
 
-                  {!selectedResource.type === 'equipment' && getReservedTimeSlots(currentDate).timeRanges
-                    .filter(range => {
-                      const rangeHour = new Date(range.start).getHours();
-                      return rangeHour === hour;
-                    })
-                    .map((range, idx) => (
-                      <div
-                        key={idx}
-                        className={`text-sm py-1 px-2 rounded-md mb-2 border border-gray-200 dark:border-gray-700/30 ${textClass} ${isPastHour ? 'opacity-60' : ''}`}
-                      >
-                        {format(range.start, 'HH:mm')} - {format(range.end, 'HH:mm')}
-                      </div>
-                    ))
-                  }
+                               
+                                {selectedResource.type !== 'equipment' && getReservedTimeSlots(currentDate).timeRanges
+                                  .filter(range => new Date(range.start).getHours() === hour)
+                                  .map((range, idx) => {
+                                    const reservation = reservations.find(res => 
+                                      isSameDay(new Date(res.startDate), range.start) && 
+                                      new Date(res.startDate).getHours() === hour
+                                    );
+                                    
+                                    if (!reservation) return null;
+
+                                    let displayText = '';
+                                    let details = '';
+                                    
+                                    if (reservation.venueName) {
+                                      displayText = reservation.venueName;
+                                      if (reservation.venueOccupancy) {
+                                        details = `Capacity: ${reservation.venueOccupancy}`;
+                                      }
+                                    } else if (reservation.vehicleMake) {
+                                      displayText = `${reservation.vehicleMake} ${reservation.vehicleModel}`;
+                                      if (reservation.vehicleLicense) {
+                                        details = `License: ${reservation.vehicleLicense}`;
+                                      }
+                                    } else {
+                                      displayText = 'Reserved';
+                                    }
+
+                                    return (
+                                      <div key={idx} className={`text-sm p-2 rounded border ${textClass}`}>
+                                        <div className="font-medium">{displayText}</div>
+                                        {details && <div className="text-xs">{details}</div>}
+                                      </div>
+                                    );
+                                  })
+                                }
                   
                   {/* Empty state for available slots */}
                   {!isPastHour && status === 'available' && (
@@ -1267,18 +1329,11 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   if (selectedResource.type === 'equipment') {
     const conflicts = [];
 
-    console.log('Checking equipment conflicts for:', {
-      start: format(attemptedStart, 'yyyy-MM-dd HH:mm'),
-      end: format(attemptedEnd, 'yyyy-MM-dd HH:mm')
-    });
-
     selectedResource.id.forEach(selectedEquip => {
       // Find overlapping availability records
       const overlappingAvailability = equipmentAvailability.filter(item => {
         const availStart = new Date(item.startDate);
         const availEnd = new Date(item.endDate);
-        
-        // Check if the attempted booking period overlaps with an existing reservation period
         return (attemptedStart <= availEnd && attemptedEnd >= availStart);
       });
 
@@ -1286,14 +1341,6 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
         const available = parseInt(avail.totalAvailable);
         const requested = parseInt(selectedEquip.quantity);
         
-        console.log('Availability check:', {
-          equipmentName: avail.name,
-          available: available,
-          requested: requested,
-          hasConflict: requested > available
-        });
-
-        // Create conflict if requested quantity exceeds available quantity
         if (requested > available) {
           conflicts.push({
             equipmentName: avail.name,
@@ -1309,13 +1356,87 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     return conflicts;
   }
 
-  // Original venue/vehicle conflict checking logic
+  // For venue/vehicle resources
   return reservations.filter(res => {
     if (!res.isReserved) return false;
+
     const resStart = new Date(res.startDate);
     const resEnd = new Date(res.endDate);
-    return (attemptedStart < resEnd && attemptedEnd > resStart);
-  });
+
+    // Validate reservation dates
+    if (!isValidDate(resStart) || !isValidDate(resEnd)) return false;
+
+    // For multi-day reservations, we need to check each day's time slots
+    const attemptedStartDay = new Date(attemptedStart).setHours(0, 0, 0, 0);
+    const attemptedEndDay = new Date(attemptedEnd).setHours(23, 59, 59, 999);
+    const resStartDay = new Date(resStart).setHours(0, 0, 0, 0);
+    const resEndDay = new Date(resEnd).setHours(23, 59, 59, 999);
+
+    // First check if the days overlap at all
+    const daysOverlap = !(attemptedEndDay < resStartDay || attemptedStartDay > resEndDay);
+
+    if (!daysOverlap) return false;
+
+    // If days overlap, check time slots
+    // Case 1: Same day reservation
+    if (isSameDay(attemptedStart, attemptedEnd) && isSameDay(resStart, resEnd)) {
+      return (
+        (attemptedStart < resEnd && attemptedEnd > resStart) ||
+        (resStart < attemptedEnd && resEnd > attemptedStart)
+      );
+    }
+
+    // Case 2: Multi-day reservation
+    // Check each day's business hours (5 AM - 7 PM)
+    const startTimeOnDay = (date) => {
+      const dayStart = new Date(date);
+      dayStart.setHours(5, 0, 0, 0);
+      return dayStart;
+    };
+
+    const endTimeOnDay = (date) => {
+      const dayEnd = new Date(date);
+      dayEnd.setHours(19, 0, 0, 0);
+      return dayEnd;
+    };
+
+    // For the start day, check from the attempted/reserved start time until 7 PM
+    // For the end day, check from 5 AM until the attempted/reserved end time
+    // For days in between, the entire business hours (5 AM - 7 PM) are considered
+
+    // Check start day overlap
+    if (isSameDay(attemptedStart, resStart)) {
+      if (attemptedStart < resEnd && attemptedEnd > resStart) return true;
+    }
+
+    // Check end day overlap
+    if (isSameDay(attemptedEnd, resEnd)) {
+      if (resStart < attemptedEnd && resEnd > attemptedStart) return true;
+    }
+
+    // Check if any full day is overlapping
+    const isFullDayOverlap = () => {
+      const start = new Date(Math.max(attemptedStartDay, resStartDay));
+      const end = new Date(Math.min(attemptedEndDay, resEndDay));
+      
+      // Iterate through each day between start and end
+      for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
+        if (!isSameDay(day, attemptedStart) && !isSameDay(day, attemptedEnd) &&
+            !isSameDay(day, resStart) && !isSameDay(day, resEnd)) {
+          // If we find a day that's fully within both reservations, it's a conflict
+          return true;
+        }
+      }
+      return false;
+    };
+
+    if (isFullDayOverlap()) return true;
+
+    return false;
+  }).filter(Boolean).map(res => ({
+    ...res,
+    conflictType: getConflictType(attemptedStart, attemptedEnd, new Date(res.startDate), new Date(res.endDate))
+  }));
 };
 
   const renderConflictModal = () => (
@@ -1368,36 +1489,47 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                   Existing reservations:
                 </p>
                 <ul className="space-y-3 pl-7">
-                  {conflictDetails.conflicts.map((conflict, index) => {
-                    const startDate = dayjs(conflict.startDate);
-                    const endDate = dayjs(conflict.endDate);
-                    const isSameDay = startDate.isSame(endDate, 'day');
-                    
-                    return (
-                      <li key={index} className="text-amber-700 dark:text-amber-300 border-l-2 border-amber-300 dark:border-amber-600 pl-3 py-1">
-                        {conflict.venueName && (
-                          <div className="font-medium mb-1 text-amber-800 dark:text-amber-200">
-                            {conflict.venueName}
-                          </div>
-                        )}
-                        <div className="text-sm">
-                          {isSameDay ? (
-                            <>
-                              <span className="inline-block w-16">Date:</span> {startDate.format('MMMM D, YYYY')}
-                              <br />
-                              <span className="inline-block w-16">Time:</span> {startDate.format('h:mm A')} - {endDate.format('h:mm A')}
-                            </>
-                          ) : (
-                            <>
-                              <span className="inline-block w-16">From:</span> {startDate.format('MMMM D, h:mm A')}
-                              <br />
-                              <span className="inline-block w-16">To:</span> {endDate.format('MMMM D, YYYY h:mm A')}
-                            </>
-                          )}
+                {conflictDetails.conflicts.map((conflict, index) => {
+                  const startDate = dayjs(conflict.startDate);
+                  const endDate = dayjs(conflict.endDate);
+                  const isSameDay = startDate.isSame(endDate, 'day');
+                  
+                  // Determine what to display based on resource type
+                  let resourceDetails = '';
+                  if (conflict.venueName) {
+                    resourceDetails = conflict.venueName;
+                  } else if (conflict.vehicleMake) {
+                    resourceDetails = `${conflict.vehicleMake} ${conflict.vehicleModel}`;
+                    if (conflict.vehicleLicense) {
+                      resourceDetails += ` (${conflict.vehicleLicense})`;
+                    }
+                  }
+
+                  return (
+                    <li key={index} className="text-amber-700 dark:text-amber-300 border-l-2 border-amber-300 dark:border-amber-600 pl-3 py-1">
+                      {resourceDetails && (
+                        <div className="font-medium mb-1 text-amber-800 dark:text-amber-200">
+                          {resourceDetails}
                         </div>
-                      </li>
-                    );
-                  })}
+                      )}
+                      <div className="text-sm">
+                        {isSameDay ? (
+                          <>
+                            <span className="inline-block w-16">Date:</span> {startDate.format('MMMM D, YYYY')}
+                            <br />
+                            <span className="inline-block w-16">Time:</span> {startDate.format('h:mm A')} - {endDate.format('h:mm A')}
+                          </>
+                        ) : (
+                          <>
+                            <span className="inline-block w-16">From:</span> {startDate.format('MMMM D, h:mm A')}
+                            <br />
+                            <span className="inline-block w-16">To:</span> {endDate.format('MMMM D, YYYY h:mm A')}
+                          </>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
                 </ul>
               </div>
             </>
@@ -1723,7 +1855,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
               className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 01-1.414 1.414z" clipRule="evenodd" />
+                <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 011.414 0L11.414 10l4.293 4.293a1 1 01-1.414 1.414z" clipRule="evenodd" />
               </svg>
             </button>
           </div>
@@ -1826,20 +1958,20 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
             <div className="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg border border-gray-200 dark:border-gray-600/30 text-xs text-gray-600 dark:text-gray-400 space-y-1.5">
               <div className="flex items-start">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 01-1.414 0l-4-4a1 1 011.414-1.414L8 12.586l7.293-7.293a1 1 011.414 0z" clipRule="evenodd" />
                 </svg>
                 <span>Select a time between 5:00 AM and 7:00 PM</span>
               </div>
               <div className="flex items-start">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 01-1.414 0l-4-4a1 1 011.414-1.414L8 12.586l7.293-7.293a1 1 011.414 0z" clipRule="evenodd" />
                 </svg>
                 <span>End time must be after start time</span>
               </div>
               {selectedStartDate !== selectedEndDate && (
                 <div className="flex items-start">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 01-1.414 0l-4-4a1 1 011.414-1.414L8 12.586l7.293-7.293a1 1 011.414 0z" clipRule="evenodd" />
                   </svg>
                   <span>You've selected a multi-day reservation</span>
                 </div>
