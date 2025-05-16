@@ -1,44 +1,45 @@
-import React, {
-  useState,
-  useEffect,
-  createContext,
-  useContext,
-  useMemo,
-} from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import {
+  FaAngleLeft,
+  FaAngleRight,
+  FaArchive,
+  FaBars,
+  FaBell,
+  FaCalendarAlt,
+  FaCar,
+  FaChartBar,
+  FaChevronDown,
+  FaChevronRight,
+  FaChevronUp,
+  FaClipboardCheck,
+  FaCog,
+  FaCogs,
+  FaComments,
+  FaEllipsisV,
+  FaFileAlt,
+  FaFolder,
+  FaHeadset,
+  FaHome,
+  FaSearch,
   FaSignOutAlt,
   FaTachometerAlt,
-  FaCar,
-  FaCog,
-  FaFileAlt,
-  FaHeadset,
-  FaChevronDown,
-  FaBars,
-  FaHome,
+  FaTasks,
+  FaTimes,
   FaTools,
   FaUserCircle,
-  FaFolder,
-  FaCalendarAlt,
-  FaChartBar,
-  FaArchive,
-  FaChevronRight,
-  FaTimes,
-  FaComments,
-  FaCogs,
-  FaBell,
-  FaSearch,
-  FaEllipsisV,
-  FaChevronUp,
-  FaAngleRight,
-  FaAngleLeft,
-  FaClipboardCheck,
-  FaTasks,
 } from "react-icons/fa";
-import { motion, AnimatePresence } from "framer-motion";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Popover, Transition } from "@headlessui/react";
-import { clearAllExceptLoginAttempts } from "../../utils/loginAttempts";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
+
 import { SecureStorage } from "../../utils/encryption";
+import { clearAllExceptLoginAttempts } from "../../utils/loginAttempts";
 
 const SidebarContext = createContext();
 
@@ -97,13 +98,13 @@ const Sidebar = () => {
 
   return (
     <SidebarContext.Provider value={contextValue}>
-      <div className={`flex flex-col h-screen ${isDarkMode ? "dark" : ""}`}>
+      <div className="flex flex-col h-screen">
         {/* Mobile Header - Same as before */}
-        <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 fixed top-0 left-0 right-0 z-30 lg:hidden flex items-center justify-between">
+        <header className="bg-white border-b border-gray-200 px-4 py-3 fixed top-0 left-0 right-0 z-30 lg:hidden flex items-center justify-between">
           <div className="flex items-center space-x-3">
             <button
               onClick={toggleMobileSidebar}
-              className="text-green-900 dark:text-green-100 p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="text-black p-2 rounded-lg hover:bg-gray-100"
             >
               <FaBars size={20} />
             </button>
@@ -113,9 +114,7 @@ const Sidebar = () => {
                 alt="Logo"
                 className="w-8 h-8"
               />
-              <span className="ml-2 font-bold text-green-600 dark:text-green-400">
-                GSD Portal
-              </span>
+              <span className="ml-2 font-bold text-black">GSD Portal</span>
             </div>
           </div>
 
@@ -141,13 +140,13 @@ const Sidebar = () => {
         <div className="flex flex-1 pt-[60px] lg:pt-0">
           {/* Desktop Sidebar */}
           <div
-            className={`hidden lg:flex lg:flex-col h-screen bg-white dark:bg-gray-900 shadow-lg z-40 transition-all duration-300 ${
+            className={`hidden lg:flex lg:flex-col h-screen bg-white shadow-lg z-40 transition-all duration-300 ${
               isDesktopSidebarOpen ? "w-64" : "w-16"
             }`}
           >
             {/* Sidebar Header */}
             <div
-              className={`flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800 ${
+              className={`flex items-center justify-between p-4 border-b border-gray-100 ${
                 !isDesktopSidebarOpen && "justify-center"
               }`}
             >
@@ -159,13 +158,11 @@ const Sidebar = () => {
                       alt="Logo"
                       className="w-8 h-8"
                     />
-                    <span className="font-bold text-green-600 dark:text-green-400">
-                      GSD Portal
-                    </span>
+                    <span className="font-bold text-black">GSD Portal</span>
                   </div>
                   <button
                     onClick={toggleDesktopSidebar}
-                    className="text-green-600 dark:text-green-400 p-1 rounded-full hover:bg-green-50 dark:hover:bg-green-900"
+                    className="text-black p-1 rounded-full hover:bg-gray-100"
                   >
                     <FaAngleLeft size={16} />
                   </button>
@@ -173,7 +170,7 @@ const Sidebar = () => {
               ) : (
                 <button
                   onClick={toggleDesktopSidebar}
-                  className="text-green-600 dark:text-green-400 p-1 rounded-full hover:bg-green-50 dark:hover:bg-green-900"
+                  className="text-black p-1 rounded-full hover:bg-gray-100"
                 >
                   <FaAngleRight size={16} />
                 </button>
@@ -187,7 +184,7 @@ const Sidebar = () => {
                   <input
                     type="text"
                     placeholder="Search..."
-                    className="w-full bg-gray-100 dark:bg-gray-800 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-green-500"
+                    className="w-full bg-gray-100 rounded-lg py-2 pl-9 pr-3 text-sm focus:outline-none focus:ring-1 focus:ring-black text-black"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                   />
@@ -254,7 +251,7 @@ const Sidebar = () => {
             </nav>
 
             {/* User Profile */}
-            <div className="mt-auto border-t border-gray-200 dark:border-gray-800">
+            <div className="mt-auto border-t border-gray-200">
               <Popover className="relative w-full">
                 {({ open }) => (
                   <>
@@ -263,19 +260,19 @@ const Sidebar = () => {
                         isDesktopSidebarOpen
                           ? "justify-between"
                           : "justify-center"
-                      } hover:bg-green-50 dark:hover:bg-green-900/20`}
+                      } hover:bg-gray-100`}
                     >
                       {isDesktopSidebarOpen ? (
                         <>
                           <div className="flex items-center space-x-3">
-                            <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center">
-                              <FaUserCircle className="text-green-600 dark:text-green-300" />
+                            <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                              <FaUserCircle className="text-black" />
                             </div>
                             <div className="text-left">
-                              <p className="font-medium text-sm">{name}</p>
-                              <p className="text-xs text-gray-500 dark:text-gray-400">
-                                Personnel
+                              <p className="font-medium text-sm text-black">
+                                {name}
                               </p>
+                              <p className="text-xs text-gray-500">Personnel</p>
                             </div>
                           </div>
                           <FaChevronDown
@@ -286,8 +283,8 @@ const Sidebar = () => {
                           />
                         </>
                       ) : (
-                        <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-800 flex items-center justify-center">
-                          <FaUserCircle className="text-green-600 dark:text-green-300" />
+                        <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                          <FaUserCircle className="text-black" />
                         </div>
                       )}
                     </Popover.Button>
@@ -301,8 +298,8 @@ const Sidebar = () => {
                       leaveFrom="opacity-100 translate-y-0"
                       leaveTo="opacity-0 translate-y-1"
                     >
-                      <Popover.Panel className="absolute bottom-full mb-2 left-0 z-50 w-64 origin-bottom-left rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
-                        <div className="p-3 border-b border-gray-100 dark:border-gray-700">
+                      <Popover.Panel className="absolute bottom-full mb-2 left-0 z-50 w-64 origin-bottom-left rounded-lg bg-white shadow-lg ring-1 ring-black ring-opacity-5">
+                        <div className="p-3 border-b border-gray-100">
                           <p className="font-medium text-sm">{name}</p>
                           <p className="text-xs text-gray-500 dark:text-gray-400">
                             Personnel
@@ -327,7 +324,7 @@ const Sidebar = () => {
 
           {/* Mobile Sidebar */}
           <div
-            className={`fixed lg:hidden h-[calc(100vh-60px)] bg-white dark:bg-gray-200 text-gray-700 dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
+            className={`fixed lg:hidden h-[calc(120vh-60px)] bg-white dark:bg-gray-200 text-white shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
               isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
@@ -434,7 +431,7 @@ const HeaderUserMenu = ({ name, handleLogout }) => {
 
 const SectionLabel = ({ text }) => (
   <div className="pt-3 pb-1">
-    <p className="px-2 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+    <p className="px-2 text-xs font-medium uppercase tracking-wider text-white">
       {text}
     </p>
   </div>
@@ -446,8 +443,8 @@ const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
       to={link}
       className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
         active
-          ? "bg-green-100 dark:bg-green-800/50 text-green-700 dark:text-green-200 font-medium"
-          : "text-gray-600 dark:text-gray-300 hover:bg-green-50 dark:hover:bg-green-900/30 hover:text-green-600"
+          ? "bg-green-100 dark:bg-green-800/50 text-white font-medium"
+          : "text-white hover:bg-green-50 dark:hover:bg-green-900/30"
       }`}
     >
       <div className="flex items-center space-x-3">

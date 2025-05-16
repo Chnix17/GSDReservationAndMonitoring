@@ -455,7 +455,7 @@ const Sidebar = () => {
 
           {/* Mobile Sidebar */}
           <div
-            className={`fixed lg:hidden h-[calc(100vh-60px)] bg-b dark:bg-gray-100 text-black dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
+            className={`fixed lg:hidden h-[calc(100vh-60px)] bg-white dark:bg-gray-900 text-black dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
               isMobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
