@@ -1,19 +1,18 @@
-import React, { useState, useEffect, useRef } from 'react';
-import dayjs from 'dayjs';
+import React, { useState, useEffect,  } from 'react';
 import Sidebar from './Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { FaEdit, FaTrashAlt, FaSearch, FaPlus, FaEye, FaArrowLeft } from 'react-icons/fa';
+import { FaEye } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { Modal, Form, Input, Upload, Select, Table, Button, Image, Tooltip, Space, Empty, Pagination, Alert } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Modal, Form, Input, Upload, Select, Button, Image, Tooltip, Space, Empty, Pagination, Alert, message } from 'antd';
+import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, MinusOutlined } from '@ant-design/icons';
 import { Tag } from 'primereact/tag';
 
 const EquipmentEntry = () => {
-    const adminId = localStorage.getItem('adminId') || '';
+ 
     const [equipments, setEquipments] = useState([]);
     const [categories, setCategories] = useState([]);
     const [loading, setLoading] = useState(false);
@@ -22,10 +21,16 @@ const EquipmentEntry = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isUpdateUnitModalOpen, setIsUpdateUnitModalOpen] = useState(false);
     const [newEquipmentName, setNewEquipmentName] = useState('');
     const [newEquipmentQuantity, setNewEquipmentQuantity] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
     const [editingEquipment, setEditingEquipment] = useState(null);
+    const [equipmentType, setEquipmentType] = useState('bulk');
+    
+    const [currentUnit, setCurrentUnit] = useState(null);
+    const [unitDetails, setUnitDetails] = useState(null);
+    const [expandedRows, setExpandedRows] = useState(new Set());
     const navigate = useNavigate();
     
     const [form] = Form.useForm();
@@ -39,9 +44,15 @@ const EquipmentEntry = () => {
     const [selectedEquipmentId, setSelectedEquipmentId] = useState(null);
     const [sortField, setSortField] = useState('equip_id');
     const [sortOrder, setSortOrder] = useState('desc');
+    const [selectedUnitId, setSelectedUnitId] = useState(null);
+    const [isSerializedUnit, setIsSerializedUnit] = useState(false);
+    const [isAddUnitModalOpen, setIsAddUnitModalOpen] = useState(false);
+    const [currentEquipmentId, setCurrentEquipmentId] = useState(null);
+    const [serialNumbers, setSerialNumbers] = useState(['']);
+    const [newUnitSerialNumbers, setNewUnitSerialNumbers] = useState(['']);
 
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
-    const user_id = SecureStorage.getSessionItem('user_id');
+
 
     useEffect(() => {
         if (user_level_id !== '1' && user_level_id !== '2' && user_level_id !== '4') {
@@ -55,6 +66,65 @@ const EquipmentEntry = () => {
         fetchCategories();
         fetchStatusAvailability();
     }, []);
+
+    const fetchUnitById = async (unitId) => {
+        setLoading(true);
+        const url = "http://localhost/coc/gsd/user.php";
+        const jsonData = { operation: "getUnitById", unitId: unitId };
+
+        try {
+            const response = await axios.post(url, new URLSearchParams(jsonData));
+            if (response.data.status === 'success') {
+                setUnitDetails(response.data.data[0]);
+            } else {
+                toast.error("Error fetching unit details: " + response.data.message);
+            }
+        } catch (error) {
+            console.error("Error fetching unit details:", error);
+            toast.error("An error occurred while fetching unit details.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleUpdateUnit = async () => {
+        if (!currentUnit || !unitDetails) {
+            toast.error("No unit selected for update");
+            return;
+        }
+
+        setLoading(true);
+        const url = "http://localhost/coc/gsd/update_master1.php";
+        const requestData = {
+            operation: "updateEquipmentUnit",
+            unit_id: currentUnit.unit_id,
+            serial_number: unitDetails.serial_number,
+            status_availability_id: unitDetails.status_availability_id
+        };
+
+        console.log("Request Data:", requestData);
+
+        try {
+            const response = await axios.post(url, JSON.stringify(requestData), {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.status === 'success') {
+                toast.success("Unit successfully updated!");
+                setIsUpdateUnitModalOpen(false);
+                fetchEquipments(); // Refresh the equipment list
+            } else {
+                toast.error("Failed to update unit: " + response.data.message);
+            }
+        } catch (error) {
+            console.error("Error updating unit:", error);
+            toast.error("An error occurred while updating the unit.");
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const fetchEquipments = async () => {
         setLoading(true);
@@ -139,13 +209,25 @@ const EquipmentEntry = () => {
             return;
         }
 
-        if (!newEquipmentName || !newEquipmentQuantity || !selectedCategory || !selectedStatus) {
+        if (!newEquipmentName || !selectedCategory || !selectedStatus) {
             toast.error("All fields are required!");
             return;
         }
 
+        // Check equipment type specific validations only for new equipment
+        if (!editingEquipment) {
+            if (equipmentType === 'bulk' && !newEquipmentQuantity) {
+                toast.error("Quantity is required for bulk equipment!");
+                return;
+            }
+
+            if (equipmentType === 'serialized' && (!serialNumbers || serialNumbers.length === 0)) {
+                toast.error("At least one serial number is required!");
+                return;
+            }
+        }
+
         const user_admin_id = localStorage.getItem('user_id');
-        const user_level = localStorage.getItem('user_level_id');
 
         let requestData;
         if (editingEquipment) {
@@ -154,11 +236,14 @@ const EquipmentEntry = () => {
                 equipmentData: {
                     equipmentId: editingEquipment.equip_id,
                     name: newEquipmentName,
-                    quantity: newEquipmentQuantity,
+                    quantity: editingEquipment.units && editingEquipment.units.length > 0 ? editingEquipment.units.length : newEquipmentQuantity,
                     categoryId: selectedCategory,
                     statusId: selectedStatus,
                     equip_pic: equipmentImage || null,
-                    user_admin_id: user_admin_id
+                    user_admin_id: user_admin_id,
+                    serial_numbers: editingEquipment.units && editingEquipment.units.length > 0 ? 
+                        editingEquipment.units.map(u => u.serial_number) : 
+                        null
                 }
             };
         } else {
@@ -166,10 +251,12 @@ const EquipmentEntry = () => {
                 operation: "saveEquipment",
                 data: {
                     name: newEquipmentName,
-                    quantity: newEquipmentQuantity,
-                    categoryId: selectedCategory,
-                    equip_pic: equipmentImage,
+                    ...(equipmentType === 'bulk' 
+                        ? { quantity: parseInt(newEquipmentQuantity) }
+                        : { serial_numbers: serialNumbers }
+                    ),
                     status_availability_id: selectedStatus,
+                    categoryId: selectedCategory,
                     user_admin_id: user_admin_id
                 }
             };
@@ -229,6 +316,8 @@ const EquipmentEntry = () => {
         setEquipmentImage(null);
         setFileList([]);
         setSelectedStatus('');
+        setEquipmentType('bulk');
+        setSerialNumbers([]);
         form.resetFields();
     };
 
@@ -250,6 +339,8 @@ const EquipmentEntry = () => {
                 setSelectedCategory(equipment.equipment_equipment_category_id);
                 setSelectedStatus(equipment.status_availability_id);
                 setEditingEquipment(equipment);
+
+                console.log("Fetched Equipment Details:", equipment);
                 
                 // Update form values
                 form.setFieldsValue({
@@ -282,33 +373,47 @@ const EquipmentEntry = () => {
         }
     };
 
-    const handleArchiveEquipment = (equip_id) => {
+    const handleArchiveEquipment = (equip_id, unit_id = null, is_serialize = false) => {
         setSelectedEquipmentId(equip_id);
+        setSelectedUnitId(unit_id);
+        setIsSerializedUnit(is_serialize);
         setShowConfirmDelete(true);
     };
 
     const confirmDelete = async () => {
         setLoading(true);
         try {
-            const requestData = {
+            const url = "http://localhost/coc/gsd/delete_master.php";
+            const jsonData = {
                 operation: "archiveResource",
                 resourceType: "equipment",
-                resourceId: selectedEquipmentId
+                resourceId: isSerializedUnit ? selectedUnitId : selectedEquipmentId,
+                is_serialize: isSerializedUnit
             };
-            
-            const url = "http://localhost/coc/gsd/delete_master.php";
-            const response = await axios.post(url, JSON.stringify(requestData), {
+
+            console.log("Request Data:", jsonData);
+
+            const response = await fetch(url, {
+                method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
-                }
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jsonData)
             });
 
-            if (response.data.status === 'success') {
-                toast.success("Equipment archived successfully!");
-                fetchEquipments();
+
+            console.log("Response:", response);
+
+            const data = await response.json();
+
+            console.log("Response Data:", data);
+            
+            if (data.status === 'success') {
+                toast.success(isSerializedUnit ? "Equipment unit archived successfully" : "Equipment archived successfully");
                 setShowConfirmDelete(false);
+                fetchEquipments();
             } else {
-                toast.error("Failed to archive equipment: " + response.data.message);
+                toast.error(data.message || "Failed to archive equipment");
             }
         } catch (error) {
             toast.error("An error occurred while archiving equipment: " + error.message);
@@ -339,6 +444,94 @@ const EquipmentEntry = () => {
             setSortField(field);
             setSortOrder("asc");
         }
+    };
+
+    const toggleExpand = (equipId) => {
+        const newExpandedRows = new Set(expandedRows);
+        if (newExpandedRows.has(equipId)) {
+            newExpandedRows.delete(equipId);
+        } else {
+            newExpandedRows.add(equipId);
+        }
+        setExpandedRows(newExpandedRows);
+    };
+
+    const handleAddUnit = async () => {
+        // Validate if any serial number is empty
+        const nonEmptySerialNumbers = newUnitSerialNumbers.filter(sn => sn.trim());
+        if (nonEmptySerialNumbers.length === 0) {
+            message.error('Please enter at least one serial number');
+            return;
+        }
+
+        // Check for duplicate serial numbers in the input
+        const uniqueSerials = new Set(nonEmptySerialNumbers.map(sn => sn.toLowerCase()));
+        if (uniqueSerials.size !== nonEmptySerialNumbers.length) {
+            message.error('Duplicate serial numbers are not allowed');
+            return;
+        }
+
+        // Check if any of the serial numbers already exist for this equipment
+        const equipment = filteredEquipments.find(eq => eq.equip_id === currentEquipmentId);
+        if (equipment && equipment.units) {
+            const existingSerials = new Set(equipment.units.map(unit => unit.serial_number.toLowerCase()));
+            const duplicate = nonEmptySerialNumbers.find(sn => existingSerials.has(sn.toLowerCase()));
+            if (duplicate) {
+                message.error(`Serial number "${duplicate}" already exists for this equipment`);
+                return;
+            }
+        }
+
+        setLoading(true);
+        try {
+            const response = await fetch('http://localhost/coc/gsd/insert_master.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: 'saveEquipmentUnit',
+                    data: {
+                        equip_id: currentEquipmentId,
+                        serial_numbers: nonEmptySerialNumbers,
+                        status_availability_id: 1 // Default to available status
+                    }
+                })
+            });
+
+            const data = await response.json();
+            if (data.status === 'success') {
+                message.success(`${nonEmptySerialNumbers.length} equipment unit(s) added successfully`);
+                setIsAddUnitModalOpen(false);
+                setNewUnitSerialNumbers(['']);
+                await fetchEquipments();
+            } else {
+                message.error(data.message || 'Failed to add equipment units');
+            }
+        } catch (error) {
+            console.error('Error adding equipment units:', error);
+            message.error('Failed to add equipment units');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Add this new function to handle adding more serial number fields
+    const addSerialNumberField = () => {
+        setNewUnitSerialNumbers([...newUnitSerialNumbers, '']);
+    };
+
+    // Add this new function to handle removing a serial number field
+    const removeSerialNumberField = (index) => {
+        const newSerials = newUnitSerialNumbers.filter((_, i) => i !== index);
+        setNewUnitSerialNumbers(newSerials.length ? newSerials : ['']);
+    };
+
+    // Add this new function to update a serial number
+    const updateSerialNumber = (index, value) => {
+        const newSerials = [...newUnitSerialNumbers];
+        newSerials[index] = value;
+        setNewUnitSerialNumbers(newSerials);
     };
 
     const filteredEquipments = equipments.filter(equipment =>
@@ -417,16 +610,12 @@ const EquipmentEntry = () => {
                                 <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
                                     <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('equip_id')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    ID
-                                                    {sortField === 'equip_id' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
+                                            <th scope="col" className="px-2 py-3">
+                                                <div className="flex items-center">
+                                                    Expand
                                                 </div>
                                             </th>
+                                           
                                             <th scope="col" className="px-6 py-3">
                                                 <div className="flex items-center">
                                                     Image
@@ -474,59 +663,125 @@ const EquipmentEntry = () => {
                                             filteredEquipments
                                                 .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                                                 .map((equipment) => (
-                                                    <tr
-                                                        key={equipment.equip_id}
-                                                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
-                                                    >
-                                                        <td className="px-6 py-4">{equipment.equip_id}</td>
-                                                        <td className="px-6 py-4">
-                                                            {equipment.equip_pic ? (
-                                                                <div className="cursor-pointer" onClick={() => handleViewImage(getImageUrl(equipment.equip_pic))}>
-                                                                    <img 
-                                                                        src={getImageUrl(equipment.equip_pic)} 
-                                                                        alt={equipment.equip_name} 
-                                                                        className="w-12 h-12 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
+                                                    <React.Fragment key={equipment.equip_id}>
+                                                        <tr className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                                            <td className="px-2 py-4">
+                                                                {equipment.units && equipment.units.length > 0 && (
+                                                                    <Button
+                                                                        type="text"
+                                                                        icon={expandedRows.has(equipment.equip_id) ? 
+                                                                            <MinusOutlined /> : <PlusOutlined />}
+                                                                        onClick={() => toggleExpand(equipment.equip_id)}
+                                                                        className="text-green-900"
+                                                                    />
+                                                                )}
+                                                            </td>
+                                                           
+                                                            <td className="px-6 py-4">
+                                                                {equipment.equip_pic ? (
+                                                                    <div className="cursor-pointer" onClick={() => handleViewImage(getImageUrl(equipment.equip_pic))}>
+                                                                        <img 
+                                                                            src={getImageUrl(equipment.equip_pic)} 
+                                                                            alt={equipment.equip_name} 
+                                                                            className="w-12 h-12 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
+                                                                        />
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
+                                                                        <i className="pi pi-box text-xl"></i>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex items-center">
+                                                               
+                                                                    <span className="font-medium">{equipment.equip_name}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4">{equipment.equip_quantity}</td>
+                                                            <td className="px-6 py-4">{equipment.equipments_category_name || 'Not specified'}</td>
+                                                            <td className="px-6 py-4">
+                                                                <Tag 
+                                                                    value={equipment.status || 'Available'} 
+                                                                    severity={(equipment.status || 'Available') === 'Available' ? 'success' : 'danger'}
+                                                                    className="px-2 py-1 text-xs font-semibold"
+                                                                />
+                                                            </td>
+                                                            <td className="px-6 py-4">
+                                                                <div className="flex space-x-2">
+                                                                    <Button
+                                                                        type="primary"
+                                                                        icon={<EditOutlined />}
+                                                                        onClick={() => handleEditClick(equipment)}
+                                                                        size="middle"
+                                                                        className="bg-green-900 hover:bg-lime-900"
+                                                                    />
+                                                                    <Button
+                                                                        danger
+                                                                        icon={<DeleteOutlined />}
+                                                                        onClick={() => handleArchiveEquipment(equipment.equip_id)}
+                                                                        size="middle"
                                                                     />
                                                                 </div>
-                                                            ) : (
-                                                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
-                                                                    <i className="pi pi-box text-xl"></i>
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center">
-                                                                <FaEye className="mr-2 text-green-900" />
-                                                                <span className="font-medium">{equipment.equip_name}</span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-6 py-4">{equipment.equip_quantity}</td>
-                                                        <td className="px-6 py-4">{equipment.equipment_category_name || 'Not specified'}</td>
-                                                        <td className="px-6 py-4">
-                                                            <Tag 
-                                                                value={equipment.status || 'Available'} 
-                                                                severity={(equipment.status || 'Available') === 'Available' ? 'success' : 'danger'}
-                                                                className="px-2 py-1 text-xs font-semibold"
-                                                            />
-                                                        </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex space-x-2">
-                                                                <Button
-                                                                    type="primary"
-                                                                    icon={<EditOutlined />}
-                                                                    onClick={() => handleEditClick(equipment)}
-                                                                    size="middle"
-                                                                    className="bg-green-900 hover:bg-lime-900"
-                                                                />
-                                                                <Button
-                                                                    danger
-                                                                    icon={<DeleteOutlined />}
-                                                                    onClick={() => handleArchiveEquipment(equipment.equip_id)}
-                                                                    size="middle"
-                                                                />
-                                                            </div>
-                                                        </td>
-                                                    </tr>
+                                                            </td>
+                                                        </tr>
+                                                        {expandedRows.has(equipment.equip_id) && equipment.units && (
+                                                            <tr className="bg-gray-50">
+                                                                <td colSpan={8} className="px-6 py-4">
+                                                                    <div className="pl-8">
+                                                                        <div className="flex justify-between items-center mb-4">
+                                                                            <h4 className="text-sm font-semibold text-green-900">Serial Numbers:</h4>
+                                                                            <Button
+                                                                                type="primary"
+                                                                                icon={<PlusOutlined />}
+                                                                                size="small"
+                                                                                onClick={() => {
+                                                                                    setCurrentEquipmentId(equipment.equip_id);
+                                                                                    setIsAddUnitModalOpen(true);
+                                                                                }}
+                                                                                className="bg-green-900 hover:bg-lime-900"
+                                                                            >
+                                                                                Add Unit
+                                                                            </Button>
+                                                                        </div>
+                                                                        <div className="space-y-2">
+                                                                            {equipment.units.map((unit) => (
+                                                                                <div key={unit.unit_id} className="flex items-center justify-between space-x-4 text-sm">
+                                                                                    <div className="flex items-center space-x-4">
+                                                                                        <span className="font-medium">{unit.serial_number}</span>
+                                                                                        <Tag 
+                                                                                            value={unit.availability_status} 
+                                                                                            severity={unit.availability_status === 'available' ? 'success' : 'danger'}
+                                                                                            className="px-2 py-1 text-xs font-semibold"
+                                                                                        />
+                                                                                    </div>
+                                                                                    <div className="flex space-x-2">
+                                                                                        <Button
+                                                                                            type="primary"
+                                                                                            icon={<EditOutlined />}
+                                                                                            size="small"
+                                                                                            onClick={() => {
+                                                                                                setCurrentUnit(unit);
+                                                                                                fetchUnitById(unit.unit_id);
+                                                                                                setIsUpdateUnitModalOpen(true);
+                                                                                            }}
+                                                                                            className="bg-green-900 hover:bg-lime-900"
+                                                                                        />
+                                                                                        <Button
+                                                                                            danger
+                                                                                            icon={<DeleteOutlined />}
+                                                                                            size="small"
+                                                                                            onClick={() => handleArchiveEquipment(equipment.equip_id, unit.unit_id, true)}
+                                                                                        />
+                                                                                    </div>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        )}
+                                                    </React.Fragment>
                                                 ))
                                         ) : (
                                             <tr>
@@ -568,6 +823,63 @@ const EquipmentEntry = () => {
                 </div>
             </div>
 
+            {/* Update Unit Modal */}
+            <Modal
+                title={<div className="flex items-center">
+                    <EditOutlined className="mr-2 text-green-900" />
+                    Update Equipment Unit
+                </div>}
+                open={isUpdateUnitModalOpen}
+                onCancel={() => setIsUpdateUnitModalOpen(false)}
+                onOk={handleUpdateUnit}
+                confirmLoading={loading}
+                destroyOnClose
+            >
+                {unitDetails && (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Name</label>
+                            <Input 
+                                value={unitDetails.equip_name} 
+                                readOnly 
+                                className="bg-gray-50"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
+                            <Input 
+                                value={unitDetails.serial_number}
+                                onChange={(e) => setUnitDetails({
+                                    ...unitDetails,
+                                    serial_number: e.target.value
+                                })}
+                                placeholder="Enter serial number"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <Select
+                                value={unitDetails.status_availability_id}
+                                onChange={(value) => setUnitDetails({
+                                    ...unitDetails,
+                                    status_availability_id: value
+                                })}
+                                style={{ width: '100%' }}
+                            >
+                                {statusAvailability.map(status => (
+                                    <Select.Option 
+                                        key={status.status_availability_id} 
+                                        value={status.status_availability_id}
+                                    >
+                                        {status.status_availability_name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
             {/* Add/Edit Equipment Modal */}
             <Modal
                 title={
@@ -587,6 +899,23 @@ const EquipmentEntry = () => {
                 confirmLoading={loading}
             >
                 <Form form={form} layout="vertical">
+                    {!editingEquipment && (
+                        <Form.Item
+                            label="Equipment Type"
+                            name="equipmentType"
+                            rules={[{ required: true, message: 'Please select equipment type!' }]}
+                        >
+                            <Select
+                                value={equipmentType}
+                                onChange={(value) => setEquipmentType(value)}
+                                placeholder="Select equipment type"
+                            >
+                                <Select.Option value="bulk">Bulk Entry (Quantity Only)</Select.Option>
+                                <Select.Option value="serialized">Individual Serial Numbers</Select.Option>
+                            </Select>
+                        </Form.Item>
+                    )}
+
                     <Form.Item
                         label="Equipment Name"
                         name="equipmentName"
@@ -599,19 +928,64 @@ const EquipmentEntry = () => {
                         />
                     </Form.Item>
 
-                    <Form.Item
-                        label="Quantity"
-                        name="equipmentQuantity"
-                        rules={[{ required: true, message: 'Please input quantity!' }]}
-                    >
-                        <Input
-                            type="number"
-                            value={newEquipmentQuantity}
-                            onChange={handleEquipmentQuantityChange}
-                            placeholder="Enter quantity"
-                            min="1"
-                        />
-                    </Form.Item>
+                    {/* Show quantity field only for bulk equipment in add mode or when editing equipment with existing quantity */}
+                    {(!editingEquipment && equipmentType === 'bulk') || (editingEquipment && editingEquipment.equip_quantity) ? (
+                        <Form.Item
+                            label="Quantity"
+                            name="equipmentQuantity"
+                            rules={[{ required: !editingEquipment, message: 'Please input quantity!' }]}
+                        >
+                            <Input
+                                type="number"
+                                value={newEquipmentQuantity}
+                                onChange={handleEquipmentQuantityChange}
+                                placeholder="Enter quantity"
+                                min="1"
+                            />
+                        </Form.Item>
+                    ) : null}
+
+                    {/* Show serial numbers field only for serialized equipment in add mode */}
+                    {!editingEquipment && equipmentType === 'serialized' && (
+                        <Form.Item
+                            label="Serial Numbers"
+                            name="serialNumbers"
+                            rules={[{ required: true, message: 'Please add at least one serial number!' }]}
+                        >
+                            <Space direction="vertical" style={{ width: '100%' }}>
+                                {serialNumbers.map((serial, index) => (
+                                    <Space key={index}>
+                                        <Input
+                                            value={serial}
+                                            onChange={(e) => {
+                                                const newSerialNumbers = [...serialNumbers];
+                                                newSerialNumbers[index] = e.target.value;
+                                                setSerialNumbers(newSerialNumbers);
+                                            }}
+                                            placeholder="Enter serial number"
+                                        />
+                                        <Button
+                                            type="text"
+                                            danger
+                                            icon={<DeleteOutlined />}
+                                            onClick={() => {
+                                                const newSerialNumbers = serialNumbers.filter((_, i) => i !== index);
+                                                setSerialNumbers(newSerialNumbers);
+                                            }}
+                                        />
+                                    </Space>
+                                ))}
+                                <Button
+                                    type="dashed"
+                                    onClick={() => setSerialNumbers([...serialNumbers, ''])}
+                                    block
+                                    icon={<PlusOutlined />}
+                                >
+                                    Add Serial Number
+                                </Button>
+                            </Space>
+                        </Form.Item>
+                    )}
 
                     <Form.Item
                         label="Category"
@@ -720,11 +1094,59 @@ const EquipmentEntry = () => {
             >
                 <Alert
                     message="Warning"
-                    description={`Are you sure you want to archive this equipment? This action cannot be undone.`}
+                    description={`Are you sure you want to archive this ${isSerializedUnit ? 'equipment unit' : 'equipment'}? This action cannot be undone.`}
                     type="warning"
                     showIcon
                     icon={<ExclamationCircleOutlined />}
                 />
+            </Modal>
+
+            {/* Add Unit Modal */}
+            <Modal
+                title={<div className="flex items-center">
+                    <PlusOutlined className="mr-2 text-green-900" />
+                    Add Equipment Unit
+                </div>}
+                open={isAddUnitModalOpen}
+                onCancel={() => {
+                    setIsAddUnitModalOpen(false);
+                    setNewUnitSerialNumbers(['']);
+                }}
+                onOk={handleAddUnit}
+                confirmLoading={loading}
+                okText="Add Units"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Serial Numbers</label>
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                            {newUnitSerialNumbers.map((serial, index) => (
+                                <Space key={index}>
+                                    <Input
+                                        value={serial}
+                                        onChange={(e) => updateSerialNumber(index, e.target.value)}
+                                        placeholder="Enter serial number"
+                                    />
+                                    <Button
+                                        type="text"
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => removeSerialNumberField(index)}
+                                        disabled={newUnitSerialNumbers.length === 1}
+                                    />
+                                </Space>
+                            ))}
+                            <Button
+                                type="dashed"
+                                onClick={addSerialNumberField}
+                                block
+                                icon={<PlusOutlined />}
+                            >
+                                Add More Serial Numbers
+                            </Button>
+                        </Space>
+                    </div>
+                </div>
             </Modal>
         </div>
     );

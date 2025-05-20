@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Sidebar from './Sidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faArchive, faSearch, faPlus, faUser, faTrashAlt, faEye } from '@fortawesome/free-solid-svg-icons';
+import { faEdit, faArchive, faSearch, faPlus, faUser } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { Modal, Button, Form, Alert } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
 import { InputText } from 'primereact/inputtext';
@@ -15,20 +15,12 @@ import { FilterMatchMode } from 'primereact/api';
 import "primereact/resources/themes/lara-light-indigo/theme.css";  // theme
 import "primereact/resources/primereact.css";     // core css
 import "primeicons/primeicons.css";               // icons
-import { Card } from 'primereact/card';
-import { Badge } from 'primereact/badge';
-import { Divider } from 'primereact/divider';
 import { Chip } from 'primereact/chip';
-import { IconField } from 'primereact/iconfield';
-import { InputIcon } from 'primereact/inputicon';
 import { Tooltip } from 'primereact/tooltip';
-import { Tag } from 'primereact/tag';
-import { FileUpload } from 'primereact/fileupload';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
 import '../vehicle.css'; // Import vehicle.css which contains loader styles
-import { Alert as AntAlert, Empty, Pagination, Select } from 'antd';
-import { ExclamationCircleOutlined, DeleteOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from '@ant-design/icons';
+import { ExclamationCircleOutlined, DeleteOutlined } from '@ant-design/icons';
 
 const generateAvatarColor = (str) => {
     let hash = 0;
@@ -50,7 +42,6 @@ const Faculty = () => {
     const [departments, setDepartments] = useState([]);
     const [userLevels, setUserLevels] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [searchTerm, setSearchTerm] = useState('');
     const [modalState, setModalState] = useState({ isOpen: false, type: '', user: null });
     const [filters, setFilters] = useState({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS },
@@ -64,7 +55,6 @@ const Faculty = () => {
     const [currentImage, setCurrentImage] = useState(null);
 
     const navigate = useNavigate();
-    const user_id = localStorage.getItem('user_id');
 
     useEffect(() => {
         if (user_level_id !== '1' && user_level_id !== '2' && user_level_id !== '4') {
@@ -183,7 +173,9 @@ const Faculty = () => {
                     users_contact_number: userData.users_contact_number,
                     users_user_level_id: userData.users_user_level_id,
                     departments_name: userData.departments_name,
-                    users_pic: userData.users_pic
+                    users_pic: userData.users_pic,
+                    users_suffix: userData.users_suffix,
+                    users_birthdate: userData.users_birthdate,
                 };
             }
             throw new Error('User not found');
@@ -237,25 +229,16 @@ const Faculty = () => {
         try {
             // Map the user level name to the correct API type
             let apiUserType;
-            switch (userLevelName) {
-                case 'Admin':
-                    apiUserType = 'admin';
-                    break;
-                case 'Dean':
-                case 'Secretary':
-                    apiUserType = 'dept';
-                    break;
-                case 'Driver':
-                    apiUserType = 'driver';
-                    break;
-                case 'Personnel':
-                    apiUserType = 'personel';
+            switch (userLevelName.toLowerCase()) {
+                case 'user':
+                    apiUserType = 'user';
                     break;
                 default:
                     apiUserType = 'user';
             }
 
             console.log('Sending archive request:', {
+                operation: 'archiveUser',
                 userType: apiUserType,
                 userId: userId
             });
@@ -265,7 +248,7 @@ const Faculty = () => {
                 {
                     operation: 'archiveUser',
                     userType: apiUserType,
-                    userId: userId
+                    userId: userId.toString()
                 },
                 { 
                     headers: { 'Content-Type': 'application/json' } 
@@ -273,7 +256,6 @@ const Faculty = () => {
             );
 
             if (response.data.status === 'success') {
-                toast.success("User archived successfully!");
                 fetchUsers(); // Refresh the users list
                 setModalState({ isOpen: false, type: '', user: null });
             } else {
@@ -285,9 +267,7 @@ const Faculty = () => {
         }
     };
 
-    const filteredUsers = users?.filter(user =>
-        (user?.users_fname + ' ' + user?.users_lname)?.toLowerCase().includes(searchTerm.toLowerCase())
-    ) || [];  // Add null checks and provide empty array fallback
+ // Add null checks and provide empty array fallback
 
     const handleViewImage = (imageUrl) => {
         setCurrentImage(imageUrl);
@@ -360,21 +340,23 @@ const Faculty = () => {
                 <Tooltip target=".archive-btn" />
 
                 <Button 
-                    type="primary"
-                    icon={<FontAwesomeIcon icon={faEdit} />}
+                    type="button"
                     onClick={handleEditClick}
-                    className="edit-btn bg-green-900 hover:bg-lime-900"
+                    className="edit-btn bg-green-900 hover:bg-lime-900 text-white"
                     data-pr-tooltip="Edit Faculty"
                     data-pr-position="top"
-                />
+                >
+                    <FontAwesomeIcon icon={faEdit} />
+                </Button>
                 <Button 
-                    danger
-                    icon={<FontAwesomeIcon icon={faArchive} />}
+                    type="button"
                     onClick={handleArchiveClick}
-                    className="archive-btn"
+                    className="archive-btn bg-red-600 hover:bg-red-700 text-white"
                     data-pr-tooltip="Archive Faculty"
                     data-pr-position="top"
-                />
+                >
+                    <FontAwesomeIcon icon={faArchive} />
+                </Button>
             </div>
         );
     };
@@ -637,24 +619,32 @@ const FacultyModal = ({
     fetchUsers
 }) => {
     const timeoutRef = useRef(null);
-    const [currentUserData, setCurrentUserData] = useState(null);
+    const [hasChanges, setHasChanges] = useState(false);
+    const [originalData, setOriginalData] = useState(null);
+
     const [formData, setFormData] = useState({
         users_id: '',
         users_firstname: '',
         users_middlename: '',
         users_lastname: '',
+        users_suffix: '',
         users_school_id: '',
         users_contact_number: '',
         users_email: '',
         departments_name: '',
         users_password: '',
         users_role: '',
+        users_birthday: '',
     });
 
     const [imageUrl, setImageUrl] = useState('');
     const [errors, setErrors] = useState({});
     const [touchedFields, setTouchedFields] = useState({});
-    
+    const [duplicateFields, setDuplicateFields] = useState({
+        email: false,
+        schoolId: false
+    });
+
     // Password validation regex
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]*$/;
     const passwordSingleSpecialCharRegex = /[!@#$%^&*]/g;
@@ -680,17 +670,40 @@ const FacultyModal = ({
                     return 'Name can only contain letters and spaces';
                 }
                 return '';
+            case 'users_suffix':
+                if (value && !/^[a-zA-Z\s.]+$/.test(value.trim())) {
+                    return 'Suffix can only contain letters, spaces, and periods';
+                }
+                return '';
+            case 'users_birthday':
+                if (!value) {
+                    return 'Birthday is required';
+                }
+                const birthDate = new Date(value);
+                const today = new Date();
+                let age = today.getFullYear() - birthDate.getFullYear();
+                const monthDiff = today.getMonth() - birthDate.getMonth();
+                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                    age--;
+                }
+                if (age < 18) {
+                    return 'Must be at least 18 years old';
+                }
+                if (age > 100) {
+                    return 'Invalid birth date';
+                }
+                return '';
             case 'users_email':
                 return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Invalid email address';
-                case 'users_school_id':
-                    if (!value.trim()) {
-                        return 'School ID is required';
-                    }
-                    // Regex to ensure the format is something like 'x1-x1-x1', where 'x1' can be alphanumeric
-                    if (!/^[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+$/.test(value)) {
-                        return 'School ID must be in the format x1-x1-x1 (e.g., abc-123-xyz)';
-                    }
-                    return '';
+            case 'users_school_id':
+                if (!value.trim()) {
+                    return 'School ID is required';
+                }
+                // Regex to ensure the format is something like 'x1-x1-x1', where 'x1' can be alphanumeric
+                if (!/^[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+$/.test(value)) {
+                    return 'School ID must be in the format x1-x1-x1 (e.g., abc-123-xyz)';
+                }
+                return '';
                 
             case 'users_contact_number':
                 return /^\d{11}$/.test(value) ? '' : 'Contact number must be 11 digits';
@@ -731,25 +744,42 @@ const FacultyModal = ({
         }
     };
 
-    // Modified handleChange to skip sanitization for password
+    // Modified handleChange to handle all input changes
     const handleChange = (e) => {
         const { name, value } = e.target;
+        let finalValue = value;
         
-        if (name === 'users_password') {
-            // Don't sanitize password input
-            setFormData(prev => ({ ...prev, [name]: value }));
-        } else {
+        if (name !== 'users_password') {
             // Sanitize other inputs while allowing spaces
-            const sanitizedValue = sanitizeInput(value);
+            finalValue = sanitizeInput(value);
             
             // Only validate non-empty values
-            if (sanitizedValue && !validateInput(sanitizedValue)) {
+            if (finalValue && !validateInput(finalValue)) {
                 toast.error('Invalid input detected');
                 return;
             }
-            
-            setFormData(prev => ({ ...prev, [name]: sanitizedValue }));
         }
+        
+        setFormData(prev => {
+            const newData = {
+                ...prev,
+                [name]: finalValue
+            };
+            
+            // Check if anything has changed from original data
+            if (type === 'edit' && originalData) {
+                const hasAnyChange = Object.keys(originalData).some(key => {
+                    // Skip password field as it's always empty in originalData
+                    if (key === 'users_password') return false;
+                    return originalData[key] !== newData[key];
+                });
+                // Special case for password in edit mode - if there's a password, count it as a change
+                const passwordChange = type === 'edit' && newData.users_password !== '';
+                setHasChanges(hasAnyChange || passwordChange);
+            }
+            
+            return newData;
+        });
         
         // Clear any existing errors while typing
         setErrors(prev => ({
@@ -757,54 +787,73 @@ const FacultyModal = ({
             [name]: ''
         }));
         
-        // Reset duplicate fields while typing
+        // Reset duplicate fields while typing for email and school ID
         if (name === 'users_email' || name === 'users_school_id') {
             setDuplicateFields(prev => ({
                 ...prev,
                 [name === 'users_email' ? 'email' : 'schoolId']: false
             }));
+            
+            // Debounce the duplicate check
+            if (timeoutRef.current) {
+                clearTimeout(timeoutRef.current);
+            }
+            
+            timeoutRef.current = setTimeout(() => {
+                checkDuplicates(
+                    name === 'users_email' ? 'email' : 'schoolId',
+                    finalValue
+                );
+            }, 500);
         }
     };
 
     useEffect(() => {
         const fetchUserData = async () => {
+            setHasChanges(false); // Reset changes flag
+            
             if (user && type === 'edit') {
                 console.log('Fetching user details for ID:', user.users_id);
                 const userDetails = await getUserDetails(user.users_id);
-                console.log('Fetched user details:', userDetails); // Debug log
+                console.log('Fetched user details:', userDetails);
                 
                 if (userDetails) {
-                    setFormData({
+                    const newFormData = {
                         users_id: userDetails.users_id,
-                        users_firstname: userDetails.users_fname,    // Match API field names
-                        users_middlename: userDetails.users_mname,  // Match API field names
-                        users_lastname: userDetails.users_lname,    // Match API field names
+                        users_firstname: userDetails.users_fname,
+                        users_middlename: userDetails.users_mname,
+                        users_lastname: userDetails.users_lname,
+                        users_suffix: userDetails.users_suffix || '',
                         users_email: userDetails.users_email,
                         users_school_id: userDetails.users_school_id,
                         users_contact_number: userDetails.users_contact_number,
                         users_role: userDetails.users_user_level_id,
                         departments_name: userDetails.departments_name,
-                        users_password: ''
-                    });
-
-                    if (userDetails.users_pic) {
-                        setImageUrl(`http://localhost/coc/gsd/${userDetails.users_pic}`);
-                    }
+                        users_password: '',
+                        users_birthday: userDetails.users_birthdate || '',
+                    };
+                    setFormData(newFormData);
+                    setOriginalData(newFormData); // Save original data for comparison
+                    setImageUrl(userDetails.users_pic ? `http://localhost/coc/gsd/${userDetails.users_pic}` : '');
                 }
             } else {
                 // Reset form for new user
-                setFormData({
+                const newFormData = {
                     users_id: '',
                     users_firstname: '',
                     users_middlename: '',
                     users_lastname: '',
+                    users_suffix: '',
                     users_school_id: '',
                     users_contact_number: '',
                     users_email: '',
                     departments_name: '',
                     users_password: '',
                     users_role: '',
-                });
+                    users_birthday: '',
+                };
+                setFormData(newFormData);
+                setOriginalData(null); // Clear original data in add mode
                 setImageUrl('');
             }
         };
@@ -858,9 +907,6 @@ const FacultyModal = ({
             return;
         }
 
-        // School ID validation (numbers only)
-        
-
         // Name validation
         const nameRegex = /^[a-zA-Z\s]+$/;
         if (!nameRegex.test(formData.users_firstname) || 
@@ -870,14 +916,41 @@ const FacultyModal = ({
             return;
         }
 
-        // Rest of the handleSubmit function remains the same
         // Check unique email and school ID
-        const uniqueCheckResult = await checkUniqueEmailAndSchoolId(
-            formData.users_email,
-            formData.users_school_id
-        );
+        if (type === 'add' || 
+            (type === 'edit' && 
+             (formData.users_email !== originalData.users_email || 
+              formData.users_school_id !== originalData.users_school_id))
+        ) {
+            const uniqueCheckResult = await checkUniqueEmailAndSchoolId(
+                formData.users_email,
+                formData.users_school_id
+            );
 
-       
+            // In edit mode, only check for duplicates if the field has changed
+            if (uniqueCheckResult && uniqueCheckResult.email_exists &&
+                (type === 'add' || formData.users_email !== originalData.users_email)
+            ) {
+                setErrors(prev => ({
+                    ...prev,
+                    users_email: 'This email is already in use'
+                }));
+                toast.error('Email is already registered');
+                return;
+            }
+
+            if (uniqueCheckResult && uniqueCheckResult.school_id_exists &&
+                (type === 'add' || formData.users_school_id !== originalData.users_school_id)
+            ) {
+                setErrors(prev => ({
+                    ...prev,
+                    users_school_id: 'This school ID is already in use'
+                }));
+                toast.error('School ID is already registered');
+                return;
+            }
+        }
+
         // Validate all fields
         const newErrors = {};
         Object.keys(formData).forEach(key => {
@@ -937,7 +1010,9 @@ const FacultyModal = ({
                 user_level_id: formData.users_role,
                 department_id: selectedDepartment?.departments_id,
                 pic: user.users_pic || '',
-                is_active: 1
+                is_active: 1,
+                suffix: formData.users_suffix || '',
+                birthdate: formData.users_birthday || ''
             };
 
             if (formData.users_password) {
@@ -963,7 +1038,9 @@ const FacultyModal = ({
                         userLevelId: formData.users_role,
                         password: formData.users_password,
                         departmentId: selectedDepartment.departments_id,
-                        pic: ""
+                        pic: "",
+                        suffix: formData.users_suffix || "",
+                        birthdate: formData.users_birthday || ""
                     }
                 };
             } else {
@@ -978,7 +1055,9 @@ const FacultyModal = ({
                         contact: formData.users_contact_number,
                         userLevelId: formData.users_role,
                         password: formData.users_password,
-                        departmentId: selectedDepartment.departments_id
+                        departmentId: selectedDepartment.departments_id,
+                        suffix: formData.users_suffix || "",
+                        birthdate: formData.users_birthday || ""
                     }
                 };
             }
@@ -1015,87 +1094,82 @@ const FacultyModal = ({
     };
 
     // Add new state for duplicate checks
-    const [duplicateFields, setDuplicateFields] = useState({
-        email: false,
-        schoolId: false
-    });
+
 
     // Modified checkDuplicates function
     const checkDuplicates = async (field, value) => {
-        // Skip validation in edit mode
-        if (type === 'edit') {
-            setDuplicateFields(prev => ({
-                ...prev,
-                [field]: false
-            }));
-            return;
-        }
-
         // Don't check if the field is empty
         if (!value) {
             setDuplicateFields(prev => ({
                 ...prev,
                 [field]: false
             }));
+            setErrors(prev => ({
+                ...prev,
+                [field === 'email' ? 'users_email' : 'users_school_id']: ''
+            }));
             return;
         }
 
-        // Create a timeout to wait for user to finish typing
-        if (timeoutRef.current) {
-            clearTimeout(timeoutRef.current);
-        }
-
-        timeoutRef.current = setTimeout(async () => {
-            try {
-                const response = await axios.post(
-                    'http://localhost/coc/gsd/user.php',
-                    {
-                        operation: 'checkUniqueEmailAndSchoolId',
-                        email: field === 'email' ? value : '',
-                        schoolId: field === 'schoolId' ? value : ''
-                    },
-                    {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
+        try {
+            const response = await axios.post(
+                'http://localhost/coc/gsd/user.php',
+                {
+                    operation: 'checkUniqueEmailAndSchoolId',
+                    email: field === 'email' ? value : '',
+                    schoolId: field === 'schoolId' ? value : ''
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
                     }
-                );
+                }
+            );
 
-                if (response.data.status === 'success') {
-                    const isDuplicate = response.data.exists;
-                    setErrors(prev => ({
-                        ...prev,
-                        [field === 'email' ? 'users_email' : 'users_school_id']: 
-                            isDuplicate ? `This ${field} is already in use` : ''
-                    }));
+            if (response.data) {
+                const { status, exists, duplicates } = response.data;
+                
+                if (status === 'success' && exists && Array.isArray(duplicates)) {
+                    // Find if there's a duplicate for the current field
+                    const duplicate = duplicates.find(d => 
+                        (field === 'email' && d.field === 'email') || 
+                        (field === 'schoolId' && d.field === 'school_id')
+                    );
+
+                    if (duplicate) {
+                        setDuplicateFields(prev => ({
+                            ...prev,
+                            [field]: true
+                        }));
+                        setErrors(prev => ({
+                            ...prev,
+                            [field === 'email' ? 'users_email' : 'users_school_id']: duplicate.message
+                        }));
+                    } else {
+                        setDuplicateFields(prev => ({
+                            ...prev,
+                            [field]: false
+                        }));
+                        setErrors(prev => ({
+                            ...prev,
+                            [field === 'email' ? 'users_email' : 'users_school_id']: ''
+                        }));
+                    }
+                } else {
+                    // No duplicates found
                     setDuplicateFields(prev => ({
                         ...prev,
-                        [field]: isDuplicate
+                        [field]: false
+                    }));
+                    setErrors(prev => ({
+                        ...prev,
+                        [field === 'email' ? 'users_email' : 'users_school_id']: ''
                     }));
                 }
-            } catch (error) {
-                console.error('Error checking duplicates:', error);
             }
-        }, 500);
-    };
-
-    // Add handleInputChange for better input handling
-    const handleInputChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
-        
-        // Clear any existing errors while typing
-        setErrors(prev => ({
-            ...prev,
-            [name]: ''
-        }));
-        
-        // Reset duplicate fields while typing
-        if (name === 'users_email' || name === 'users_school_id') {
-            setDuplicateFields(prev => ({
-                ...prev,
-                [name === 'users_email' ? 'email' : 'schoolId']: false
-            }));
+        } catch (error) {
+            console.error('Error checking duplicates:', error);
+            toast.error('Error checking for duplicates');
         }
     };
 
@@ -1120,27 +1194,24 @@ const FacultyModal = ({
             </Modal.Header>
             <Modal.Body className="bg-[#fafff4] p-4">
                 {type === 'archive' ? (
-                    <div className="text-center p-6">
-                        <Alert 
-                            message="Warning" 
-                            description={`Are you sure you want to archive this faculty member? This action cannot be undone.`}
-                            type="warning" 
-                            showIcon 
-                            icon={<ExclamationCircleOutlined />}
-                            className="mb-4"
-                        />
-                        <div className="flex justify-center gap-4 mt-6">
+                    <div className="text-center p-4">
+                        <div className="mb-4">
+                            <ExclamationCircleOutlined className="text-5xl text-yellow-500" />
+                        </div>
+                        <h3 className="text-lg font-semibold mb-2">Confirm Archive</h3>
+                        <p className="text-gray-600 mb-4">
+                            Are you sure you want to archive this faculty member? This action cannot be undone and will move the faculty member to the archive.
+                        </p>
+                        <div className="flex justify-center gap-4">
                             <Button variant="outline-secondary" onClick={onHide} className="px-4 py-2">
                                 Cancel
                             </Button>
                             <Button 
                                 variant="warning" 
                                 onClick={() => onArchive(user.users_id, user.user_level_name)}
-                                danger
-                                icon={<DeleteOutlined />}
-                                className="px-4 py-2"
+                                className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 flex items-center gap-2"
                             >
-                                Archive
+                                <i className="fas fa-archive"></i> Archive
                             </Button>
                         </div>
                     </div>
@@ -1242,8 +1313,8 @@ const FacultyModal = ({
                                     type="text"
                                     name="users_school_id"
                                     value={formData.users_school_id}
-                                    onChange={handleInputChange}
-                                    onBlur={(e) => checkDuplicates('schoolId', e.target.value)}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
                                     isInvalid={!!errors.users_school_id}
                                     required
                                 />
@@ -1275,8 +1346,8 @@ const FacultyModal = ({
                                     type="email"
                                     name="users_email"
                                     value={formData.users_email}
-                                    onChange={handleInputChange}
-                                    onBlur={(e) => checkDuplicates('email', e.target.value)}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
                                     isInvalid={!!errors.users_email}
                                     required
                                 />
@@ -1349,6 +1420,46 @@ const FacultyModal = ({
                                 </Form.Text>
                             </Form.Group>
                         </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                            <Form.Group>
+                                <Form.Label>Suffix</Form.Label>
+                                <Form.Select
+                                    name="users_suffix"
+                                    value={formData.users_suffix}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    isInvalid={touchedFields.users_suffix && errors.users_suffix}
+                                >
+                                    <option value="">Select Suffix</option>
+                                    <option value="Jr.">Jr.</option>
+                                    <option value="Sr.">Sr.</option>
+                                    <option value="II">II</option>
+                                    <option value="III">III</option>
+                                    <option value="IV">IV</option>
+                                    <option value="V">V</option>
+                                </Form.Select>
+                                <Form.Control.Feedback type="invalid">
+                                    {errors.users_suffix}
+                                </Form.Control.Feedback>
+                            </Form.Group>
+                            <Form.Group>
+                                <Form.Label>Birthday*</Form.Label>
+                                <Form.Control
+                                    type="date"
+                                    name="users_birthday"
+                                    value={formData.users_birthday}
+                                    onChange={handleChange}
+                                    onBlur={handleBlur}
+                                    isInvalid={touchedFields.users_birthday && errors.users_birthday}
+                                    required
+                                    max={new Date().toISOString().split('T')[0]}
+                                />
+                                <Form.Control.Feedback type="invalid">
+                                    {errors.users_birthday}
+                                </Form.Control.Feedback>
+                            </Form.Group>
+                        </div>
                     </Form>
                 )}
             </Modal.Body>
@@ -1361,7 +1472,10 @@ const FacultyModal = ({
                         variant="success" 
                         onClick={handleSubmit} 
                         className="bg-green-900 hover:bg-lime-900 border-green-900 px-4"
-                        disabled={duplicateFields && (duplicateFields.email || duplicateFields.schoolId)}
+                        disabled={
+                            (type === 'edit' && !hasChanges) || // Disable if in edit mode with no changes
+                            (duplicateFields && (duplicateFields.email || duplicateFields.schoolId))
+                        }
                     >
                         {type === 'add' ? 'Add Faculty' : 'Save Changes'}
                     </Button>

@@ -44,6 +44,7 @@ import NotificationRequest from './page_dean/notification';
 import ChatUser from './page_user/chat';
 import ChatDepartment from './page_dean/chat';
 import ChatPersonnel from './page_personnel/chat';
+import Driver from './pages/Drivers';
 
 
 export const ThemeContext = createContext();
@@ -78,7 +79,7 @@ const App = () => {
     // Add URL validation
     useEffect(() => {
         const validPaths = [
-            '/gsd', '/Admin', '/adminDashboard', '/VehicleEntry',
+            '/gsd', '/Admin', '/adminDashboard', '/VehicleEntry', '/drivers',
             '/Equipment', '/Faculty', '/departments', '/master',
             '/vehiclemake', '/vehiclecategory', '/position',
             '/equipmentCategory', '/condition', '/vehiclemodel',
@@ -126,7 +127,7 @@ const App = () => {
                         <Route path="/AssignPersonnel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AssignPersonnel /></ProtectedRoute>} />
                         <Route path="/LandCalendar" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><LandCalendar /></ProtectedRoute>} />
                         <Route path="/Checklist" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Checklists /></ProtectedRoute>} />
-
+                        <Route path="/drivers" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Driver /></ProtectedRoute>} />
                         <Route path="/record" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Record /></ProtectedRoute>} />
                         <Route path="/ViewRequest" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><ViewRequest /></ProtectedRoute>} />
 

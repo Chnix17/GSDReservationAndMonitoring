@@ -112,11 +112,10 @@ function Checklist() {
       });
       
       const result = await response.json();
-      console.log('Response received:', result);
-
-      if (result.status === 'success') {
+      console.log('Response received:', result);      if (result.status === 'success') {
         console.log('Checklist items:', result.data);
         setViewChecklistItems(result.data);
+        setSelectedResource(id); // Store the resource ID
         setIsViewModalVisible(true);
       } else {
         console.error('Error response:', result);
@@ -127,8 +126,13 @@ function Checklist() {
       message.error('Failed to fetch checklist items');
     }
   };
-  
-  const handleEditChecklist = async (item) => {
+  const handleEditChecklist = async (item, resourceId) => {
+    console.log('Editing checklist item:', item, 'Resource ID:', resourceId); // Debug log
+    if (!item || !resourceId) {
+      message.error('Missing required information for editing checklist');
+      return;
+    }
+    
     try {
       const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
         method: 'POST',
@@ -142,7 +146,8 @@ function Checklist() {
             checklist_updates: [{
               type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
               id: item.checklist_id,
-              checklist_name: newItem
+              checklist_name: newItem,
+              resource_id: resourceId // Add resource_id to the request
             }]
           }
         })
@@ -154,9 +159,9 @@ function Checklist() {
         setNewItem('');
         setIsEditMode(false);
         setCurrentEditItem(null);
-        // Refresh the checklist view
+        // Refresh the checklist view with the correct resource ID
         const type = currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle';
-        await fetchChecklistById(type, item.resource_id);
+        await fetchChecklistById(type, resourceId);
       } else {
         message.error(result.message || 'Failed to update checklist item');
       }
@@ -213,12 +218,14 @@ function Checklist() {
             <Button
               type="primary"
               icon={<EyeOutlined />}
-              onClick={() => fetchChecklistById(
-                currentTab === '1' ? 'venue' : 
-                currentTab === '2' ? 'equipment' : 
-                'vehicle',
-                record.id
-              )}
+              onClick={() => {
+                const type = currentTab === '1' ? 'venue' : 
+                            currentTab === '2' ? 'equipment' : 
+                            'vehicle';
+                console.log('View Checklist - Type:', type);
+                console.log('View Checklist - ID:', record.id);
+                fetchChecklistById(type, record.id);
+              }}
               size="small"
               className="bg-green-900 hover:bg-lime-900"
             />
@@ -386,6 +393,43 @@ function Checklist() {
     };
 
     fetchChecklists();
+  };
+
+  const handleAddToExistingChecklist = async () => {
+    if (!newItem.trim() || !selectedResource) {
+      message.error('Please enter a checklist item');
+      return;
+    }
+
+    try {
+      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'saveMasterChecklist',
+          checklistNames: [newItem.trim()],
+          type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
+          id: selectedResource
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        message.success('New checklist item added successfully');
+        setNewItem('');
+        // Refresh the checklist view
+        const type = currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle';
+        await fetchChecklistById(type, selectedResource);
+      } else {
+        message.error(result.message || 'Failed to add checklist item');
+      }
+    } catch (error) {
+      console.error('Error adding checklist item:', error);
+      message.error('Failed to add checklist item. Please try again.');
+    }
   };
 
   const filteredVenueData = venueData.filter(venue => 
@@ -560,6 +604,37 @@ function Checklist() {
     },
   ];
 
+  const handleDeleteChecklist = async (item) => {
+    try {
+      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'deleteChecklist',
+          type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
+          id: item.checklist_id
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        message.success('Checklist item deleted successfully');
+        // Refresh the checklist view
+        const type = currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle';
+        await fetchChecklistById(type, selectedResource);
+      } else {
+        message.error(result.message || 'Failed to delete checklist item');
+      }
+    } catch (error) {
+      console.error('Error deleting checklist:', error);
+      message.error('Failed to delete checklist item');
+    }
+  };
+
+  // Add Checklist Modal
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}        
@@ -689,23 +764,65 @@ function Checklist() {
         ]}
         width={600}
       >
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              placeholder="Add new checklist item"
+              onPressEnter={() => {
+                if (newItem.trim()) {
+                  handleAddToExistingChecklist();
+                }
+              }}
+              className="rounded-l-md"
+            />
+            <Button 
+              type="primary" 
+              onClick={handleAddToExistingChecklist}
+              disabled={!newItem.trim()} 
+              className="bg-green-900 hover:bg-lime-900"
+            >
+              Add
+            </Button>
+          </Space.Compact>
+        </Space>
+
         <List
           bordered
           className="mt-4 rounded-md bg-[#fafff4]"
           dataSource={viewChecklistItems}
-          renderItem={(item, index) => (
-            <List.Item className="border-b border-green-100 py-3">
+          renderItem={(item, index) => (            <List.Item className="border-b border-green-100 py-3">
               <div className="flex items-center w-full">
                 <span className="bg-green-500 text-white rounded-full w-7 h-7 inline-flex items-center justify-center mr-3 text-sm font-bold">
                   {index + 1}
                 </span>
                 <span className="text-green-800">{item.checklist_name}</span>
-                <Button 
-                  type="link" 
-                  icon={<EditOutlined />} 
-                  onClick={() => startEdit(item)} 
-                  className="text-green-700 hover:text-green-900 ml-auto"
-                />
+                <div className="ml-auto flex gap-2">
+                  <Button 
+                    type="link" 
+                    icon={<EditOutlined />} 
+                    onClick={() => startEdit(item)} 
+                    className="text-green-700 hover:text-green-900"
+                  />
+                  <Button 
+                    type="link" 
+                    danger
+                    icon={<DeleteOutlined />} 
+                    onClick={() => {
+                      Modal.confirm({
+                        title: 'Delete Checklist Item',
+                        content: 'Are you sure you want to delete this checklist item?',
+                        okText: 'Yes',
+                        okType: 'danger',
+                        cancelText: 'No',
+                        onOk() {
+                          handleDeleteChecklist(item);
+                        },
+                      });
+                    }}
+                  />
+                </div>
               </div>
             </List.Item>
           )}
@@ -725,8 +842,7 @@ function Checklist() {
               placeholder="Edit checklist item"
               className="rounded-md mb-2"
             />
-            <Space>
-              <Button type="primary" onClick={() => handleEditChecklist(currentEditItem)} className="bg-green-900 hover:bg-lime-900">
+            <Space>              <Button type="primary" onClick={() => handleEditChecklist(currentEditItem, selectedResource)} className="bg-green-900 hover:bg-lime-900">
                 Save
               </Button>
               <Button onClick={cancelEdit} className="bg-gray-300 hover:bg-gray-400">

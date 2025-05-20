@@ -5,6 +5,7 @@ import {
   FaListAlt,
   FaPlus,
   FaTools,
+  FaUserTie,
 } from "react-icons/fa";
 import React, { useCallback, useEffect, useState } from "react";
 import { sanitizeInput, validateInput } from "../utils/sanitize";
@@ -26,6 +27,7 @@ const Master = () => {
     useState(false);
   const [isAddConditionModalOpen, setIsAddConditionModalOpen] = useState(false);
   const [isAddHolidayModalOpen, setIsAddHolidayModalOpen] = useState(false);
+  const [isAddDriverModalOpen, setIsAddDriverModalOpen] = useState(false);
   
   const [categoryName, setCategoryName] = useState("");
   const [makeName, setMakeName] = useState("");
@@ -37,6 +39,14 @@ const Master = () => {
   const [conditionName, setConditionName] = useState("");
   const [holidayName, setHolidayName] = useState("");
   const [holidayDate, setHolidayDate] = useState("");
+  const [driverFirstName, setDriverFirstName] = useState("");
+  const [driverMiddleName, setDriverMiddleName] = useState("");
+  const [driverLastName, setDriverLastName] = useState("");
+  const [driverSuffix, setDriverSuffix] = useState("");
+  const [driverContactNumber, setDriverContactNumber] = useState("");
+  const [driverAddress, setDriverAddress] = useState("");
+  const [driverEmployeeId, setDriverEmployeeId] = useState("");
+  const [driverBirthdate, setDriverBirthdate] = useState("");
   
   const [selectedCategory, setSelectedCategory] = useState("");
   const [selectedMake, setSelectedMake] = useState("");
@@ -191,6 +201,57 @@ const Master = () => {
     }
   };
 
+  const handleSaveDriverData = async (e) => {
+    e.preventDefault();
+    if (!driverFirstName.trim() || !driverLastName.trim() || !driverContactNumber.trim() || !driverAddress.trim() || !driverEmployeeId.trim() || !driverBirthdate) {
+      setMessage('Required fields cannot be empty');
+      setIsSuccess(false);
+      return;
+    }
+
+    const isValid = validateInput(driverFirstName) && validateInput(driverLastName) && 
+                   validateInput(driverMiddleName) && validateInput(driverAddress) && validateInput(driverEmployeeId);
+    if (!isValid) {
+      setMessage('Invalid input detected');
+      setIsSuccess(false);
+      return;
+    }
+
+    try {
+      const response = await axios.post(`${encryptedUrl}insert_master.php`, {
+        operation: 'saveDriver',
+        data: {
+          driver_first_name: sanitizeInput(driverFirstName),
+          driver_middle_name: sanitizeInput(driverMiddleName),
+          driver_last_name: sanitizeInput(driverLastName),
+          driver_suffix: driverSuffix,
+          driver_contact_number: sanitizeInput(driverContactNumber),
+          driver_address: sanitizeInput(driverAddress),
+          employee_id: sanitizeInput(driverEmployeeId),
+          driver_birthdate: driverBirthdate,
+          user_admin_id: SecureStorage.getSessionItem('user_id')
+        }
+      });
+
+      if (response.data.status === 'success') {
+        setMessage('Driver added successfully!');
+        setIsSuccess(true);
+        setPopupMessage('Successfully added Driver!');
+        clearInputs();
+        setTimeout(() => {
+          setPopupMessage('');
+        }, 3000);
+      } else {
+        setMessage(`Error: ${response.data.message}`);
+        setIsSuccess(false);
+      }
+    } catch (error) {
+      console.error('Error adding driver:', error);
+      setMessage('Error adding driver.');
+      setIsSuccess(false);
+    }
+  };
+
   const clearInputs = () => {
     setCategoryName("");
     setMakeName("");
@@ -202,6 +263,14 @@ const Master = () => {
     setConditionName("");
     setHolidayName("");
     setHolidayDate("");
+    setDriverFirstName("");
+    setDriverMiddleName("");
+    setDriverLastName("");
+    setDriverSuffix("");
+    setDriverContactNumber("");
+    setDriverAddress("");
+    setDriverEmployeeId("");
+    setDriverBirthdate("");
     setSelectedCategory("");
     setSelectedMake("");
     setMessage("");
@@ -217,6 +286,7 @@ const Master = () => {
     setIsAddDepartmentModalOpen(false);
     setIsAddConditionModalOpen(false);
     setIsAddHolidayModalOpen(false);
+    setIsAddDriverModalOpen(false);
   };
 
   const handleSaveCategoryData = (e) => {
@@ -329,17 +399,23 @@ const Master = () => {
                 action: () => setIsAddEquipmentModalOpen(true),
                 viewPath: "/equipmentCat",
               },
-              {
-                title: "Condition",
-                icon: <FaCogs />,
-                action: () => setIsAddConditionModalOpen(true),
-                viewPath: "/condition",
-              },
+              // {
+              //   title: "Condition",
+              //   icon: <FaCogs />,
+              //   action: () => setIsAddConditionModalOpen(true),
+              //   viewPath: "/condition",
+              // },
               {
                 title: "Holidays", 
                 icon: <FaPlus />, 
                 action: () => setIsAddHolidayModalOpen(true),
                 viewPath: "/holidays",
+              },
+              {
+                title: "Drivers",
+                icon: <FaUserTie />,
+                action: () => setIsAddDriverModalOpen(true),
+                viewPath: "/drivers",
               },
             ].map((card, index) => (
               <motion.div
@@ -697,6 +773,97 @@ const Master = () => {
                   className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
                 />
                 <input                  type="date"                  value={holidayDate}                  onChange={(e) => setHolidayDate(e.target.value)}                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"                />
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={resetForm}
+                    className="mr-2 py-2 px-4 bg-gray-500 text-white rounded"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="py-2 px-4 bg-blue-500 text-white rounded"
+                  >
+                    Save
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
+        {/* Modal for Adding Driver */}
+        {isAddDriverModalOpen && (
+          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+            <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
+              <h2 className="text-xl font-bold mb-4">Add Driver</h2>
+              <form onSubmit={handleSaveDriverData}>
+                <input
+                  type="text"
+                  value={driverFirstName}
+                  onChange={handleInputChange(setDriverFirstName)}
+                  placeholder="Enter first name *"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                  required
+                />
+                <input
+                  type="text"
+                  value={driverMiddleName}
+                  onChange={handleInputChange(setDriverMiddleName)}
+                  placeholder="Enter middle name"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                />
+                <input
+                  type="text"
+                  value={driverLastName}
+                  onChange={handleInputChange(setDriverLastName)}
+                  placeholder="Enter last name *"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                  required
+                />
+                <select
+                  value={driverSuffix}
+                  onChange={(e) => setDriverSuffix(e.target.value)}
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                >
+                  <option value="">Select Suffix</option>
+                  <option value="Jr">Jr</option>
+                  <option value="Sr">Sr</option>
+                  <option value="I">I</option>
+                  <option value="II">II</option>
+                  <option value="III">III</option>
+                  <option value="IV">IV</option>
+                </select>
+                <input
+                  type="tel"
+                  value={driverContactNumber}
+                  onChange={handleInputChange(setDriverContactNumber)}
+                  placeholder="Enter contact number *"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                  required
+                />
+                <textarea
+                  value={driverAddress}
+                  onChange={handleInputChange(setDriverAddress)}
+                  placeholder="Enter address *"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                  required
+                />
+                <input
+                  type="text"
+                  value={driverEmployeeId}
+                  onChange={handleInputChange(setDriverEmployeeId)}
+                  placeholder="Enter employee ID"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                />
+                <input
+                  type="date"
+                  value={driverBirthdate}
+                  onChange={handleInputChange(setDriverBirthdate)}
+                  placeholder="Enter birthdate"
+                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
+                />
                 <div className="flex justify-end">
                   <button
                     type="button"

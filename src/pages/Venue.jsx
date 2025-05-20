@@ -29,12 +29,9 @@ const VenueEntry = () => {
     const [venueName, setVenueName] = useState('');
     const [maxOccupancy, setMaxOccupancy] = useState('');
     const [venuePic, setVenuePic] = useState(null);
-    const [operatingHours, setOperatingHours] = useState('');
     const [venueExists, setVenueExists] = useState(false);
     const [editMode, setEditMode] = useState(false);
     const [currentVenueId, setCurrentVenueId] = useState(null);
-    const [operatingHoursStart, setOperatingHoursStart] = useState(null);
-    const [operatingHoursEnd, setOperatingHoursEnd] = useState(null);
     const [previewUrl, setPreviewUrl] = useState(null);
     const [fileList, setFileList] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('1');
@@ -135,15 +132,6 @@ const VenueEntry = () => {
                 setCurrentVenueId(venue.ven_id);
                 setSelectedStatus(venue.status_availability_id);
                 
-                if (venue.ven_operating_hours) {
-                    const [start, end] = venue.ven_operating_hours.split(' - ');
-                    setOperatingHours(venue.ven_operating_hours);
-                    if (start && end) {
-                        setOperatingHoursStart(dayjs(start, 'HH:mm:ss'));
-                        setOperatingHoursEnd(dayjs(end, 'HH:mm:ss'));
-                    }
-                }
-                
                 if (venue.ven_pic) {
                     const imageUrl = `${encryptedUrl}/${venue.ven_pic}`;
                     setPreviewUrl(imageUrl);
@@ -188,8 +176,6 @@ const VenueEntry = () => {
     };
 
     const handleUpdateVenue = async () => {
-       
-
         setLoading(true);
         try {
             let requestData = {
@@ -198,7 +184,6 @@ const VenueEntry = () => {
                     venue_id: currentVenueId,
                     venue_name: venueName,
                     max_occupancy: maxOccupancy,
-                    operating_hours: operatingHours,
                     status_availability_id: parseInt(selectedStatus)
                 }
             };
@@ -242,25 +227,21 @@ const VenueEntry = () => {
     const resetForm = () => {
         setVenueName('');
         setMaxOccupancy('');
-        setOperatingHours('');
         setVenuePic(null);
         setPreviewUrl(null);
         setFileList([]);
-        setOperatingHoursStart(null);
-        setOperatingHoursEnd(null);
     };
 
     const validateVenueData = () => {
         const sanitizedName = sanitizeInput(venueName);
         const sanitizedOccupancy = sanitizeInput(maxOccupancy);
-        const sanitizedHours = sanitizeInput(operatingHours);
 
         if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy)) {
             toast.error("Invalid input detected. Please check your entries.");
             return false;
         }
 
-        if (!sanitizedName || !sanitizedOccupancy || !sanitizedHours) {
+        if (!sanitizedName || !sanitizedOccupancy) {
             toast.error("Please fill in all required fields!");
             return false;
         }
@@ -273,8 +254,7 @@ const VenueEntry = () => {
 
         return {
             name: sanitizedName,
-            occupancy: sanitizedOccupancy,
-            hours: sanitizedHours
+            occupancy: sanitizedOccupancy
         };
     };
 
@@ -301,7 +281,6 @@ const VenueEntry = () => {
                     data: {
                         name: validatedData.name,
                         occupancy: validatedData.occupancy,
-                        operating_hours: validatedData.hours,
                         user_admin_id: encryptedUserLevel === '1' ? user_id : null,  // Set for user admin (level 1)
                         status_availability_id: parseInt(selectedStatus),
                         ven_pic: imageBase64
@@ -386,18 +365,6 @@ const VenueEntry = () => {
             toast.error("An error occurred while archiving the venue.");
         } finally {
             setLoading(false);
-        }
-    };
-
-    const handleTimeChange = (times, timeStrings) => {
-        if (times) {
-            setOperatingHoursStart(times[0]);
-            setOperatingHoursEnd(times[1]);
-            setOperatingHours(`${timeStrings[0]} - ${timeStrings[1]}`);
-        } else {
-            setOperatingHoursStart(null);
-            setOperatingHoursEnd(null);
-            setOperatingHours('');
         }
     };
 
@@ -503,13 +470,7 @@ const VenueEntry = () => {
             sorter: (a, b) => a.ven_occupancy - b.ven_occupancy,
             render: (text) => <span>{text} people</span>
         },
-        {
-            title: 'Operating Hours',
-            dataIndex: 'ven_operating_hours',
-            key: 'ven_operating_hours',
-            width: 180,
-            render: (text) => text || 'Not specified'
-        },
+       
         {
             title: 'Status',
             dataIndex: 'status_availability_id',
@@ -679,11 +640,7 @@ const VenueEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
-                                                <div className="flex items-center">
-                                                    Operating Hours
-                                                </div>
-                                            </th>
+                                            
                                             <th scope="col" className="px-6 py-3">
                                                 <div className="flex items-center">
                                                     Status
@@ -728,7 +685,7 @@ const VenueEntry = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">{venue.ven_occupancy} people</td>
-                                                        <td className="px-6 py-4">{venue.ven_operating_hours || 'Not specified'}</td>
+                                                        
                                                         <td className="px-6 py-4">
                                                             <Tag 
                                                                 value={venue.status_availability_id === '1' ? 'Available' : 'Not Available'} 
@@ -840,19 +797,6 @@ const VenueEntry = () => {
                             onChange={handleOccupancyChange}
                             placeholder="Enter maximum occupancy"
                             min="1"
-                        />
-                    </Form.Item>
-                    <Form.Item 
-                        label="Operating Hours"
-                        required
-                        tooltip="Select start and end time"
-                    >
-                        <TimePicker.RangePicker 
-                            format="HH:mm:ss"
-                            value={[operatingHoursStart, operatingHoursEnd]}
-                            onChange={handleTimeChange}
-                            className="w-full"
-                            placeholder={['Start Time', 'End Time']}
                         />
                     </Form.Item>
                     <Form.Item 

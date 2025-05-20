@@ -315,147 +315,133 @@ const ReservationCalendar = ({ onDateSelect, selectedResource }) => {
     return holidays.some(holiday => holiday.date === formattedDate);
   };
 
-  const handleDateClick = (date) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
-    // Check if it's a holiday first
-    if (isHoliday(date)) {
-      const holiday = holidays.find(h => h.date === format(date, 'yyyy-MM-dd'));
-      toast.error(`Cannot select ${holiday.name} (Holiday)`, {
-        position: 'top-center',
-        icon: '🎉',
-        className: 'font-medium'
-      });
-      return;
-    }
+const handleDateClick = (date) => {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  // Check if it's a holiday first
+  if (isHoliday(date)) {
+    const holiday = holidays.find(h => h.date === format(date, 'yyyy-MM-dd'));
+    toast.error(`Cannot select ${holiday.name} (Holiday)`, {
+      position: 'top-center',
+      icon: '🎉',
+      className: 'font-medium'
+    });
+    return;
+  }
 
-    // Check if date is in the past
-    if (compareDate < today) {
-      toast.error('Cannot select past dates', {
+  // Check if date is in the past
+  if (compareDate < today) {
+    toast.error('Cannot select past dates', {
+      position: 'top-center',
+      icon: '⏰',
+      className: 'font-medium'
+    });
+    return;
+  }
+  
+  // Check if it's a weekend (Saturday = 6, Sunday = 0)
+  const dayOfWeek = date.getDay();
+  if (dayOfWeek === 0 || dayOfWeek === 6) {
+    toast.error('Reservations can only be made on working days (Monday to Friday)', {
+      position: 'top-center',
+      icon: '📅',
+      className: 'font-medium'
+    });
+    return;
+  }
+  
+  // Check if it's today but after business hours
+  if (compareDate.getTime() === today.getTime()) {
+    const currentHour = now.getHours();
+    if (currentHour >= 19) {
+      toast.error('Bookings for today are closed (after 7:00 PM)', {
         position: 'top-center',
-        icon: '⏰',
+        icon: '⏱️',
         className: 'font-medium'
       });
       return;
     }
-    
-    // Check if it's a weekend (Saturday = 6, Sunday = 0)
-    const dayOfWeek = date.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      toast.error('Reservations can only be made on working days (Monday to Friday)', {
+  }
+
+  // If we already have a start date selected
+  if (selectedStartDate && !selectedEndDate) {
+    // Check if the new date is within 7 days of the start date
+    if (!isWithinSevenDays(date, selectedStartDate)) {
+      toast.error('End date must be within 7 days of start date', {
         position: 'top-center',
         icon: '📅',
         className: 'font-medium'
       });
       return;
     }
-    
-    // Check if it's today but after business hours
-    if (compareDate.getTime() === today.getTime()) {
-      const currentHour = now.getHours();
-      if (currentHour >= 19) {
-        toast.error('Bookings for today are closed (after 7:00 PM)', {
-          position: 'top-center',
-          icon: '⏱️',
-          className: 'font-medium'
-        });
-        return;
-      }
-    }
-
-    // If we already have a start date selected
-    if (selectedStartDate && !selectedEndDate) {
-      // Check if the new date is within 7 days of the start date
-      if (!isWithinSevenDays(date, selectedStartDate)) {
-        toast.error('End date must be within 7 days of start date', {
-          position: 'top-center',
-          icon: '📅',
-          className: 'font-medium'
-        });
-        return;
-      }
-      // Check if the new date is before start date
-      if (isBefore(date, selectedStartDate)) {
-        toast.error('End date cannot be before start date', {
-          position: 'top-center',
-          icon: '❌',
-          className: 'font-medium'
-        });
-        return;
-      }
-    }
-  
-    // Check reservation status
-    const status = getAvailabilityStatus(date, reservations);
-    
-    // Check if date is a holiday
-    const formattedDate = date.toISOString().split('T')[0];
-    const holidayInfo = holidays.find(h => h.date === formattedDate);
-  
-    if (status === 'reserved') {
-      toast.error('This date is already fully reserved for the business hours (5AM-7PM)', {
+    // Check if the new date is before start date
+    if (isBefore(date, selectedStartDate)) {
+      toast.error('End date cannot be before start date', {
         position: 'top-center',
         icon: '❌',
         className: 'font-medium'
       });
       return;
     }
+  }
+
+  // Check reservation status - only prevent if fully reserved
+  const status = getAvailabilityStatus(date, reservations);
+  if (status === 'reserved') {
+    toast.error('This date is already fully reserved for the business hours (5AM-7PM)', {
+      position: 'top-center',
+      icon: '❌',
+      className: 'font-medium'
+    });
+    return;
+  }
+  
+  // Set the selected dates
+  if (!selectedStartDate) {
+    setSelectedStartDate(date);
+    setStartDate(date);
+    setEndDate(null);
+    setSelectedEndDate(null);
+  } else {
+    setSelectedEndDate(date);
+    setEndDate(date);
+  }
+  
+  // Set default times based on current time if it's today
+  if (isSameDay(date, new Date())) {
+    const currentHour = now.getHours();
+    const defaultStartHour = Math.max(currentHour + 1, 5); // Start at next hour, minimum 5 AM
     
-    if (holidayInfo) {
-      toast.error(`Reservations not allowed on ${holidayInfo.name} (Holiday)`, {
-        position: 'top-center',
-        icon: '🏖️',
-        className: 'font-medium'
-      });
-      return;
-    }
-    
-    // Set the selected dates
-    if (!selectedStartDate) {
-      setSelectedStartDate(date);
-      setStartDate(date);
-      setEndDate(null);
-      setSelectedEndDate(null);
-    } else {
-      setSelectedEndDate(date);
-      setEndDate(date);
-    }
-    
-    // Set default times based on current time if it's today
-    if (isSameDay(date, new Date())) {
-      const currentHour = now.getHours();
-      const defaultStartHour = Math.max(currentHour + 1, 5); // Start at next hour, minimum 5 AM
-      
-      if (defaultStartHour < 19) { // Only set if within business hours
-        setSelectedTimes(prev => ({
-          ...prev,
-          startTime: defaultStartHour,
-          startMinute: 0,
-          endTime: null,
-          endMinute: null
-        }));
-      } else {
-        setSelectedTimes({
-          startTime: null,
-          endTime: null,
-          startMinute: null,
-          endMinute: null
-        });
-      }
-    } else {
-      // Default times for future dates
-      setSelectedTimes({
-        startTime: 9, // Default to 9 AM
+    if (defaultStartHour < 19) { // Only set if within business hours
+      setSelectedTimes(prev => ({
+        ...prev,
+        startTime: defaultStartHour,
         startMinute: 0,
         endTime: null,
         endMinute: null
+      }));
+    } else {
+      setSelectedTimes({
+        startTime: null,
+        endTime: null,
+        startMinute: null,
+        endMinute: null
       });
     }
-    
-    setIsDatePickerModalOpen(true);
-  };
+  } else {
+    // Default times for future dates
+    setSelectedTimes({
+      startTime: 9, // Default to 9 AM
+      startMinute: 0,
+      endTime: null,
+      endMinute: null
+    });
+  }
+  
+  setIsDatePickerModalOpen(true);
+};
 
   const handleDateNavigation = (direction) => {
     const newDate = new Date(currentDate);
