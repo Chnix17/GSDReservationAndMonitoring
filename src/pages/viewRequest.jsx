@@ -279,7 +279,24 @@ const ReservationRequests = () => {
                 return;
             }
 
-            // If no conflicts, proceed with normal acceptance
+            // Prepare equipment units if equipment exists in reservation details
+            if (reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
+                try {
+                    await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                        operation: 'prepareUnitsForInsert',
+                        equip_ids: reservationDetails.equipment.map(eq => eq.equipment_id),
+                        quantities: reservationDetails.equipment.map(eq => eq.quantity),
+                        reservation_id: currentRequest.reservation_id
+                    });
+                } catch (error) {
+                    console.error('Error preparing equipment units:', error);
+                    toast.error('Failed to prepare equipment units for reservation');
+                    setIsAccepting(false);
+                    return;
+                }
+            }
+
+            // Proceed with normal acceptance
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'handleRequest',
                 reservation_id: currentRequest.reservation_id,
@@ -289,8 +306,6 @@ const ReservationRequests = () => {
                 notification_message: "Your Reservation Request Has Been Approved By GSD",
                 notification_user_id: reservationDetails.reservation_user_id
             });
-
-            console.log(response.data);
 
             if (response.data?.status === 'success') {
                 toast.success('Reservation accepted successfully!', {
