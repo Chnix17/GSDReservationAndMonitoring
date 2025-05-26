@@ -1,13 +1,13 @@
 import React, { useState, createContext, useCallback, useEffect } from 'react';
-import { Route, Routes, Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
 // import Sidebar from './pages/Sidebar';
 // import Login from './pages/Login';
-import VehicleEntry from './pages/VehicleEntry';
+import VehicleEntry from './pages/Admin/VehicleEntry';
 import PersonnelDashboard from './page_personnel/dashboard';
 import ViewTask from './page_personnel/ViewPersonnelTask';
-import Venue from './pages/Venue';
+import Venue from './pages/Admin/Venue';
 import  Dashboard from './page_user/dashboard';
-import Equipment from './pages/Equipment';
+import Equipment from './pages/Admin/Equipment';
 import ViewRequest from './pages/viewRequest';
 import AddReservation from './page_user/AddReservation'; // Import the AddReservation component
 import { Toaster } from 'sonner';
@@ -15,7 +15,7 @@ import './App.css';
 import Logins from './pages/logins';
 import AdminDashboard from './pages/adminDashboard';
 import Faculty from './pages/Faculty';  // Updated casing to match file name
-import Master from './pages/Master';
+import Master from './pages/Admin/Master'
 import Vehiclem from './pages/vehiclemake';
 import Departments from './pages/departments';
 import Vehiclec from './pages/vehiclecategory';
@@ -47,6 +47,7 @@ import ChatPersonnel from './page_personnel/chat';
 import Driver from './pages/Drivers';
 
 
+
 export const ThemeContext = createContext();
 
 const App = () => {
@@ -73,7 +74,6 @@ const App = () => {
     }, []);
 
     const [isNotFoundVisible, setIsNotFoundVisible] = useState(false);
-    const navigate = useNavigate();
     const location = useLocation();
 
     // Add URL validation

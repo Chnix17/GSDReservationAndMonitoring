@@ -1,11 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import dayjs from 'dayjs';
-import Sidebar from './Sidebar';
+import Sidebar from '../Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { FaEdit, FaSearch, FaPlus, FaTrashAlt, FaEye, FaArrowLeft } from 'react-icons/fa';
-import '../vehicle.css';
 import { Modal, Input, Form, TimePicker, Select, Table, Button, Image, Tooltip, Space, Upload, Alert, Empty, Pagination } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -14,43 +13,32 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { sanitizeInput, validateInput } from '../utils/sanitize';
-import { SecureStorage } from '../utils/encryption';
+import { sanitizeInput, validateInput } from '../../utils/sanitize';
+import { SecureStorage } from '../../utils/encryption';
+import Create_Modal from './lib/Venue/Create_Modal';
+import Update_Modal from './lib/Venue/Update_Modal';
 
 const VenueEntry = () => {
-
     const user_level_id = localStorage.getItem('user_level_id');
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
-    const [showModal, setShowModal] = useState(false);
-    const [venueName, setVenueName] = useState('');
-    const [maxOccupancy, setMaxOccupancy] = useState('');
-    const [venuePic, setVenuePic] = useState(null);
-    const [venueExists, setVenueExists] = useState(false);
-    const [editMode, setEditMode] = useState(false);
-    const [currentVenueId, setCurrentVenueId] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [fileList, setFileList] = useState([]);
-    const [selectedStatus, setSelectedStatus] = useState('1');
-    const [statusOptions, setStatusOptions] = useState([]);
+    const [showCreateModal, setShowCreateModal] = useState(false);
+    const [showUpdateModal, setShowUpdateModal] = useState(false);
+    const [selectedVenueId, setSelectedVenueId] = useState(null);
     const [viewImageModal, setViewImageModal] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-    const [selectedVenueId, setSelectedVenueId] = useState(null);
     const [sortField, setSortField] = useState('ven_id');
     const [sortOrder, setSortOrder] = useState('desc');
     const navigate = useNavigate();
     const user_id = SecureStorage.getSessionItem('user_id');
-    const fileUploadRef = useRef(null);
     const encryptedUrl = SecureStorage.getLocalItem("url");
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-    const [form] = Form.useForm();
+    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
 
     useEffect(() => {
-        console.log("this is encryptedUserLevel", encryptedUserLevel);
         if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
             localStorage.clear();
             navigate('/gsd');
@@ -59,10 +47,6 @@ const VenueEntry = () => {
 
     useEffect(() => {
         fetchVenues();
-    }, []);
-
-    useEffect(() => {
-        fetchStatusAvailability();
     }, []);
 
     const fetchVenues = async () => {
@@ -82,253 +66,13 @@ const VenueEntry = () => {
         }
     };
 
-    const fetchStatusAvailability = async () => {
-        try {
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
-                new URLSearchParams({
-                    operation: 'fetchStatusAvailability'
-                })
-            );
-            
-            if (response.data.status === 'success') {
-                setStatusOptions(response.data.data);
-            } else {
-                console.error("Failed to fetch status options");
-            }
-        } catch (error) {
-            console.error("Error fetching status availability:", error);
-        }
-    };
-
     const handleAddVenue = () => {
-        setVenueName('');
-        setMaxOccupancy('');
-        setShowModal(true);
-        setEditMode(false);
-        setVenueExists(false);
+        setShowCreateModal(true);
     };
-
-    const getVenueDetails = async (venueId) => {
-        try {
-            const formData = new URLSearchParams();
-            formData.append('operation', 'fetchVenueById');
-            formData.append('id', venueId);
-    
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
-                formData,
-                {
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
-                    }
-                }
-            );
-    
-            console.log('Venue details response:', response.data); // Debug log
-    
-            if (response.data.status === 'success' && response.data.data && response.data.data.length > 0) {
-                const venue = response.data.data[0];
-                setVenueName(venue.ven_name);
-                setMaxOccupancy(venue.ven_occupancy);
-                setCurrentVenueId(venue.ven_id);
-                setSelectedStatus(venue.status_availability_id);
-                
-                if (venue.ven_pic) {
-                    const imageUrl = `${encryptedUrl}/${venue.ven_pic}`;
-                    setPreviewUrl(imageUrl);
-                    setFileList([{
-                        uid: '-1',
-                        name: 'venue-image.png',
-                        status: 'done',
-                        url: imageUrl,
-                    }]);
-                } else {
-                    setPreviewUrl(null);
-                    setFileList([]);
-                }
-                
-                setShowModal(true);
-                setEditMode(true);
-            } else {
-                toast.error("Failed to fetch venue details");
-            }
-        } catch (error) {
-            console.error("Error fetching venue details:", error);
-            toast.error("An error occurred while fetching venue details");
-        }
-    };
-    
 
     const handleEditVenue = (venue) => {
-        getVenueDetails(venue.ven_id);
-    };
-
-    const checkVenueExists = async () => {
-        const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({
-            operation: "venueExists",
-            json: JSON.stringify({ venue_name: venueName })
-        }));
-
-        if (response.data.status === 'success' && response.data.exists) {
-            setVenueExists(true);
-        } else {
-            setVenueExists(false);
-        }
-    };
-
-    const handleUpdateVenue = async () => {
-        setLoading(true);
-        try {
-            let requestData = {
-                operation: 'updateVenue',
-                venueData: {
-                    venue_id: currentVenueId,
-                    venue_name: venueName,
-                    max_occupancy: maxOccupancy,
-                    status_availability_id: parseInt(selectedStatus)
-                }
-            };
-
-            // If there's a new image file
-            if (venuePic instanceof File) {
-                const reader = new FileReader();
-                const base64Image = await new Promise((resolve) => {
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.readAsDataURL(venuePic);
-                });
-                requestData.venueData.ven_pic = base64Image;
-            }
-
-            const response = await axios.post(
-                `${encryptedUrl}/update_master1.php`,
-                requestData,
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (response.data.status === 'success') {
-                toast.success("Venue successfully updated!");
-                fetchVenues();
-                setShowModal(false);
-                resetForm();
-            } else {
-                toast.error(response.data.message || "Failed to update venue");
-            }
-        } catch (error) {
-            console.error("Error updating venue:", error);
-            toast.error("An error occurred while updating the venue.");
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const resetForm = () => {
-        setVenueName('');
-        setMaxOccupancy('');
-        setVenuePic(null);
-        setPreviewUrl(null);
-        setFileList([]);
-    };
-
-    const validateVenueData = () => {
-        const sanitizedName = sanitizeInput(venueName);
-        const sanitizedOccupancy = sanitizeInput(maxOccupancy);
-
-        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy)) {
-            toast.error("Invalid input detected. Please check your entries.");
-            return false;
-        }
-
-        if (!sanitizedName || !sanitizedOccupancy) {
-            toast.error("Please fill in all required fields!");
-            return false;
-        }
-
-        // Validate occupancy
-        if (parseInt(sanitizedOccupancy) <= 0) {
-            toast.error("Maximum occupancy must be greater than zero!");
-            return false;
-        }
-
-        return {
-            name: sanitizedName,
-            occupancy: sanitizedOccupancy
-        };
-    };
-
-    const handleSubmit = async () => {
-        if (editMode) {
-            await handleUpdateVenue();
-        } else {
-            const validatedData = validateVenueData();
-            if (!validatedData) return;
-
-            setLoading(true);
-            try {
-                let imageBase64 = null;
-                if (venuePic) {
-                    imageBase64 = await new Promise((resolve) => {
-                        const reader = new FileReader();
-                        reader.onload = (e) => resolve(e.target.result);
-                        reader.readAsDataURL(venuePic);
-                    });
-                }
-
-                const requestData = {
-                    operation: 'saveVenue',
-                    data: {
-                        name: validatedData.name,
-                        occupancy: validatedData.occupancy,
-                        user_admin_id: encryptedUserLevel === '1' ? user_id : null,  // Set for user admin (level 1)
-                        status_availability_id: parseInt(selectedStatus),
-                        ven_pic: imageBase64
-                    }
-                };
-
-                console.log(requestData);
-
-                const response = await axios.post(
-                    `${encryptedUrl}/insert_master.php`,
-                    requestData,
-                    {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
-
-                if (response.data.status === 'success') {
-                    toast.success("Venue successfully added!");
-                    fetchVenues();
-                    setShowModal(false);
-                    resetForm();
-                } else {
-                    toast.error(response.data.message || "Failed to save venue");
-                }
-            } catch (error) {
-                console.error("Error saving venue:", error);
-                toast.error("An error occurred while saving the venue.");
-            } finally {
-                setLoading(false);
-            }
-        }
-    };
-
-    const handleVenueNameChange = (e) => {
-        const sanitizedValue = sanitizeInput(e.target.value);
-        setVenueName(sanitizedValue);
-        if (!editMode) {
-            checkVenueExists();
-        }
-    };
-
-    const handleOccupancyChange = (e) => {
-        const sanitizedValue = sanitizeInput(e.target.value);
-        if (/^\d*$/.test(sanitizedValue)) { // Only allow digits
-            setMaxOccupancy(sanitizedValue);
-        }
+        setSelectedVenueId(venue.ven_id);
+        setShowUpdateModal(true);
     };
 
     const handleArchiveVenue = (venueId) => {
@@ -368,34 +112,6 @@ const VenueEntry = () => {
         }
     };
 
-    const handleImageUpload = ({ fileList: newFileList }) => {
-        setFileList(newFileList);
-        if (newFileList.length > 0) {
-            const file = newFileList[0].originFileObj;
-            setVenuePic(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreviewUrl(reader.result);
-            };
-            reader.readAsDataURL(file);
-        } else {
-            setVenuePic(null);
-            setPreviewUrl(null);
-        }
-    };
-
-    const onFileRemove = () => {
-        setVenuePic(null);
-        setPreviewUrl(null);
-        if (fileUploadRef.current) {
-            fileUploadRef.current.clear();
-        }
-    };
-
-    const filteredVenues = venues.filter(venue =>
-        venue.ven_name && venue.ven_name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
-
     const getImageUrl = (venuePic) => {
         if (!venuePic) return null;
         return `${encryptedUrl}/${venuePic}`;
@@ -420,128 +136,16 @@ const VenueEntry = () => {
         }
     };
 
-    // Table columns configuration
-    const columns = [
-        {
-            title: 'ID',
-            dataIndex: 'ven_id',
-            key: 'ven_id',
-            width: 80,
-            sorter: (a, b) => a.ven_id - b.ven_id,
-        },
-        {
-            title: 'Image',
-            dataIndex: 'ven_pic',
-            key: 'ven_pic',
-            width: 100,
-            render: (text, record) => {
-                const imageUrl = getImageUrl(record.ven_pic);
-                return (
-                    <div className="flex justify-center">
-                        {imageUrl ? (
-                            <div className="cursor-pointer" onClick={() => handleViewImage(imageUrl)}>
-                                <img 
-                                    src={imageUrl} 
-                                    alt={record.ven_name} 
-                                    className="w-16 h-16 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
-                                />
-                            </div>
-                        ) : (
-                            <div className="w-16 h-16 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
-                                <i className="pi pi-image text-2xl"></i>
-                            </div>
-                        )}
-                    </div>
-                );
-            }
-        },
-        {
-            title: 'Venue Name',
-            dataIndex: 'ven_name',
-            key: 'ven_name',
-            sorter: (a, b) => a.ven_name.localeCompare(b.ven_name),
-            render: (text) => <span className="font-semibold text-green-800">{text}</span>
-        },
-        {
-            title: 'Max Occupancy',
-            dataIndex: 'ven_occupancy',
-            key: 'ven_occupancy',
-            width: 150,
-            sorter: (a, b) => a.ven_occupancy - b.ven_occupancy,
-            render: (text) => <span>{text} people</span>
-        },
-       
-        {
-            title: 'Status',
-            dataIndex: 'status_availability_id',
-            key: 'status_availability_id',
-            width: 120,
-            render: (statusId) => (
-                <Tag 
-                    value={statusId === '1' ? 'Available' : 'Not Available'} 
-                    severity={statusId === '1' ? 'success' : 'danger'}
-                    className="px-2 py-1 text-xs font-semibold"
-                />
-            ),
-            filters: statusOptions.map(status => ({
-                text: status.status_availability_name,
-                value: status.status_availability_id,
-            })),
-            onFilter: (value, record) => record.status_availability_id === value,
-        },
-        {
-            title: 'Created At',
-            dataIndex: 'ven_created_at',
-            key: 'ven_created_at',
-            width: 170,
-            sorter: (a, b) => new Date(a.ven_created_at) - new Date(b.ven_created_at),
-            render: (text) => dayjs(text).format('MMM D, YYYY HH:mm')
-        },
-        {
-            title: 'Updated At',
-            dataIndex: 'ven_updated_at',
-            key: 'ven_updated_at',
-            width: 170,
-            sorter: (a, b) => new Date(a.ven_updated_at) - new Date(b.ven_updated_at),
-            render: (text) => dayjs(text).format('MMM D, YYYY HH:mm')
-        },
-        {
-            title: 'Actions',
-            key: 'actions',
-            fixed: 'right',
-            width: 150,
-            render: (_, record) => (
-                <Space>
-                    <Tooltip title="Edit Venue">
-                        <Button 
-                            type="primary" 
-                            icon={<FaEdit />} 
-                            onClick={() => handleEditVenue(record)}
-                            size="small"
-                            className="bg-green-500 hover:bg-green-600 border-green-500"
-                        />
-                    </Tooltip>
-                    <Tooltip title="Archive Venue">
-                        <Button 
-                            icon={<FaTrashAlt />} 
-                            onClick={() => handleArchiveVenue(record.ven_id)}
-                            size="small"
-                            className="text-yellow-600 hover:text-yellow-700 border-yellow-300 hover:border-yellow-400"
-                        />
-                    </Tooltip>
-                </Space>
-            )
-        }
-    ];
+    const filteredVenues = venues.filter(venue =>
+        venue.ven_name && venue.ven_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
 
     return (
-      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
-      {/* Fixed Sidebar */}
-      <div className="flex-shrink-0">
+        <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+            <div className="flex-shrink-0">
                 <Sidebar />
             </div>
             
-            {/* Scrollable Content Area */}
             <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
                 <div className="p-[2.5rem] lg:p-12 min-h-screen">
                     <motion.div 
@@ -557,7 +161,6 @@ const VenueEntry = () => {
                         </div>
                     </motion.div>
 
-                    {/* Search and Filters */}
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div className="flex flex-col md:flex-row gap-4 flex-1">
@@ -594,7 +197,6 @@ const VenueEntry = () => {
                         </div>
                     </div>
 
-                    {/* Table */}
                     <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
                         {loading ? (
                             <div className="flex justify-center items-center h-64">
@@ -640,7 +242,6 @@ const VenueEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            
                                             <th scope="col" className="px-6 py-3">
                                                 <div className="flex items-center">
                                                     Status
@@ -685,7 +286,6 @@ const VenueEntry = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">{venue.ven_occupancy} people</td>
-                                                        
                                                         <td className="px-6 py-4">
                                                             <Tag 
                                                                 value={venue.status_availability_id === '1' ? 'Available' : 'Not Available'} 
@@ -729,7 +329,6 @@ const VenueEntry = () => {
                                     </tbody>
                                 </table>
 
-                                {/* Pagination */}
                                 <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                     <Pagination
                                         current={currentPage}
@@ -752,102 +351,24 @@ const VenueEntry = () => {
                 </div>
             </div>
 
-            {/* Add/Edit Venue Modal */}
-            <Modal
-                title={
-                    <div className="flex items-center">
-                        <FaEye className="mr-2 text-green-900" /> 
-                        {editMode ? 'Edit Venue' : 'Add Venue'}
-                    </div>
-                }
-                open={showModal}
-                onCancel={() => setShowModal(false)}
-                okText={editMode ? 'Update' : 'Add'}
-                onOk={handleSubmit}
-                confirmLoading={loading}
-            >
-                <Form form={form} layout="vertical">
-                    <Form.Item
-                        label="Venue Name"
-                        name="name"
-                        initialValue={venueName}
-                        validateStatus={venueExists ? 'error' : ''}
-                        help={venueExists && 'Venue already exists!'}
-                        rules={[
-                            { required: true, message: 'Please input venue name!' },
-                        ]}
-                    >
-                        <Input
-                            value={venueName}
-                            onChange={handleVenueNameChange}
-                            placeholder="Enter venue name"
-                        />
-                    </Form.Item>
-                    <Form.Item 
-                        label="Max Occupancy"
-                        name="occupancy"
-                        initialValue={maxOccupancy}
-                        rules={[
-                            { required: true, message: 'Please input maximum occupancy!' },
-                        ]}
-                    >
-                        <Input
-                            type="number"
-                            value={maxOccupancy}
-                            onChange={handleOccupancyChange}
-                            placeholder="Enter maximum occupancy"
-                            min="1"
-                        />
-                    </Form.Item>
-                    <Form.Item 
-                        label="Venue Picture" 
-                        tooltip="Upload venue image (max 5MB, formats: jpg, png)"
-                    >
-                        <Upload
-                            listType="picture-card"
-                            fileList={fileList}
-                            onChange={handleImageUpload}
-                            beforeUpload={() => false}
-                            maxCount={1}
-                        >
-                            {fileList.length < 1 && (
-                                <Button icon={<PlusOutlined />}>
-                                    Upload
-                                </Button>
-                            )}
-                        </Upload>
-                        {previewUrl && typeof previewUrl === 'string' && previewUrl.startsWith('http') && (
-                            <div className="mt-4">
-                                <img
-                                    src={previewUrl}
-                                    alt="Preview"
-                                    className="w-32 h-32 object-cover rounded shadow-md"
-                                />
-                            </div>
-                        )}
-                    </Form.Item>
-                    <Form.Item 
-                        label="Status" 
-                        required
-                        tooltip="Select venue availability status"
-                    >
-                        <Select
-                            value={selectedStatus}
-                            onChange={(value) => setSelectedStatus(value)}
-                            className="w-full"
-                        >
-                            {statusOptions.map(status => (
-                                <Select.Option 
-                                    key={status.status_availability_id} 
-                                    value={status.status_availability_id}
-                                >
-                                    {status.status_availability_name}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-                </Form>
-            </Modal>
+            {/* Create Modal */}
+            <Create_Modal
+                visible={showCreateModal}
+                onCancel={() => setShowCreateModal(false)}
+                onSuccess={fetchVenues}
+                encryptedUrl={encryptedUrl}
+                user_id={user_id}
+                encryptedUserLevel={encryptedUserLevel}
+            />
+
+            {/* Update Modal */}
+            <Update_Modal
+                visible={showUpdateModal}
+                onCancel={() => setShowUpdateModal(false)}
+                onSuccess={fetchVenues}
+                encryptedUrl={encryptedUrl}
+                venueId={selectedVenueId}
+            />
 
             {/* Image Preview Modal */}
             <Modal

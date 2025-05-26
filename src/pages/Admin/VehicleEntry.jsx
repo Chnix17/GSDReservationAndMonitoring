@@ -1,34 +1,21 @@
 import React, { useState, useEffect, useRef } from 'react'; // Add useRef to imports
-import Sidebar from './Sidebar';
-import { FaPlus, FaTrash, FaSearch, FaCar, FaEye, FaEdit, FaTrashAlt, FaArrowLeft } from 'react-icons/fa';
+import Sidebar from '../Sidebar';
+import { FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import '../vehicle.css';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
-import { Dialog } from 'primereact/dialog';
-import { InputText } from 'primereact/inputtext';
-import { Dropdown } from 'primereact/dropdown';
-import { FileUpload } from 'primereact/fileupload';
-import { ProgressSpinner } from 'primereact/progressspinner';
-import { Calendar } from 'primereact/calendar';
-import { Card } from 'primereact/card';
 import 'primereact/resources/themes/lara-light-green/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { Divider } from 'primereact/divider';
-import { DataView } from 'primereact/dataview';
-import dayjs from 'dayjs';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faTrashAlt, faSearch, faPlus, faEye } from '@fortawesome/free-solid-svg-icons';
-import { Modal, Form, Input, TimePicker, Table, Button, Space, Tooltip, Image, Select, Upload, Empty, Pagination, Alert } from 'antd';
+import { Modal,  Input, Button,  Tooltip, Image,  Empty, Pagination, Alert } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import { sanitizeInput, validateInput } from '../utils/sanitize';
-import {SecureStorage} from '../utils/encryption'; // Adjust the import path as necessary
+import { sanitizeInput, validateInput } from '../../utils/sanitize';
+import {SecureStorage} from '../../utils/encryption'; // Adjust the import path as necessary
+import Create_Modal from './lib/Vehicle/Create_Modal';
+import Update_Modal from './lib/Vehicle/Update_Modal';
 
 const VehicleEntry = () => {
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
@@ -114,55 +101,7 @@ const VehicleEntry = () => {
         }
     };
 
-    const getVehicleById = async (id) => {
-        try {
-            const response = await axios.post("http://localhost/coc/gsd/fetchMaster.php", new URLSearchParams({ 
-                operation: "fetchVehicleById", 
-                id 
-            }));
 
-            if (response.data.status === 'success' && response.data.data.length > 0) {
-                const vehicle = response.data.data[0];
-                setEditingVehicle(vehicle);
-                setVehicleLicensed(vehicle.vehicle_license);
-                setYear(new Date(vehicle.year, 0)); // Convert year to Date object
-                
-                // Handle vehicle image
-                if (vehicle.vehicle_pic) {
-                    const imageUrl = `${IMAGE_BASE_URL}${vehicle.vehicle_pic}`;
-                    setVehicleImage(imageUrl);
-                    setFileList([{
-                        uid: '-1',
-                        name: 'vehicle-image.png',
-                        status: 'done',
-                        url: imageUrl,
-                    }]);
-                } else {
-                    setVehicleImage(null);
-                    setFileList([]);
-                }
-
-                // Handle status
-                const status = statusAvailability.find(s => s.status_availability_name === vehicle.status_availability_name);
-                if (status) {
-                    setSelectedStatus(status.status_availability_id);
-                }
-
-                // Fetch and set make
-                const makesData = await fetchMakes();
-                const selectedMake = makesData.find(make => make.vehicle_make_name === vehicle.vehicle_make_name);
-                if (selectedMake) {
-                    setMakeId(selectedMake.vehicle_make_id);
-                    await fetchCategoriesAndModels(selectedMake.vehicle_make_id);
-                }
-            } else {
-                toast.error("Failed to fetch vehicle details");
-            }
-        } catch (error) {
-            console.error('Error fetching vehicle:', error);
-            toast.error(error.message);
-        }
-    };
 
     useEffect(() => {
         if (editingVehicle && categories.length > 0) {
@@ -181,14 +120,7 @@ const VehicleEntry = () => {
 
     const handleEditVehicle = (vehicle) => {
         setSelectedVehicleId(vehicle.vehicle_id);
-        getVehicleById(vehicle.vehicle_id);
         setShowEditModal(true);
-    };
-
-    const handleAddVehicle = () => {
-        resetForm();
-        setSelectedVehicleId(null);
-        setShowAddModal(true);
     };
 
     const resetForm = () => {
@@ -217,46 +149,10 @@ const VehicleEntry = () => {
         return sanitized;
     };
 
-    const handleLicenseChange = (e) => {
-        const value = e.target.value;
-        setVehicleLicensed(sanitizeAndValidateLicense(value));
-    };
 
-    const handleImageUpload = ({ fileList: newFileList }) => {
-        setFileList(newFileList);
-        
-        if (newFileList.length > 0) {
-            const file = newFileList[0].originFileObj;
-            if (file) {
-                // Create a reader to convert the file to base64
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => {
-                    setVehicleImage(reader.result);
-                };
-            } else if (newFileList[0].url) {
-                // If it's already uploaded and has a URL
-                setVehicleImage(newFileList[0].url);
-            }
-        } else {
-            setVehicleImage(null);
-        }
-    };
 
-    const handleSubmit = async () => {
-        // Sanitize and validate inputs
-        const sanitizedLicense = sanitizeAndValidateLicense(vehicleLicensed);
-        if (!sanitizedLicense) {
-            return;
-        }
 
-        if (!vehicleModelId || !year || !selectedStatus) {
-            toast.error("Please fill in all required fields.");
-            return;
-        }
-    
-        setIsSubmitting(true);
-    
+    const handleSubmit = async (formData) => {
         try {
             let response;
             if (selectedVehicleId) {
@@ -264,12 +160,8 @@ const VehicleEntry = () => {
                 const requestData = {
                     operation: "updateVehicleLicense",
                     vehicleData: {
-                        vehicle_id: selectedVehicleId,
-                        vehicle_model_id: vehicleModelId,
-                        vehicle_license: sanitizedLicense,
-                        year: dayjs(year).format('YYYY'),
-                        status_availability_id: selectedStatus,
-                        vehicle_pic: vehicleImage || editingVehicle?.vehicle_pic || ''
+                        ...formData,
+                        vehicle_id: selectedVehicleId
                     }
                 };
     
@@ -283,13 +175,11 @@ const VehicleEntry = () => {
                     }
                 );
 
-                // If update is successful
                 if (response.data.status === 'success') {
                     console.log('Update Success Response:', response.data);
                     toast.success(response.data.message || 'Vehicle updated successfully');
-                    resetForm();
+                    await fetchVehicles(); // Refresh the vehicle list
                     setShowEditModal(false);
-                    fetchVehicles();
                     return;
                 } else {
                     console.log('Update Error Response:', response.data);
@@ -300,14 +190,7 @@ const VehicleEntry = () => {
                 // Add operation
                 const requestData = JSON.stringify({
                     operation: "saveVehicle",
-                    data: {
-                        vehicle_model_id: vehicleModelId,
-                        vehicle_license: sanitizedLicense,
-                        year: dayjs(year).format('YYYY'),
-                        vehicle_pic: vehicleImage,
-                        user_admin_id: user_id,
-                        status_availability_id: selectedStatus
-                    }
+                    data: formData
                 });
     
                 response = await axios.post("http://localhost/coc/gsd/insert_master.php", requestData, {
@@ -316,26 +199,22 @@ const VehicleEntry = () => {
                     }
                 });
 
-                // If add is successful, close modal and refresh data
                 if (response.data.status === 'success') {
                     console.log('Add Success Response:', response.data);
                     toast.success(response.data.message);
-                    resetForm();
+                    await fetchVehicles(); // Refresh the vehicle list
                     setShowAddModal(false);
-                    fetchVehicles();
                     return;
                 }
             }
     
-            // Only show error toast if the response indicates an error
             if (response.data.status !== 'success') {
-               
+                toast.error(response.data.message || 'Operation failed');
             }
         } catch (error) {
             console.error('Error details:', error);
             toast.error(error.response?.data?.message || error.message);
-        } finally {
-            setIsSubmitting(false);
+            throw error;
         }
     };
 
@@ -521,7 +400,7 @@ const VehicleEntry = () => {
                                     type="primary"
                                     icon={<PlusOutlined />}
                                     size="large"
-                                    onClick={handleAddVehicle}
+                                    onClick={() => setShowAddModal(true)}
                                     className="bg-lime-900 hover:bg-green-600"
                                 >
                                     Add Vehicle
@@ -719,155 +598,25 @@ const VehicleEntry = () => {
                 </div>
             </div>
 
-            {/* Add/Edit Modal */}
-            <Modal
-                title={
-                    <div className="flex items-center">
-                        <FaEye className="mr-2 text-green-900" /> 
-                        {selectedVehicleId ? "Edit Vehicle" : "Add Vehicle"}
-                    </div>
-                }
-                open={showAddModal || showEditModal}
-                onCancel={handleCloseModal}
-                okText={selectedVehicleId ? "Update" : "Add"}
-                onOk={handleSubmit}
-                confirmLoading={isSubmitting}
-                width={800}
-                className="vehicle-modal"
-            >
-                <Form layout="vertical">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-4">
-                            <Form.Item
-                                label="Make"
-                                required
-                                tooltip="Select the vehicle make"
-                            >
-                                <Select
-                                    value={makeId}
-                                    options={makes.map(make => ({
-                                        label: make.vehicle_make_name,
-                                        value: make.vehicle_make_id
-                                    }))}
-                                    onChange={handleMakeChange}
-                                    placeholder="Select Make"
-                                    className="w-full"
-                                />
-                            </Form.Item>
+            {/* Replace the old modal with the new components */}
+            <Create_Modal
+                showModal={showAddModal}
+                onClose={handleCloseModal}
+                onSubmit={handleSubmit}
+                makes={makes}
+                categories={categories}
+                modelsByCategory={modelsByCategory}
+                statusAvailability={statusAvailability}
+                IMAGE_BASE_URL={IMAGE_BASE_URL}
+                user_id={user_id}
+            />
 
-                            <Form.Item
-                                label="Category"
-                                required
-                                tooltip="Select the vehicle category"
-                            >
-                                <Select
-                                    value={category}
-                                    options={categories.map(cat => ({
-                                        label: cat.vehicle_category_name,
-                                        value: cat.vehicle_category_id
-                                    }))}
-                                    onChange={handleCategoryChange}
-                                    placeholder="Select Category"
-                                    className="w-full"
-                                    disabled={!makeId}
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                label="Model"
-                                required
-                                tooltip="Select the vehicle model"
-                            >
-                                <Select
-                                    value={vehicleModelId}
-                                    options={modelsByCategory[category]?.map(model => ({
-                                        label: model.vehicle_model_name,
-                                        value: model.vehicle_model_id
-                                    }))}
-                                    onChange={(value) => setVehicleModelId(value)}
-                                    placeholder="Select Model"
-                                    className="w-full"
-                                    disabled={!category}
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                label="License Number"
-                                required
-                                tooltip="Enter the vehicle license number"
-                            >
-                                <Input
-                                    value={vehicleLicensed}
-                                    onChange={handleLicenseChange}
-                                    placeholder="Enter license number"
-                                    maxLength={50} // Add reasonable limit
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                label="Year"
-                                required
-                                tooltip="Select the vehicle year"
-                            >
-                                <Calendar
-                                    value={year}
-                                    onChange={(e) => setYear(e.value)}
-                                    view="year"
-                                    dateFormat="yy"
-                                    placeholder="Select Year"
-                                    className="w-full"
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                label="Availability Status"
-                                required
-                                tooltip="Select the vehicle availability status"
-                            >
-                                <Select
-                                    value={selectedStatus}
-                                    options={statusAvailability.map(status => ({
-                                        label: status.status_availability_name,
-                                        value: status.status_availability_id
-                                    }))}
-                                    onChange={(value) => setSelectedStatus(value)}
-                                    placeholder="Select Status"
-                                    className="w-full"
-                                />
-                            </Form.Item>
-                        </div>
-
-                        <div className="space-y-4">
-                            <Form.Item
-                                label="Vehicle Image"
-                                tooltip="Upload vehicle image (max 5MB)"
-                            >
-                                <Upload
-                                    listType="picture-card"
-                                    fileList={fileList}
-                                    onChange={handleImageUpload}
-                                    beforeUpload={() => false}
-                                    maxCount={1}
-                                >
-                                    {fileList.length < 1 && (
-                                        <Button icon={<PlusOutlined />}>
-                                            Upload
-                                        </Button>
-                                    )}
-                                </Upload>
-                                {vehicleImage && typeof vehicleImage === 'string' && vehicleImage.startsWith('http') && (
-                                    <div className="mt-4">
-                                        <img src={vehicleImage} 
-                                            alt="Vehicle Preview" 
-                                            className="max-w-full h-auto rounded-lg shadow-lg" 
-                                        />
-                                    </div>
-                                )}
-                            </Form.Item>
-                        </div>
-                    </div>
-                </Form>
-            </Modal>
+            <Update_Modal
+                showModal={showEditModal}
+                onClose={handleCloseModal}
+                onSubmit={handleSubmit}
+                selectedVehicleId={selectedVehicleId}
+            />
 
             {/* Confirm Delete Modal */}
             <Modal

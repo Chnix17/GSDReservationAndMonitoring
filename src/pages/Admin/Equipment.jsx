@@ -1,0 +1,629 @@
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { message as toast, Modal, Button, Input, Space, Empty, Tag, Alert, Table, Upload, Form, Select, Pagination, Image, Tooltip } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { motion } from 'framer-motion';
+import { SecureStorage } from '../../utils/encryption';
+import UpdateEquipmentModal from './lib/Equipment/Update_Modal';
+import CreateEquipmentModal from './lib/Equipment/Create_Modal';
+import Sidebar from '../Sidebar';
+import axios from 'axios';
+
+// Helper functions
+const sanitizeInput = (input) => {
+    return input.replace(/[<>]/g, '');
+};
+
+const validateInput = (input) => {
+    return !/[<>]/.test(input);
+};
+
+const getImageUrl = (path) => {
+    return `http://localhost/coc/gsd/${path}`;
+};
+
+const EquipmentEntry = () => {
+    const [equipments, setEquipments] = useState([]);
+    const [loading, setLoading] = useState(false);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [pageSize, setPageSize] = useState(10);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+    const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+    const [isUpdateUnitModalOpen, setIsUpdateUnitModalOpen] = useState(false);
+    const [isAddUnitModalOpen, setIsAddUnitModalOpen] = useState(false);
+    const [editingEquipmentId, setEditingEquipmentId] = useState(null);
+    const [currentUnit, setCurrentUnit] = useState(null);
+    const [unitDetails, setUnitDetails] = useState(null);
+    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+    const [selectedEquipmentId, setSelectedEquipmentId] = useState(null);
+    const [sortField, setSortField] = useState('equip_id');
+    const [sortOrder, setSortOrder] = useState('desc');
+    const [selectedUnitId, setSelectedUnitId] = useState(null);
+    const [isSerializedUnit, setIsSerializedUnit] = useState(false);
+    const [currentEquipmentId, setCurrentEquipmentId] = useState(null);
+    const [newUnitSerialNumbers, setNewUnitSerialNumbers] = useState(['']);
+    const [selectedStatus, setSelectedStatus] = useState('1');
+    const [viewImageModal, setViewImageModal] = useState(false);
+    const [currentImage, setCurrentImage] = useState(null);
+    const [statusAvailability, setStatusAvailability] = useState([]);
+
+    const navigate = useNavigate();
+    const user_level_id = SecureStorage.getSessionItem('user_level_id');
+
+    useEffect(() => {
+        if (user_level_id !== '1' && user_level_id !== '2' && user_level_id !== '4') {
+            navigate('/');
+        }
+    }, [user_level_id, navigate]);
+
+    useEffect(() => {
+        fetchEquipments();
+        fetchStatusAvailability();
+    }, []);
+
+    const fetchStatusAvailability = async () => {
+        const url = "http://localhost/coc/gsd/fetchMaster.php";
+        const jsonData = { operation: "fetchStatusAvailability" };
+
+        try {
+            const response = await axios.post(url, new URLSearchParams(jsonData));
+            if (response.data.status === 'success') {
+                setStatusAvailability(response.data.data);
+            } else {
+                toast.error("Failed to fetch status availability");
+            }
+        } catch (error) {
+            console.error("Error fetching status availability:", error);
+            toast.error("An error occurred while fetching status availability.");
+        }
+    };
+
+    const handleUpdateUnit = async () => {
+        if (!currentUnit || !unitDetails) {
+            toast.error("No unit selected for update");
+            return;
+        }
+
+        setLoading(true);
+        const url = "http://localhost/coc/gsd/update_master1.php";
+        const requestData = {
+            operation: "updateEquipmentUnit",
+            unit_id: currentUnit.unit_id,
+            serial_number: unitDetails.serial_number,
+            status_availability_id: unitDetails.status_availability_id
+        };
+
+        console.log("Request Data:", requestData);
+
+        try {
+            const response = await axios.post(url, JSON.stringify(requestData), {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.status === 'success') {
+                toast.success("Unit successfully updated!");
+                setIsUpdateUnitModalOpen(false);
+                fetchEquipments(); // Refresh the equipment list
+            } else {
+                toast.error("Failed to update unit: " + response.data.message);
+            }
+        } catch (error) {
+            console.error("Error updating unit:", error);
+            toast.error("An error occurred while updating the unit.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchEquipments = async () => {
+        setLoading(true);
+        const url = "http://localhost/coc/gsd/user.php";
+        const jsonData = { operation: "fetchEquipmentsWithStatus" };
+
+        try {
+            const response = await axios.post(url, new URLSearchParams(jsonData));
+            if (response.data.status === 'success') {
+                setEquipments(response.data.data);
+                console.log(response.data.data);
+            } else {
+                toast.error("Error fetching equipments: " + response.data.message);
+            }
+        } catch (error) {
+            console.error("Error fetching equipments:", error);
+            toast.error("An error occurred while fetching equipments.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+
+    const handleEditClick = (equipment) => {
+        setEditingEquipmentId(equipment.equip_id);
+        setIsEditModalOpen(true);
+    };
+
+    const handleArchiveEquipment = (equip_id, unit_id = null, is_serialize = false) => {
+        setSelectedEquipmentId(equip_id);
+        setSelectedUnitId(unit_id);
+        setIsSerializedUnit(is_serialize);
+        setShowConfirmDelete(true);
+    };
+
+    const confirmDelete = async () => {
+        setLoading(true);
+        try {
+            const url = "http://localhost/coc/gsd/delete_master.php";
+            const jsonData = {
+                operation: "archiveResource",
+                resourceType: "equipment",
+                resourceId: isSerializedUnit ? selectedUnitId : selectedEquipmentId,
+                is_serialize: isSerializedUnit
+            };
+
+            console.log("Request Data:", jsonData);
+
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(jsonData)
+            });
+
+
+            console.log("Response:", response);
+
+            const data = await response.json();
+
+            console.log("Response Data:", data);
+            
+            if (data.status === 'success') {
+                toast.success(isSerializedUnit ? "Equipment unit archived successfully" : "Equipment archived successfully");
+                setShowConfirmDelete(false);
+                fetchEquipments();
+            } else {
+                toast.error(data.message || "Failed to archive equipment");
+            }
+        } catch (error) {
+            toast.error("An error occurred while archiving equipment: " + error.message);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleRefresh = () => {
+        fetchEquipments();
+        setSearchTerm('');
+    };
+    
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+        } else {
+            setSortField(field);
+            setSortOrder("asc");
+        }
+    };
+
+    const handleAddUnit = () => {
+        setIsAddUnitModalOpen(true);
+    };
+
+    // Add this new function to handle adding more serial number fields
+    const addSerialNumberField = () => {
+        setNewUnitSerialNumbers([...newUnitSerialNumbers, '']);
+    };
+
+    // Add this new function to handle removing a serial number field
+    const removeSerialNumberField = (index) => {
+        const newSerials = newUnitSerialNumbers.filter((_, i) => i !== index);
+        setNewUnitSerialNumbers(newSerials.length ? newSerials : ['']);
+    };
+
+    // Add this new function to update a serial number
+    const updateSerialNumber = (index, value) => {
+        const newSerials = [...newUnitSerialNumbers];
+        newSerials[index] = value;
+        setNewUnitSerialNumbers(newSerials);
+    };
+
+    const filteredEquipments = equipments.filter(equipment =>
+        equipment.equip_name && equipment.equip_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+
+    const handleViewImage = (url) => {
+        setCurrentImage(url);
+        setViewImageModal(true);
+    };
+
+    return (
+      <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+      {/* Fixed Sidebar */}
+      <div className="flex-shrink-0">
+                <Sidebar />
+            </div>
+            
+            {/* Scrollable Content Area */}
+            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
+                <div className="p-[2.5rem] lg:p-12 min-h-screen">
+                    <motion.div 
+                        initial={{ opacity: 0, y: -50 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ duration: 0.5 }}
+                        className="mb-8"
+                    >
+                        <div className="mb-4 mt-20">
+                           
+                            <h2 className="text-2xl font-bold text-green-900 mt-5">
+                                Equipment Management
+                            </h2>
+                        </div>
+                    </motion.div>
+
+                    {/* Search and Filters */}
+                    <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex flex-col md:flex-row gap-4 flex-1">
+                                <div className="flex-1">
+                                    <Input
+                                        placeholder="Search equipments by name"
+                                        allowClear
+                                        prefix={<SearchOutlined />}
+                                        size="large"
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        className="w-full"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Tooltip title="Refresh data">
+                                    <Button
+                                        icon={<ReloadOutlined />}
+                                        onClick={handleRefresh}
+                                        size="large"
+                                    />
+                                </Tooltip>
+                                <Button
+                                    type="primary"
+                                    icon={<PlusOutlined />}
+                                    size="large"
+                                    onClick={() => setIsAddModalOpen(true)}
+                                    className="bg-lime-900 hover:bg-green-600"
+                                >
+                                    Add Equipment
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Table */}
+                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+                        {loading ? (
+                            <div className="flex justify-center items-center h-64">
+                                <div className="loader"></div>
+                            </div>
+                        ) : (
+                            <>
+                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Image
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('equip_name')}>
+                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                                    Equipment Name
+                                                    {sortField === 'equip_name' && (
+                                                        <span className="ml-1">
+                                                            {sortOrder === "asc" ? "↑" : "↓"}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('equip_quantity')}>
+                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                                    Quantity
+                                                    {sortField === 'equip_quantity' && (
+                                                        <span className="ml-1">
+                                                            {sortOrder === "asc" ? "↑" : "↓"}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Category
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Status
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Actions
+                                                </div>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredEquipments && filteredEquipments.length > 0 ? (
+                                            filteredEquipments
+                                                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                                                .map((equipment) => (
+                                                    <tr key={equipment.equip_id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
+                                                        <td className="px-6 py-4">
+                                                            {equipment.equip_pic ? (
+                                                                <div className="cursor-pointer" onClick={() => handleViewImage(getImageUrl(equipment.equip_pic))}>
+                                                                    <img 
+                                                                        src={getImageUrl(equipment.equip_pic)} 
+                                                                        alt={equipment.equip_name} 
+                                                                        className="w-12 h-12 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
+                                                                    />
+                                                                </div>
+                                                            ) : (
+                                                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
+                                                                    <i className="pi pi-box text-xl"></i>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex items-center">
+                                                                <span className="font-medium">{equipment.equip_name}</span>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            {equipment.units && equipment.units.length > 0 ? (
+                                                                <span>{equipment.units.length} units</span>
+                                                            ) : (
+                                                                equipment.equip_quantity
+                                                            )}
+                                                        </td>
+                                                        <td className="px-6 py-4">{equipment.category_name || 'Not specified'}</td>
+                                                        <td className="px-6 py-4">
+                                                            <Tag 
+                                                                value={equipment.status || 'Available'} 
+                                                                severity={(equipment.status || 'Available') === 'Available' ? 'success' : 'danger'}
+                                                                className="px-2 py-1 text-xs font-semibold"
+                                                            />
+                                                        </td>
+                                                        <td className="px-6 py-4">
+                                                            <div className="flex space-x-2">
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={<EditOutlined />}
+                                                                    onClick={() => handleEditClick(equipment)}
+                                                                    size="middle"
+                                                                    className="bg-green-900 hover:bg-lime-900"
+                                                                />
+                                                                <Button
+                                                                    danger
+                                                                    icon={<DeleteOutlined />}
+                                                                    onClick={() => handleArchiveEquipment(equipment.equip_id)}
+                                                                    size="middle"
+                                                                />
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={7} className="px-6 py-24 text-center">
+                                                    <Empty
+                                                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                                        description={
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                No equipments found
+                                                            </span>
+                                                        }
+                                                    />
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+
+                                {/* Pagination */}
+                                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                    <Pagination
+                                        current={currentPage}
+                                        pageSize={pageSize}
+                                        total={filteredEquipments ? filteredEquipments.length : 0}
+                                        onChange={(page, size) => {
+                                            setCurrentPage(page);
+                                            setPageSize(size);
+                                        }}
+                                        showSizeChanger={true}
+                                        showTotal={(total, range) =>
+                                            `${range[0]}-${range[1]} of ${total} items`
+                                        }
+                                        className="flex justify-end"
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* Update Unit Modal */}
+            <Modal
+                title={<div className="flex items-center">
+                    <EditOutlined className="mr-2 text-green-900" />
+                    Update Equipment Unit
+                </div>}
+                open={isUpdateUnitModalOpen}
+                onCancel={() => setIsUpdateUnitModalOpen(false)}
+                onOk={handleUpdateUnit}
+                confirmLoading={loading}
+                destroyOnClose
+            >
+                {unitDetails && (
+                    <div className="space-y-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Equipment Name</label>
+                            <Input 
+                                value={unitDetails.equip_name} 
+                                readOnly 
+                                className="bg-gray-50"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Serial Number</label>
+                            <Input 
+                                value={unitDetails.serial_number}
+                                onChange={(e) => setUnitDetails({
+                                    ...unitDetails,
+                                    serial_number: e.target.value
+                                })}
+                                placeholder="Enter serial number"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                            <Select
+                                value={unitDetails.status_availability_id}
+                                onChange={(value) => setUnitDetails({
+                                    ...unitDetails,
+                                    status_availability_id: value
+                                })}
+                                style={{ width: '100%' }}
+                            >
+                                {statusAvailability.map(status => (
+                                    <Select.Option 
+                                        key={status.status_availability_id} 
+                                        value={status.status_availability_id}
+                                    >
+                                        {status.status_availability_name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </div>
+                    </div>
+                )}
+            </Modal>
+
+            {/* Add/Edit Equipment Modal */}
+            <CreateEquipmentModal
+                isOpen={isAddModalOpen}
+                onClose={() => setIsAddModalOpen(false)}
+                onSuccess={fetchEquipments}
+            />
+
+            <UpdateEquipmentModal
+                isOpen={isEditModalOpen}
+                onClose={() => {
+                    setIsEditModalOpen(false);
+                    setEditingEquipmentId(null);
+                }}
+                onSuccess={fetchEquipments}
+                equipmentId={editingEquipmentId}
+            />
+            
+            {/* Image Preview Modal */}
+            <Modal
+                open={viewImageModal}
+                footer={null}
+                onCancel={() => setViewImageModal(false)}
+                width={700}
+                centered
+            >
+                {currentImage && (
+                    <Image
+                        src={currentImage}
+                        alt="Equipment"
+                        className="w-full object-contain max-h-[70vh]"
+                        preview={false}
+                    />
+                )}
+            </Modal>
+            
+            {/* Confirm Delete Modal */}
+            <Modal
+                title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
+                open={showConfirmDelete}
+                onCancel={() => setShowConfirmDelete(false)}
+                footer={[
+                    <Button key="back" onClick={() => setShowConfirmDelete(false)}>
+                        Cancel
+                    </Button>,
+                    <Button
+                        key="submit"
+                        type="primary"
+                        danger
+                        loading={loading}
+                        onClick={() => confirmDelete()}
+                        icon={<DeleteOutlined />}
+                    >
+                        Delete
+                    </Button>,
+                ]}
+            >
+                <Alert
+                    message="Warning"
+                    description={`Are you sure you want to archive this ${isSerializedUnit ? 'equipment unit' : 'equipment'}? This action cannot be undone.`}
+                    type="warning"
+                    showIcon
+                    icon={<ExclamationCircleOutlined />}
+                />
+            </Modal>
+
+            {/* Add Unit Modal */}
+            <Modal
+                title={<div className="flex items-center">
+                    <PlusOutlined className="mr-2 text-green-900" />
+                    Add Equipment Unit
+                </div>}
+                open={isAddUnitModalOpen}
+                onCancel={() => {
+                    setIsAddUnitModalOpen(false);
+                    setNewUnitSerialNumbers(['']);
+                }}
+                onOk={handleAddUnit}
+                confirmLoading={loading}
+                okText="Add Units"
+            >
+                <div className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Serial Numbers</label>
+                        <Space direction="vertical" style={{ width: '100%' }}>
+                            {newUnitSerialNumbers.map((serial, index) => (
+                                <Space key={index}>
+                                    <Input
+                                        value={serial}
+                                        onChange={(e) => updateSerialNumber(index, e.target.value)}
+                                        placeholder="Enter serial number"
+                                    />
+                                    <Button
+                                        type="text"
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => removeSerialNumberField(index)}
+                                        disabled={newUnitSerialNumbers.length === 1}
+                                    />
+                                </Space>
+                            ))}
+                            <Button
+                                type="dashed"
+                                onClick={addSerialNumberField}
+                                block
+                                icon={<PlusOutlined />}
+                            >
+                                Add More Serial Numbers
+                            </Button>
+                        </Space>
+                    </div>
+                </div>
+            </Modal>
+        </div>
+    );
+};
+
+export default EquipmentEntry;

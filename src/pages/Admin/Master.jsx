@@ -6,12 +6,16 @@ import {
   FaPlus,
   FaTools,
   FaUserTie,
+  FaBuilding,
 } from "react-icons/fa";
 import React, { useCallback, useEffect, useState } from "react";
-import { sanitizeInput, validateInput } from "../utils/sanitize";
+import { sanitizeInput, validateInput } from "../../utils/sanitize";
+import CreateEquipmentModal from "./lib/Equipment/Create_Modal";
+import CreateVehicleModal from "./lib/Vehicle/Create_Modal";
+import CreateVenueModal from "./lib/Venue/Create_Modal";
 
-import { SecureStorage } from "../utils/encryption";
-import Sidebar from "./Sidebar";
+import { SecureStorage } from "../../utils/encryption";
+import Sidebar from "../Sidebar";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
@@ -28,6 +32,8 @@ const Master = () => {
   const [isAddConditionModalOpen, setIsAddConditionModalOpen] = useState(false);
   const [isAddHolidayModalOpen, setIsAddHolidayModalOpen] = useState(false);
   const [isAddDriverModalOpen, setIsAddDriverModalOpen] = useState(false);
+  const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
+  const [isAddVenueModalOpen, setIsAddVenueModalOpen] = useState(false);
   
   const [categoryName, setCategoryName] = useState("");
   const [makeName, setMakeName] = useState("");
@@ -57,6 +63,8 @@ const Master = () => {
   const [loading, setLoading] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const encryptedUrl = SecureStorage.getLocalItem("url");
+  const [equipmentNameOptions, setEquipmentNameOptions] = useState([]);
+  const [statusOptions, setStatusOptions] = useState([]);
 
   const user_level_id = localStorage.getItem("user_level_id");
 
@@ -83,9 +91,37 @@ const Master = () => {
     }
   }, [setLoading, setIsSuccess]);
 
+  const fetchEquipmentOptions = useCallback(async () => {
+    try {
+      const response = await axios.post(`${encryptedUrl}vehicle_master.php`, {
+        operation: "fetchEquipmentOptions",
+      });
+      if (response.data.status === "success") {
+        setEquipmentNameOptions(response.data.options);
+      }
+    } catch (error) {
+      console.error("Error fetching equipment options:", error);
+    }
+  }, [encryptedUrl]);
+
+  const fetchStatusOptions = useCallback(async () => {
+    try {
+      const response = await axios.post(`${encryptedUrl}vehicle_master.php`, {
+        operation: "fetchStatusOptions",
+      });
+      if (response.data.status === "success") {
+        setStatusOptions(response.data.options);
+      }
+    } catch (error) {
+      console.error("Error fetching status options:", error);
+    }
+  }, [encryptedUrl]);
+
   useEffect(() => {
     fetchCategoriesAndMakes();
-  }, [fetchCategoriesAndMakes]);
+    fetchEquipmentOptions();
+    fetchStatusOptions();
+  }, [fetchCategoriesAndMakes, fetchEquipmentOptions, fetchStatusOptions]);
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
@@ -287,6 +323,8 @@ const Master = () => {
     setIsAddConditionModalOpen(false);
     setIsAddHolidayModalOpen(false);
     setIsAddDriverModalOpen(false);
+    setIsAddVehicleModalOpen(false);
+    setIsAddVenueModalOpen(false);
   };
 
   const handleSaveCategoryData = (e) => {
@@ -370,41 +408,17 @@ const Master = () => {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
             {[
               {
-                title: "Vehicle Category",
+                title: "Vehicles",
                 icon: <FaCar />,
-                action: () => setIsAddCategoryModalOpen(true),
-                viewPath: "/vehicleCategory",
-              },
-              {
-                title: "Vehicle Make",
-                icon: <FaTools />,
-                action: () => setIsAddMakeModalOpen(true),
-                viewPath: "/vehiclemake",
-              },
-              {
-                title: "Vehicle Model",
-                icon: <FaCogs />,
-                action: () => setIsAddModelModalOpen(true),
-                viewPath: "/vehiclemodel",
-              },
-              {
-                title: "Departments",
-                icon: <FaListAlt />,
-                action: () => setIsAddDepartmentModalOpen(true),
-                viewPath: "/departments",
+                action: () => setIsAddVehicleModalOpen(true),
+                viewPath: "/VehicleEntry",
               },
               {
                 title: "Equipments",
                 icon: <FaListAlt />,
                 action: () => setIsAddEquipmentModalOpen(true),
-                viewPath: "/equipmentCat",
+                viewPath: "/Equipment",
               },
-              // {
-              //   title: "Condition",
-              //   icon: <FaCogs />,
-              //   action: () => setIsAddConditionModalOpen(true),
-              //   viewPath: "/condition",
-              // },
               {
                 title: "Holidays", 
                 icon: <FaPlus />, 
@@ -416,6 +430,12 @@ const Master = () => {
                 icon: <FaUserTie />,
                 action: () => setIsAddDriverModalOpen(true),
                 viewPath: "/drivers",
+              },
+              {
+                title: "Venues",
+                icon: <FaBuilding />,
+                action: () => setIsAddVenueModalOpen(true),
+                viewPath: "/venues",
               },
             ].map((card, index) => (
               <motion.div
@@ -622,37 +642,18 @@ const Master = () => {
         )}
 
         {/* Modal for Adding Equipment */}
-        {isAddEquipmentModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-            <div className="bg-white p-8 rounded-lg shadow-lg">
-              <h2 className="text-xl font-bold mb-4">Add Equipment Category</h2>
-              <form onSubmit={handleSaveEquipmentData}>
-                <input
-                  type="text"
-                  value={equipmentName}
-                  onChange={handleInputChange(setEquipmentName)}
-                  placeholder="Enter equipment name"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="mr-2 py-2 px-4 bg-gray-500 text-white rounded"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="py-2 px-4 bg-blue-500 text-white rounded"
-                  >
-                    Save
-                  </button>
-                </div>
-              </form>
-            </div>
-          </div>
-        )}
+        <CreateEquipmentModal
+          isOpen={isAddEquipmentModalOpen}
+          onClose={() => setIsAddEquipmentModalOpen(false)}
+          onSuccess={() => {
+            fetchEquipmentOptions();
+            setPopupMessage("Equipment added successfully!");
+            setTimeout(() => {
+              setPopupMessage("");
+            }, 3000);
+          }}
+          equipmentNameOptions={equipmentNameOptions}
+        />
 
         {/* Modal for Adding User Level */}
         {isAddUserLevelModalOpen && (
@@ -883,6 +884,35 @@ const Master = () => {
             </div>
           </div>
         )}
+
+        {/* Modal for Adding Vehicle */}
+        <CreateVehicleModal
+          showModal={isAddVehicleModalOpen}
+          onClose={() => setIsAddVehicleModalOpen(false)}
+          onSuccess={() => {
+            setPopupMessage("Vehicle added successfully!");
+            setTimeout(() => {
+              setPopupMessage("");
+            }, 3000);
+          }}
+          IMAGE_BASE_URL="http://localhost/coc/gsd/uploads/"
+        />
+
+        {/* Modal for Adding Venue */}
+        <CreateVenueModal
+          visible={isAddVenueModalOpen}
+          onCancel={() => setIsAddVenueModalOpen(false)}
+          onSuccess={() => {
+            setPopupMessage("Venue added successfully!");
+            setTimeout(() => {
+              setPopupMessage("");
+            }, 3000);
+          }}
+          statusOptions={statusOptions}
+          encryptedUrl={encryptedUrl}
+          user_id={SecureStorage.getSessionItem('user_id')}
+          encryptedUserLevel={SecureStorage.getSessionItem('user_level_id')}
+        />
 
         {popupMessage && (
           <motion.div
