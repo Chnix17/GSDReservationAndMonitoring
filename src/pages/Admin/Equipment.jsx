@@ -8,6 +8,7 @@ import UpdateEquipmentModal from './lib/Equipment/Update_Modal';
 import CreateEquipmentModal from './lib/Equipment/Create_Modal';
 import Sidebar from '../Sidebar';
 import axios from 'axios';
+import { FaArrowLeft } from 'react-icons/fa';
 
 // Helper functions
 const sanitizeInput = (input) => {
@@ -145,10 +146,11 @@ const EquipmentEntry = () => {
         setIsEditModalOpen(true);
     };
 
-    const handleArchiveEquipment = (equip_id, unit_id = null, is_serialize = false) => {
-        setSelectedEquipmentId(equip_id);
-        setSelectedUnitId(unit_id);
-        setIsSerializedUnit(is_serialize);
+    const handleArchiveEquipment = (unit_ids) => {
+        console.log('Archive clicked with unit_ids:', unit_ids);
+        // Convert single unit_id to array if it's not already an array
+        const unitIdsArray = Array.isArray(unit_ids) ? unit_ids : [unit_ids];
+        setSelectedUnitId(unitIdsArray);
         setShowConfirmDelete(true);
     };
 
@@ -159,11 +161,11 @@ const EquipmentEntry = () => {
             const jsonData = {
                 operation: "archiveResource",
                 resourceType: "equipment",
-                resourceId: isSerializedUnit ? selectedUnitId : selectedEquipmentId,
-                is_serialize: isSerializedUnit
+                resourceId: selectedUnitId,
+                is_serialize: true
             };
 
-            console.log("Request Data:", jsonData);
+            console.log('Sending archive request with data:', jsonData);
 
             const response = await fetch(url, {
                 method: 'POST',
@@ -173,22 +175,19 @@ const EquipmentEntry = () => {
                 body: JSON.stringify(jsonData)
             });
 
-
-            console.log("Response:", response);
-
             const data = await response.json();
-
-            console.log("Response Data:", data);
+            console.log('Archive response:', data);
             
             if (data.status === 'success') {
-                toast.success(isSerializedUnit ? "Equipment unit archived successfully" : "Equipment archived successfully");
+                toast.success(selectedUnitId.length > 1 ? "Equipment units archived successfully" : "Equipment unit archived successfully");
                 setShowConfirmDelete(false);
                 fetchEquipments();
             } else {
-                toast.error(data.message || "Failed to archive equipment");
+                toast.error(data.message || "Failed to archive equipment unit(s)");
             }
         } catch (error) {
-            toast.error("An error occurred while archiving equipment: " + error.message);
+            console.error('Archive error:', error);
+            toast.error("An error occurred while archiving equipment unit(s): " + error.message);
         } finally {
             setLoading(false);
         }
@@ -239,6 +238,14 @@ const EquipmentEntry = () => {
         setViewImageModal(true);
     };
 
+    // Add this new function to handle multiple unit selection
+    const handleMultipleArchive = (equipment) => {
+        if (equipment.units && equipment.units.length > 0) {
+            const unitIds = equipment.units.map(unit => unit.unit_id);
+            handleArchiveEquipment(unitIds);
+        }
+    };
+
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
@@ -256,9 +263,11 @@ const EquipmentEntry = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                           
+                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
+                                <FaArrowLeft className="mr-2" /> Back to Master
+                            </Button>
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Equipment Management
+                                Equipment 
                             </h2>
                         </div>
                     </motion.div>
@@ -341,11 +350,7 @@ const EquipmentEntry = () => {
                                                     Category
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
-                                                <div className="flex items-center">
-                                                    Status
-                                                </div>
-                                            </th>
+       
                                             <th scope="col" className="px-6 py-3">
                                                 <div className="flex items-center">
                                                     Actions
@@ -380,20 +385,10 @@ const EquipmentEntry = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            {equipment.units && equipment.units.length > 0 ? (
-                                                                <span>{equipment.units.length} units</span>
-                                                            ) : (
-                                                                equipment.equip_quantity
-                                                            )}
+                                                            {equipment.equip_quantity}
                                                         </td>
                                                         <td className="px-6 py-4">{equipment.category_name || 'Not specified'}</td>
-                                                        <td className="px-6 py-4">
-                                                            <Tag 
-                                                                value={equipment.status || 'Available'} 
-                                                                severity={(equipment.status || 'Available') === 'Available' ? 'success' : 'danger'}
-                                                                className="px-2 py-1 text-xs font-semibold"
-                                                            />
-                                                        </td>
+
                                                         <td className="px-6 py-4">
                                                             <div className="flex space-x-2">
                                                                 <Button
@@ -406,7 +401,7 @@ const EquipmentEntry = () => {
                                                                 <Button
                                                                     danger
                                                                     icon={<DeleteOutlined />}
-                                                                    onClick={() => handleArchiveEquipment(equipment.equip_id)}
+                                                                    onClick={() => handleMultipleArchive(equipment)}
                                                                     size="middle"
                                                                 />
                                                             </div>
@@ -568,7 +563,7 @@ const EquipmentEntry = () => {
             >
                 <Alert
                     message="Warning"
-                    description={`Are you sure you want to archive this ${isSerializedUnit ? 'equipment unit' : 'equipment'}? This action cannot be undone.`}
+                    description={`Are you sure you want to archive this equipment unit? This action cannot be undone.`}
                     type="warning"
                     showIcon
                     icon={<ExclamationCircleOutlined />}

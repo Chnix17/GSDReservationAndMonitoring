@@ -155,8 +155,11 @@ const VenueEntry = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
+                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
+                                <FaArrowLeft className="mr-2" /> Back to Master
+                            </Button>
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Venue Management
+                                Venue 
                             </h2>
                         </div>
                     </motion.div>

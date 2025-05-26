@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'; // Add useRef to imports
 import Sidebar from '../Sidebar';
-import { FaEye } from 'react-icons/fa';
+import { FaEye, FaArrowLeft } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -365,9 +365,11 @@ const VehicleEntry = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                           
+                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
+                                <FaArrowLeft className="mr-2" /> Back to Master
+                            </Button>
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Vehicle Management
+                                Vehicle 
                             </h2>
                         </div>
                     </motion.div>

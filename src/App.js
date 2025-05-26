@@ -14,7 +14,7 @@ import { Toaster } from 'sonner';
 import './App.css'; 
 import Logins from './pages/logins';
 import AdminDashboard from './pages/adminDashboard';
-import Faculty from './pages/Faculty';  // Updated casing to match file name
+import Faculty from './pages/Admin/Faculty';  // Updated casing to match file name
 import Master from './pages/Admin/Master'
 import Vehiclem from './pages/vehiclemake';
 import Departments from './pages/departments';

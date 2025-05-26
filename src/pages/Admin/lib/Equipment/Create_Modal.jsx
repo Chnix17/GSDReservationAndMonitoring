@@ -39,7 +39,13 @@ const CreateEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         fetchStatusAvailability();
         fetchEquipmentNames();
     }, []);
-    
+
+    // Add new useEffect to handle modal open state
+    useEffect(() => {
+        if (isOpen) {
+            fetchEquipmentNames();
+        }
+    }, [isOpen]);
 
     const fetchEquipmentNames = async () => {
         const url = "http://localhost/coc/gsd/user.php";
@@ -191,13 +197,14 @@ const CreateEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
 
         if (selectedCategoryData.type === 'serialized') {
             // Validate if any serial number is empty
-            const nonEmptySerialNumbers = serialNumbers.filter(sn => sn.trim());
-            if (!nonEmptySerialNumbers.length) {
-                toast.error('Please enter at least one serial number');
+            const emptySerialNumbers = serialNumbers.some(sn => !sn.trim());
+            if (emptySerialNumbers) {
+                toast.error('Please fill in all serial number fields');
                 return;
             }
 
             // Check for duplicate serial numbers in the input
+            const nonEmptySerialNumbers = serialNumbers.filter(sn => sn.trim());
             const uniqueSerials = new Set(nonEmptySerialNumbers.map(sn => sn.toLowerCase()));
             if (uniqueSerials.size !== nonEmptySerialNumbers.length) {
                 toast.error('Duplicate serial numbers are not allowed');
@@ -287,6 +294,15 @@ const CreateEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
             if (response.data.status === 'success') {
                 toast.success(existingEquipment ? "Equipment updated successfully!" : "Equipment added successfully!");
                 resetForm();
+                form.resetFields();
+                setNewEquipmentName('');
+                setNewEquipmentQuantity('');
+                setSelectedCategory('');
+                setEquipmentImage(null);
+                setFileList([]);
+                setSelectedStatus('');
+                setEquipmentType('bulk');
+                setSerialNumbers(['']);
                 onSuccess();
                 onClose();
             } else {

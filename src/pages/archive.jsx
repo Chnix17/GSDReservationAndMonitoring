@@ -123,6 +123,7 @@ const Archive = () => {
         { headers: { 'Content-Type': 'application/json' } }
       );
       if (response.data.status === 'success') {
+        console.log('Equipment Details:', response.data.data);
         setEquipment(response.data.data);
       }
     } catch (error) {
@@ -235,15 +236,11 @@ const Archive = () => {
     }
   };  const handleRestoreEquipment = async (record) => {
     try {
-      const hasSerialNumber = record.serial_number && record.serial_number !== 'Not Applicable';
-      const requestData = {
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
         operation: "unarchiveResource",
         resourceType: "equipment",
-        is_serialize: hasSerialNumber,
-        resourceId: hasSerialNumber ? record.unit_id : record.equip_id
-      };
-
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, requestData);
+        resourceId: record.unit_id
+      });
 
       if (response.data.status === 'success') {
         message.success(`Equipment restored successfully`);

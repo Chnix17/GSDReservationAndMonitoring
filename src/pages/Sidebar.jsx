@@ -400,34 +400,14 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
               
-              <MiniSidebarDropdown 
+              <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="Resources" 
-                active={['/Venue', '/VehicleEntry', '/Equipment'].includes(activeItem)}
+                text="Checklist" 
+                link="/Checklist" 
+                active={activeItem === '/Checklist'}
                 isExpanded={isDesktopSidebarOpen}
-              >
-                <MiniSidebarSubItem 
-                  icon={FaHome} 
-                  text="Venue" 
-                  link="/Venue" 
-                  active={activeItem === '/Venue'}
-                  isExpanded={isDesktopSidebarOpen}
-                />
-                <MiniSidebarSubItem 
-                  icon={FaCar} 
-                  text="Vehicle" 
-                  link="/VehicleEntry" 
-                  active={activeItem === '/VehicleEntry'}
-                  isExpanded={isDesktopSidebarOpen}
-                />
-                <MiniSidebarSubItem 
-                  icon={FaTools} 
-                  text="Equipment" 
-                  link="/Equipment" 
-                  active={activeItem === '/Equipment'}
-                  isExpanded={isDesktopSidebarOpen}
-                />
-              </MiniSidebarDropdown>
+              />
+
 
 
               <MiniSidebarItem 
@@ -438,15 +418,7 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              {isDesktopSidebarOpen && <SectionLabel text="Personnel" />}
-
-                            <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Checklist" 
-                link="/Checklist" 
-                active={activeItem === '/Checklist'}
-                isExpanded={isDesktopSidebarOpen}
-              />
+              {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
 
               <MiniSidebarItem 
                 icon={FaUserCircle} 
@@ -455,19 +427,6 @@ const Sidebar = () => {
                 active={activeItem === '/AssignPersonnel'}
                 isExpanded={isDesktopSidebarOpen}
               />
-
-              {isDesktopSidebarOpen && <SectionLabel text="User Management" />}
-
-
-              <MiniSidebarItem 
-                icon={FaUserCircle} 
-                text="Faculty" 
-                link="/Faculty" 
-                active={activeItem === '/Faculty'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
 
               <MiniSidebarItem 
                 icon={FaFolder} 
@@ -535,31 +494,6 @@ const Sidebar = () => {
               
               <SectionLabel text="Resource Management" />
               
-              <SidebarDropdown 
-                icon={FaFileAlt} 
-                text="Resources" 
-                active={['/Venue', '/VehicleEntry', '/Equipment'].includes(activeItem)}
-              >
-                <SidebarSubItem 
-                  icon={FaHome} 
-                  text="Venue" 
-                  link="/Venue" 
-                  active={activeItem === '/Venue'} 
-                />
-                <SidebarSubItem 
-                  icon={FaCar} 
-                  text="Vehicle" 
-                  link="/VehicleEntry" 
-                  active={activeItem === '/VehicleEntry'} 
-                />
-                <SidebarSubItem 
-                  icon={FaTools} 
-                  text="Equipment" 
-                  link="/Equipment" 
-                  active={activeItem === '/Equipment'} 
-                />
-              </SidebarDropdown>
-              
               <SidebarItem 
                 icon={FaFileAlt} 
                 text="Checklist" 
@@ -567,21 +501,23 @@ const Sidebar = () => {
                 active={activeItem === '/Checklist'} 
               />
 
+
+
+              <SidebarItem 
+                icon={FaArchive} 
+                text="Archive" 
+                link="/archive" 
+                active={activeItem === '/archive'} 
+              />
+              
+              <SectionLabel text="Manage Reservation" />
+
               <SidebarItem 
                 icon={FaUserCircle} 
                 text="Assign Personnel" 
                 link="/AssignPersonnel" 
                 active={activeItem === '/AssignPersonnel'} 
               />
-              
-              <SidebarItem 
-                icon={FaUserCircle} 
-                text="Personnel" 
-                link="/AssignPersonnel" 
-                active={activeItem === '/AssignPersonnel'} 
-              />
-              
-              <SectionLabel text="Manage Reservation" />
 
               <SidebarItem 
                 icon={FaFolder} 

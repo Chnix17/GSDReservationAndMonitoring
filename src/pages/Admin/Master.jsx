@@ -7,12 +7,14 @@ import {
   FaTools,
   FaUserTie,
   FaBuilding,
+  FaUsers,
 } from "react-icons/fa";
 import React, { useCallback, useEffect, useState } from "react";
 import { sanitizeInput, validateInput } from "../../utils/sanitize";
 import CreateEquipmentModal from "./lib/Equipment/Create_Modal";
 import CreateVehicleModal from "./lib/Vehicle/Create_Modal";
 import CreateVenueModal from "./lib/Venue/Create_Modal";
+import Create_Modal from "./lib/Faculty/Create_Modal";
 
 import { SecureStorage } from "../../utils/encryption";
 import Sidebar from "../Sidebar";
@@ -34,6 +36,7 @@ const Master = () => {
   const [isAddDriverModalOpen, setIsAddDriverModalOpen] = useState(false);
   const [isAddVehicleModalOpen, setIsAddVehicleModalOpen] = useState(false);
   const [isAddVenueModalOpen, setIsAddVenueModalOpen] = useState(false);
+  const [isAddUserModalOpen, setIsAddUserModalOpen] = useState(false);
   
   const [categoryName, setCategoryName] = useState("");
   const [makeName, setMakeName] = useState("");
@@ -65,6 +68,8 @@ const Master = () => {
   const encryptedUrl = SecureStorage.getLocalItem("url");
   const [equipmentNameOptions, setEquipmentNameOptions] = useState([]);
   const [statusOptions, setStatusOptions] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [userLevels, setUserLevels] = useState([]);
 
   const user_level_id = localStorage.getItem("user_level_id");
 
@@ -117,11 +122,39 @@ const Master = () => {
     }
   }, [encryptedUrl]);
 
+  const fetchDepartments = useCallback(async () => {
+    try {
+      const response = await axios.post(`${encryptedUrl}vehicle_master.php`, {
+        operation: "fetchDepartments",
+      });
+      if (response.data.status === "success") {
+        setDepartments(response.data.departments);
+      }
+    } catch (error) {
+      console.error("Error fetching departments:", error);
+    }
+  }, [encryptedUrl]);
+
+  const fetchUserLevels = useCallback(async () => {
+    try {
+      const response = await axios.post(`${encryptedUrl}vehicle_master.php`, {
+        operation: "fetchUserLevels",
+      });
+      if (response.data.status === "success") {
+        setUserLevels(response.data.userLevels);
+      }
+    } catch (error) {
+      console.error("Error fetching user levels:", error);
+    }
+  }, [encryptedUrl]);
+
   useEffect(() => {
     fetchCategoriesAndMakes();
     fetchEquipmentOptions();
     fetchStatusOptions();
-  }, [fetchCategoriesAndMakes, fetchEquipmentOptions, fetchStatusOptions]);
+    fetchDepartments();
+    fetchUserLevels();
+  }, [fetchCategoriesAndMakes, fetchEquipmentOptions, fetchStatusOptions, fetchDepartments, fetchUserLevels]);
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
@@ -325,6 +358,7 @@ const Master = () => {
     setIsAddDriverModalOpen(false);
     setIsAddVehicleModalOpen(false);
     setIsAddVenueModalOpen(false);
+    setIsAddUserModalOpen(false);
   };
 
   const handleSaveCategoryData = (e) => {
@@ -435,7 +469,13 @@ const Master = () => {
                 title: "Venues",
                 icon: <FaBuilding />,
                 action: () => setIsAddVenueModalOpen(true),
-                viewPath: "/venues",
+                viewPath: "/Venue",
+              },
+              {
+                title: "Users",
+                icon: <FaUsers />,
+                action: () => setIsAddUserModalOpen(true),
+                viewPath: "/Faculty",
               },
             ].map((card, index) => (
               <motion.div
@@ -912,6 +952,32 @@ const Master = () => {
           encryptedUrl={encryptedUrl}
           user_id={SecureStorage.getSessionItem('user_id')}
           encryptedUserLevel={SecureStorage.getSessionItem('user_level_id')}
+        />
+
+        {/* Modal for Adding User */}
+        <Create_Modal
+          show={isAddUserModalOpen}
+          onHide={() => setIsAddUserModalOpen(false)}
+          departments={departments}
+          userLevels={userLevels}
+          onSubmit={async (jsonData) => {
+            try {
+              const response = await axios.post(`${encryptedUrl}user.php`, jsonData);
+              if (response.data.status === 'success') {
+                setPopupMessage("User added successfully!");
+                setTimeout(() => {
+                  setPopupMessage("");
+                }, 3000);
+              }
+              return response;
+            } catch (error) {
+              console.error('Error adding user:', error);
+              throw error;
+            }
+          }}
+          fetchUsers={() => {
+            // Add fetch users logic here if needed
+          }}
         />
 
         {popupMessage && (
