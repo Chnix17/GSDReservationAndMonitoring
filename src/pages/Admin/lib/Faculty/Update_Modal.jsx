@@ -5,6 +5,7 @@ import { faUser } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
+import { SecureStorage } from '../../../../utils/encryption';
 
 const Update_Modal = ({ 
     show, 
@@ -20,6 +21,7 @@ const Update_Modal = ({
     const [hasChanges, setHasChanges] = useState(false);
     const [originalData, setOriginalData] = useState(null);
     const [imageUrl, setImageUrl] = useState('');
+    const baseUrl = SecureStorage.getLocalItem("url");
 
     const [formData, setFormData] = useState({
         users_id: '',
@@ -73,13 +75,13 @@ const Update_Modal = ({
                     };
                     setFormData(newFormData);
                     setOriginalData(newFormData);
-                    setImageUrl(userDetails.users_pic ? `http://localhost/coc/gsd/${userDetails.users_pic}` : '');
+                    setImageUrl(userDetails.users_pic ? `${baseUrl}/${userDetails.users_pic}` : '');
                 }
             }
         };
 
         fetchUserData();
-    }, [user, getUserDetails]);
+    }, [user, getUserDetails, baseUrl]);
 
     const validateField = (name, value) => {
         // Skip email and school ID validation in edit mode if they haven't changed
@@ -242,7 +244,7 @@ const Update_Modal = ({
 
         try {
             const response = await axios.post(
-                'http://localhost/coc/gsd/user.php',
+                `${baseUrl}/user.php`,
                 {
                     operation: 'checkUniqueEmailAndSchoolId',
                     email: field === 'email' ? value : '',
@@ -408,7 +410,7 @@ const Update_Modal = ({
 
         try {
             const response = await axios.post(
-                'http://localhost/coc/gsd/update_master1.php',
+                `${baseUrl}/update_master1.php`,
                 jsonData,
                 {
                     headers: {
@@ -446,7 +448,7 @@ const Update_Modal = ({
     const checkUniqueEmailAndSchoolId = async (email, schoolId) => {
         try {
             const response = await axios.post(
-                'http://localhost/coc/gsd/user.php',
+                `${baseUrl}/user.php`,
                 {
                     operation: 'checkUniqueEmailAndSchoolId',
                     email: email,

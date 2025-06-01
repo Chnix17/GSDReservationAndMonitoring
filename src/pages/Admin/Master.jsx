@@ -11,7 +11,7 @@ import {
 } from "react-icons/fa";
 import React, { useCallback, useEffect, useState } from "react";
 import { sanitizeInput, validateInput } from "../../utils/sanitize";
-import CreateEquipmentModal from "./lib/Equipment/Create_Modal";
+import MasterEquipmentModal from "./lib/Equipment/Master_Modal";
 import CreateVehicleModal from "./lib/Vehicle/Create_Modal";
 import CreateVenueModal from "./lib/Venue/Create_Modal";
 import Create_Modal from "./lib/Faculty/Create_Modal";
@@ -158,11 +158,11 @@ const Master = () => {
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
-    console.log("this is encryptedUserLevel", encryptedUserLevel);
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
     if (
-      encryptedUserLevel !== "1" &&
-      encryptedUserLevel !== "2" &&
-      encryptedUserLevel !== "4"
+      decryptedUserLevel !== 1 &&
+      decryptedUserLevel !== 2 &&
+      decryptedUserLevel !== 4
     ) {
       localStorage.clear();
       navigate("/gsd");
@@ -682,7 +682,7 @@ const Master = () => {
         )}
 
         {/* Modal for Adding Equipment */}
-        <CreateEquipmentModal
+        <MasterEquipmentModal
           isOpen={isAddEquipmentModalOpen}
           onClose={() => setIsAddEquipmentModalOpen(false)}
           onSuccess={() => {
@@ -692,7 +692,6 @@ const Master = () => {
               setPopupMessage("");
             }, 3000);
           }}
-          equipmentNameOptions={equipmentNameOptions}
         />
 
         {/* Modal for Adding User Level */}
@@ -927,9 +926,9 @@ const Master = () => {
 
         {/* Modal for Adding Vehicle */}
         <CreateVehicleModal
-          showModal={isAddVehicleModalOpen}
-          onClose={() => setIsAddVehicleModalOpen(false)}
-          onSuccess={() => {
+          open={isAddVehicleModalOpen}
+          onCancel={() => setIsAddVehicleModalOpen(false)}
+          onSubmit={() => {
             setPopupMessage("Vehicle added successfully!");
             setTimeout(() => {
               setPopupMessage("");

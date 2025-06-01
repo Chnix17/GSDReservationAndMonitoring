@@ -1,27 +1,22 @@
-import React, { useEffect, useState, useMemo } from 'react';
-import { Button, Modal, Form, Input, Table, Space, Tooltip, Empty, Pagination } from 'antd';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { Button, Modal, Form, Input, Tooltip, Empty, Pagination } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faTrashAlt, faCar, faPlus, faSearch, faEdit } from '@fortawesome/free-solid-svg-icons';
+
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { FaArrowLeft, FaEdit, FaTrashAlt, FaPlus, FaSearch, FaEye } from 'react-icons/fa';
+import { FaArrowLeft,  FaEye } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Tag } from 'primereact/tag';
-import 'primereact/resources/themes/lara-light-indigo/theme.css';
-import 'primereact/resources/primereact.min.css';
-import 'primeicons/primeicons.css';
 
 const VehicleMakes = () => {
   const navigate = useNavigate();
   const [makes, setMakes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ id: '', name: '' });
-  const [showModal, setShowModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);  
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [selectedMakeId, setSelectedMakeId] = useState(null);
   const [editMode, setEditMode] = useState(false);
@@ -35,18 +30,16 @@ const VehicleMakes = () => {
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-    console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
         localStorage.clear();
         navigate('/gsd');
     }
   }, [navigate]);
 
-  useEffect(() => {
-    fetchMakes();
-  }, [encryptedUrl]);
 
-  const fetchMakes = async () => {
+
+  const fetchMakes = useCallback(async () => {
     setLoading(true);
     try {
       const response = await fetch(`${encryptedUrl}fetchMaster.php`, {
@@ -74,7 +67,11 @@ const VehicleMakes = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [encryptedUrl]);
+
+  useEffect(() => {
+    fetchMakes();
+  }, [fetchMakes]);
 
   const filteredMakes = useMemo(() => {
     return makes.filter(make => 
@@ -224,8 +221,8 @@ const VehicleMakes = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                <FaArrowLeft className="mr-2" /> Back to Master
+              <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
+                <FaArrowLeft className="mr-2" /> Back
               </Button>
               <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Vehicle Makes Management

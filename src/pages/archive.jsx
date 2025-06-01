@@ -22,8 +22,9 @@ const Archive = () => {
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
         localStorage.clear();
         navigate('/gsd');
     }

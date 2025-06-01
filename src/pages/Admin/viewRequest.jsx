@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import Sidebar from './Sidebar';
+import Sidebar from '../Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -7,7 +7,7 @@ import {FaCar, FaBuilding, FaTools} from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useNavigate } from 'react-router-dom';
-import { Modal, Tabs, Tag, Button, Alert, Table, Tooltip, Input, Radio, Space, Empty, Pagination } from 'antd';
+import { Modal,  Tag, Button, Alert, Table, Tooltip, Input, Radio, Space, Empty, Pagination } from 'antd';
 import { 
     CarOutlined, 
     BuildOutlined, 
@@ -17,22 +17,18 @@ import {
     TeamOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
-    AppstoreOutlined, 
     EyeOutlined,
-    HistoryOutlined,
-    ClockCircleOutlined,
     InfoCircleOutlined,
     ReloadOutlined,
     SearchOutlined
 } from '@ant-design/icons';
-import { SecureStorage } from '../utils/encryption';
+import { SecureStorage } from '../../utils/encryption';
+import AssignModal from './core/Assign_Modal';
 
 const { Search } = Input;
 
 const ReservationRequests = () => {
     const [reservations, setReservations] = useState([]);
-    const [userLevel, setUserLevel] = useState(null);
-    const [loading, setLoading] = useState(false);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [isDeclineModalOpen, setIsDeclineModalOpen] = useState(false);
     const [isPriorityConflictModalOpen, setIsPriorityConflictModalOpen] = useState(false);
@@ -57,12 +53,12 @@ const ReservationRequests = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const navigate = useNavigate();
-    const user_level_id = localStorage.getItem('user_level_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
-
     const [declineReason, setDeclineReason] = useState('');
     const [isDeclineReasonModalOpen, setIsDeclineReasonModalOpen] = useState(false);
     const [customReason, setCustomReason] = useState('');
+
+    const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
 
     const declineReasons = [
         { value: 'schedule_conflict', label: 'Schedule Conflict' },
@@ -73,8 +69,8 @@ const ReservationRequests = () => {
 
     useEffect(() => {
         const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-        console.log("this is encryptedUserLevel", encryptedUserLevel);
-        if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+        const decryptedUserLevel = parseInt(encryptedUserLevel);
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
             navigate('/gsd');
         }
@@ -92,7 +88,6 @@ const ReservationRequests = () => {
     
 
     const fetchReservations = useCallback(async () => {
-        setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'fetchRequestReservation'
@@ -109,10 +104,8 @@ const ReservationRequests = () => {
                 toast.error('No pending reservations found.');
             }
         } catch (error) {
-        } finally {
-            setLoading(false);
         }
-    }, [setLoading, updateStats]); 
+    }, [updateStats, encryptedUrl]); 
 
    
 
@@ -195,6 +188,10 @@ const ReservationRequests = () => {
                     )
                 );
 
+                console.log("this is hasVenueConflict", hasVenueConflict);
+                console.log("this is hasVehicleConflict", hasVehicleConflict);
+                console.log("this is hasEquipmentConflict", hasEquipmentConflict);
+
                 const hasAnyConflict = hasVenueConflict || hasVehicleConflict || hasEquipmentConflict;
 
                 // If no actual conflicts found, return success
@@ -259,6 +256,8 @@ const ReservationRequests = () => {
         setIsAccepting(true);
         try {
             const priorityCheckResult = await handlePriorityCheck();
+
+            console.log("this is priorityCheckResult", priorityCheckResult);
             
             // If no priority, show error
             if (!priorityCheckResult.hasPriority) {
@@ -283,7 +282,7 @@ const ReservationRequests = () => {
             if (reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
                 try {
                     await axios.post(`${encryptedUrl}/process_reservation.php`, {
-                        operation: 'prepareUnitsForInsert',
+                        operation: 'insertUnits',
                         equip_ids: reservationDetails.equipment.map(eq => eq.equipment_id),
                         quantities: reservationDetails.equipment.map(eq => eq.quantity),
                         reservation_id: currentRequest.reservation_id
@@ -314,6 +313,20 @@ const ReservationRequests = () => {
                 });
                 await fetchReservations();
                 setIsDetailModalOpen(false);
+                
+                // Show assign personnel modal
+                Modal.confirm({
+                    title: 'Assign Personnel',
+                    content: 'Would you like to assign personnel to this reservation now?',
+                    okText: 'Assign Now',
+                    cancelText: 'Later',
+                    onOk: () => {
+                        setIsAssignModalOpen(true);
+                    },
+                    onCancel: () => {
+                        // Do nothing, just close the modal
+                    }
+                });
             } else {
                 toast.error('Failed to accept reservation.');
             }
@@ -421,11 +434,7 @@ const ReservationRequests = () => {
         return icons[type] || null;
     };
 
-    useEffect(() => {
-        const level = localStorage.getItem('user_level');
-        setUserLevel(level);
-        fetchReservations();
-    }, [fetchReservations, setUserLevel]);
+
 
     const handleSort = (field) => {
         if (sortField === field) {
@@ -452,7 +461,6 @@ const ReservationRequests = () => {
 
     // Add new fetch functions for different request types
     const fetchPendingRequests = useCallback(async () => {
-        setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'fetchRequestReservation'
@@ -466,13 +474,10 @@ const ReservationRequests = () => {
                 updateStats(response.data.data);
             }
         } catch (error) {
-        } finally {
-            setLoading(false);
         }
-    }, [setLoading, updateStats]);
+    }, [updateStats, encryptedUrl]);
 
     const fetchReviewRequests = async () => {
-        setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'fetchRequestReservation'
@@ -487,13 +492,10 @@ const ReservationRequests = () => {
                 updateStats(response.data.data);
             }
         } catch (error) {
-        } finally {
-            setLoading(false);
         }
     };
 
     const fetchHistoryRequests = async () => {
-        setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'fetchHistoryRequests'
@@ -507,8 +509,6 @@ const ReservationRequests = () => {
             }
         } catch (error) {
             toast.error('Error fetching history');
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -604,7 +604,7 @@ const ReservationRequests = () => {
                 render: (_, record) => (
                     <Button 
                         type="primary"
-                        onClick={() => fetchReservationDetails(record.reservation_id)}
+                        onClick={() => onView(record.reservation_id)}
                         icon={<EyeOutlined />}
                         className="bg-green-900 hover:bg-lime-900"
                     >
@@ -694,89 +694,6 @@ const ReservationRequests = () => {
         );
     };
 
-    const EnhancedFilters = () => (
-        <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                <div className="flex flex-col md:flex-row gap-4 flex-1">
-                    <div className="flex-1">
-                        <Search
-                            placeholder="Search by ID, title, or requester"
-                            allowClear
-                            enterButton={<SearchOutlined />}
-                            size="large"
-                            value={searchTerm}
-                            onChange={e => setSearchTerm(e.target.value)}
-                            className="w-full"
-                        />
-                    </div>
-                </div>
-                <div className="flex gap-2">
-                    <Tooltip title="Refresh data">
-                        <Button 
-                            icon={<ReloadOutlined />} 
-                            onClick={handleRefresh}
-                            size="large"
-                        />
-                    </Tooltip>
-                </div>
-            </div>
-        </div>
-    );
-
-    // Update the items array to use the new table component
-    const items = [
-        {
-            key: '1',
-            label: (
-                <span className="text-green-800">
-                    <ClockCircleOutlined /> Waiting for Approval
-                </span>
-            ),
-            children: (
-                <div className="mt-4">
-                    <RequestTable 
-                        data={filteredReservations.filter(r => r.active === "1")}
-                        onView={fetchReservationDetails}
-                    />
-                </div>
-            ),
-        },
-        {
-            key: '2',
-            label: (
-                <span className="text-green-800">
-                    <CheckCircleOutlined /> Final Confirmation
-                </span>
-            ),
-            children: (
-                <div className="mt-4">
-                    <RequestTable 
-                        data={filteredReservations.filter(r => r.active === "0")}
-                        onView={fetchReservationDetails}
-                    />
-                </div>
-            ),
-        },
-        {
-            key: '3',
-            label: (
-                <span className="text-green-800">
-                    <HistoryOutlined /> History
-                </span>
-            ),
-            children: (
-                <div className="mt-4">
-                    <RequestTable 
-                        data={filteredReservations}
-                        onView={fetchReservationDetails}
-                    />
-                </div>
-            ),
-        },
-    ];
-
- 
-    
 
     // Replace the existing card rendering code in the return statement
     return (
@@ -796,16 +713,79 @@ const ReservationRequests = () => {
                             </h2>
                         </div>
                     </motion.div>
+                    
+                    {/* Tabs */}
+                    <div className="mb-6 bg-[#fafff4] p-2 rounded-xl shadow-md inline-flex">
+                        {['Waiting for Approval', 'Final Confirmation', 'History'].map((tab) => (
+                            <motion.button
+                                key={tab}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                onClick={() => {
+                                    const tabKey = tab === 'Waiting for Approval' ? '1' : 
+                                                 tab === 'Final Confirmation' ? '2' : '3';
+                                    handleTabChange(tabKey);
+                                }}
+                                className={`px-6 py-3 rounded-lg transition-all duration-200 ${
+                                    (tab === 'Waiting for Approval' && activeTab === '1') ||
+                                    (tab === 'Final Confirmation' && activeTab === '2') ||
+                                    (tab === 'History' && activeTab === '3')
+                                        ? 'bg-green-900 text-white shadow-sm'
+                                        : 'text-gray-600 hover:bg-gray-100'
+                                }`}
+                            >
+                                <div className="flex items-center space-x-2">
+                                    <span className="font-medium">{tab}</span>
+                                    <span className={`px-2 py-0.5 rounded-full text-sm ${
+                                        (tab === 'Waiting for Approval' && activeTab === '1') ||
+                                        (tab === 'Final Confirmation' && activeTab === '2') ||
+                                        (tab === 'History' && activeTab === '3')
+                                            ? 'bg-white bg-opacity-30 text-white'
+                                            : 'bg-gray-200 text-gray-700'
+                                    }`}>
+                                        {tab === 'Waiting for Approval' ? reservations.filter(r => r.active === "1").length :
+                                         tab === 'Final Confirmation' ? reservations.filter(r => r.active === "0").length :
+                                         reservations.length}
+                                    </span>
+                                </div>
+                            </motion.button>
+                        ))}
+                    </div>
+                    
+                    {/* Search & Controls */}
+                    <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                            <div className="flex flex-col md:flex-row gap-4 flex-1">
+                                <div className="flex-1">
+                                    <Search
+                                        placeholder="Search by ID, title, or requester"
+                                        allowClear
+                                        enterButton={<SearchOutlined />}
+                                        size="large"
+                                        value={searchTerm}
+                                        onChange={e => setSearchTerm(e.target.value)}
+                                        className="w-full"
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex gap-2">
+                                <Tooltip title="Refresh data">
+                                    <Button 
+                                        icon={<ReloadOutlined />} 
+                                        onClick={handleRefresh}
+                                        size="large"
+                                    />
+                                </Tooltip>
+                            </div>
+                        </div>
+                    </div>
 
-                    {/* Enhanced Filters */}
-                    <EnhancedFilters />
-
-                    <Tabs 
-                        activeKey={activeTab} 
-                        onChange={handleTabChange}
-                        items={items}
-                        className="bg-[#fafff4] p-4 rounded-lg shadow-sm"
-                    />
+                    <div className="mt-4">
+                        <RequestTable 
+                            data={filteredReservations}
+                            onView={fetchReservationDetails}
+                        />
+                    </div>
 
                     {/* Detail Modal for Accepting */}
                     <DetailModal 
@@ -877,6 +857,32 @@ const ReservationRequests = () => {
                         conflictingReservations={conflictingReservations}
                         onConfirm={handleAcceptWithOverride}
                     />
+
+                    {/* Assign Personnel Modal */}
+                    <AssignModal
+                        isOpen={isAssignModalOpen}
+                        onClose={() => setIsAssignModalOpen(false)}
+                        selectedReservation={{
+                            id: currentRequest?.reservation_id,
+                            name: reservationDetails?.reservation_title
+                        }}
+                        onSuccess={() => {
+                            setIsAssignModalOpen(false);
+                            fetchReservations();
+                        }}
+                    />
+
+                    {/* Decline Confirmation Modal */}
+                    <Modal
+                        title="Confirm Decline"
+                        visible={isDeclineModalOpen}
+                        onCancel={() => setIsDeclineModalOpen(false)}
+                        onOk={() => setIsDeclineReasonModalOpen(true)}
+                        okText="Continue"
+                        cancelText="Cancel"
+                    >
+                        <p>Are you sure you want to decline this reservation?</p>
+                    </Modal>
                 </div>
             </div>
         </div>
@@ -1028,11 +1034,19 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             )
         );
 
-        const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => 
-            reservationDetails.availabilityData?.unavailable_equipment?.some(unavailableEquipment => 
-                requestedEquipment.equipment_id === unavailableEquipment.equip_id
-            )
-        );
+        const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
+            const unavailableEquipment = reservationDetails.availabilityData?.unavailable_equipment?.find(
+                e => e.equip_id === requestedEquipment.equipment_id
+            );
+            
+            if (!unavailableEquipment) return false;
+            
+            // Calculate remaining quantity
+            const remainingQuantity = parseInt(unavailableEquipment.total_quantity) - parseInt(unavailableEquipment.reserved_quantity);
+            
+            // Return true only if requested quantity exceeds remaining quantity
+            return parseInt(requestedEquipment.quantity) > remainingQuantity;
+        });
 
         const hasAnyResourceConflict = hasVenueConflict || hasVehicleConflict || hasEquipmentConflict;
 
@@ -1080,7 +1094,18 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             case 'vehicle':
                 return !data.unavailable_vehicles?.some(v => v.vehicle_id === id);
             case 'equipment':
-                return !data.unavailable_equipment?.some(e => e.equipment_id === id);
+                const unavailableEquipment = data.unavailable_equipment?.find(e => e.equip_id === id);
+                if (!unavailableEquipment) return true;
+                
+                // Find the requested equipment quantity from reservationDetails
+                const requestedEquipment = reservationDetails.equipment?.find(e => e.equipment_id === id);
+                if (!requestedEquipment) return true;
+                
+                // Calculate remaining quantity
+                const remainingQuantity = parseInt(unavailableEquipment.total_quantity) - parseInt(unavailableEquipment.reserved_quantity);
+                
+                // Check if requested quantity can be accommodated
+                return parseInt(requestedEquipment.quantity) <= remainingQuantity;
             case 'driver':
                 return !data.unavailable_drivers?.some(d => d.driver_id === id);
             default:
@@ -1293,12 +1318,16 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                         requestedVehicle.vehicle_id === unavailableVehicle.vehicle_id
                                     )
                                 );
-                                const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => 
-                                    reservationDetails.availabilityData?.unavailable_equipment?.some(unavailableEquipment => 
-                                        requestedEquipment.equipment_id === unavailableEquipment.equip_id
-                                    )
-                                );
+                                const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
+                                    const unavailableEquipment = reservationDetails.availabilityData?.unavailable_equipment?.find(
+                                        e => e.equip_id === requestedEquipment.equipment_id
+                                    );
+                                    if (!unavailableEquipment) return false;
+                                    const remainingQuantity = parseInt(unavailableEquipment.total_quantity) - parseInt(unavailableEquipment.reserved_quantity);
+                                    return parseInt(requestedEquipment.quantity) > remainingQuantity;
+                                });
                                 const hasResourceConflicts = hasVenueConflict || hasVehicleConflict || hasEquipmentConflict;
+                                
                                 return hasResourceConflicts && reservationDetails.availabilityData?.reservation_users?.length > 0 && (
                                     <div className="bg-white p-4 rounded-lg border border-red-200 shadow-sm">
                                         <h2 className="text-xl font-semibold text-red-800 mb-4 flex items-center gap-2">

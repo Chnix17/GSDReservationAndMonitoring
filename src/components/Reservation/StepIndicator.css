@@ -1,0 +1,164 @@
+.step-indicator-container {
+  padding: 2rem 1rem;
+  background: linear-gradient(to right, #f8fafc, #f1f5f9);
+  border-radius: 1rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.custom-steps {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1rem;
+}
+
+/* Enhanced step dots */
+.custom-steps .ant-steps-item-icon {
+  background: white !important;
+  border: 2px solid #e2e8f0 !important;
+  transition: all 0.3s ease;
+}
+
+.custom-steps .ant-steps-item-active .ant-steps-item-icon {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+.custom-steps .ant-steps-item-finish .ant-steps-item-icon {
+  border-color: #10b981 !important;
+  background: #10b981 !important;
+}
+
+/* Progress line enhancements */
+.custom-steps .ant-steps-item-tail {
+  background: #e2e8f0 !important;
+  transition: all 0.3s ease;
+}
+
+.custom-steps .ant-steps-item-finish .ant-steps-item-tail {
+  background: #10b981 !important;
+}
+
+/* Step content styling */
+.custom-steps .ant-steps-item-title {
+  font-weight: 500;
+  color: #475569;
+  transition: all 0.3s ease;
+}
+
+.custom-steps .ant-steps-item-active .ant-steps-item-title {
+  color: #1e40af;
+  font-weight: 600;
+}
+
+.custom-steps .ant-steps-item-description {
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+/* Mobile optimizations */
+@media (max-width: 768px) {
+  .step-indicator-container {
+    padding: 1rem 0.5rem;
+  }
+
+  .custom-steps {
+    padding: 0 0.5rem;
+  }
+
+  .custom-steps .ant-steps-item-title {
+    font-size: 0.875rem;
+  }
+
+  .custom-steps .ant-steps-item-description {
+    font-size: 0.75rem;
+  }
+
+  /* Adjust step dots for mobile */
+  .custom-steps .ant-steps-item-icon {
+    width: 28px !important;
+    height: 28px !important;
+    line-height: 28px !important;
+  }
+
+  /* Make progress line thinner on mobile */
+  .custom-steps .ant-steps-item-tail {
+    top: 14px !important;
+    padding: 0 !important;
+  }
+}
+
+/* Animation for active step */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(59, 130, 246, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+
+.custom-steps .ant-steps-item-active .ant-steps-item-icon {
+  animation: pulse 2s infinite;
+}
+
+/* Tooltip enhancements */
+.step-tooltip {
+  max-width: 300px;
+}
+
+.step-tooltip .ant-tooltip-inner {
+  background: #1e293b;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+/* Progress bar animation */
+@keyframes progress {
+  0% {
+    width: 0;
+  }
+  100% {
+    width: 100%;
+  }
+}
+
+.custom-steps .ant-steps-item-finish .ant-steps-item-tail::after {
+  animation: progress 0.5s ease-out forwards;
+}
+
+/* Hover effects */
+.custom-steps .ant-steps-item:hover .ant-steps-item-icon {
+  transform: scale(1.1);
+}
+
+.custom-steps .ant-steps-item:hover .ant-steps-item-title {
+  color: #3b82f6;
+}
+
+/* Dark mode support */
+@media (prefers-color-scheme: dark) {
+  .step-indicator-container {
+    background: linear-gradient(to right, #1e293b, #0f172a);
+  }
+
+  .custom-steps .ant-steps-item-title {
+    color: #e2e8f0;
+  }
+
+  .custom-steps .ant-steps-item-description {
+    color: #94a3b8;
+  }
+
+  .custom-steps .ant-steps-item-icon {
+    background: #1e293b !important;
+    border-color: #334155 !important;
+  }
+
+  .custom-steps .ant-steps-item-tail {
+    background: #334155 !important;
+  }
+} 

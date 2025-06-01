@@ -1,131 +1,194 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Modal, Form, Input, Select, Upload, Button } from 'antd';
-import { Calendar } from 'primereact/calendar';
 import { PlusOutlined } from '@ant-design/icons';
+import { Calendar } from 'primereact/calendar';
 import { FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
-import dayjs from 'dayjs';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
+import dayjs from 'dayjs';
 import axios from 'axios';
-import {SecureStorage} from '../../../../utils/encryption';
-
-// Default values for categories, makes, and models
-const DEFAULT_CATEGORIES = [
-    { id: 1, name: 'Sedan' },
-    { id: 2, name: 'SUV' },
-    { id: 3, name: 'Truck' },
-    { id: 4, name: 'Van' },
-    { id: 5, name: 'Sports Car' }
-];
-
-const DEFAULT_MAKES = [
-    { id: 1, name: 'Toyota' },
-    { id: 2, name: 'Honda' },
-    { id: 3, name: 'Ford' },
-    { id: 4, name: 'Chevrolet' },
-    { id: 5, name: 'Nissan' },
-    { id: 6, name: 'Porsche' }
-];
+import MakeModal from './core/make_modal';
+import CategoryModal from './core/category_modal';
+import ModelModal from './core/model_modal';
+import { SecureStorage } from '../../../../utils/encryption';
 
 const Create_Modal = ({ 
-    showModal, 
-    onClose, 
-    selectedVehicleId, 
-    editingVehicle,
-    IMAGE_BASE_URL
+    open, 
+    onCancel, 
+    onSubmit, 
+    isSubmitting 
 }) => {
     const [form] = Form.useForm();
     const fileUploadRef = useRef(null);
+    const [makeId, setMakeId] = useState('');
+    const [category, setCategory] = useState('');
+    const [vehicleModelId, setVehicleModelId] = useState('');
     const [vehicleLicensed, setVehicleLicensed] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('');
-    const [selectedMake, setSelectedMake] = useState('');
-    const [selectedModel, setSelectedModel] = useState('');
     const [year, setYear] = useState(new Date());
     const [vehicleImage, setVehicleImage] = useState(null);
     const [fileList, setFileList] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('');
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [models, setModels] = useState([]);
-    const [statusOptions, setStatusOptions] = useState([]);
+    const [makes, setMakes] = useState([]);
+    const [categories, setCategories] = useState([]);
+    const [modelsByCategory, setModelsByCategory] = useState({});
+    const [statusAvailability, setStatusAvailability] = useState([]);
+    const [isMakeModalOpen, setIsMakeModalOpen] = useState(false);
+    const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
+    const [isModelModalOpen, setIsModelModalOpen] = useState(false);
+    const encryptedUrl = SecureStorage.getLocalItem("url");
+    const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
 
     useEffect(() => {
-        // Fetch models and status when component mounts
-        fetchModels();
-        fetchStatusAvailability();
-    }, []);
+        if (open) {
+            fetchMakes();
+            fetchStatusAvailability();
+        }
+    }, [open]);
 
-    const fetchModels = async () => {
+    const fetchMakes = async () => {
         try {
-            const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php', {
-                operation: "fetchModels"
-            });
-            
-            if (response.data.status === "success") {
-                setModels(response.data.data);
+            const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchMake" }));
+            if (response.data.status === 'success') {
+                setMakes(response.data.data);
+                return response.data.data;
             } else {
-                toast.error('Failed to fetch models');
+                toast.error(response.data.message);
+                return [];
+            }
+        } catch (error) {
+            toast.error(error.message);
+            return [];
+        }
+    };
+
+    const fetchCategories = async (makeId) => {
+        if (!makeId) return;
+        try {
+            console.log('Fetching categories for makeId:', makeId);
+            const response = await axios.post(BASE_URL, new URLSearchParams({ 
+                operation: "fetchVehicleCategories",
+                make_id: makeId
+            }));
+            console.log('Categories Response:', response.data);
+            if (response.data.status === 'success') {
+                setCategories(response.data.data);
+                console.log('Categories updated:', response.data.data);
+                toast.success('Categories refreshed successfully');
+            } else {
+                console.error('Failed to fetch categories:', response.data.message);
+                toast.error(response.data.message);
+            }
+        } catch (error) {
+            console.error('Error fetching categories:', error);
+            toast.error(error.message);
+        }
+    };
+
+    const fetchModels = async (categoryId) => {
+        if (!categoryId || !makeId) return;
+        
+        // Check if models are already fetched for this category
+        if (modelsByCategory[categoryId]) {
+            console.log('Models already fetched for category:', categoryId, modelsByCategory[categoryId]);
+            return;
+        }
+        
+        try {
+            console.log('Fetching models for categoryId:', categoryId, 'and makeId:', makeId);
+            const response = await axios.post(BASE_URL, new URLSearchParams({ 
+                operation: "fetchModelsByCategoryAndMake",
+                categoryId: categoryId,
+                makeId: makeId
+            }));
+            console.log('Models Response:', response.data);
+            if (response.data.status === 'success') {
+                setModelsByCategory(prev => ({
+                    ...prev,
+                    [categoryId]: response.data.data
+                }));
+                console.log('Models updated for category:', categoryId, response.data.data);
+                toast.success('Models refreshed successfully');
+            } else {
+                console.error('Failed to fetch models:', response.data.message);
+                toast.error(response.data.message);
             }
         } catch (error) {
             console.error('Error fetching models:', error);
-            toast.error('Failed to fetch models');
+            toast.error(error.message);
         }
     };
 
     const fetchStatusAvailability = async () => {
         try {
-            const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php', {
-                operation: "fetchStatusAvailability",
-                user_admin_id: 1
-            });
-            
-            if (response.data.status === "success") {
-                setStatusOptions(response.data.data);
+            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
+                new URLSearchParams({ operation: "fetchStatusAvailability" })
+            );
+            if (response.data.status === 'success') {
+                setStatusAvailability(response.data.data);
             } else {
-                toast.error('Failed to fetch status availability');
+                toast.error(response.data.message);
             }
         } catch (error) {
-            console.error('Error fetching status availability:', error);
-            toast.error('Failed to fetch status availability');
+            toast.error(error.message);
         }
     };
 
-    useEffect(() => {
-        if (editingVehicle) {
-            setVehicleLicensed(editingVehicle.vehicle_license);
-            setYear(new Date(editingVehicle.year, 0));
-            
-            if (editingVehicle.vehicle_pic) {
-                const imageUrl = `${IMAGE_BASE_URL}${editingVehicle.vehicle_pic}`;
-                setVehicleImage(imageUrl);
-                setFileList([{
-                    uid: '-1',
-                    name: 'vehicle-image.png',
-                    status: 'done',
-                    url: imageUrl,
-                }]);
-            }
-
-            // Set default values for editing
-            setSelectedCategory(editingVehicle.vehicle_category_name || '');
-            setSelectedMake(editingVehicle.vehicle_make_name || '');
-            setSelectedModel(editingVehicle.vehicle_model_name || '');
-            setSelectedStatus(editingVehicle.status_availability_id || '');
+    const handleMakeChange = async (selectedMakeId) => {
+        setMakeId(selectedMakeId);
+        setCategory('');
+        setVehicleModelId('');
+        form.setFieldsValue({ category: undefined, model: undefined });
+        if (selectedMakeId) {
+            await fetchCategories(selectedMakeId);
+        } else {
+            setCategories([]);
+            setModelsByCategory({});
         }
-    }, [editingVehicle, IMAGE_BASE_URL]);
+    };
 
-    const resetForm = () => {
-        setVehicleLicensed('');
-        setSelectedCategory('');
-        setSelectedMake('');
-        setSelectedModel('');
-        setYear(new Date());
-        setVehicleImage(null);
-        setFileList([]);
-        setSelectedStatus('');
-        if (fileUploadRef.current) {
-            fileUploadRef.current.clear();
+    const handleCategoryChange = async (selectedCategoryId) => {
+        setCategory(selectedCategoryId);
+        setVehicleModelId('');
+        form.setFieldsValue({ model: undefined });
+        if (selectedCategoryId) {
+            await fetchModels(selectedCategoryId);
         }
-        form.resetFields();
+    };
+
+    const handleAddMake = () => {
+        setIsMakeModalOpen(true);
+    };
+
+    const handleMakeModalSuccess = async () => {
+        const updatedMakes = await fetchMakes();
+        if (updatedMakes.length > 0) {
+            const newMake = updatedMakes[updatedMakes.length - 1];
+            setMakeId(newMake.vehicle_make_id);
+            form.setFieldsValue({ make: newMake.vehicle_make_id });
+            await fetchCategories(newMake.vehicle_make_id);
+        }
+    };
+
+    const handleAddCategory = () => {
+        setIsCategoryModalOpen(true);
+    };
+
+    const handleCategoryModalSuccess = async () => {
+        console.log('Category modal success, refreshing categories for makeId:', makeId);
+        if (makeId) {
+            await fetchCategories(makeId);
+        }
+    };
+
+    const handleAddModel = () => {
+        setIsModelModalOpen(true);
+    };
+
+    const handleModelModalSuccess = async (values) => {
+        if (category) {
+            await fetchModels(category);
+        }
+        setIsModelModalOpen(false);
     };
 
     const sanitizeAndValidateLicense = (value) => {
@@ -161,253 +224,273 @@ const Create_Modal = ({
         }
     };
 
-    const handleCategoryChange = (categoryName) => {
-        setSelectedCategory(categoryName);
-        setSelectedModel(''); // Reset model when category changes
-    };
-
-    const handleMakeChange = (makeName) => {
-        setSelectedMake(makeName);
-        setSelectedModel(''); // Reset model when make changes
-    };
-
     const handleSubmit = async () => {
-        console.log('Submit button clicked');
-        console.log('Current form values:', {
-            vehicleLicensed,
-            selectedCategory,
-            selectedMake,
-            selectedModel,
-            year,
-            selectedStatus,
-            vehicleImage: vehicleImage ? 'Image present' : 'No image'
-        });
-
-        const sanitizedLicense = sanitizeAndValidateLicense(vehicleLicensed);
-        if (!sanitizedLicense) {
-            console.log('License validation failed');
-            return;
-        }
-
-        if (!selectedModel || !year || !selectedStatus) {
-            console.log('Missing required fields:', {
-                model: !selectedModel,
-                year: !year,
-                status: !selectedStatus
-            });
-            toast.error("Please fill in all required fields.");
-            return;
-        }
-
-        setIsSubmitting(true);
-
         try {
-            const apiPayload = {
-                operation: "saveVehicle",
-                data: {
-                    vehicle_model_name: selectedModel,
-                    vehicle_license: sanitizedLicense,
-                    year: dayjs(year).format('YYYY'),
-                    user_admin_id: SecureStorage.getSessionItem('user_id'),
-                    status_availability_id: selectedStatus,
-                    vehicle_category_name: selectedCategory,
-                    vehicle_make_name: selectedMake
-                }
+            const values = await form.validateFields();
+            
+            if (!vehicleModelId || !year || !selectedStatus || !vehicleLicensed) {
+                toast.error("Please fill in all required fields.");
+                return;
+            }
+
+            const formData = {
+                vehicle_model_id: vehicleModelId,
+                vehicle_license: vehicleLicensed,
+                year: dayjs(year).format('YYYY'),
+                vehicle_pic: vehicleImage,
+                status_availability_id: selectedStatus,
+                user_admin_id: SecureStorage.getSessionItem('user_id')
             };
 
-            // Only add vehicle_pic if an image is selected
-            if (vehicleImage && vehicleImage !== 'No image') {
-                apiPayload.data.vehicle_pic = vehicleImage;
-            }
+            console.log('Form data:', formData);
 
-            if (selectedVehicleId) {
-                apiPayload.data.vehicle_id = selectedVehicleId;
-            }
+            const requestData = JSON.stringify({
+                operation: "saveVehicle",
+                data: formData
+            });
 
-            console.log('Submitting API payload:', apiPayload);
-            
-            const response = await axios.post('http://localhost/coc/gsd/insert_master.php', apiPayload);
-            console.log('API Response:', response.data);
-            
-            if (response.data.status === "success" || response.data.success) {
-                toast.success('Vehicle saved successfully');
+            const response = await axios.post(`${encryptedUrl}/insert_master.php`, requestData, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.status === 'success') {
+                toast.success(response.data.message);
                 resetForm();
-                onClose();
+                onCancel();
+                onSubmit(); // This will trigger the parent to refresh the vehicle list
             } else {
-                const errorMessage = response.data.message || response.data.error || 'Failed to save vehicle';
-                console.error('API Error:', errorMessage);
-                toast.error(errorMessage);
+                toast.error(response.data.message || 'Failed to add vehicle');
             }
-            
-            console.log('Form submitted successfully');
         } catch (error) {
-            console.error('Error submitting form:', error);
-            toast.error(error.message || 'Failed to submit form');
-        } finally {
-            setIsSubmitting(false);
+            console.error('Validation failed:', error);
+            toast.error(error.response?.data?.message || error.message);
         }
+    };
+
+    const resetForm = () => {
+        form.resetFields();
+        setMakeId('');
+        setCategory('');
+        setVehicleModelId('');
+        setVehicleLicensed('');
+        setYear(new Date());
+        setVehicleImage(null);
+        setFileList([]);
+        setSelectedStatus('');
+        if (fileUploadRef.current) {
+            fileUploadRef.current.clear();
+        }
+    };
+
+    const handleClose = () => {
+        resetForm();
+        onCancel();
     };
 
     return (
-        <Modal
-            title={
-                <div className="flex items-center">
-                    <FaEye className="mr-2 text-green-900" /> 
-                    {selectedVehicleId ? "Edit Vehicle" : "Add Vehicle"}
-                </div>
-            }
-            open={showModal}
-            onCancel={onClose}
-            okText={selectedVehicleId ? "Update" : "Add"}
-            onOk={handleSubmit}
-            confirmLoading={isSubmitting}
-            width={800}
-            className="vehicle-modal"
-        >
-            <Form layout="vertical" form={form}>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-4">
-                        <Form.Item
-                            label="Category"
-                            required
-                            tooltip="Select the vehicle category"
-                        >
-                            <Select
-                                value={selectedCategory}
-                                options={DEFAULT_CATEGORIES.map(cat => ({
-                                    label: cat.name,
-                                    value: cat.name
-                                }))}
-                                onChange={handleCategoryChange}
-                                placeholder="Select Category"
-                                className="w-full"
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            label="Make"
-                            required
-                            tooltip="Select the vehicle make"
-                        >
-                            <Select
-                                value={selectedMake}
-                                options={DEFAULT_MAKES.map(make => ({
-                                    label: make.name,
-                                    value: make.name
-                                }))}
-                                onChange={handleMakeChange}
-                                placeholder="Select Make"
-                                className="w-full"
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            label="Model"
-                            required
-                            tooltip="Select the vehicle model or enter a custom model name"
-                        >
-                            <Select
-                                value={selectedModel}
-                                options={models.map(model => ({
-                                    label: model.vehicle_model_name,
-                                    value: model.vehicle_model_name
-                                }))}
-                                onChange={(value) => setSelectedModel(value)}
-                                placeholder="Select or type model name"
-                                className="w-full"
-                                showSearch
-                                allowClear
-                                mode="single"
-                                filterOption={(input, option) =>
-                                    (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
-                                }
-                                onSearch={(value) => {
-                                    if (value) {
-                                        setSelectedModel(value);
-                                    }
-                                }}
-                                notFoundContent={null}
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            label="License Number"
-                            required
-                            tooltip="Enter the vehicle license number"
-                        >
-                            <Input
-                                value={vehicleLicensed}
-                                onChange={handleLicenseChange}
-                                placeholder="Enter license number"
-                                maxLength={50}
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            label="Year"
-                            required
-                            tooltip="Select the vehicle year"
-                        >
-                            <Calendar
-                                value={year}
-                                onChange={(e) => setYear(e.value)}
-                                view="year"
-                                dateFormat="yy"
-                                placeholder="Select Year"
-                                className="w-full"
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            label="Availability Status"
-                            required
-                            tooltip="Select the vehicle availability status"
-                        >
-                            <Select
-                                value={selectedStatus}
-                                options={statusOptions.map(status => ({
-                                    label: status.status_availability_name,
-                                    value: status.status_availability_id
-                                }))}
-                                onChange={(value) => setSelectedStatus(value)}
-                                placeholder="Select Status"
-                                className="w-full"
-                            />
-                        </Form.Item>
+        <>
+            <Modal
+                title={
+                    <div className="flex items-center">
+                        <FaEye className="mr-2 text-green-900" /> 
+                        Add Vehicle
                     </div>
-
-                    <div className="space-y-4">
-                        <Form.Item
-                            label="Vehicle Image"
-                            tooltip="Upload vehicle image (max 5MB)"
-                        >
-                            <Upload
-                                listType="picture-card"
-                                fileList={fileList}
-                                onChange={handleImageUpload}
-                                beforeUpload={() => false}
-                                maxCount={1}
-                            >
-                                {fileList.length < 1 && (
-                                    <Button icon={<PlusOutlined />}>
-                                        Upload
-                                    </Button>
-                                )}
-                            </Upload>
-                            {vehicleImage && typeof vehicleImage === 'string' && vehicleImage.startsWith('http') && (
-                                <div className="mt-4">
-                                    <img 
-                                        src={vehicleImage} 
-                                        alt="Vehicle Preview" 
-                                        className="max-w-full h-auto rounded-lg shadow-lg" 
+                }
+                open={open}
+                onCancel={handleClose}
+                okText="Add"
+                onOk={handleSubmit}
+                confirmLoading={isSubmitting}
+                width={800}
+                className="vehicle-modal"
+            >
+                <Form form={form} layout="vertical">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-4">
+                            <div className="flex items-end gap-2">
+                                <Form.Item
+                                    name="make"
+                                    label="Make"
+                                    required
+                                    tooltip="Select the vehicle make"
+                                    className="flex-1 mb-0"
+                                >
+                                    <Select
+                                        value={makeId}
+                                        options={makes.map(make => ({
+                                            label: make.vehicle_make_name,
+                                            value: make.vehicle_make_id
+                                        }))}
+                                        onChange={handleMakeChange}
+                                        placeholder="Select Make"
+                                        className="w-full"
                                     />
-                                </div>
-                            )}
-                        </Form.Item>
+                                </Form.Item>
+                                <Button 
+                                    type="primary" 
+                                    icon={<PlusOutlined />} 
+                                    onClick={handleAddMake}
+                                />
+                            </div>
+
+                            <div className="flex items-end gap-2">
+                                <Form.Item
+                                    name="category"
+                                    label="Category"
+                                    required
+                                    tooltip="Select the vehicle category"
+                                    className="flex-1 mb-0"
+                                >
+                                    <Select
+                                        value={category}
+                                        options={categories.map(cat => ({
+                                            label: cat.vehicle_category_name,
+                                            value: cat.vehicle_category_id
+                                        }))}
+                                        onChange={handleCategoryChange}
+                                        placeholder="Select Category"
+                                        className="w-full"
+                                        disabled={!makeId}
+                                    />
+                                </Form.Item>
+                                <Button 
+                                    type="primary" 
+                                    icon={<PlusOutlined />} 
+                                    onClick={handleAddCategory}
+                                    disabled={!makeId}
+                                />
+                            </div>
+
+                            <div className="flex items-end gap-2">
+                                <Form.Item
+                                    name="model"
+                                    label="Model"
+                                    required
+                                    tooltip="Select the vehicle model"
+                                    className="flex-1 mb-0"
+                                >
+                                    <Select
+                                        value={vehicleModelId}
+                                        options={modelsByCategory[category]?.map(model => ({
+                                            label: model.vehicle_model_name,
+                                            value: model.vehicle_model_id
+                                        }))}
+                                        onChange={(value) => setVehicleModelId(value)}
+                                        placeholder="Select Model"
+                                        className="w-full"
+                                        disabled={!category}
+                                    />
+                                </Form.Item>
+                                <Button 
+                                    type="primary" 
+                                    icon={<PlusOutlined />} 
+                                    onClick={handleAddModel}
+                                    disabled={!category}
+                                />
+                            </div>
+
+                            <Form.Item
+                                name="license"
+                                label="License Number"
+                                required
+                                tooltip="Enter the vehicle license number"
+                            >
+                                <Input
+                                    value={vehicleLicensed}
+                                    onChange={handleLicenseChange}
+                                    placeholder="Enter license number"
+                                    maxLength={50}
+                                />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="year"
+                                label="Year"
+                                required
+                                tooltip="Select the vehicle year"
+                            >
+                                <Calendar
+                                    value={year}
+                                    onChange={(e) => setYear(e.value)}
+                                    view="year"
+                                    dateFormat="yy"
+                                    placeholder="Select Year"
+                                    className="w-full"
+                                />
+                            </Form.Item>
+
+                            <Form.Item
+                                name="status"
+                                label="Availability Status"
+                                required
+                                tooltip="Select the vehicle availability status"
+                            >
+                                <Select
+                                    value={selectedStatus}
+                                    options={statusAvailability.map(status => ({
+                                        label: status.status_availability_name,
+                                        value: status.status_availability_id
+                                    }))}
+                                    onChange={(value) => setSelectedStatus(value)}
+                                    placeholder="Select Status"
+                                    className="w-full"
+                                />
+                            </Form.Item>
+                        </div>
+
+                        <div className="space-y-4">
+                            <Form.Item
+                                name="image"
+                                label="Vehicle Image"
+                                tooltip="Upload vehicle image (max 5MB)"
+                            >
+                                <Upload
+                                    listType="picture-card"
+                                    fileList={fileList}
+                                    onChange={handleImageUpload}
+                                    beforeUpload={() => false}
+                                    maxCount={1}
+                                >
+                                    {fileList.length < 1 && (
+                                        <Button icon={<PlusOutlined />}>
+                                            Upload
+                                        </Button>
+                                    )}
+                                </Upload>
+                                {vehicleImage && typeof vehicleImage === 'string' && vehicleImage.startsWith('http') && (
+                                    <div className="mt-4">
+                                        <img src={vehicleImage} 
+                                            alt="Vehicle Preview" 
+                                            className="max-w-full h-auto rounded-lg shadow-lg" 
+                                        />
+                                    </div>
+                                )}
+                            </Form.Item>
+                        </div>
                     </div>
-                </div>
-            </Form>
-        </Modal>
+                </Form>
+            </Modal>
+
+            <MakeModal
+                open={isMakeModalOpen}
+                onCancel={() => setIsMakeModalOpen(false)}
+                onSuccess={handleMakeModalSuccess}
+            />
+
+            <CategoryModal
+                open={isCategoryModalOpen}
+                onCancel={() => setIsCategoryModalOpen(false)}
+                onSuccess={handleCategoryModalSuccess}
+            />
+
+            <ModelModal
+                open={isModelModalOpen}
+                onCancel={() => setIsModelModalOpen(false)}
+                onSuccess={handleModelModalSuccess}
+            />
+        </>
     );
 };
 

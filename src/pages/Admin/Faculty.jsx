@@ -23,6 +23,7 @@ import { SecureStorage } from '../../utils/encryption';
 import { ExclamationCircleOutlined } from '@ant-design/icons';
 import Create_Modal from './lib/Faculty/Create_Modal';
 import Update_Modal from './lib/Faculty/Update_Modal';
+import { Alert } from 'antd';
 
 const generateAvatarColor = (str) => {
     let hash = 0;
@@ -40,6 +41,7 @@ const generateAvatarColor = (str) => {
 
 const Faculty = () => {
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
+    const encryptedUrl = SecureStorage.getLocalItem("url");
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);
     const [modalState, setModalState] = useState({ isOpen: false, type: '', user: null });
@@ -55,11 +57,14 @@ const Faculty = () => {
     const [selectedRole, setSelectedRole] = useState('');
     const [viewImageModal, setViewImageModal] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
+    const [showConfirmArchive, setShowConfirmArchive] = useState(false);
+    const [userToArchive, setUserToArchive] = useState(null);
 
     const navigate = useNavigate();
 
     useEffect(() => {
-        if (user_level_id !== '1' && user_level_id !== '2' && user_level_id !== '4') {
+        const decryptedUserLevel = parseInt(user_level_id);
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
             navigate('/gsd');
         }
@@ -68,7 +73,7 @@ const Faculty = () => {
     const fetchUsers = async () => {
         setLoading(true);
         try {
-            const response = await axios.post("http://localhost/coc/gsd/user.php", 
+            const response = await axios.post(`${encryptedUrl}user.php`, 
                 { operation: "fetchAllUser" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -94,7 +99,7 @@ const Faculty = () => {
     const getUserDetails = async (userId) => {
         try {
             const response = await axios.post(
-                'http://localhost/coc/gsd/fetchMaster.php',
+                `${encryptedUrl}fetchMaster.php`,
                 { 
                     operation: 'fetchUsersById',
                     id: userId 
@@ -134,7 +139,7 @@ const Faculty = () => {
 
     const fetchDepartments = async () => {
         try {
-            const response = await axios.post("http://localhost/coc/gsd/fetchMaster.php", 
+            const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
                 { operation: "fetchDepartments" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -152,7 +157,7 @@ const Faculty = () => {
 
     const fetchUserLevels = async () => {
         try {
-            const response = await axios.post("http://localhost/coc/gsd/fetchMaster.php", 
+            const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
                 { operation: "fetchUserLevels" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -184,9 +189,7 @@ const Faculty = () => {
         const operation = jsonData.data.users_id ? "updateUser" : "saveUser";
         setLoading(true);
         try {
-            const url = "http://localhost/coc/gsd/insert_master.php";
-            
-            const response = await axios.post(url, jsonData, {
+            const response = await axios.post(`${encryptedUrl}insert_master.php`, jsonData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -209,30 +212,21 @@ const Faculty = () => {
         }
     };
 
-    const archiveUser = async (userId, userLevelName) => {
+    const handleArchiveClick = (user) => {
+        setUserToArchive(user);
+        setShowConfirmArchive(true);
+    };
+
+    const confirmArchive = async () => {
+        if (!userToArchive) return;
+        
         try {
-            // Map the user level name to the correct API type
-            let apiUserType;
-            switch (userLevelName.toLowerCase()) {
-                case 'user':
-                    apiUserType = 'user';
-                    break;
-                default:
-                    apiUserType = 'user';
-            }
-
-            console.log('Sending archive request:', {
-                operation: 'archiveUser',
-                userType: apiUserType,
-                userId: userId
-            });
-
             const response = await axios.post(
-                "http://localhost/coc/gsd/delete_master.php",
+                `${encryptedUrl}delete_master.php`,
                 {
                     operation: 'archiveUser',
-                    userType: apiUserType,
-                    userId: userId.toString()
+                    userType: 'user',
+                    userId: userToArchive.users_id.toString()
                 },
                 { 
                     headers: { 'Content-Type': 'application/json' } 
@@ -240,14 +234,17 @@ const Faculty = () => {
             );
 
             if (response.data.status === 'success') {
+                toast.success('Faculty member archived successfully');
                 fetchUsers(); // Refresh the users list
-                setModalState({ isOpen: false, type: '', user: null });
             } else {
                 throw new Error(response.data.message || "Failed to archive user");
             }
         } catch (error) {
             console.error('Archive Error:', error);
-            toast.error("An error occurred while archiving the user: " + error.message);
+            toast.error("An error occurred while archiving the faculty member: " + error.message);
+        } finally {
+            setShowConfirmArchive(false);
+            setUserToArchive(null);
         }
     };
 
@@ -257,7 +254,7 @@ const Faculty = () => {
     };
 
     const imageBodyTemplate = (rowData) => {
-        const imageUrl = rowData.users_pic ? `http://localhost/coc/gsd/${rowData.users_pic}` : null;
+        const imageUrl = rowData.users_pic ? `${encryptedUrl}${rowData.users_pic}` : null;
         const initials = `${rowData.users_fname?.[0] || ''}${rowData.users_lname?.[0] || ''}`.toUpperCase();
         const bgColor = generateAvatarColor(initials);
         
@@ -305,17 +302,6 @@ const Faculty = () => {
             }
         };
 
-        const handleArchiveClick = () => {
-            setModalState({ 
-                isOpen: true, 
-                type: 'archive', 
-                user: {
-                    users_id: rowData.users_id,
-                    user_level_name: rowData.user_level_name
-                }
-            });
-        };
-
         return (
             <div className="flex space-x-2">
                 <Tooltip target=".edit-btn" />
@@ -332,7 +318,7 @@ const Faculty = () => {
                 </Button>
                 <Button 
                     type="button"
-                    onClick={handleArchiveClick}
+                    onClick={() => handleArchiveClick(rowData)}
                     className="archive-btn bg-red-600 hover:bg-red-700 text-white"
                     data-pr-tooltip="Archive Faculty"
                     data-pr-position="top"
@@ -598,6 +584,49 @@ const Faculty = () => {
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setViewImageModal(false)}>
                         Close
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            {/* Archive Confirmation Modal */}
+            <Modal
+                show={showConfirmArchive}
+                onHide={() => {
+                    setShowConfirmArchive(false);
+                    setUserToArchive(null);
+                }}
+                centered
+            >
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-red-600 flex items-center">
+                        <ExclamationCircleOutlined className="mr-2" /> Confirm Archive
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert
+                        message="Warning"
+                        description={`Are you sure you want to archive ${userToArchive?.users_fname} ${userToArchive?.users_lname}? This action cannot be undone.`}
+                        type="warning"
+                        showIcon
+                        icon={<ExclamationCircleOutlined />}
+                    />
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => {
+                            setShowConfirmArchive(false);
+                            setUserToArchive(null);
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        variant="danger" 
+                        onClick={confirmArchive}
+                        className="bg-red-600 hover:bg-red-700"
+                    >
+                        Archive
                     </Button>
                 </Modal.Footer>
             </Modal>

@@ -1,26 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message as toast, Modal, Button, Input, Space, Empty, Tag, Alert, Table, Upload, Form, Select, Pagination, Image, Tooltip } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
+import { message as toast, Modal, Button, Input, Space, Empty,  Alert,  Select, Pagination, Image, Tooltip } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, ExclamationCircleOutlined, EyeOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { SecureStorage } from '../../utils/encryption';
 import UpdateEquipmentModal from './lib/Equipment/Update_Modal';
-import CreateEquipmentModal from './lib/Equipment/Create_Modal';
+import MasterEquipmentModal from './lib/Equipment/Master_Modal';
 import Sidebar from '../Sidebar';
 import axios from 'axios';
 import { FaArrowLeft } from 'react-icons/fa';
+import TrackingModal from './lib/Equipment/core/view';
 
 // Helper functions
-const sanitizeInput = (input) => {
-    return input.replace(/[<>]/g, '');
-};
 
-const validateInput = (input) => {
-    return !/[<>]/.test(input);
-};
 
 const getImageUrl = (path) => {
-    return `http://localhost/coc/gsd/${path}`;
+    const encryptedUrl = SecureStorage.getLocalItem("url");
+    return `${encryptedUrl}/gsd/${path}`;
 };
 
 const EquipmentEntry = () => {
@@ -37,23 +33,23 @@ const EquipmentEntry = () => {
     const [currentUnit, setCurrentUnit] = useState(null);
     const [unitDetails, setUnitDetails] = useState(null);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-    const [selectedEquipmentId, setSelectedEquipmentId] = useState(null);
     const [sortField, setSortField] = useState('equip_id');
     const [sortOrder, setSortOrder] = useState('desc');
     const [selectedUnitId, setSelectedUnitId] = useState(null);
-    const [isSerializedUnit, setIsSerializedUnit] = useState(false);
-    const [currentEquipmentId, setCurrentEquipmentId] = useState(null);
     const [newUnitSerialNumbers, setNewUnitSerialNumbers] = useState(['']);
-    const [selectedStatus, setSelectedStatus] = useState('1');
     const [viewImageModal, setViewImageModal] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
     const [statusAvailability, setStatusAvailability] = useState([]);
+    const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
+    const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
+    const [selectedEquipment, setSelectedEquipment] = useState(null);
 
     const navigate = useNavigate();
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
 
     useEffect(() => {
-        if (user_level_id !== '1' && user_level_id !== '2' && user_level_id !== '4') {
+        const decryptedUserLevel = parseInt(user_level_id);
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             navigate('/');
         }
     }, [user_level_id, navigate]);
@@ -64,7 +60,8 @@ const EquipmentEntry = () => {
     }, []);
 
     const fetchStatusAvailability = async () => {
-        const url = "http://localhost/coc/gsd/fetchMaster.php";
+        const encryptedUrl = SecureStorage.getLocalItem("url");
+        const url = `${encryptedUrl}/fetchMaster.php`;
         const jsonData = { operation: "fetchStatusAvailability" };
 
         try {
@@ -87,7 +84,8 @@ const EquipmentEntry = () => {
         }
 
         setLoading(true);
-        const url = "http://localhost/coc/gsd/update_master1.php";
+        const encryptedUrl = SecureStorage.getLocalItem("url");
+        const url = `${encryptedUrl}/update_master1.php`;
         const requestData = {
             operation: "updateEquipmentUnit",
             unit_id: currentUnit.unit_id,
@@ -121,7 +119,8 @@ const EquipmentEntry = () => {
 
     const fetchEquipments = async () => {
         setLoading(true);
-        const url = "http://localhost/coc/gsd/user.php";
+        const encryptedUrl = SecureStorage.getLocalItem("url");
+        const url = `${encryptedUrl}/user.php`;
         const jsonData = { operation: "fetchEquipmentsWithStatus" };
 
         try {
@@ -157,7 +156,8 @@ const EquipmentEntry = () => {
     const confirmDelete = async () => {
         setLoading(true);
         try {
-            const url = "http://localhost/coc/gsd/delete_master.php";
+            const encryptedUrl = SecureStorage.getLocalItem("url");
+            const url = `${encryptedUrl}/delete_master.php`;
             const jsonData = {
                 operation: "archiveResource",
                 resourceType: "equipment",
@@ -246,6 +246,12 @@ const EquipmentEntry = () => {
         }
     };
 
+    const handleTrackingClick = (equipment) => {
+        console.log('View button clicked for equipment:', equipment);
+        setSelectedEquipment(equipment);
+        setIsTrackingModalOpen(true);
+    };
+
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
@@ -300,7 +306,7 @@ const EquipmentEntry = () => {
                                     type="primary"
                                     icon={<PlusOutlined />}
                                     size="large"
-                                    onClick={() => setIsAddModalOpen(true)}
+                                    onClick={() => setIsMasterModalOpen(true)}
                                     className="bg-lime-900 hover:bg-green-600"
                                 >
                                     Add Equipment
@@ -350,7 +356,11 @@ const EquipmentEntry = () => {
                                                     Category
                                                 </div>
                                             </th>
-       
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Type
+                                                </div>
+                                            </th>
                                             <th scope="col" className="px-6 py-3">
                                                 <div className="flex items-center">
                                                     Actions
@@ -385,24 +395,25 @@ const EquipmentEntry = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            {equipment.equip_quantity}
+                                                            {equipment.equip_quantity || 0}
                                                         </td>
                                                         <td className="px-6 py-4">{equipment.category_name || 'Not specified'}</td>
-
+                                                        <td className="px-6 py-4">{equipment.equip_type || 'Not specified'}</td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex space-x-2">
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={<EyeOutlined />}
+                                                                    onClick={() => handleTrackingClick(equipment)}
+                                                                    size="middle"
+                                                                    className="bg-blue-600 hover:bg-blue-700"
+                                                                />
                                                                 <Button
                                                                     type="primary"
                                                                     icon={<EditOutlined />}
                                                                     onClick={() => handleEditClick(equipment)}
                                                                     size="middle"
                                                                     className="bg-green-900 hover:bg-lime-900"
-                                                                />
-                                                                <Button
-                                                                    danger
-                                                                    icon={<DeleteOutlined />}
-                                                                    onClick={() => handleMultipleArchive(equipment)}
-                                                                    size="middle"
                                                                 />
                                                             </div>
                                                         </td>
@@ -506,11 +517,7 @@ const EquipmentEntry = () => {
             </Modal>
 
             {/* Add/Edit Equipment Modal */}
-            <CreateEquipmentModal
-                isOpen={isAddModalOpen}
-                onClose={() => setIsAddModalOpen(false)}
-                onSuccess={fetchEquipments}
-            />
+
 
             <UpdateEquipmentModal
                 isOpen={isEditModalOpen}
@@ -617,6 +624,24 @@ const EquipmentEntry = () => {
                     </div>
                 </div>
             </Modal>
+
+            <MasterEquipmentModal
+                isOpen={isMasterModalOpen}
+                onClose={() => setIsMasterModalOpen(false)}
+                onSuccess={fetchEquipments}
+            />
+
+            {/* Add Tracking Modal */}
+            <TrackingModal
+                isOpen={isTrackingModalOpen}
+                onClose={() => {
+                    console.log('Closing tracking modal');
+                    setIsTrackingModalOpen(false);
+                    setSelectedEquipment(null);
+                }}
+                equipmentId={selectedEquipment?.equip_id}
+                onSuccess={fetchEquipments}
+            />
         </div>
     );
 };

@@ -39,7 +39,8 @@ const VenueEntry = () => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
 
     useEffect(() => {
-        if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+        const decryptedUserLevel = parseInt(encryptedUserLevel);
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
             navigate('/gsd');
         }

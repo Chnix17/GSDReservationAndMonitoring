@@ -15,9 +15,6 @@ import Sidebar from './Sidebar';
 import { Line, Pie } from '@ant-design/plots';
 
 const Reports = () => {
-  const [venues, setVenues] = useState([]);
-  const [vehicles, setVehicles] = useState([]);
-  const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(true);
   const [maintenanceResources, setMaintenanceResources] = useState([]);
   const [conditionStats, setConditionStats] = useState({ good: 0, poor: 0 });
@@ -210,7 +207,7 @@ const Reports = () => {
   return (
     <div className="flex h-screen bg-gray-100">
       <Sidebar />
-      <div className="flex-1 overflow-auto p-8 mt-20">
+      <div className="flex-1 p-8 mt-20">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -299,16 +296,7 @@ const Reports = () => {
             </Card>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <Card title="Resource Conditions" className="shadow-md">
-              <ConditionChart 
-                data={[
-                  { type: 'Good', value: conditionStats.good },
-                  { type: 'Poor', value: conditionStats.poor }
-                ]} 
-              />
-            </Card>
-          </div>
+          
 
           <div className="grid grid-cols-1 gap-6">
             
@@ -337,9 +325,8 @@ const Reports = () => {
                       </Tag>
                     )
                   },
-
                   {
-                    title: 'Condition',
+                    title: 'Status Availability',
                     dataIndex: 'condition_name',
                     key: 'condition_name',
                     render: (condition) => (
@@ -364,8 +351,12 @@ const Reports = () => {
                   }
                 ]}
                 dataSource={maintenanceResources.map(resource => ({
-                  ...resource,
-                  key: `${resource.resource_type}-${resource.record_id}`
+                  key: `${resource.resource_type}-${resource.record_id}`,
+                  resource_name: resource.resource_name,
+                  resource_type: resource.resource_type,
+                  condition_name: resource.condition_name,
+                  record_id: resource.record_id,
+                  resource_id: resource.resource_id
                 }))}
               />
             </Card>

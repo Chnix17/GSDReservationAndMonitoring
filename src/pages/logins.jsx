@@ -259,10 +259,6 @@ function Logins() {
                 const now = Date.now();
                 const timePassed = Math.floor((now - lastTimerUpdate) / 1000);
                 
-                if (showOtpInput && resendTimer > 0) {
-                    setResendTimer(prev => Math.max(0, prev - timePassed));
-                }
-                
                 if (showLoginOTP && loginResendTimer > 0) {
                     setLoginResendTimer(prev => Math.max(0, prev - timePassed));
                 }
@@ -271,19 +267,9 @@ function Logins() {
             }
         };
 
-        if ((showOtpInput && resendTimer > 0) || (showLoginOTP && loginResendTimer > 0)) {
+        if (showLoginOTP && loginResendTimer > 0) {
             intervalId = setInterval(() => {
                 setLastTimerUpdate(Date.now());
-                
-                if (showOtpInput) {
-                    setResendTimer((prev) => {
-                        if (prev <= 1) {
-                            setCanResendOtp(true);
-                            return 0;
-                        }
-                        return prev - 1;
-                    });
-                }
                 
                 if (showLoginOTP) {
                     setLoginResendTimer((prev) => {
@@ -303,7 +289,7 @@ function Logins() {
             clearInterval(intervalId);
             document.removeEventListener('visibilitychange', handleVisibilityChange);
         };
-    }, [showOtpInput, resendTimer, showLoginOTP, loginResendTimer, lastTimerUpdate, setCanResendLoginOtp]);
+    }, [showLoginOTP, loginResendTimer, lastTimerUpdate, setCanResendLoginOtp]);
 
     useEffect(() => {
         // Initialize session timeout handling with enhanced 1-minute inactivity detection
@@ -1076,10 +1062,7 @@ function Logins() {
     const handleResendLoginOTP = async () => {
         setIsResendingLoginOtp(true);
         try {
-            // Get the user_id if available
             const userData = SecureStorage.getSessionItem("temp_user_id");
-            
-            // Get and decrypt the stored URL
             const apiUrl = SecureStorage.getLocalItem("url");
             
             const response = await axios.post(`${apiUrl}update_master2.php`, {
@@ -1088,7 +1071,6 @@ function Logins() {
                     id: userData || username
                 }
             });
-            
 
             if (response.data.status === "success") {
                 setLoginResendTimer(180);
@@ -1096,10 +1078,8 @@ function Logins() {
                 
                 if (response.data.message === "Login OTP sent successfully") {
                     notify("OTP has been resent to your email");
-                
                 } else if (response.data.message === "2FA is not active for this user") {
                     notify("2FA is not active for this user");
-                    // May want to redirect to login page or offer to activate 2FA
                 } else {
                     notify("OTP request processed");
                 }

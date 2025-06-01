@@ -1,11 +1,9 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Button, Form, Table, Tooltip, Space, Input, Tag, Pagination, Empty, Alert } from 'antd';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty, Alert } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faTrashAlt, faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { FaArrowLeft, FaEdit, FaTrashAlt, FaEye, FaSearch, FaPlus } from 'react-icons/fa';
+import { FaArrowLeft, FaEye  } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
@@ -41,22 +39,20 @@ const VehicleModels = () => {
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
         localStorage.clear();
         navigate('/gsd');
     }
   }, [navigate]);
 
-  useEffect(() => {
-    fetchModels();
-    fetchMakes();
-    fetchCategories();
-  }, []);
 
-  const fetchMakes = async () => {
+
+  const fetchMakes = useCallback(async () => {
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+      const response = await axios.post(
+        `${encryptedUrl}fetchMaster.php`,
         'operation=fetchMake',
         {
           headers: {
@@ -74,9 +70,9 @@ const VehicleModels = () => {
       console.error('Error fetching makes:', error);
       toast.error('Error fetching makes.');
     }
-  };
+  }, [encryptedUrl ]);
 
-  const fetchCategories = async () => {
+  const fetchCategories = useCallback(async () => {
     try {
       const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
         'operation=fetchVehicleCategories',
@@ -96,9 +92,9 @@ const VehicleModels = () => {
       console.error('Error fetching categories:', error);
       toast.error('Error fetching categories.');
     }
-  };
+  },[encryptedUrl]);
 
-  const fetchModels = async () => {
+  const fetchModels = useCallback(async() => {
     setLoading(true);
     try {
       const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
@@ -115,7 +111,13 @@ const VehicleModels = () => {
     } finally {
       setLoading(false);
     }
-  };
+  },[encryptedUrl]);
+
+  useEffect(() => {
+    fetchModels();
+    fetchMakes();
+    fetchCategories();
+  }, [fetchModels, fetchMakes, fetchCategories]);
 
   const fetchVehicleModelById = async (id) => {
     try {
@@ -307,8 +309,8 @@ const VehicleModels = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                <FaArrowLeft className="mr-2" /> Back to Master
+              <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
+                <FaArrowLeft className="mr-2" /> Back
               </Button>
               <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Vehicle Models 

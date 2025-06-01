@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import axios from 'axios';
 import Sidebar from './component/sidebar';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { SecureStorage } from '../utils/encryption';
+import { SecureStorage } from '../../utils/encryption';
+import ChecklistModal from './core/checklist_modal';
 
 const ViewPersonnelTask = () => {
   const [tasks, setTasks] = useState([]);
@@ -15,8 +16,8 @@ const ViewPersonnelTask = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(1);
   const tasksPerPage = 10;
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [filter, setFilter] = useState('ongoing'); // 'ongoing' or 'completed'
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [conditions, setConditions] = useState([]);
   const [venueCondition, setVenueCondition] = useState('');
   const [vehicleCondition, setVehicleCondition] = useState('');
@@ -195,6 +196,10 @@ const ViewPersonnelTask = () => {
             }
           }
           break;
+
+        default:
+          console.error('Invalid checklist type:', type);
+          return;
       }
 
       if (!checklist || !reservationItemId) {
@@ -315,17 +320,28 @@ const ViewPersonnelTask = () => {
   };
 
   const handleModalOpen = (task) => {
-    console.log('Selected Task:', task);
+    console.log('Opening modal with task:', task);
     // Transform data structure to match the code's expectations
     const transformedTask = {
       ...task,
-      venue: task.venues?.[0] || null,
-      vehicle: task.vehicles?.[0] || null,
-      equipment: task.equipments?.[0] || null,
-      venues: task.venues || [],
-      vehicles: task.vehicles || [],
-      equipments: task.equipments || []
+      venues: task.venues?.map(venue => ({
+        ...venue,
+        availability_status: venue.availability_status
+      })) || [],
+      vehicles: task.vehicles?.map(vehicle => ({
+        ...vehicle,
+        availability_status: vehicle.availability_status
+      })) || [],
+      equipments: task.equipments?.map(equipment => ({
+        ...equipment,
+        availability_status: equipment.availability_status,
+        units: equipment.units?.map(unit => ({
+          ...unit,
+          availability_status: unit.availability_status
+        }))
+      })) || []
     };
+    console.log('Transformed task:', transformedTask);
     setSelectedTask(transformedTask);
     setIsModalOpen(true);
   };
@@ -340,7 +356,7 @@ const ViewPersonnelTask = () => {
       setLoading(true);
       const response = await axios.post('http://localhost/coc/gsd/personnel.php', {
         operation: 'fetchCompletedTask',
-        personnel_id: localStorage.getItem('user_id')
+        personnel_id: SecureStorage.getSessionItem('user_id')
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -518,63 +534,13 @@ const ViewPersonnelTask = () => {
   useEffect(() => {
     fetchPersonnelTasks();
     fetchConditions();
-  }, []);  const canBeReleased = (task, type = null) => {
-    // If the task doesn't exist, we can't release it
+  }, []);
+
+  const canBeReleased = (task, type = null) => {
     if (!task) return false;
-    
-    // For all types, allow release if not already released
-    if (type === 'equipment') {
-      return task.is_released !== 1 && task.is_released !== "1";
-    } else {
-      return task.is_released !== 1 && task.is_released !== "1";
-    }
-};
-
-  const handleReleaseAll = async (task) => {
-    if (!task) return;
-    
-    setIsSubmitting(true);
-    try {
-      // Release all venues
-      if (task.venues && task.venues.length > 0) {
-        for (const venue of task.venues) {
-          if (canBeReleased(venue)) {
-            await handleRelease('venue', venue.reservation_venue_id);
-          }
-        }
-      }
-
-      // Release all vehicles
-      if (task.vehicles && task.vehicles.length > 0) {
-        for (const vehicle of task.vehicles) {
-          if (canBeReleased(vehicle)) {
-            await handleRelease('vehicle', vehicle.reservation_vehicle_id);
-          }
-        }
-      }
-
-      // Release all equipment
-      if (task.equipments && task.equipments.length > 0) {
-        for (const equipment of task.equipments) {
-          if (equipment.units) {
-            for (const unit of equipment.units) {
-              if (canBeReleased(unit, 'equipment')) {
-                await handleRelease('equipment', equipment.reservation_equipment_id, unit.reservation_unit_id);
-              }
-            }
-          }
-        }
-      }
-
-      toast.success('Successfully released all items');
-      fetchPersonnelTasks();
-    } catch (error) {
-      console.error('Error releasing all items:', error);
-      toast.error('An error occurred while releasing items');
-    } finally {
-      setIsSubmitting(false);
-    }
+    return task.availability_status === "Available";
   };
+
   const canBeReturned = (task) => {
     // Check if task exists and has end date
     if (!task || !task.reservation_end_date) return false;
@@ -609,7 +575,9 @@ const ViewPersonnelTask = () => {
     }
     
     return false;
-};  const handleReturn = async (task) => {
+  };
+
+  const handleReturn = async (task) => {
     try {
       console.log('Return button clicked for task:', task);
       setIsSubmitting(true);
@@ -686,30 +654,43 @@ const ViewPersonnelTask = () => {
     } finally {
       setIsSubmitting(false);
     }
-  };  const handleRelease = async (type, id, unitId = null) => {
-    if (!id) {
-      toast.error('Invalid ID provided');
+  };
+
+  const handleRelease = async (type, item) => {
+    if (!item) {
+      toast.error('Invalid item provided');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      // For venues and vehicles, we only need the reservation_id
-      // For equipment units, we need both reservation_id and unit_id
-      const payload = {
-        operation: 'updateRelease',
-        type: type, // can be 'equipment', 'venue', or 'vehicle'
-        status: 1,
-        reservation_id: id
-      };
-
-      // Only include unit ID for equipment type
-      if (type === 'equipment' && unitId) {
-        payload.reservation_unit_id = unitId;
+      let reservationId;
+      switch(type) {
+        case 'venue':
+          reservationId = item.reservation_venue_venue_id;
+          break;
+        case 'vehicle':
+          reservationId = item.reservation_vehicle_vehicle_id;
+          break;
+        case 'equipment':
+          reservationId = item.reservation_unit_id;
+          break;
+        default:
+          toast.error('Invalid type');
+          return;
       }
 
-      console.log('Release payload:', payload);
-      
+      if (!reservationId) {
+        toast.error('Invalid reservation ID');
+        return;
+      }
+
+      const payload = {
+        operation: 'updateRelease',
+        type: type,
+        reservation_id: reservationId
+      };
+
       const response = await axios.post(
         'http://localhost/coc/gsd/personnel.php',
         payload,
@@ -720,10 +701,8 @@ const ViewPersonnelTask = () => {
         }
       );
 
-      console.log('Release response:', response.data);
-
       if (response.data.status === 'success') {
-        toast.success(`Successfully released ${type.replace('_', ' ')}`);
+        toast.success(`Successfully released ${type}`);
         // Refresh the task list to show updated status
         fetchPersonnelTasks();
         
@@ -734,18 +713,17 @@ const ViewPersonnelTask = () => {
           const updatedTask = { ...prevTask };
           if (type === 'venue' && updatedTask.venues) {
             updatedTask.venues = updatedTask.venues.map(venue => 
-              venue.reservation_venue_id === id ? { ...venue, release_isActive: '1' } : venue
+              venue.reservation_venue_venue_id === reservationId ? { ...venue, availability_status: 'In Use' } : venue
             );
           } else if (type === 'vehicle' && updatedTask.vehicles) {
             updatedTask.vehicles = updatedTask.vehicles.map(vehicle => 
-              vehicle.reservation_vehicle_id === id ? { ...vehicle, release_isActive: '1' } : vehicle
+              vehicle.reservation_vehicle_vehicle_id === reservationId ? { ...vehicle, availability_status: 'In Use' } : vehicle
             );
           } else if (type === 'equipment' && updatedTask.equipments) {
-            // For equipment, we update the specific unit
             updatedTask.equipments = updatedTask.equipments.map(equipment => ({
               ...equipment,
               units: equipment.units?.map(unit => 
-                unit.reservation_unit_id === unitId ? { ...unit, is_released: '1' } : unit
+                unit.reservation_unit_id === reservationId ? { ...unit, availability_status: 'In Use' } : unit
               )
             }));
           }
@@ -767,136 +745,152 @@ const ViewPersonnelTask = () => {
   const currentTasks = tasks.slice(indexOfFirstTask, indexOfLastTask);
   const totalPages = Math.ceil(tasks.length / tasksPerPage);
 
-  const calculateProgress = (task) => {
-    const items = task.venues?.length > 0 ? task.venues : task.vehicles;
-    if (!items || items.length === 0) return 0;
-    const completed = items.filter(item => item.release_isActive === '1').length;
-    return Math.round((completed / items.length) * 100);
-  };
+  const renderTaskCard = (task) => {
+    const hasInUseItems = task.venues?.some(v => v.availability_status === "In Use") ||
+                         task.vehicles?.some(v => v.availability_status === "In Use") ||
+                         task.equipments?.some(e => e.availability_status === "In Use");
 
-  const renderTaskCard = (task) => (
-    <motion.div
-      key={task.master_data?.checklist_id || task.reservation_title}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white rounded-xl shadow-md hover:shadow-lg transition-all duration-300 p-5 border border-gray-100"
-    >
-      <div className="flex flex-col gap-4">
-        <div className="flex justify-between items-start space-x-3">
-          <h3 className="text-lg font-medium text-gray-900 line-clamp-2">
-            {task.reservation_title || 'Untitled Task'}
-          </h3>
-          <div className="flex flex-col gap-2">
-            <span className="px-3 py-1.5 text-xs font-medium bg-blue-50 text-blue-700 rounded-full whitespace-nowrap">
-              {task.venue?.name || task.vehicle?.vehicle_license || 'General Task'}
-            </span>
-            <span className={`px-3 py-1.5 text-xs font-medium rounded-full whitespace-nowrap ${
-              filter === 'completed'
-                ? 'bg-green-50 text-green-700'
-                : 'bg-amber-50 text-amber-700'
-            }`}>
-              {filter === 'completed' ? 'Completed' : 'In Progress'}
-            </span>
+    // Calculate progress for checklists
+    const calculateProgress = (items) => {
+      if (!items) return 0;
+      const total = items.reduce((acc, item) => acc + (item.checklists?.length || 0), 0);
+      const completed = items.reduce((acc, item) => 
+        acc + (item.checklists?.filter(c => c.isChecked === "1" || c.isChecked === 1).length || 0), 0);
+      return total > 0 ? (completed / total) * 100 : 0;
+    };
+
+    const venueProgress = calculateProgress(task.venues);
+    const vehicleProgress = calculateProgress(task.vehicles);
+    const equipmentProgress = calculateProgress(task.equipments);
+
+    const getStatusColor = (status) => {
+      switch(status) {
+        case 'In Use': return 'bg-amber-100 text-amber-800';
+        case 'Available': return 'bg-green-100 text-green-800';
+        case 'Released': return 'bg-blue-100 text-blue-800';
+        default: return 'bg-gray-100 text-gray-800';
+      }
+    };
+
+    return (
+      <motion.div
+        key={task.master_data?.checklist_id || task.reservation_title}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        whileHover={{ y: -5 }}
+        className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-100 relative overflow-hidden group"
+      >
+        {/* Decorative background element */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        
+        <div className="flex flex-col gap-4 relative">
+          <div className="flex justify-between items-start space-x-3">
+            <div className="flex-1">
+              <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
+                {task.reservation_title || 'Untitled Task'}
+              </h3>
+              <p className="text-sm text-gray-500 mt-1 line-clamp-1">
+                {task.venue?.name || task.vehicle?.vehicle_license || 'General Task'}
+              </p>
+            </div>
+            <div className="flex flex-col gap-2">
+              <span className={`px-3 py-1.5 text-xs font-medium rounded-full ${getStatusColor(hasInUseItems ? 'In Use' : 'Available')}`}>
+                {hasInUseItems ? 'In Progress' : 'Available'}
+              </span>
+              {task.is_returned === 1 && (
+                <span className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                  Returned
+                </span>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 text-sm text-gray-600">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-gray-700">
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+                <span className="font-medium">Schedule:</span>
+                <span>{task.formattedStartDate}</span>
+              </div>
+              <div className="flex items-center gap-2 text-gray-700">
+                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-medium">Duration:</span>
+                <span>{task.formattedEndDate}</span>
+              </div>
+            </div>
+
+            {/* Progress Indicators */}
+            <div className="space-y-2 pt-2">
+              {task.venues?.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-gray-700">Venue Checklist</span>
+                    <span className="text-gray-500">{Math.round(venueProgress)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-blue-500 rounded-full transition-all duration-300"
+                      style={{ width: `${venueProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {task.vehicles?.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-gray-700">Vehicle Checklist</span>
+                    <span className="text-gray-500">{Math.round(vehicleProgress)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-green-500 rounded-full transition-all duration-300"
+                      style={{ width: `${vehicleProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {task.equipments?.length > 0 && (
+                <div className="space-y-1">
+                  <div className="flex justify-between text-xs">
+                    <span className="font-medium text-gray-700">Equipment Checklist</span>
+                    <span className="text-gray-500">{Math.round(equipmentProgress)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full bg-purple-500 rounded-full transition-all duration-300"
+                      style={{ width: `${equipmentProgress}%` }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-2 pt-2">
+            <button
+              onClick={() => handleModalOpen(task)}
+              className={`w-full py-2.5 px-4 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${
+                hasInUseItems
+                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow'
+                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+              }`}
+            >
+              <span>{hasInUseItems ? 'Manage Task' : 'View Details'}</span>
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
           </div>
         </div>
-
-        <div className="flex flex-col gap-2 text-sm text-gray-600">
-          <div className="space-y-1">
-            <p className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-              <span>Starts: {task.formattedStartDate}</span>
-            </p>
-            <p className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <span>Ends: {task.formattedEndDate}</span>
-            </p>
-          </div>          {task.venue && <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-              </svg>
-              {task.venue.name}
-            </span>
-            <div className="flex gap-2">
-              {task.venue && task.venue.is_released !== 1 && task.venue.is_released !== "1" && (
-                <button
-                  onClick={() => handleRelease('venue', task.venue.reservation_venue_id)}
-                  disabled={isSubmitting}
-                  className="px-3 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-700 text-white shadow-sm transition-all duration-300 disabled:opacity-50"
-                >
-                  Release
-                </button>
-              )}
-              {task.venue && (task.venue.is_released === 1 || task.venue.is_released === "1") && (
-                <span className="px-3 py-1 text-xs font-medium rounded bg-gray-100 text-gray-600">
-                  Released
-                </span>
-              )}
-              {canBeReturned(task) && (
-                <button
-                  onClick={() => handleReturn(task)}
-                  disabled={isSubmitting}
-                  className="px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all duration-300 disabled:opacity-50"
-                >
-                  Return
-                </button>
-              )}
-            </div>
-          </div>}          {task.vehicle && <div className="flex items-center justify-between">
-            <span className="flex items-center gap-2">
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17a2 2 0 11-4 0 2 2 0 014 0m10 0a2 2 0 11-4 0 2 2 0 014 0z M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 011-1h2.586a1 1 0 01.707.293l3.414 3.414a1 1 0 01.293.707V16a1 1 0 01-1 1h-1m-6-1a1 1 0 001 1h1M5 17a2 2 0 104 0m-4 0a2 2 0 114 0m6 0a2 2 0 104 0m-4 0a2 2 0 114 0" />
-              </svg>
-              {task.vehicle.vehicle_license}
-            </span>
-            <div className="flex gap-2">
-              {task.vehicle && task.vehicle.is_released !== 1 && task.vehicle.is_released !== "1" && (
-                <button
-                  onClick={() => handleRelease('vehicle', task.vehicle.reservation_vehicle_id)}
-                  disabled={isSubmitting}
-                  className="px-3 py-1 text-xs font-medium rounded bg-green-600 hover:bg-green-700 text-white shadow-sm transition-all duration-300 disabled:opacity-50"
-                >
-                  Release
-                </button>
-              )}
-              {task.vehicle && (task.vehicle.is_released === 1 || task.vehicle.is_released === "1") && (
-                <span className="px-3 py-1 text-xs font-medium rounded bg-gray-100 text-gray-600">
-                  Released
-                </span>
-              )}
-              {canBeReturned(task) && (
-                <button
-                  onClick={() => handleReturn(task)}
-                  disabled={isSubmitting}
-                  className="px-3 py-1 text-xs font-medium rounded bg-blue-600 hover:bg-blue-700 text-white shadow-sm transition-all duration-300 disabled:opacity-50"
-                >
-                  Return
-                </button>
-              )}
-            </div>
-          </div>}
-        </div>        <div className="flex flex-col gap-2">
-          <button
-            onClick={() => handleModalOpen(task)}
-            className={`w-full py-2.5 px-4 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${
-              filter === 'completed'
-                ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                : 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow'
-            }`}
-          >
-            <span>{filter === 'completed' ? 'View Details' : 'Manage Task'}</span>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
   const renderListItem = (task) => (
     <motion.div
@@ -993,15 +987,19 @@ const ViewPersonnelTask = () => {
 
   const renderModalContent = () => (
     <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
-      <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200">
+      <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 backdrop-blur-sm bg-white/80">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-gray-900">Task Details</h2>
             {canBeReturned(selectedTask) && !selectedTask?.is_returned && (
               <button
                 onClick={() => handleReturn(selectedTask)}
                 disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-300 flex items-center gap-2"
               >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
                 {isSubmitting ? 'Returning...' : 'Return'}
               </button>
             )}
@@ -1020,14 +1018,19 @@ const ViewPersonnelTask = () => {
       <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-180px)]">
         {selectedTask ? (
           <div className="space-y-6">
-            <div className="bg-gray-50 rounded-xl p-6 border border-gray-200 space-y-4">
+            <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-6 border border-blue-100 space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Event Information</h3>
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider flex items-center gap-2">
+                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    Event Information
+                  </h3>
                   <div className="space-y-3">
                     <div>
                       <label className="block text-sm font-medium text-gray-500">Title</label>
-                      <p className="mt-1 text-base text-gray-900">{selectedTask.reservation_title}</p>
+                      <p className="mt-1 text-base text-gray-900 font-medium">{selectedTask.reservation_title}</p>
                     </div>
                     <div>
                       <label className="block text-sm font-medium text-gray-500">Description</label>
@@ -1047,14 +1050,17 @@ const ViewPersonnelTask = () => {
                 </div>
 
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Requester Information</h3>
-                  <div className="bg-white rounded-lg p-4 border border-gray-200">
+                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider flex items-center gap-2">
+                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Requester Information
+                  </h3>
+                  <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
                     <div className="flex items-start space-x-4">
                       <div className="flex-shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-blue-100 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                          </svg>
+                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white">
+                          {selectedTask.user_details?.full_name?.charAt(0) || 'U'}
                         </div>
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1082,10 +1088,16 @@ const ViewPersonnelTask = () => {
             </div>
 
             {selectedTask.venues && selectedTask.venues.map((venue, index) => (
-              <div key={venue.reservation_venue_id} className="bg-white rounded-xl p-6 border border-gray-200">
-                <div className="flex justify-between items-center mb-4">                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Venue Inspection {selectedTask.venues.length > 1 ? `(${index + 1}/${selectedTask.venues.length})` : ''}</h3>
-                    <p className="text-sm text-gray-500">Location: {venue.name}</p>
+              <div key={venue.reservation_venue_id} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
+                <div className="flex justify-between items-center mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
+                      <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                      </svg>
+                      Venue Inspection {selectedTask.venues.length > 1 ? `(${index + 1}/${selectedTask.venues.length})` : ''}
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">Location: {venue.name}</p>
                     <div className="mt-2 flex items-center gap-2">
                       <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
                         venue.is_released === 1 || venue.is_released === "1"
@@ -1096,10 +1108,13 @@ const ViewPersonnelTask = () => {
                       </span>
                       {venue.is_released !== 1 && venue.is_released !== "1" && (
                         <button
-                          onClick={() => handleRelease('venue', venue.reservation_venue_id)}
+                          onClick={() => handleRelease('venue', venue)}
                           disabled={isSubmitting}
-                          className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                          className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-all duration-300 flex items-center gap-1"
                         >
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                          </svg>
                           {isSubmitting ? 'Releasing...' : 'Release'}
                         </button>
                       )}
@@ -1168,7 +1183,8 @@ const ViewPersonnelTask = () => {
 
             {selectedTask.vehicles && selectedTask.vehicles.map((vehicle, index) => (
               <div key={vehicle.reservation_vehicle_id} className="bg-white rounded-xl p-6 border border-gray-200">
-                <div className="flex justify-between items-center mb-4">                  <div>
+                <div className="flex justify-between items-center mb-4">
+                  <div>
                     <h3 className="text-lg font-semibold text-gray-900">Vehicle Inspection {selectedTask.vehicles.length > 1 ? `(${index + 1}/${selectedTask.vehicles.length})` : ''}</h3>
                     <p className="text-sm text-gray-500">Vehicle: {vehicle.vehicle_license}</p>
                     <div className="mt-2 flex items-center gap-2">
@@ -1181,9 +1197,9 @@ const ViewPersonnelTask = () => {
                       </span>
                       {vehicle.is_released !== 1 && vehicle.is_released !== "1" && (
                         <button
-                          onClick={() => handleRelease('vehicle', vehicle.reservation_vehicle_id)}
+                          onClick={() => handleRelease('vehicle', vehicle)}
                           disabled={isSubmitting}
-                          className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                          className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
                         >
                           {isSubmitting ? 'Releasing...' : 'Release'}
                         </button>
@@ -1308,9 +1324,9 @@ const ViewPersonnelTask = () => {
                                 </span>
                                 {canBeReleased(selectedTask, 'equipment') && unit.is_released !== 1 && unit.is_released !== "1" && (
                                   <button
-                                    onClick={() => handleRelease('equipment', unit.reservation_unit_id)}
+                                    onClick={() => handleRelease('equipment', unit)}
                                     disabled={isSubmitting}
-                                    className="px-3 py-1 text-xs font-medium text-white bg-green-600 rounded-lg hover:bg-green-700 disabled:opacity-50"
+                                    className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
                                   >
                                     {isSubmitting ? 'Releasing...' : 'Release'}
                                   </button>
@@ -1396,9 +1412,6 @@ const ViewPersonnelTask = () => {
                 </div>
               </div>
             ))}
-
-           
-
           </div>
         ) : (
           <div className="text-center py-12">
@@ -1410,7 +1423,7 @@ const ViewPersonnelTask = () => {
         )}
       </div>
 
-      <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200">
+      <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200 backdrop-blur-sm bg-white/80">
         {renderSubmitButton()}
       </div>
     </div>
@@ -1554,18 +1567,24 @@ const ViewPersonnelTask = () => {
             </div>
           </div>
 
-          <AnimatePresence>
-            {isModalOpen && selectedTask && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
-              >
-                {renderModalContent()}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <ChecklistModal 
+            isOpen={isModalOpen}
+            onClose={() => {
+              setIsModalOpen(false);
+              setSelectedTask(null);
+            }}
+            selectedTask={selectedTask}
+            onTaskUpdate={(updatedTask) => {
+              if (updatedTask === null) {
+                // Task was completed, refresh the list
+                fetchPersonnelTasks();
+              } else {
+                // Task was updated, update the selected task
+                setSelectedTask(updatedTask);
+              }
+            }}
+            refreshTasks={fetchPersonnelTasks}
+          />
           <ToastContainer position="top-right" autoClose={3000} />
         </div>
       </div>

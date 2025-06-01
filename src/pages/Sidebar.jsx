@@ -1,16 +1,14 @@
 import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  FaSignOutAlt, FaTachometerAlt, FaCar, FaCog, FaFileAlt, FaHeadset,
-  FaChevronDown, FaBars, FaHome, FaTools, FaUserCircle, FaFolder,
-  FaCalendarAlt, FaChartBar, FaArchive, FaChevronRight, FaTimes,
-  FaComments, FaCogs, FaBell, FaSearch, FaEllipsisV, FaChevronUp,
+  FaTachometerAlt, FaFileAlt, 
+  FaBars,  FaUserCircle, FaFolder,
+ FaChartBar, FaArchive, FaTimes,
+  FaComments, FaCogs, FaBell, 
   FaAngleRight, FaAngleLeft
 } from 'react-icons/fa';
-import { motion, AnimatePresence } from 'framer-motion';
-import { format } from 'date-fns';
+import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
-import { clearAllExceptLoginAttempts } from '../utils/loginAttempts';
 import { SecureStorage } from '../utils/encryption';
 import ProfileAdminModal from '../components/core/profile_admin';
 
@@ -22,26 +20,13 @@ const Sidebar = () => {
   const [activeItem, setActiveItem] = useState('');
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const savedMode = localStorage.getItem('darkMode');
-    return savedMode ? JSON.parse(savedMode) : false;
-  });
-  const [searchQuery, setSearchQuery] = useState('');
-  const [unreadMessages, setUnreadMessages] = useState('');
+
   const [notifications, setNotifications] = useState(5);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
-  const user_level_id = SecureStorage.getSessionItem('user_level_id');
 
-  const canAccessMenu = (menuType) => {
-    switch (user_level_id) {
-      case '1': return true; // Admin - all access
-      case '2': return ['calendar', 'viewRequest', 'viewReservation'].includes(menuType); // Limited
-      case '4': return true; // Full access
-      default: return false;
-    }
-  };
+
   
   useEffect(() => {
     setActiveItem(location.pathname);
@@ -55,10 +40,7 @@ const Sidebar = () => {
     return () => window.removeEventListener('resize', handleResize);
   }, [location]);
 
-  useEffect(() => {
-    document.body.classList.toggle('dark', isDarkMode);
-    localStorage.setItem('darkMode', JSON.stringify(isDarkMode));
-  }, [isDarkMode]);
+
 
   const toggleDesktopSidebar = () => {
     const newState = !isDesktopSidebarOpen;
@@ -82,7 +64,7 @@ const Sidebar = () => {
     window.dispatchEvent(event);
   };
 
-  const toggleDarkMode = () => setIsDarkMode(!isDarkMode);
+  
 
   const handleLogout = () => {
     // Save loginAttempts
@@ -106,7 +88,7 @@ const Sidebar = () => {
 
   return (
     <SidebarContext.Provider value={contextValue}>
-      <div className={`flex flex-col h-screen ${isDarkMode ? 'dark' : ''}`}>
+      <div className={`flex flex-col h-screen `}>
         {/* Desktop Header with Profile Card */}
         <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-6 py-3 hidden lg:flex items-center justify-end shadow-sm fixed top-0 left-0 right-0 z-30 h-24">
           <div className="flex items-center space-x-6">
@@ -386,7 +368,6 @@ const Sidebar = () => {
                 text="Chat" 
                 link="/chatAdmin" 
                 active={activeItem === '/chat'}
-                badge={unreadMessages}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -489,7 +470,6 @@ const Sidebar = () => {
                 text="Chat" 
                 link="/chatAdmin" 
                 active={activeItem === '/chat'} 
-                badge={unreadMessages}
               />
               
               <SectionLabel text="Resource Management" />
@@ -622,64 +602,7 @@ const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
   );
 });
 
-// Simplified SidebarDropdown
-const SidebarDropdown = React.memo(({ icon: Icon, text, active, children }) => {
-  const [isOpen, setIsOpen] = useState(false);
 
-  // Auto-open dropdown if child is active
-  useEffect(() => {
-    if (active) setIsOpen(true);
-  }, [active]);
-
-  return (
-    <div>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-all ${
-          active 
-            ? 'bg-[#145414] text-white font-medium' 
-            : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-        }`}
-      >
-        <div className="flex items-center space-x-3">
-          <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
-          <span className="text-sm">{text}</span>
-        </div>
-        <FaChevronDown className={`transition-transform ${isOpen ? 'rotate-180' : ''} text-[#145414]`} size={12} />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="ml-3 mt-1 space-y-1 overflow-hidden"
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-});
-
-// Simplified SidebarSubItem
-const SidebarSubItem = React.memo(({ icon: Icon, text, link, active }) => {
-  return (
-    <Link 
-      to={link} 
-      className={`flex items-center space-x-2.5 p-2 pl-4 ml-2 rounded-md transition-all ${
-        active 
-          ? 'bg-[#145414] text-white font-medium' 
-          : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-      }`}
-    >
-      <Icon size={14} className={active ? 'text-white' : 'text-[#145414]'} />
-      <span className="text-xs">{text}</span>
-    </Link>
-  );
-});
 
 const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge }) => {
   return (
@@ -710,96 +633,5 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
   );
 });
 
-const MiniSidebarDropdown = React.memo(({ icon: Icon, text, active, children, isExpanded }) => {
-  const [isOpen, setIsOpen] = useState(false);
-
-  useEffect(() => {
-    if (active) setIsOpen(true);
-  }, [active]);
-
-  if (!isExpanded) {
-    return (
-      <Popover className="relative">
-        {({ open }) => (
-          <>
-            <Popover.Button
-              className={`w-full flex items-center justify-center p-2 rounded-lg transition-all ${
-                active 
-                  ? 'bg-[#145414] text-white' 
-                  : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-              }`}
-              title={text}
-            >
-              <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
-            </Popover.Button>
-            <Transition
-              as={React.Fragment}
-              enter="transition ease-out duration-200"
-              enterFrom="opacity-0 translate-y-1"
-              enterTo="opacity-100 translate-y-0"
-              leave="transition ease-in duration-150"
-              leaveFrom="opacity-100 translate-y-0"
-              leaveTo="opacity-0 translate-y-1"
-            >
-              <Popover.Panel className="absolute left-full top-0 ml-2 w-48 bg-white dark:bg-gray-800 rounded-lg shadow-lg ring-1 ring-black ring-opacity-5 z-50">
-                <div className="py-1">
-                  {children}
-                </div>
-              </Popover.Panel>
-            </Transition>
-          </>
-        )}
-      </Popover>
-    );
-  }
-
-  return (
-    <div>
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between p-2.5 rounded-lg transition-all ${
-          active 
-            ? 'bg-[#145414] text-white font-medium' 
-            : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-        }`}
-      >
-        <div className="flex items-center space-x-3">
-          <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
-          <span className="text-sm">{text}</span>
-        </div>
-        <FaChevronDown className={`transition-transform ${isOpen ? 'rotate-180' : ''} text-[#145414]`} size={12} />
-      </button>
-      <AnimatePresence>
-        {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ opacity: 1, height: 'auto' }}
-            exit={{ opacity: 0, height: 0 }}
-            transition={{ duration: 0.2 }}
-            className="ml-3 mt-1 space-y-1 overflow-hidden"
-          >
-            {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-});
-
-const MiniSidebarSubItem = React.memo(({ icon: Icon, text, link, active, isExpanded }) => {
-  return (
-    <Link 
-      to={link} 
-      className={`flex items-center space-x-2.5 p-2 pl-4 ml-2 rounded-md transition-all ${
-        active 
-          ? 'bg-[#145414] text-white font-medium' 
-          : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-      }`}
-    >
-      <Icon size={14} className={active ? 'text-white' : 'text-[#145414]'} />
-      {isExpanded && <span className="text-xs">{text}</span>}
-    </Link>
-  );
-});
 
 export default Sidebar;

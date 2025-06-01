@@ -39,6 +39,7 @@ const ViewReserve = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [loading, setLoading] = useState(false);
+    const baseUrl = SecureStorage.getLocalItem("url");
 
     const [detailedReservation] = useState(null);
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -160,8 +161,8 @@ const ViewReserve = () => {
 
     useEffect(() => {
               const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-              console.log("this is encryptedUserLevel", encryptedUserLevel);
-              if (encryptedUserLevel !== '3' && encryptedUserLevel !== '15' && encryptedUserLevel !== '16' && encryptedUserLevel !== '17') {
+              const decryptedUserLevel = parseInt(encryptedUserLevel);
+              if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17) {
                   localStorage.clear();
                   navigate('/gsd');
               }
@@ -177,7 +178,7 @@ const ViewReserve = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost/coc/gsd/process_reservation.php', {
+            const response = await fetch(`${baseUrl}/process_reservation.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -225,7 +226,7 @@ const ViewReserve = () => {
                 return;
             }
 
-            const response = await fetch('http://localhost/coc/gsd/faculty&staff.php', {
+            const response = await fetch(`${baseUrl}/faculty&staff.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -287,7 +288,7 @@ const ViewReserve = () => {
     const handleViewReservation = async (reservation) => {
         try {
             // Fetch reservation details
-            const detailsResponse = await fetch(`http://localhost/coc/gsd/faculty&staff.php`, {
+            const detailsResponse = await fetch(`${baseUrl}/faculty&staff.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -299,7 +300,7 @@ const ViewReserve = () => {
             });
 
             // Fetch status history
-            const statusResponse = await fetch(`http://localhost/coc/gsd/faculty&staff.php`, {
+            const statusResponse = await fetch(`${baseUrl}/faculty&staff.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -311,7 +312,7 @@ const ViewReserve = () => {
             });
 
             // Fetch maintenance resources
-            const maintenanceResponse = await fetch(`http://localhost/coc/gsd/faculty&staff.php`, {
+            const maintenanceResponse = await fetch(`${baseUrl}/faculty&staff.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -413,7 +414,7 @@ const ViewReserve = () => {
         const handleCancelReservation = async () => {
             try {
                 const userId = localStorage.getItem('user_id');
-                const response = await fetch('http://localhost/coc/gsd/process_reservation.php', {
+                const response = await fetch(`${baseUrl}/process_reservation.php`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

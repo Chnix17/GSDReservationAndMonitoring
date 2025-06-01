@@ -1,16 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Button, Form, Table, Space, Tooltip, Input, Empty, Pagination, Alert } from 'antd';
+import { Modal, Button, Form, Tooltip, Input, Empty, Pagination, Alert } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaPlus, FaTrash, FaSearch, FaBuilding, FaEdit, FaEye } from 'react-icons/fa';
+import { FaArrowLeft,  FaBuilding } from 'react-icons/fa';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import dayjs from 'dayjs';
 
 const Departments = () => {
     const navigate = useNavigate();
@@ -29,12 +28,12 @@ const Departments = () => {
     const [sortField, setSortField] = useState('departments_id');
     const [sortOrder, setSortOrder] = useState('desc');
 
-    const user_level_id = localStorage.getItem('user_level_id');
 
     useEffect(() => {
           const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+          const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
-          if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+            if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
               localStorage.clear();
               navigate('/gsd');
           }
@@ -46,8 +45,9 @@ const Departments = () => {
 
     const fetchDepartments = async () => {
         setLoading(true);
+        const url = SecureStorage.getLocalItem("url");
         try {
-            const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php', new URLSearchParams({ operation: 'fetchDepartments' }));
+            const response = await axios.post(`${url}fetchMaster.php`, new URLSearchParams({ operation: 'fetchDepartments' }));
             if (response.data.status === 'success') {
                 setDepartments(response.data.data);
                 setFilteredDepartments(response.data.data);
@@ -76,8 +76,9 @@ const Departments = () => {
     };
 
     const confirmDelete = async () => {
+        const url = SecureStorage.getLocalItem("url");
         try {
-            const response = await axios.post('http://localhost/coc/gsd/delete_master.php', {
+            const response = await axios.post(`${url}delete_master.php`, {
                 operation: 'deleteDepartment',
                 departmentId: selectedDepartmentId
             }, {
@@ -112,6 +113,7 @@ const Departments = () => {
         }
 
         setIsSubmitting(true);
+        const url = SecureStorage.getLocalItem("url");
         try {
             const endpoint = editMode ? 'update_master1.php' : 'vehicle_master.php';
             const operation = editMode ? 'updateDepartment' : 'saveDepartmentData';
@@ -121,7 +123,7 @@ const Departments = () => {
             
             console.log('Sending payload:', payload); // Debug log
             
-            const response = await axios.post(`http://localhost/coc/gsd/${endpoint}`, payload, {
+            const response = await axios.post(`${url}${endpoint}`, payload, {
                 headers: {
                     'Content-Type': 'application/json'
                 }

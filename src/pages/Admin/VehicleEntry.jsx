@@ -1,17 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react'; // Add useRef to imports
 import Sidebar from '../Sidebar';
-import { FaEye, FaArrowLeft } from 'react-icons/fa';
+import { FaCar, FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
+
 import 'primereact/resources/themes/lara-light-green/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { Modal,  Input, Button,  Tooltip, Image,  Empty, Pagination, Alert } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Modal, Input,  Button, Space, Tooltip, Image,  Empty, Pagination, Alert, Dropdown } from 'antd';
+import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DownOutlined } from '@ant-design/icons';
 import { sanitizeInput, validateInput } from '../../utils/sanitize';
 import {SecureStorage} from '../../utils/encryption'; // Adjust the import path as necessary
 import Create_Modal from './lib/Vehicle/Create_Modal';
@@ -19,6 +20,7 @@ import Update_Modal from './lib/Vehicle/Update_Modal';
 
 const VehicleEntry = () => {
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
+    const encryptedUrl = SecureStorage.getLocalItem("url");
     // Add fileUploadRef before other state declarations
     const fileUploadRef = useRef(null);
     const [vehicles, setVehicles] = useState([]);
@@ -46,17 +48,19 @@ const VehicleEntry = () => {
     const [viewImageModal, setViewImageModal] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
     const navigate = useNavigate();
-    const BASE_URL = "http://localhost/coc/gsd/user.php";
+    const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
     const user_id = localStorage.getItem('user_id');
-    const IMAGE_BASE_URL = "http://localhost/coc/gsd/";
+    const IMAGE_BASE_URL = encryptedUrl;
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
     const [sortField, setSortField] = useState('vehicle_id');
     const [sortOrder, setSortOrder] = useState('desc');
 
     useEffect(() => {
-        if (user_level_id !== '1' && user_level_id !== '2' && user_level_id !== '4') {
+        const decryptedUserLevel = parseInt(user_level_id);
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
+        
             navigate('/gsd');
         }
     }, [user_level_id, navigate]);
@@ -101,8 +105,6 @@ const VehicleEntry = () => {
         }
     };
 
-
-
     useEffect(() => {
         if (editingVehicle && categories.length > 0) {
             const selectedCategory = categories.find(cat => cat.vehicle_category_name === editingVehicle.vehicle_category_name);
@@ -118,9 +120,10 @@ const VehicleEntry = () => {
         }
     }, [editingVehicle, categories, modelsByCategory]);
 
-    const handleEditVehicle = (vehicle) => {
-        setSelectedVehicleId(vehicle.vehicle_id);
-        setShowEditModal(true);
+    const handleAddVehicle = () => {
+        resetForm();
+        setSelectedVehicleId(null);
+        setShowAddModal(true);
     };
 
     const resetForm = () => {
@@ -149,72 +152,89 @@ const VehicleEntry = () => {
         return sanitized;
     };
 
+    const handleLicenseChange = (e) => {
+        const value = e.target.value;
+        setVehicleLicensed(sanitizeAndValidateLicense(value));
+    };
 
-
-
-    const handleSubmit = async (formData) => {
-        try {
-            let response;
-            if (selectedVehicleId) {
-                // Update operation with JSON format
-                const requestData = {
-                    operation: "updateVehicleLicense",
-                    vehicleData: {
-                        ...formData,
-                        vehicle_id: selectedVehicleId
-                    }
+    const handleImageUpload = ({ fileList: newFileList }) => {
+        setFileList(newFileList);
+        
+        if (newFileList.length > 0) {
+            const file = newFileList[0].originFileObj;
+            if (file) {
+                // Create a reader to convert the file to base64
+                const reader = new FileReader();
+                reader.readAsDataURL(file);
+                reader.onload = () => {
+                    setVehicleImage(reader.result);
                 };
-    
-                response = await axios.post(
-                    "http://localhost/coc/gsd/update_master1.php",
-                    JSON.stringify(requestData),
-                    {
-                        headers: {
-                            'Content-Type': 'application/json'
-                        }
-                    }
-                );
+            } else if (newFileList[0].url) {
+                // If it's already uploaded and has a URL
+                setVehicleImage(newFileList[0].url);
+            }
+        } else {
+            setVehicleImage(null);
+        }
+    };
 
-                if (response.data.status === 'success') {
-                    console.log('Update Success Response:', response.data);
-                    toast.success(response.data.message || 'Vehicle updated successfully');
-                    await fetchVehicles(); // Refresh the vehicle list
-                    setShowEditModal(false);
-                    return;
-                } else {
-                    console.log('Update Error Response:', response.data);
-                    toast.error(response.data.message || 'Failed to update vehicle');
-                    return;
-                }
+    const handleCreateSubmit = async () => {
+        try {
+            await fetchVehicles();
+            setShowAddModal(false);
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const handleEditVehicle = async (vehicle) => {
+        try {
+            const response = await axios.post(BASE_URL, new URLSearchParams({
+                operation: "fetchVehicleById",
+                id: vehicle.vehicle_id
+            }));
+
+            if (response.data.status === 'success' && response.data.data.length > 0) {
+                const vehicleData = response.data.data[0];
+                setEditingVehicle(vehicleData);
+                setShowEditModal(true);
             } else {
-                // Add operation
-                const requestData = JSON.stringify({
-                    operation: "saveVehicle",
-                    data: formData
-                });
-    
-                response = await axios.post("http://localhost/coc/gsd/insert_master.php", requestData, {
+                toast.error('Failed to fetch vehicle details');
+            }
+        } catch (error) {
+            toast.error(error.message);
+        }
+    };
+
+    const handleUpdateSubmit = async (formData) => {
+        setIsSubmitting(true);
+        try {
+            const requestData = {
+                operation: "updateVehicleLicense",
+                vehicleData: formData
+            };
+
+            const response = await axios.post(
+                `${encryptedUrl}/update_master1.php`,
+                JSON.stringify(requestData),
+                {
                     headers: {
                         'Content-Type': 'application/json'
                     }
-                });
-
-                if (response.data.status === 'success') {
-                    console.log('Add Success Response:', response.data);
-                    toast.success(response.data.message);
-                    await fetchVehicles(); // Refresh the vehicle list
-                    setShowAddModal(false);
-                    return;
                 }
-            }
-    
-            if (response.data.status !== 'success') {
-                toast.error(response.data.message || 'Operation failed');
+            );
+
+            if (response.data.status === 'success') {
+                toast.success(response.data.message || 'Vehicle updated successfully');
+                setShowEditModal(false);
+                fetchVehicles();
+            } else {
+                toast.error(response.data.message || 'Failed to update vehicle');
             }
         } catch (error) {
-            console.error('Error details:', error);
             toast.error(error.response?.data?.message || error.message);
-            throw error;
+        } finally {
+            setIsSubmitting(false);
         }
     };
 
@@ -226,7 +246,7 @@ const VehicleEntry = () => {
     const confirmDelete = async () => {
         if (selectedVehicleId) {
             try {
-                const response = await axios.post("http://localhost/coc/gsd/delete_master.php", 
+                const response = await axios.post(`${encryptedUrl}/delete_master.php`, 
                     JSON.stringify({
                         operation: "archiveResource",
                         resourceType: "vehicle",
@@ -288,7 +308,7 @@ const VehicleEntry = () => {
 
     const fetchStatusAvailability = async () => {
         try {
-            const response = await axios.post("http://localhost/coc/gsd/fetchMaster.php", 
+            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
                 new URLSearchParams({ operation: "fetchStatusAvailability" })
             );
             if (response.data.status === 'success') {
@@ -349,6 +369,48 @@ const VehicleEntry = () => {
         }
     };
 
+    const handleMenuClick = (e) => {
+        switch (e.key) {
+            case 'add':
+                handleAddVehicle();
+                break;
+            case 'viewCategories':
+                navigate('/vehiclecategory');
+                break;
+            case 'viewModels':
+                navigate('/vehiclemodel');
+                break;
+            case 'viewMakes':
+                navigate('/vehiclemake');
+                break;
+            default:
+                break;
+        }
+    };
+
+    const items = [
+        {
+            key: 'add',
+            icon: <PlusOutlined />,
+            label: 'Add Vehicle',
+        },
+        {
+            key: 'viewCategories',
+            icon: <FaCar />,
+            label: 'View Categories',
+        },
+        {
+            key: 'viewModels',
+            icon: <FaCar />,
+            label: 'View Models',
+        },
+        {
+            key: 'viewMakes',
+            icon: <FaCar />,
+            label: 'View Makes',
+        },
+    ];
+
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
@@ -365,11 +427,9 @@ const VehicleEntry = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                                <FaArrowLeft className="mr-2" /> Back to Master
-                            </Button>
+                           
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Vehicle 
+                                Vehicle Management
                             </h2>
                         </div>
                     </motion.div>
@@ -385,7 +445,7 @@ const VehicleEntry = () => {
                                         prefix={<SearchOutlined />}
                                         size="large"
                                         value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value.toLowerCase())}
+                                        onChange={handleSearchChange}
                                         className="w-full"
                                     />
                                 </div>
@@ -398,15 +458,23 @@ const VehicleEntry = () => {
                                         size="large"
                                     />
                                 </Tooltip>
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    size="large"
-                                    onClick={() => setShowAddModal(true)}
-                                    className="bg-lime-900 hover:bg-green-600"
+                                <Dropdown
+                                    menu={{
+                                        items,
+                                        onClick: handleMenuClick,
+                                    }}
                                 >
-                                    Add Vehicle
-                                </Button>
+                                    <Button
+                                        type="primary"
+                                        size="large"
+                                        className="bg-lime-900 hover:bg-green-600"
+                                    >
+                                        <Space>
+                                            Add Vehicle
+                                            <DownOutlined />
+                                        </Space>
+                                    </Button>
+                                </Dropdown>
                             </div>
                         </div>
                     </div>
@@ -600,24 +668,29 @@ const VehicleEntry = () => {
                 </div>
             </div>
 
-            {/* Replace the old modal with the new components */}
+            {/* Create Modal */}
             <Create_Modal
-                showModal={showAddModal}
-                onClose={handleCloseModal}
-                onSubmit={handleSubmit}
+                open={showAddModal}
+                onCancel={() => setShowAddModal(false)}
+                onSubmit={handleCreateSubmit}
+                isSubmitting={isSubmitting}
+            />
+
+            {/* Update Modal */}
+            <Update_Modal
+                open={showEditModal}
+                onCancel={() => {
+                    setShowEditModal(false);
+                    setEditingVehicle(null);
+                }}
+                onSubmit={handleUpdateSubmit}
                 makes={makes}
                 categories={categories}
                 modelsByCategory={modelsByCategory}
                 statusAvailability={statusAvailability}
+                isSubmitting={isSubmitting}
+                editingVehicle={editingVehicle}
                 IMAGE_BASE_URL={IMAGE_BASE_URL}
-                user_id={user_id}
-            />
-
-            <Update_Modal
-                showModal={showEditModal}
-                onClose={handleCloseModal}
-                onSubmit={handleSubmit}
-                selectedVehicleId={selectedVehicleId}
             />
 
             {/* Confirm Delete Modal */}
@@ -634,7 +707,7 @@ const VehicleEntry = () => {
                         type="primary"
                         danger
                         loading={loading}
-                        onClick={() => confirmDelete()}
+                        onClick={confirmDelete}
                         icon={<DeleteOutlined />}
                     >
                         Delete

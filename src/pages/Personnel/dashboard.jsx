@@ -1,41 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { 
-  FiBell, 
-  FiBarChart2, 
-  FiCalendar, 
-  FiList, 
-  FiHelpCircle,
   FiCheck,
-  FiAlertCircle,
   FiInfo,
-  FiTrash2,
-  FiMessageSquare,
   FiClock,
-  FiUsers,
   FiClipboard,
   FiFilter,
-  FiMapPin,
-  FiPlus
+  FiMapPin
 } from 'react-icons/fi';
-import ReservationCalendar from '../components/ReservationCalendar';
+import ReservationCalendar from '../../components/ReservationCalendar';
 import Sidebar from './component/sidebar';  // Updated import path
 import { format } from 'timeago.js';
-import { SecureStorage } from '../utils/encryption'; // Ensure this path is correct
+import { SecureStorage } from '../../utils/encryption'; // Ensure this path is correct
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(true);
-  const [userName, setUserName] = useState('');
   const [priorityTasks, setPriorityTasks] = useState([]);
-  const [statistics, setStatistics] = useState({
-    assignedTasks: 0,
-    completedTasks: 0
-  });
+
   const [refreshKey, setRefreshKey] = useState(0); // Add this new state
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 3;
@@ -43,60 +26,17 @@ const Dashboard = () => {
 
   useEffect(() => {
             const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-            console.log("this is encryptedUserLevel", encryptedUserLevel);
-            if (encryptedUserLevel !== '2' && encryptedUserLevel !== '2') {
+            const decryptedUserLevel = parseInt(encryptedUserLevel);
+            if (decryptedUserLevel !== 2 && decryptedUserLevel !== 2) {
                 localStorage.clear();
                 navigate('/gsd');
             }
       }, [navigate]);
 
-  const statsData = [
-    { title: "Assigned Tasks", value: statistics.assignedTasks, icon: FiClipboard, color: "bg-blue-600" },
-    { title: "Completed Tasks", value: statistics.completedTasks, icon: FiCheck, color: "bg-green-600" }
-  ];
 
-  const priorityItems = [
-    { id: 1, title: "Urgent Approval Required", venue: "Main Hall", time: "2:00 PM", priority: "high" },
-    { id: 2, title: "Facility Inspection", venue: "Conference Room A", time: "3:30 PM", priority: "medium" },
-    { id: 3, title: "Schedule Conflict Resolution", venue: "Auditorium", time: "4:00 PM", priority: "high" }
-  ];
 
-  const fetchNotifications = async () => {
-    setNotificationsLoading(true);
-    try {
-      const response = await fetch('http://localhost/coc/gsd/fetch_reserve.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchNotificationsByUserId',
-          user_id: localStorage.getItem('user_id')
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
 
-      const result = await response.json();
-      if (result.status === 'success' && Array.isArray(result.data)) {
-        setNotifications(result.data);
-      } else if (result.status === 'error' && result.message === 'No checklists found') {
-        setNotifications([]); // Set empty array when no records found
-        console.log('No notifications available');
-      } else {
-        console.error('Failed to fetch notifications:', result);
-        setNotifications([]);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-      setNotifications([]);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
-
+  
 
   const fetchTasks = async () => {
     try {
@@ -138,7 +78,7 @@ const Dashboard = () => {
     return format(new Date(date));
   };
 
-  const fetchRecentActivities = async () => {
+  const fetchRecentActivities = useCallback(async () => {
     try {
       const response = await fetch('http://localhost/coc/gsd/personnel.php', {
         method: 'POST',
@@ -166,7 +106,11 @@ const Dashboard = () => {
       console.error('Error fetching recent activities:', error);
       setRecentActivities([]);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchRecentActivities();
+  }, [fetchRecentActivities]);
 
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
@@ -176,14 +120,9 @@ const Dashboard = () => {
 
   useEffect(() => {
     fetchTasks();
-    fetchNotifications();
-    fetchRecentActivities();
   }, [refreshKey]); // Add refreshKey as dependency
 
-  useEffect(() => {
-    const storedName = localStorage.getItem('name');
-    setUserName(storedName || 'User');
-  }, []);
+
 
   const handleTaskComplete = async (taskId) => {
     try {
@@ -209,31 +148,6 @@ const Dashboard = () => {
     }
   };
 
-  const getNotificationIcon = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'success':
-        return <FiCheck className="w-5 h-5 text-green-500" />;
-      case 'warning':
-        return <FiAlertCircle className="w-5 h-5 text-yellow-500" />;
-      case 'error':
-        return <FiAlertCircle className="w-5 h-5 text-red-500" />;
-      default:
-        return <FiInfo className="w-5 h-5 text-blue-500" />;
-    }
-  };
-
-  const getNotificationStyle = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'success':
-        return 'border-l-4 border-green-500 bg-green-50';
-      case 'warning':
-        return 'border-l-4 border-yellow-500 bg-yellow-50';
-      case 'error':
-        return 'border-l-4 border-red-500 bg-red-50';
-      default:
-        return 'border-l-4 border-blue-500 bg-blue-50';
-    }
-  };
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -247,28 +161,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          {statsData.map((stat, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: index * 0.1 }}
-              className="bg-white rounded-xl shadow-sm p-6 hover:shadow-md transition-all"
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                  <h3 className="text-2xl font-bold text-gray-800 mt-2">{stat.value}</h3>
-                </div>
-                <div className={`${stat.color} p-3 rounded-lg text-white`}>
-                  <stat.icon className="w-6 h-6" />
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
+
 
         {/* Three Column Layout */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

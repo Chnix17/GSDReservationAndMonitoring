@@ -46,8 +46,8 @@ const Dashboard = () => {
 
   useEffect(() => {
           const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-          console.log("this is encryptedUserLevel", encryptedUserLevel);
-          if (encryptedUserLevel !== '3' && encryptedUserLevel !== '15' && encryptedUserLevel !== '16' && encryptedUserLevel !== '17') {
+          const decryptedUserLevel = parseInt(encryptedUserLevel);
+          if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17) {
               localStorage.clear();
               navigate('/gsd');
           }

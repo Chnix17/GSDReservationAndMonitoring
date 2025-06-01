@@ -1,16 +1,15 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaPlus, FaTrash, FaSearch, FaCar, FaEdit, FaEye } from 'react-icons/fa';
+import { FaArrowLeft, FaCar,  FaEye } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { Table, Space, Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert } from 'antd';
+import { Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import dayjs from 'dayjs';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
@@ -36,18 +35,17 @@ const VehicleCategories = () => {
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
       localStorage.clear();
       navigate('/gsd');
     }
   }, [navigate]);
 
-  useEffect(() => {
-    fetchCategories();
-  }, []);
 
-  const fetchCategories = async () => {
+
+  const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
@@ -64,7 +62,10 @@ const VehicleCategories = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [encryptedUrl]);
+  useEffect(() => {
+    fetchCategories();
+  }, [fetchCategories]);
 
   const handleEdit = (id) => {
     const categoryToEdit = categories.find((category) => category.vehicle_category_id === id);
@@ -202,8 +203,8 @@ const VehicleCategories = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                <FaArrowLeft className="mr-2" /> Back to Master
+              <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
+                <FaArrowLeft className="mr-2" /> Back
               </Button>
               <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Vehicle Category

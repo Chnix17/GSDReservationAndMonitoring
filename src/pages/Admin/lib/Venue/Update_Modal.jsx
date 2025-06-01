@@ -5,8 +5,9 @@ import { FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import axios from 'axios';
+import { SecureStorage } from '../../../../utils/encryption';
 
-const Update_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, venueId }) => {
+const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [venueName, setVenueName] = useState('');
@@ -16,6 +17,8 @@ const Update_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, venueId }) =
     const [fileList, setFileList] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('1');
     const [statusOptions, setStatusOptions] = useState([]);
+
+    const baseUrl = SecureStorage.getLocalItem("url");
 
     useEffect(() => {
         fetchStatusAvailability();
@@ -29,7 +32,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, venueId }) =
 
     const fetchStatusAvailability = async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
+            const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
                 new URLSearchParams({
                     operation: 'fetchStatusAvailability'
                 })
@@ -51,7 +54,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, venueId }) =
             formData.append('operation', 'fetchVenueById');
             formData.append('id', venueId);
     
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
+            const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
                 formData,
                 {
                     headers: {
@@ -67,7 +70,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, venueId }) =
                 setSelectedStatus(venue.status_availability_id);
                 
                 if (venue.ven_pic) {
-                    const imageUrl = `${encryptedUrl}/${venue.ven_pic}`;
+                    const imageUrl = `${baseUrl}/${venue.ven_pic}`;
                     setPreviewUrl(imageUrl);
                     setFileList([{
                         uid: '-1',
@@ -173,7 +176,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, venueId }) =
             }
 
             const response = await axios.post(
-                `${encryptedUrl}/update_master1.php`,
+                `${baseUrl}/update_master1.php`,
                 requestData,
                 {
                     headers: {

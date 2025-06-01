@@ -1,24 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import axios from 'axios';
-import Sidebar from './Sidebar';
-import { SecureStorage } from '../utils/encryption';
-import { Table, Button, Tag, Space, Input, Tooltip, Modal, Select, Form, Empty, Pagination } from 'antd';
+import Sidebar from '../Sidebar';
+import {  Button, Tag, Space, Input, Tooltip, Modal, Empty, Pagination } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faSearch, faUserPlus, faEye, faCheckCircle, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 import dayjs from 'dayjs';
 import { toast } from 'sonner';
+import AssignModal from './core/Assign_Modal';
+import { SecureStorage } from '../../utils/encryption';
 
 const AssignPersonnel = () => {
   const [activeTab, setActiveTab] = useState('Not Assigned');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState(null);
-  const [personnel, setPersonnel] = useState([]);
-  const [formData, setFormData] = useState({
-    personnel: '',
-    checklists: []
-  });
-  const [errorMessage, setErrorMessage] = useState('');
   const [reservations, setReservations] = useState([]);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
   const [selectedChecklists, setSelectedChecklists] = useState([]);
@@ -29,175 +24,28 @@ const AssignPersonnel = () => {
   const [sortField, setSortField] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  const handleOpenModal = async (reservation) => {
-    setLoading(true);
-    try {
-      const response = await axios.post('http://localhost/coc/gsd/fetch2.php', {
-        operation: 'getReservedById',
-        reservation_id: reservation.id
-      });
-
-      if (response.data.status === 'success') {
-        const { data } = response.data;
-        let checklists = [];
-        
-        // Process venues
-        if (data.venues && data.venues.length > 0) {
-          data.venues.forEach(venue => {
-            if (venue.checklists && venue.checklists.length > 0) {
-              const venueItems = venue.checklists.map(item => ({
-                id: item.checklist_venue_id,
-                name: item.checklist_name,
-                type: 'venue',
-                reservation_venue_id: venue.reservation_venue_id
-              }));
-              checklists.push({
-                category: `Venue: ${venue.name}`,
-                items: venueItems
-              });
-            }
-          });
-        }
-
-        // Process equipment
-        if (data.equipments && data.equipments.length > 0) {
-          data.equipments.forEach(equipment => {
-            if (equipment.checklists && equipment.checklists.length > 0) {
-              const equipmentItems = equipment.checklists.map(item => ({
-                id: item.checklist_equipment_id,
-                name: item.checklist_name,
-                type: 'equipment',
-                reservation_equipment_id: equipment.reservation_equipment_id
-              }));
-              checklists.push({
-                category: `Equipment: ${equipment.name} (Qty: ${equipment.quantity})`,
-                items: equipmentItems
-              });
-            }
-          });
-        }
-
-        // Process vehicles
-        if (data.vehicles && data.vehicles.length > 0) {
-          data.vehicles.forEach(vehicle => {
-            if (vehicle.checklists && vehicle.checklists.length > 0) {
-              const vehicleItems = vehicle.checklists.map(item => ({
-                id: item.checklist_vehicle_id,
-                name: item.checklist_name,
-                type: 'vehicle',
-                reservation_vehicle_id: vehicle.reservation_vehicle_id
-              }));
-              checklists.push({
-                category: `Vehicle: ${vehicle.model || 'N/A'} (License: ${vehicle.license || 'N/A'})`,
-                items: vehicleItems
-              });
-            }
-          });
-        }
-
-        setSelectedReservation(reservation);
-        setFormData({
-          personnel: '',
-          checklists: checklists
-        });
-      }
-    } catch (error) {
-      console.error('Error fetching reservation details:', error);
-      setFormData({ personnel: '', checklists: [] });
-    } finally {
-      setLoading(false);
-    }
+  const handleOpenModal = (reservation) => {
+    setSelectedReservation(reservation);
     setIsModalOpen(true);
   };
 
-  const handleAssign = async () => {
-    setErrorMessage('');
-    if (!formData.personnel) {
-      setErrorMessage('Please select a personnel');
-      return;
-    }
-
-    const selectedPersonnelObj = personnel.find(p => p.full_name === formData.personnel);
-    if (!selectedPersonnelObj) {
-      setErrorMessage('Selected personnel not found');
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const checklistIds = [];
-
-      formData.checklists.forEach(category => {
-        category.items.forEach(item => {
-          const entry = {
-            type: item.type,
-            checklist_id: item.id
-          };
-
-          switch (item.type) {
-            case 'venue':
-              entry.reservation_venue_id = item.reservation_venue_id;
-              break;
-            case 'equipment':
-              entry.reservation_equipment_id = item.reservation_equipment_id;
-              break;
-            case 'vehicle':
-              entry.reservation_vehicle_id = item.reservation_vehicle_id;
-              break;
-          }
-
-          checklistIds.push(entry);
-        });
-      });
-
-      const payload = {
-        operation: 'saveChecklist',
-        data: {
-          admin_id: SecureStorage.getSessionItem("user_id"),
-          personnel_id: selectedPersonnelObj.users_id,
-          checklist_ids: checklistIds
-        }
-      };
-
-      const response = await axios.post('http://localhost/coc/gsd/fetch2.php', payload);
-
-      if (response.data.status === 'success') {
-        setReservations(prev => 
-          prev.map(res => 
-            res.id === selectedReservation.id ? {
-              ...res,
-              personnel: formData.personnel,
-              status: 'Assigned'
-            } : res
-          )
-        );
-        
-        setIsModalOpen(false);
-        setFormData({ personnel: '', checklists: [] });
-        setSelectedReservation(null);
-        setErrorMessage('');
-        toast.success('Personnel assigned successfully!');
-
-        if (activeTab === 'Not Assigned') {
-          fetchNotAssignedReservations();
-        }
-      } else {
-        setErrorMessage('Failed to assign personnel. Please try again.');
-        toast.error('Failed to assign personnel');
-      }
-    } catch (error) {
-      console.error('Error assigning personnel:', error);
-      setErrorMessage(error.message || 'An error occurred while assigning personnel.');
-      toast.error('An error occurred while assigning personnel');
-    } finally {
-      setLoading(false);
+  const handleAssignSuccess = (updatedReservation) => {
+    setReservations(prev => 
+      prev.map(res => 
+        res.id === updatedReservation.id ? updatedReservation : res
+      )
+    );
+    
+    if (activeTab === 'Not Assigned') {
+      fetchNotAssignedReservations();
     }
   };
 
   const handleComplete = async (reservationId, personnelId) => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/records&reports.php', {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
         operation: 'updateReleaseStatus',
         json: {
           reservation_id: reservationId,
@@ -222,45 +70,11 @@ const AssignPersonnel = () => {
     }
   };
 
-  const toggleChecklistStatus = (reservationId, checklistIndex) => {
-    setReservations(reservations.map(res => {
-      if (res.id === reservationId) {
-        const updatedChecklists = res.checklists.map((checklist, idx) => 
-          idx === checklistIndex 
-            ? { ...checklist, status: checklist.status === 'pending' ? 'completed' : 'pending' }
-            : checklist
-        );
-        return { ...res, checklists: updatedChecklists };
-      }
-      return res;
-    }));
-  };
-
-  const fetchPersonnel = async () => {
-    setLoading(true);
-    try {
-      const response = await axios.post('http://localhost/coc/gsd/fetch2.php', {
-        operation: 'fetchPersonnel'
-      });
-
-      if (response.data.status === 'success' && Array.isArray(response.data.data)) {
-        setPersonnel(response.data.data);
-      } else {
-        console.error('Invalid data format received:', response.data);
-        toast.error('Failed to fetch personnel data');
-      }
-    } catch (error) {
-      console.error('Error fetching personnel:', error);
-      toast.error('Error fetching personnel data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const fetchNotAssignedReservations = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/records&reports.php', {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
         operation: 'fetchNoAssignedReservation'
       }, {
         headers: {
@@ -292,7 +106,8 @@ const AssignPersonnel = () => {
   const fetchAssignedReservations = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/records&reports.php', {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
         operation: 'fetchAssignedRelease'
       }, {
         headers: {
@@ -308,7 +123,7 @@ const AssignPersonnel = () => {
             type: masterData.venue_form_name ? 'Venue' : 'Vehicle',
             name: masterData.venue_form_name || masterData.vehicle_form_name,
             details: '',
-            personnel: personnel.find(p => p.jo_personel_id === masterData.checklist_personnel_id)?.full_name || 'Unknown',
+            personnel: masterData.personnel_name || 'Unknown',
             checklists: masterData.venue_form_name 
               ? item.venue_equipment.map(eq => ({
                   name: eq.release_checklist_name,
@@ -335,7 +150,8 @@ const AssignPersonnel = () => {
   const fetchCompletedReservations = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/records&reports.php', {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
         operation: 'fetchCompletedRelease'
       }, {
         headers: {
@@ -351,7 +167,7 @@ const AssignPersonnel = () => {
             type: masterData.venue_form_name ? 'Venue' : 'Vehicle',
             name: masterData.venue_form_name || masterData.vehicle_form_name,
             details: '',
-            personnel: personnel.find(p => p.jo_personel_id === masterData.checklist_personnel_id)?.full_name || 'Unknown',
+            personnel: masterData.personnel_name || 'Unknown',
             checklists: masterData.venue_form_name 
               ? item.venue_equipment.map(eq => ({
                   name: eq.release_checklist_name,
@@ -385,10 +201,6 @@ const AssignPersonnel = () => {
   };
 
   useEffect(() => {
-    fetchPersonnel();
-  }, []);
-
-  useEffect(() => {
     if (activeTab === 'Not Assigned') {
       fetchNotAssignedReservations();
     } else if (activeTab === 'Assigned') {
@@ -405,32 +217,7 @@ const AssignPersonnel = () => {
 
   // Table columns configuration
   const columns = [
-    {
-      title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
-      width: 80,
-      sorter: true,
-      sortOrder: sortField === 'id' ? sortOrder : null,
-    },
-    {
-      title: 'Type',
-      dataIndex: 'type',
-      key: 'type',
-      width: 100,
-      render: (text) => (
-        <Tag color={text === 'Venue' ? 'green' : 'blue'} className="rounded-full px-2 py-1 text-xs font-medium">
-          {text}
-        </Tag>
-      ),
-      filters: [
-        { text: 'Venue', value: 'Venue' },
-        { text: 'Vehicle', value: 'Vehicle' },
-      ],
-      onFilter: (value, record) => record.type === value,
-      sorter: true,
-      sortOrder: sortField === 'type' ? sortOrder : null,
-    },
+   
     {
       title: 'Reservation Name',
       dataIndex: 'name',
@@ -505,6 +292,7 @@ const AssignPersonnel = () => {
                 onClick={() => handleOpenModal(record)}
                 size="small"
                 className="bg-green-900 hover:bg-lime-900 border-green-900"
+                loading={loading}
               >
                 Assign
               </Button>
@@ -523,6 +311,7 @@ const AssignPersonnel = () => {
                     }}
                     size="small"
                     className="border-gray-300 text-gray-600"
+                    loading={loading}
                   >
                     Checklists
                   </Button>
@@ -536,6 +325,7 @@ const AssignPersonnel = () => {
                     onClick={() => handleComplete(record.id, record.personnel_id)}
                     size="small"
                     className="bg-green-900 hover:bg-lime-900 border-green-900"
+                    loading={loading}
                   >
                     Complete
                   </Button>
@@ -641,9 +431,10 @@ const AssignPersonnel = () => {
               <div className="flex gap-2">
                 <Tooltip title="Refresh data">
                   <Button
-                    icon={<FontAwesomeIcon icon={faSyncAlt} />}
+                    icon={<FontAwesomeIcon icon={faSyncAlt} spin={loading} />}
                     onClick={handleRefresh}
                     size="large"
+                    loading={loading}
                   />
                 </Tooltip>
               </div>
@@ -677,7 +468,16 @@ const AssignPersonnel = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredReservations.length > 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={columns.length} className="px-6 py-24 text-center">
+                      <div className="flex justify-center items-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-900"></div>
+                        <span className="ml-3 text-gray-500">Loading...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : filteredReservations.length > 0 ? (
                   filteredReservations
                     .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                     .map((record) => (
@@ -739,86 +539,15 @@ const AssignPersonnel = () => {
       </div>
 
       {/* Assignment Modal */}
-      <Modal
-        title={
-          <div className="text-xl font-bold text-green-900">
-            Assign Personnel
-            {selectedReservation && (
-              <div className="text-sm font-normal text-gray-500 mt-1">
-                Reservation: {selectedReservation.name}
-              </div>
-            )}
-          </div>
-        }
-        open={isModalOpen}
-        onCancel={() => setIsModalOpen(false)}
-        footer={[
-          <Button key="cancel" onClick={() => setIsModalOpen(false)}>
-            Cancel
-          </Button>,
-          <Button 
-            key="submit" 
-            type="primary" 
-            loading={loading} 
-            onClick={handleAssign}
-            className="bg-green-900 hover:bg-lime-900"
-          >
-            Assign Personnel
-          </Button>
-        ]}
-        width={600}
-        className="assignment-modal"
-        centered
-      >
-        <Form layout="vertical" className="mt-4">
-          <Form.Item 
-            label="Select Personnel" 
-            validateStatus={errorMessage ? "error" : ""}
-            help={errorMessage}
-            required
-          >
-            <Select
-              value={formData.personnel}
-              onChange={(value) => setFormData({...formData, personnel: value})}
-              placeholder="Select personnel"
-              className="w-full"
-              showSearch
-              filterOption={(input, option) =>
-                option.children.toLowerCase().indexOf(input.toLowerCase()) >= 0
-              }
-            >
-              {personnel.map((person) => (
-                <Select.Option key={person.users_id} value={person.full_name}>
-                  {person.full_name}
-                </Select.Option>
-              ))}
-            </Select>
-          </Form.Item>
-
-          <Form.Item label="Checklists">
-            <div className="bg-gray-50 p-4 rounded-lg max-h-60 overflow-y-auto border border-gray-200">
-              {formData.checklists.map((categoryList, categoryIndex) => (
-                <div key={categoryIndex} className="mb-4">
-                  <h4 className="font-medium text-green-900 sticky top-0 bg-gray-50 py-1 border-b border-gray-200 mb-2">
-                    {categoryList.category}
-                  </h4>
-                  {categoryList.items.map((checklist, index) => (
-                    <div key={index} className="flex items-center py-1.5 px-2 hover:bg-gray-100 rounded-md ml-2">
-                      <div className="w-2 h-2 bg-green-600 rounded-full mr-2"></div>
-                      <span className="text-sm text-gray-700">{checklist.name}</span>
-                    </div>
-                  ))}
-                </div>
-              ))}
-              {formData.checklists.length === 0 && (
-                <div className="flex items-center justify-center h-20 text-gray-500 italic">
-                  No checklists available
-                </div>
-              )}
-            </div>
-          </Form.Item>
-        </Form>
-      </Modal>
+      <AssignModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedReservation(null);
+        }}
+        selectedReservation={selectedReservation}
+        onSuccess={handleAssignSuccess}
+      />
 
       {/* Checklist Modal */}
       <Modal

@@ -3,13 +3,13 @@ import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
 // import Sidebar from './pages/Sidebar';
 // import Login from './pages/Login';
 import VehicleEntry from './pages/Admin/VehicleEntry';
-import PersonnelDashboard from './page_personnel/dashboard';
-import ViewTask from './page_personnel/ViewPersonnelTask';
+import PersonnelDashboard from './pages/Personnel/dashboard';
+import ViewTask from './pages/Personnel/ViewPersonnelTask';
 import Venue from './pages/Admin/Venue';
 import  Dashboard from './page_user/dashboard';
 import Equipment from './pages/Admin/Equipment';
-import ViewRequest from './pages/viewRequest';
-import AddReservation from './page_user/AddReservation'; // Import the AddReservation component
+import ViewRequest from './pages/Admin/viewRequest';
+import AddReservation from './components/Reservation/AddReservation'; // Import the AddReservation component
 import { Toaster } from 'sonner';
 import './App.css'; 
 import Logins from './pages/logins';
@@ -27,23 +27,21 @@ import Calendar from './pages/calendar';
 import Record from './pages/Record';
 import ViewApproval from './page_dean/viewApproval';
 import DeanViewReserve from './page_dean/viewReserve';
-import DeanAddReservation from './page_dean/AddReservation';
 import DeanDashboard from './page_dean/dashboard';
 import Chat from './pages/chat';
 import ProtectedRoute from './utils/ProtectedRoute';
-import AssignPersonnel from './pages/AssignPersonnel';
+import AssignPersonnel from './pages/Admin/AssignPersonnel';
 import LandCalendar from './pages/landCalendar';
 import Archive from './pages/archive';
 import NotFound from './components/NotFound';
 import Checklists from './pages/Checklist';
 import Reports from './pages/Reports';
-import AccountSettings from './pages/accountSettings';
 import { SecureStorage } from './utils/encryption';
 import NotificationUser from './page_user/notification';
 import NotificationRequest from './page_dean/notification';
 import ChatUser from './page_user/chat';
 import ChatDepartment from './page_dean/chat';
-import ChatPersonnel from './page_personnel/chat';
+import ChatPersonnel from './pages/Personnel/chat';
 import Driver from './pages/Drivers';
 
 
@@ -135,12 +133,11 @@ const App = () => {
                         <Route path="/equipmentCat" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
                         <Route path="/archive" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Archive /></ProtectedRoute>} />
                         <Route path="/Reports" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Reports /></ProtectedRoute>} />
-                        <Route path="/AccountSettings" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AccountSettings /></ProtectedRoute>} />
+                        
                                                             
                         {/* Dean/Secretary Routes */}
                         <Route path="/Department/Dashboard" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DeanDashboard /></ProtectedRoute>} />
                         <Route path="/Department/Myreservation" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DeanViewReserve /></ProtectedRoute>} />
-                        <Route path="/departmentAddReservation" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DeanAddReservation /></ProtectedRoute>} />
                         <Route path="/Department/ViewApproval" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><ViewApproval /></ProtectedRoute>} />
                         <Route path="/Department/Notification" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><NotificationRequest /></ProtectedRoute>} />
                         <Route path="/Department/Chat" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><ChatDepartment /></ProtectedRoute>} />

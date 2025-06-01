@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
-import { Modal, Button, Form, Input, Table, Space, Tooltip, Empty, Pagination, Alert } from 'antd';
+import React, { useEffect, useState, useCallback } from 'react';
+import { Modal, Button, Form, Input,  Tooltip, Empty, Pagination, Alert } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaPlus, FaTrash, FaSearch, FaTools, FaEdit, FaEye } from 'react-icons/fa';
+import { FaArrowLeft, FaEye } from 'react-icons/fa';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
@@ -32,18 +32,18 @@ const EquipmentCategories = () => {
 
     useEffect(() => {
         const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+        const decryptedUserLevel = parseInt(encryptedUserLevel);
         console.log("this is encryptedUserLevel", encryptedUserLevel);
-        if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
             navigate('/gsd');
         }
     }, [navigate]);
 
-    useEffect(() => {
-        fetchCategories();
-    }, []);
 
-    const fetchCategories = async () => {
+   // <--- ADDED fetchCategories here
+
+    const fetchCategories = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}fetchMaster.php`, new URLSearchParams({ operation: 'fetchEquipments' }));
@@ -58,7 +58,10 @@ const EquipmentCategories = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [encryptedUrl]);
+    useEffect(() => {
+        fetchCategories();
+    }, [fetchCategories]); 
 
     const handleEdit = (id) => {
         const categoryToEdit = categories.find((category) => category.equipments_category_id === id);

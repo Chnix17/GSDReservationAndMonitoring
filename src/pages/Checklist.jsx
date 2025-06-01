@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs, Table, Button, Card, Space, Typography, Modal, Select, Input, List, message, Tag, Tooltip, Pagination } from 'antd';
+import { Tabs,  Button,  Space,  Modal, Select, Input, List, message, Tooltip, Pagination } from 'antd';
 import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faPlus, faSearch, faEye } from '@fortawesome/free-solid-svg-icons';
+
 import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { useNavigate } from 'react-router-dom';
-import 'bootstrap/dist/css/bootstrap.min.css';
-import '../vehicle.css';
 
 function Checklist() {
+  const storedUrl = SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/";
+
   const [currentTab, setCurrentTab] = useState('1');
   const [isModalVisible, setIsModalVisible] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -35,8 +34,9 @@ function Checklist() {
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
         localStorage.clear();
         navigate('/gsd');
     }
@@ -46,7 +46,7 @@ function Checklist() {
     const fetchChecklists = async () => {
       setLoading(true);
       try {
-        const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+        const response = await fetch(`${storedUrl}fetch2.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ function Checklist() {
     try {
       console.log('Sending request with:', { type, id });
       
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ function Checklist() {
     }
     
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -237,7 +237,7 @@ function Checklist() {
 
   const fetchResources = async (type) => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -303,7 +303,7 @@ function Checklist() {
     }
 
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,7 +345,7 @@ function Checklist() {
     const fetchChecklists = async () => {
       setLoading(true);
       try {
-        const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+        const response = await fetch(`${storedUrl}fetch2.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -402,7 +402,7 @@ function Checklist() {
     }
 
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -510,77 +510,85 @@ function Checklist() {
         <EnhancedFilters />
         
         <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
-          <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-            <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
-              <tr>
-                {columns.map((column) => (
-                  <th
-                    key={column.key}
-                    scope="col"
-                    className="px-6 py-3"
-                    onClick={() => column.sorter && handleSort(column.dataIndex)}
-                  >
-                    <div className="flex items-center cursor-pointer hover:text-gray-900">
-                      {column.title}
-                      {sortField === column.dataIndex && (
-                        <span className="ml-1">
-                          {sortOrder === "asc" ? "↑" : "↓"}
-                        </span>
-                      )}
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {paginatedData.length > 0 ? (
-                paginatedData.map((record) => (
-                  <tr
-                    key={record.key}
-                    className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
-                  >
+          {loading ? (
+            <div className="flex justify-center items-center p-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-900"></div>
+            </div>
+          ) : (
+            <>
+              <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                  <tr>
                     {columns.map((column) => (
-                      <td
-                        key={`${record.key}-${column.key}`}
-                        className="px-6 py-4"
+                      <th
+                        key={column.key}
+                        scope="col"
+                        className="px-6 py-3"
+                        onClick={() => column.sorter && handleSort(column.dataIndex)}
                       >
-                        {column.render
-                          ? column.render(record[column.dataIndex], record)
-                          : record[column.dataIndex]}
-                      </td>
+                        <div className="flex items-center cursor-pointer hover:text-gray-900">
+                          {column.title}
+                          {sortField === column.dataIndex && (
+                            <span className="ml-1">
+                              {sortOrder === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </div>
+                      </th>
                     ))}
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td colSpan={columns.length} className="px-6 py-24 text-center">
-                    <div className="text-center py-6">
-                      <PlusOutlined className="text-5xl text-gray-300 mb-4" />
-                      <p className="text-xl text-gray-500">No checklists found</p>
-                    </div>
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-          
-          <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-            <div className="flex justify-end">
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={data.length}
-                onChange={(page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size);
-                }}
-                showSizeChanger={true}
-                showTotal={(total, range) =>
-                  `${range[0]}-${range[1]} of ${total} items`
-                }
-              />
-            </div>
-          </div>
+                </thead>
+                <tbody>
+                  {paginatedData.length > 0 ? (
+                    paginatedData.map((record) => (
+                      <tr
+                        key={record.key}
+                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                      >
+                        {columns.map((column) => (
+                          <td
+                            key={`${record.key}-${column.key}`}
+                            className="px-6 py-4"
+                          >
+                            {column.render
+                              ? column.render(record[column.dataIndex], record)
+                              : record[column.dataIndex]}
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={columns.length} className="px-6 py-24 text-center">
+                        <div className="text-center py-6">
+                          <PlusOutlined className="text-5xl text-gray-300 mb-4" />
+                          <p className="text-xl text-gray-500">No checklists found</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-end">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={data.length}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    }}
+                    showSizeChanger={true}
+                    showTotal={(total, range) =>
+                      `${range[0]}-${range[1]} of ${total} items`
+                    }
+                  />
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </motion.div>
     );
@@ -606,7 +614,7 @@ function Checklist() {
 
   const handleDeleteChecklist = async (item) => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -780,60 +788,69 @@ function Checklist() {
             <Button 
               type="primary" 
               onClick={handleAddToExistingChecklist}
-              disabled={!newItem.trim()} 
+              disabled={!newItem.trim() || loading} 
               className="bg-green-900 hover:bg-lime-900"
             >
-              Add
+              {loading ? 'Adding...' : 'Add'}
             </Button>
           </Space.Compact>
         </Space>
 
-        <List
-          bordered
-          className="mt-4 rounded-md bg-[#fafff4]"
-          dataSource={viewChecklistItems}
-          renderItem={(item, index) => (            <List.Item className="border-b border-green-100 py-3">
-              <div className="flex items-center w-full">
-                <span className="bg-green-500 text-white rounded-full w-7 h-7 inline-flex items-center justify-center mr-3 text-sm font-bold">
-                  {index + 1}
-                </span>
-                <span className="text-green-800">{item.checklist_name}</span>
-                <div className="ml-auto flex gap-2">
-                  <Button 
-                    type="link" 
-                    icon={<EditOutlined />} 
-                    onClick={() => startEdit(item)} 
-                    className="text-green-700 hover:text-green-900"
-                  />
-                  <Button 
-                    type="link" 
-                    danger
-                    icon={<DeleteOutlined />} 
-                    onClick={() => {
-                      Modal.confirm({
-                        title: 'Delete Checklist Item',
-                        content: 'Are you sure you want to delete this checklist item?',
-                        okText: 'Yes',
-                        okType: 'danger',
-                        cancelText: 'No',
-                        onOk() {
-                          handleDeleteChecklist(item);
-                        },
-                      });
-                    }}
-                  />
+        {loading ? (
+          <div className="flex justify-center items-center p-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-900"></div>
+          </div>
+        ) : (
+          <List
+            bordered
+            className="mt-4 rounded-md bg-[#fafff4]"
+            dataSource={viewChecklistItems}
+            renderItem={(item, index) => (
+              <List.Item className="border-b border-green-100 py-3">
+                <div className="flex items-center w-full">
+                  <span className="bg-green-500 text-white rounded-full w-7 h-7 inline-flex items-center justify-center mr-3 text-sm font-bold">
+                    {index + 1}
+                  </span>
+                  <span className="text-green-800">{item.checklist_name}</span>
+                  <div className="ml-auto flex gap-2">
+                    <Button 
+                      type="link" 
+                      icon={<EditOutlined />} 
+                      onClick={() => startEdit(item)} 
+                      className="text-green-700 hover:text-green-900"
+                      disabled={loading}
+                    />
+                    <Button 
+                      type="link" 
+                      danger
+                      icon={<DeleteOutlined />} 
+                      onClick={() => {
+                        Modal.confirm({
+                          title: 'Delete Checklist Item',
+                          content: 'Are you sure you want to delete this checklist item?',
+                          okText: 'Yes',
+                          okType: 'danger',
+                          cancelText: 'No',
+                          onOk() {
+                            handleDeleteChecklist(item);
+                          },
+                        });
+                      }}
+                      disabled={loading}
+                    />
+                  </div>
                 </div>
-              </div>
-            </List.Item>
-          )}
-          locale={{
-            emptyText: (
-              <div className="text-center py-6">
-                <p className="text-gray-500">No checklist items found</p>
-              </div>
-            )
-          }}
-        />
+              </List.Item>
+            )}
+            locale={{
+              emptyText: (
+                <div className="text-center py-6">
+                  <p className="text-gray-500">No checklist items found</p>
+                </div>
+              )
+            }}
+          />
+        )}
         {isEditMode && (
           <div className="mt-4">
             <Input

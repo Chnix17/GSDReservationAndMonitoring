@@ -1,14 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaTrash, FaUserEdit, FaUser } from 'react-icons/fa';
+import { FaArrowLeft, FaUser } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion, AnimatePresence } from 'framer-motion';
-import { sanitizeInput, validateInput } from '../utils/sanitize';
+import { motion } from 'framer-motion';
+import { sanitizeInput,  } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { Table, Space, Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert, Select, DatePicker } from 'antd';
+import {  Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert, Select, DatePicker } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
@@ -19,6 +19,7 @@ const Drivers = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [form] = Form.useForm();
+    const baseUrl = SecureStorage.getLocalItem("url");
     const [formData, setFormData] = useState({
         id: '',
         firstName: '',
@@ -40,7 +41,8 @@ const Drivers = () => {
 
     useEffect(() => {
         const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
-        if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
+        const decryptedUserLevel = parseInt(encryptedUserLevel);
+            if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
             navigate('/gsd');
         }
@@ -53,7 +55,7 @@ const Drivers = () => {
     const fetchDrivers = async () => {
         setLoading(true);
         try {
-            const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php', 
+            const response = await axios.post(`${baseUrl}fetchMaster.php`, 
                 new URLSearchParams({ operation: 'fetchDriver' })
             );
             if (response.data.status === 'success') {
@@ -73,7 +75,7 @@ const Drivers = () => {
         // Reset form first
         form.resetFields();
         try {
-            const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php',
+            const response = await axios.post(`${baseUrl}fetchMaster.php`,
                 new URLSearchParams({ 
                     operation: 'fetchDriverById',
                     id: id
@@ -132,7 +134,7 @@ const Drivers = () => {
 
     const confirmArchive = async () => {
         try {
-            const response = await axios.post('http://localhost/coc/gsd/delete_master.php', {
+            const response = await axios.post(`${baseUrl}delete_master.php`, {
                 operation: 'archiveUser',
                 userType: 'driver',
                 userId: selectedDriverId
@@ -176,8 +178,8 @@ const Drivers = () => {
         setIsSubmitting(true);
         try {
             const endpoint = editMode 
-                ? 'http://localhost/coc/gsd/update_master1.php'
-                : 'http://localhost/coc/gsd/insert_master.php';
+                ? `${baseUrl}update_master1.php`
+                : `${baseUrl}insert_master.php`;
             
             const payload = editMode ? {
                 operation: 'updateDriver',

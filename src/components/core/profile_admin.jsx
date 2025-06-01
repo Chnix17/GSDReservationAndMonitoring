@@ -6,6 +6,9 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const ProfileAdminModal = ({ isOpen, onClose }) => {
+  // Get base URL from SecureStorage
+  const baseUrl = SecureStorage.getLocalItem("url");
+  
   // User data states
   const [userData, setUserData] = useState({
     users_fname: '',
@@ -49,7 +52,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       
       console.log('Fetching user data for ID:', userId);
       
-      const response = await fetch('http://localhost/coc/gsd/fetchMaster.php', {
+      const response = await fetch(`${baseUrl}/fetchMaster.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -90,7 +93,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // Function to fetch departments from API
   const fetchDepartments = async () => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetchMaster.php', {
+      const response = await fetch(`${baseUrl}/fetchMaster.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -120,7 +123,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIs2FALoading(true);
       const userId = SecureStorage.getSessionItem('user_id') || '42';
       
-      const response = await fetch('http://localhost/coc/gsd/update_master2.php', {
+      const response = await fetch(`${baseUrl}/update_master2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -229,7 +232,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         }
         
         // Make API call to update user data
-        const response = await fetch('http://localhost/coc/gsd/user.php', {
+        const response = await fetch(`${baseUrl}/user.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -331,7 +334,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIsSubmittingPassword(true);
       try {
         // Make API call to change the password
-        const response = await fetch('http://localhost/coc/gsd/user.php', {
+        const response = await fetch(`${baseUrl}/user.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -386,7 +389,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         setIsDisabling2FA(true);
         const userId = SecureStorage.getSessionItem('user_id') || '42';
         
-        const response = await fetch('http://localhost/coc/gsd/update_master2.php', {
+        const response = await fetch(`${baseUrl}/update_master2.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -451,7 +454,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIsVerifying(true);
       const userId = SecureStorage.getSessionItem('user_id') || userData.users_id;
       
-      const response = await fetch('http://localhost/coc/gsd/update_master2.php', {
+      const response = await fetch(`${baseUrl}/update_master2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -516,7 +519,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       const userId = SecureStorage.getSessionItem('user_id') || userData.users_id;
 
       console.log("userId", userId);
-      const response = await fetch('http://localhost/coc/gsd/update_master2.php', {
+      const response = await fetch(`${baseUrl}/update_master2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

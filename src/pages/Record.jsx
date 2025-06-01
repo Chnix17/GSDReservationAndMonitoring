@@ -1,13 +1,12 @@
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
+import {SecureStorage} from "../utils/encryption";
 
 import {
   BuildOutlined,
   CalendarOutlined,
   CarOutlined,
-  ClockCircleOutlined,
   EyeOutlined,
-  HistoryOutlined,
   ReloadOutlined,
   SearchOutlined,
   TeamOutlined,
@@ -16,12 +15,11 @@ import {
 } from "@ant-design/icons";
 import {
   Button,
-  Descriptions,
   Empty,
   Input,
   Modal,
   Pagination,
-  Space,
+
   Spin,
   Table,
   Tag,
@@ -36,8 +34,6 @@ import axios from "axios";
 import moment from "moment";
 import { motion } from "framer-motion";
 
-const { Search } = Input;
-const { Title, Text } = Typography;
 
 const Record = () => {
   const [reservations, setReservations] = useState([]);
@@ -49,16 +45,21 @@ const Record = () => {
   const [pageSize, setPageSize] = useState(10);
   const [sortField, setSortField] = useState("reservation_created_at");
   const [sortOrder, setSortOrder] = useState("desc");
+  const [baseUrl, setBaseUrl] = useState("");
 
   useEffect(() => {
-    fetchReservations();
+    const url = SecureStorage.getLocalItem("url");
+    setBaseUrl(url);
+    fetchReservations(url);
   }, []);
 
-  const fetchReservations = async () => {
+  const fetchReservations = async (url) => {
+    if (!url) return;
+    
     setLoading(true);
     try {
       const response = await axios.post(
-        "http://localhost/coc/gsd/records&reports.php",
+        `${url}//records&reports.php`,
         {
           operation: "fetchRecord",
           json: {},
@@ -154,7 +155,7 @@ const Record = () => {
   };
 
   const handleRefresh = () => {
-    fetchReservations();
+    fetchReservations(baseUrl);
   };
   
   const columns = [
@@ -383,14 +384,20 @@ const Record = () => {
 const DetailModal = ({ visible, record, onClose }) => {
   const [modalData, setModalData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [baseUrl, setBaseUrl] = useState("");
+
+  useEffect(() => {
+    const url = SecureStorage.getLocalItem("url");
+    setBaseUrl(url);
+  }, []);
 
   useEffect(() => {
     const fetchData = async () => {
-      if (visible && record?.reservation_id) {
+      if (visible && record?.reservation_id && baseUrl) {
         setIsLoading(true);
         try {
           const response = await axios.post(
-            "http://localhost/coc/gsd/records&reports.php",
+            `${baseUrl}/records&reports.php`,
             {
               operation: "getReservationDetailsById",
               json: {
@@ -416,7 +423,7 @@ const DetailModal = ({ visible, record, onClose }) => {
     };
 
     fetchData();
-  }, [visible, record]);
+  }, [visible, record, baseUrl]);
 
   const getIconForType = (type) => {
     const icons = {

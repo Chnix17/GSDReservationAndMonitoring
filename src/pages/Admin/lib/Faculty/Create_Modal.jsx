@@ -5,6 +5,7 @@ import { faUser } from '@fortawesome/free-solid-svg-icons';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
+import { SecureStorage } from '../../../../utils/encryption';
 
 const Create_Modal = ({ 
     show, 
@@ -37,6 +38,9 @@ const Create_Modal = ({
         email: false,
         schoolId: false
     });
+
+    // Get base URL from SecureStorage
+    const baseUrl = SecureStorage.getLocalItem("url");
 
     // Password validation regex
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]*$/;
@@ -181,7 +185,7 @@ const Create_Modal = ({
 
         try {
             const response = await axios.post(
-                'http://localhost/coc/gsd/user.php',
+                `${baseUrl}/user.php`,
                 {
                     operation: 'checkUniqueEmailAndSchoolId',
                     email: field === 'email' ? value : '',
@@ -354,7 +358,7 @@ const Create_Modal = ({
         }
 
         try {
-            const response = await axios.post("http://localhost/coc/gsd/insert_master.php", jsonData, {
+            const response = await axios.post(`${baseUrl}/insert_master.php`, jsonData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -378,7 +382,7 @@ const Create_Modal = ({
     const checkUniqueEmailAndSchoolId = async (email, schoolId) => {
         try {
             const response = await axios.post(
-                'http://localhost/coc/gsd/user.php',
+                `${baseUrl}/user.php`,
                 {
                     operation: 'checkUniqueEmailAndSchoolId',
                     email: email,
@@ -402,7 +406,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: 'http://localhost/coc/gsd/fetchMaster.php',
+                url: `${baseUrl}/fetchMaster.php`,
                 data: new URLSearchParams({
                     operation: 'fetchUserLevels'
                 }).toString(),
@@ -428,7 +432,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: 'http://localhost/coc/gsd/fetchMaster.php',
+                url: `${baseUrl}/fetchMaster.php`,
                 data: new URLSearchParams({
                     operation: 'fetchDepartments'
                 }).toString(),
