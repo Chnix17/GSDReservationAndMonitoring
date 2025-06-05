@@ -555,6 +555,7 @@ function Logins() {
                     SecureStorage.setLocalItem("user_id", userData.user_id);
                     SecureStorage.setLocalItem("name", `${userData.firstname} ${userData.middlename} ${userData.lastname}`.trim());
                     SecureStorage.setLocalItem("school_id", userData.school_id);
+                    SecureStorage.setLocalItem("Department Name", userData.department_name);
                     SecureStorage.setLocalItem("contact_number", userData.contact_number);
                     SecureStorage.setLocalItem("user_level", userData.user_level_name);
                     SecureStorage.setLocalItem("user_level_id", userData.user_level_id);
@@ -566,6 +567,7 @@ function Logins() {
                     SecureStorage.setSessionItem("user_id", userData.user_id);
                     SecureStorage.setSessionItem("name", `${userData.firstname} ${userData.middlename} ${userData.lastname}`.trim());
                     SecureStorage.setSessionItem("school_id", userData.school_id);
+                    SecureStorage.setSessionItem("Department Name", userData.department_name);
                     SecureStorage.setSessionItem("contact_number", userData.contact_number);
                     SecureStorage.setSessionItem("user_level", userData.user_level_name);
                     SecureStorage.setSessionItem("user_level_id", userData.user_level_id);

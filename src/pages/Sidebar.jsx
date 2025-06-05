@@ -465,76 +465,91 @@ const Sidebar = () => {
 
             {/* Navigation - Same as desktop but separate instance */}
             <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
-              <SidebarItem 
+            <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
                 link="/adminDashboard" 
-                active={activeItem === '/adminDashboard'} 
+                active={activeItem === '/adminDashboard'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
+              <MiniSidebarItem 
+                icon={FaCalendarAlt} 
+                text="Calendar" 
+                link="/LandCalendar" 
+                active={activeItem === '/LandCalendar'}
+                isExpanded={isDesktopSidebarOpen}
               />
               
 
-              <SidebarItem 
+              <MiniSidebarItem 
                 icon={FaComments} 
                 text="Chat" 
                 link="/chatAdmin" 
-                active={activeItem === '/chat'} 
+                active={activeItem === '/chat'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
+              {isDesktopSidebarOpen && <SectionLabel text="Resource Management" />}
+
+              <MiniSidebarItem 
+                icon={FaFileAlt} 
+                text="Master" 
+                link="/Master" 
+                active={activeItem === '/Master'}
+                isExpanded={isDesktopSidebarOpen}
               />
               
-              <SectionLabel text="Resource Management" />
-              
-              <SidebarItem 
+              <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="Checklist" 
                 link="/Checklist" 
-                active={activeItem === '/Checklist'} 
+                active={activeItem === '/Checklist'}
+                isExpanded={isDesktopSidebarOpen}
               />
 
 
 
-              <SidebarItem 
+              <MiniSidebarItem 
                 icon={FaArchive} 
                 text="Archive" 
                 link="/archive" 
-                active={activeItem === '/archive'} 
+                active={activeItem === '/archive'}
+                isExpanded={isDesktopSidebarOpen}
               />
-              
-              <SectionLabel text="Manage Reservation" />
 
-              <SidebarItem 
+              {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
+
+              <MiniSidebarItem 
                 icon={FaUserCircle} 
                 text="Assign Personnel" 
                 link="/AssignPersonnel" 
-                active={activeItem === '/AssignPersonnel'} 
+                active={activeItem === '/AssignPersonnel'}
+                isExpanded={isDesktopSidebarOpen}
               />
 
-              <SidebarItem 
+              <MiniSidebarItem 
                 icon={FaFolder} 
                 text="View Requests" 
                 link="/ViewRequest" 
-                active={activeItem === '/ViewRequest'} 
+                active={activeItem === '/ViewRequest'}
+                isExpanded={isDesktopSidebarOpen}
               />
 
-              <SidebarItem 
+              <MiniSidebarItem 
                 icon={FaChartBar} 
                 text="Reports" 
                 link="/Reports" 
-                active={activeItem === '/Reports'} 
+                active={activeItem === '/Reports'}
+                isExpanded={isDesktopSidebarOpen}
               />
 
-              <SidebarItem 
+              <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="Records" 
                 link="/record" 
-                active={activeItem === '/record'} 
-              />
-              
-              <SectionLabel text="Account" />
-              
-              <SidebarItem 
-                icon={FaCogs} 
-                text="Settings" 
-                link="/settings" 
-                active={activeItem === '/settings'} 
+                active={activeItem === '/record'}
+                isExpanded={isDesktopSidebarOpen}
               />
             </nav>
           </div>

@@ -1024,21 +1024,6 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
     // Add priority checking logic
     const checkPriority = () => {
-        // Get current user's level and department from reservation details
-        const currentUserLevel = reservationDetails.user_level_name;
-        const currentUserDepartment = reservationDetails.departments_name;
-
-        // Only Department Heads and COO can override reservations
-        const canOverride = currentUserLevel === "Department Head" || currentUserLevel === "COO";
-
-        // If user is not Department Head or COO, they cannot override
-        if (!canOverride) {
-            return {
-                hasPriority: false,
-                message: "Only Department Head of COO can override existing reservations."
-            };
-        }
-
         // First check if there are any actual resource conflicts
         const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
             reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
@@ -1073,6 +1058,35 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             };
         }
 
+        // Get current user's level and department from reservation details
+        const currentUserLevel = reservationDetails.user_level_name;
+        const currentUserDepartment = reservationDetails.department_name;
+
+        console.log("This is the current user level and department", currentUserLevel, currentUserDepartment);
+
+        // Check if user is a Department Head from COO department
+        const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
+        console.log("Can override reservation:", isDepartmentHeadFromCOO);
+
+        // Only Department Head from COO department can override reservations
+        const canOverride = isDepartmentHeadFromCOO;
+
+        // If user is not Department Head from COO department, they cannot override
+        if (!canOverride) {
+            return {
+                hasPriority: false,
+                message: "Only Department Head from COO department can override existing reservations."
+            };
+        }
+
+        // If user is Department Head from COO, they can override any reservation
+        if (isDepartmentHeadFromCOO) {
+            return {
+                hasPriority: true,
+                message: "As Department Head from COO department, you can override any existing reservation."
+            };
+        }
+
         // Check against conflicting reservations
         const hasConflicts = reservationDetails.availabilityData?.reservation_users?.length > 0;
         
@@ -1083,47 +1097,11 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             };
         }
 
-        // For COO, they can override any reservation
-        if (currentUserLevel === "COO") {
-            return {
-                hasPriority: true,
-                message: "As COO, you can override any existing reservation."
-            };
-        }
-
-        // For Department Head, they can only override reservations from their own department
-        // or lower priority departments
-        const canOverrideByDepartment = reservationDetails.availabilityData.reservation_users.every(conflictUser => {
-            // If conflict is from same department, Department Head can override
-            if (conflictUser.departments_name === currentUserDepartment) {
-                return true;
-            }
-            
-            // If conflict is from different department, check if it's a lower priority department
-            const departmentPriorities = {
-                'Academic Affairs': 3,
-                'Student Affairs': 2,
-                'Administrative Services': 1
-                // Add more departments and their priorities as needed
-            };
-
-            const currentDepartmentPriority = departmentPriorities[currentUserDepartment] || 0;
-            const conflictDepartmentPriority = departmentPriorities[conflictUser.departments_name] || 0;
-
-            return currentDepartmentPriority > conflictDepartmentPriority;
-        });
-
-        if (canOverrideByDepartment) {
-            return {
-                hasPriority: true,
-                message: `As Department Head of ${currentUserDepartment}, you can override these reservations.`
-            };
-        } else {
-            return {
-                hasPriority: false,
-                message: `Cannot override reservations from other departments with equal or higher priority.`
-            };
-        }
+        // Remove the department priority check since COO Department Head can override any reservation
+        return {
+            hasPriority: true,
+            message: "You have permission to override this reservation."
+        };
     };
 
     const checkResourceAvailability = (type, id, data) => {
@@ -1383,7 +1361,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                                     <div className="flex justify-between items-start">
                                                         <div>
                                                             <p className="text-sm text-gray-500">Reserved by: {user.full_name}</p>
-                                                            <p className="text-sm text-gray-500">Department: {user.departments_name}</p>
+                                                            <p className="text-sm text-gray-500">Department: {user.department_name}</p>
                                                             <p className="text-sm text-gray-500">Role: {user.user_level_name}</p>
                                                         </div>
                                                         <Tag color="blue">
@@ -1640,7 +1618,7 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
                                     <p className="text-sm text-gray-500">Department</p>
-                                    <p className="font-medium">{reservation.departments_name}</p>
+                                    <p className="font-medium">{reservation.department_name}</p>
                                 </div>
                                 <div>
                                     <p className="text-sm text-gray-500">Status</p>

@@ -168,7 +168,7 @@ const handleRemovePassenger = (passengerId) => {
           const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
-          if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17) {
+          if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6) {
               localStorage.clear();
               navigate('/gsd');
           }
@@ -1603,7 +1603,7 @@ return (
         <div className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
           <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center'}`}>
             <Button
-              onClick={() => navigate('/Faculty/Dashboard')}
+              onClick={() => navigate(-1)}
               className="p-button-text flex items-center gap-2 hover:bg-blue-50 transition-colors"
               icon={<i className="pi pi-arrow-left text-blue-500" />}
             >
