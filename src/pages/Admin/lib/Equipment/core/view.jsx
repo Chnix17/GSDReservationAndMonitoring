@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Button, Tag, Space, message, Modal, Table, Input } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, MinusOutlined, UserOutlined, CalendarOutlined } from '@ant-design/icons';
+import { EditOutlined, DeleteOutlined, PlusOutlined, MinusOutlined, UserOutlined, CalendarOutlined, EyeOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { SecureStorage } from '../../../../../utils/encryption';
+import View_Utilization from '../View_Utilization_unit';
+import View_Utilization_Consumable from '../View_Utilization_Consumable';
 
 const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     console.log('EquipmentView component rendered with ID:', equipmentId);
@@ -29,6 +31,10 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     const [users] = useState([
         'John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Wilson', 'Tom Brown'
     ]);
+
+    const [viewingUnitUsage, setViewingUnitUsage] = useState(null);
+    const [isViewUtilizationOpen, setIsViewUtilizationOpen] = useState(false);
+    const [selectedUnit, setSelectedUnit] = useState(null);
 
     useEffect(() => {
         if (isOpen && equipmentId) {
@@ -248,6 +254,26 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         });
     };
 
+    const handleViewUnitUsage = async (unitId) => {
+        try {
+            const url = "http://localhost/coc/gsd/user.php";
+            const response = await axios.post(url, new URLSearchParams({
+                operation: "getEquipmentUnitUsage",
+                unitId: unitId
+            }));
+
+            if (response.data.status === 'success') {
+                setSelectedUnit(response.data.data.equipment_unit_details);
+                setIsViewUtilizationOpen(true);
+            } else {
+                message.error("Failed to fetch unit usage data");
+            }
+        } catch (error) {
+            console.error("Error fetching unit usage:", error);
+            message.error("An error occurred while fetching unit usage");
+        }
+    };
+
     const renderContent = () => {
         if (!equipment) {
             return (
@@ -290,6 +316,54 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         </div>
                     </div>
                 </div>
+
+                {/* Stock Information Card for Consumable Items */}
+                {equipment.equip_type === 'Consumable' && (
+                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+                        <div className="p-6">
+                            <div className="flex justify-between items-center mb-4">
+                                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
+                                    <CalendarOutlined className="mr-2 text-blue-600" />
+                                    Stock Information
+                                </h4>
+                                <Space>
+                                    <Button
+                                        type="primary"
+                                        icon={<EyeOutlined />}
+                                        onClick={() => setIsViewUtilizationOpen(true)}
+                                        className="bg-blue-600 hover:bg-blue-700"
+                                    >
+                                        View Usage
+                                    </Button>
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        onClick={() => {
+                                            setQuickAdjustment(prev => ({
+                                                ...prev,
+                                                quantity: equipment.on_hand_quantity || 0
+                                            }));
+                                            setIsAddModalVisible(true);
+                                        }}
+                                        className="bg-green-600 hover:bg-green-700"
+                                    >
+                                        Adjust Stock
+                                    </Button>
+                                </Space>
+                            </div>
+                            <div className="grid grid-cols-2 gap-6">
+                                <div className="bg-blue-50 p-6 rounded-lg">
+                                    <p className="text-3xl font-bold text-blue-600">{equipment.on_hand_quantity || 0}</p>
+                                    <p className="text-sm text-gray-600 mt-1">Current Stock</p>
+                                </div>
+                                <div className="bg-gray-50 p-6 rounded-lg">
+                                    <p className="text-3xl font-bold text-gray-600">{equipment.equip_quantity || 0}</p>
+                                    <p className="text-sm text-gray-600 mt-1">Default Quantity</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Units Information Card */}
                 {equipment.equip_type !== 'Consumable' && (
@@ -365,6 +439,12 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                                 <Space size="middle">
                                                     <Button
                                                         type="text"
+                                                        icon={<EyeOutlined className="text-green-600" />}
+                                                        onClick={() => handleViewUnitUsage(record.unit_id)}
+                                                        title="View Usage"
+                                                    />
+                                                    <Button
+                                                        type="text"
                                                         icon={<EditOutlined className="text-blue-600" />}
                                                         onClick={() => handleEditUnit(record)}
                                                         title="Edit Unit"
@@ -386,38 +466,6 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                     No units available. Click "Add Unit" to add a new unit.
                                 </div>
                             )}
-                        </div>
-                    </div>
-                )}
-
-                {/* Stock Information Card for Consumable Items */}
-                {equipment.equip_type === 'Consumable' && (
-                    <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-                        <div className="p-6">
-                            <div className="flex justify-between items-center mb-4">
-                                <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                                    <CalendarOutlined className="mr-2 text-blue-600" />
-                                    Current Stock
-                                </h4>
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={() => {
-                                        setQuickAdjustment(prev => ({
-                                            ...prev,
-                                            quantity: equipment.equip_quantity || 0
-                                        }));
-                                        setIsAddModalVisible(true);
-                                    }}
-                                    className="bg-green-600 hover:bg-green-700"
-                                >
-                                    Adjust Stock
-                                </Button>
-                            </div>
-                            <div className="bg-blue-50 p-6 rounded-lg">
-                                <p className="text-3xl font-bold text-blue-600">{equipment.equip_quantity || 0}</p>
-                                <p className="text-sm text-gray-600 mt-1">Total quantity in stock</p>
-                            </div>
                         </div>
                     </div>
                 )}
@@ -671,6 +719,19 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 <>
                     {renderContent()}
                     {renderAddModal()}
+                    {equipment?.equip_type === 'Consumable' ? (
+                        <View_Utilization_Consumable
+                            open={isViewUtilizationOpen}
+                            onCancel={() => setIsViewUtilizationOpen(false)}
+                            equipment={equipment}
+                        />
+                    ) : (
+                        <View_Utilization
+                            open={isViewUtilizationOpen}
+                            onCancel={() => setIsViewUtilizationOpen(false)}
+                            equipment={selectedUnit}
+                        />
+                    )}
                 </>
             )}
         </Modal>

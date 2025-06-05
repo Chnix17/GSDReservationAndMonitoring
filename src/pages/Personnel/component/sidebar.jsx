@@ -5,7 +5,7 @@ import {
   FaBars, FaUserCircle,
   FaTimes,
   FaBell, FaAngleRight,
-  FaAngleLeft
+  FaAngleLeft, FaWrench
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -366,6 +366,14 @@ const Sidebar = () => {
                 text="View Task" 
                 link="/Personnel/ViewTask" 
                 active={activeItem === '/Personnel/ViewTask'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
+              <MiniSidebarItem 
+                icon={FaWrench}
+                text="View Maintenance"
+                link="/Personnel/ViewMaintenanceTask"
+                active={activeItem === '/Personnel/ViewMaintenanceTask'}
                 isExpanded={isDesktopSidebarOpen}
               />
             </nav>

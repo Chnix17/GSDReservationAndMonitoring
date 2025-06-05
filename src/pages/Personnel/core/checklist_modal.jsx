@@ -4,6 +4,197 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../../../utils/encryption';
 
+const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, type }) => {
+  const [selectedCondition, setSelectedCondition] = useState('');
+  const [goodQuantity, setGoodQuantity] = useState('');
+  const [badQuantity, setBadQuantity] = useState('');
+  const isConsumable = !item?.units || item.units.length === 0;
+  const totalQuantity = parseInt(item?.quantity || 0);
+  const isEquipmentConsumable = type === 'equipment_consumable';
+
+  const handleSubmit = () => {
+    if (!selectedCondition) {
+      toast.error('Please select a return condition');
+      return;
+    }
+
+    if (isEquipmentConsumable && selectedCondition !== 'good') {
+      if (!badQuantity) {
+        toast.error('Please specify the quantity of damaged/missing items');
+        return;
+      }
+      
+      // Calculate good quantity as remaining items
+      const badQty = parseInt(badQuantity);
+      const goodQty = totalQuantity - badQty;
+      
+      if (badQty > totalQuantity) {
+        toast.error(`Bad quantity cannot exceed total quantity (${totalQuantity})`);
+        return;
+      }
+
+      if (badQty < 0) {
+        toast.error('Bad quantity cannot be negative');
+        return;
+      }
+
+      onSubmit(selectedCondition, goodQty, badQty);
+    } else if (isEquipmentConsumable) {
+      // For 'good' condition, all items are in good condition
+      onSubmit(selectedCondition, totalQuantity, 0);
+    } else {
+      // For non-equipment items (venues, vehicles), just submit the condition
+      onSubmit(selectedCondition, null, null);
+    }
+  };
+
+  const handleBadQuantityChange = (e) => {
+    const value = e.target.value;
+    if (value < 0) {
+      setBadQuantity('0');
+      return;
+    }
+    if (parseInt(value) > totalQuantity) {
+      setBadQuantity(totalQuantity.toString());
+      return;
+    }
+    setBadQuantity(value);
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-xl shadow-xl w-full max-w-sm"
+      >
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-medium text-gray-900">Return Condition</h3>
+            <button
+              onClick={onClose}
+              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <p className="text-sm text-gray-600">Please select the condition of the returned item:</p>
+            
+            <div className="grid grid-cols-1 gap-3">
+              {[
+                { value: 'good', label: 'Good', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+                { value: 'damage', label: 'Damage', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
+                { value: 'missing', label: 'Missing', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' }
+              ].map((condition) => (
+                <button
+                  key={condition.value}
+                  onClick={() => setSelectedCondition(condition.value)}
+                  className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
+                    selectedCondition === condition.value
+                      ? 'border-blue-500 bg-blue-50'
+                      : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50'
+                  }`}
+                >
+                  <div className={`p-2 rounded-lg ${
+                    selectedCondition === condition.value
+                      ? 'bg-blue-100 text-blue-600'
+                      : 'bg-gray-100 text-gray-600'
+                  }`}>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={condition.icon} />
+                    </svg>
+                  </div>
+                  <span className={`font-medium ${
+                    selectedCondition === condition.value
+                      ? 'text-blue-700'
+                      : 'text-gray-700'
+                  }`}>
+                    {condition.label}
+                  </span>
+                </button>
+              ))}
+            </div>
+
+            {isEquipmentConsumable && selectedCondition !== 'good' && (
+              <div className="mt-4 space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Quantity {selectedCondition === 'damage' ? 'Damaged' : 'Missing'}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min="0"
+                      value={badQuantity}
+                      onChange={handleBadQuantityChange}
+                      placeholder="Enter quantity"
+                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <span className="text-sm text-gray-500">
+                      of {totalQuantity} total
+                    </span>
+                  </div>
+                </div>
+                {badQuantity && (
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      Good quantity: {totalQuantity - parseInt(badQuantity || 0)} items
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={onClose}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSubmit}
+              disabled={isSubmitting || !selectedCondition || (isEquipmentConsumable && selectedCondition !== 'good' && !badQuantity)}
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 ${
+                selectedCondition && (!isEquipmentConsumable || selectedCondition === 'good' || badQuantity)
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span>Returning...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Confirm Return</span>
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+};
+
 const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTasks }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [conditions, setConditions] = useState([]);
@@ -24,6 +215,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
   const [returnCondition, setReturnCondition] = useState('');
   const [showReturnDropdown, setShowReturnDropdown] = useState(false);
   const [selectedItemForReturn, setSelectedItemForReturn] = useState(null);
+  const [showReturnModal, setShowReturnModal] = useState(false);
 
   const idMapping = {
     venue: 'reservation_checklist_venue_id',
@@ -544,7 +736,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     }
 
     // Special case for Available Stock - always allow release
-    if (item.availability_status === "Available Stock") {
+    if (item.availability_status === "Available Stock" && item.active === 0) {
       return {
         canRelease: true,
         message: ""
@@ -607,12 +799,16 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     return currentTime >= endTime;
   };
 
-  const handleReturn = async (type, item) => {
-    if (!returnCondition) {
-      toast.error('Please select a return condition');
-      return;
-    }
+  const handleReturnClick = (type, item) => {
+    setSelectedItemForReturn({ type, item });
+    setShowReturnModal(true);
+  };
 
+  const handleReturn = async (condition, goodQuantity, badQuantity) => {
+    if (!selectedItemForReturn) return;
+
+    const { type, item } = selectedItemForReturn;
+    
     try {
       setIsSubmitting(true);
 
@@ -651,19 +847,26 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         type: type,
         reservation_id: reservation_id,
         resource_id: resource_id,
-        condition: returnCondition,
+        condition: condition,
         user_personnel_id: SecureStorage.getSessionItem('user_id')
       };
+
+      // Add good and bad quantities for consumable equipment
+      if (type === 'equipment_consumable') {
+        payload.good_quantity = goodQuantity;
+        payload.bad_quantity = badQuantity;
+      }
+
+      console.log('Return payload:', payload);
 
       const response = await axios.post('http://localhost/coc/gsd/personnel.php', payload);
 
       if (response.data.status === 'success') {
         toast.success(`Successfully returned ${type}`);
-        setShowReturnDropdown(false);
-        setReturnCondition('');
+        setShowReturnModal(false);
         setSelectedItemForReturn(null);
         
-        // Update only the specific item that was returned
+        // Update the local state
         onTaskUpdate(prev => {
           if (!prev) return prev;
           const updatedTask = { ...prev };
@@ -672,14 +875,14 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
             case 'venue':
               updatedTask.venues = updatedTask.venues.map(venue => 
                 venue.reservation_venue_id === reservation_id 
-                  ? { ...venue, is_returned: '1', return_condition: returnCondition }
+                  ? { ...venue, is_returned: '1', return_condition: condition }
                   : venue
               );
               break;
             case 'vehicle':
               updatedTask.vehicles = updatedTask.vehicles.map(vehicle => 
                 vehicle.reservation_vehicle_id === reservation_id 
-                  ? { ...vehicle, is_returned: '1', return_condition: returnCondition }
+                  ? { ...vehicle, is_returned: '1', return_condition: condition }
                   : vehicle
               );
               break;
@@ -688,10 +891,23 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                 ...equipment,
                 units: equipment.units?.map(unit => 
                   unit.reservation_unit_id === reservation_id 
-                    ? { ...unit, is_returned: '1', return_condition: returnCondition }
+                    ? { ...unit, is_returned: '1', return_condition: condition }
                     : unit
                 )
               }));
+              break;
+            case 'equipment_consumable':
+              updatedTask.equipments = updatedTask.equipments.map(equipment => 
+                equipment.reservation_equipment_id === reservation_id 
+                  ? { 
+                      ...equipment, 
+                      is_returned: '1', 
+                      return_condition: condition,
+                      good_quantity: goodQuantity,
+                      bad_quantity: badQuantity
+                    }
+                  : equipment
+              );
               break;
           }
           return updatedTask;
@@ -707,20 +923,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     }
   };
 
-  const handleReturnClick = (type, item) => {
-    setSelectedItemForReturn({ type, item });
-    setShowReturnDropdown(true);
-  };
-
-  const toggleSection = (section) => {
-    setExpandedSections(prev => ({
-      ...prev,
-      [section]: !prev[section]
-    }));
-  };
-
-  const renderReturnDropdown = (type, item) => {
-    const isSelected = selectedItemForReturn?.item[`reservation_${type}_id`] === item[`reservation_${type}_id`];
+  const renderReturnButton = (type, item) => {
     const isReturned = item.is_returned === '1' || item.is_returned === 1;
     
     if (isReturned) {
@@ -739,77 +942,15 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     }
     
     return (
-      <div className="relative">
-        {showReturnDropdown && isSelected ? (
-          <motion.div
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            className="absolute right-0 mt-2 w-64 bg-white rounded-lg shadow-xl border border-gray-200 z-10"
-          >
-            <div className="p-3">
-              <div className="mb-3">
-                <label className="block text-xs font-medium text-gray-600 mb-1.5">Return Condition</label>
-                <div className="grid grid-cols-3 gap-2">
-                  {['good', 'damage', 'missing'].map((condition) => (
-                    <button
-                      key={condition}
-                      onClick={() => setReturnCondition(condition)}
-                      className={`px-3 py-2 text-xs font-medium rounded-lg transition-all duration-200 ${
-                        returnCondition === condition
-                          ? 'bg-blue-50 text-blue-600 border-2 border-blue-500'
-                          : 'bg-gray-50 text-gray-600 border-2 border-transparent hover:bg-gray-100'
-                      }`}
-                    >
-                      {condition.charAt(0).toUpperCase() + condition.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => {
-                    setShowReturnDropdown(false);
-                    setReturnCondition('');
-                    setSelectedItemForReturn(null);
-                  }}
-                  className="flex-1 px-3 py-2 text-xs font-medium text-gray-600 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleReturn(type, item)}
-                  disabled={isSubmitting || !returnCondition}
-                  className={`flex-1 px-3 py-2 text-xs font-medium text-white rounded-lg transition-colors ${
-                    returnCondition
-                      ? 'bg-blue-500 hover:bg-blue-600'
-                      : 'bg-gray-300 cursor-not-allowed'
-                  }`}
-                >
-                  {isSubmitting ? (
-                    <div className="flex items-center justify-center gap-2">
-                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      <span>Returning...</span>
-                    </div>
-                  ) : (
-                    'Submit Return'
-                  )}
-                </button>
-              </div>
-            </div>
-          </motion.div>
-        ) : (
-          <button
-            onClick={() => handleReturnClick(type, item)}
-            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1.5"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Return
-          </button>
-        )}
-      </div>
+      <button
+        onClick={() => handleReturnClick(type, item)}
+        className="px-3 py-1.5 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1.5"
+      >
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+        Return
+      </button>
     );
   };
 
@@ -955,7 +1096,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                             </button>
                           );
                         })()}
-                        {canBeReturned(venue, 'venue') && !venue.is_returned && renderReturnDropdown('venue', venue)}
+                        {canBeReturned(venue, 'venue') && !venue.is_returned && renderReturnButton('venue', venue)}
                       </div>
                     </div>
                     {/* Show venue checklists if in use and active */}
@@ -999,7 +1140,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                             </button>
                           );
                         })()}
-                        {canBeReturned(vehicle, 'vehicle') && !vehicle.is_returned && renderReturnDropdown('vehicle', vehicle)}
+                        {canBeReturned(vehicle, 'vehicle') && !vehicle.is_returned && renderReturnButton('vehicle', vehicle)}
                       </div>
                     </div>
                     {/* Show vehicle checklists if in use and active */}
@@ -1030,318 +1171,8 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                       <div className="flex flex-wrap items-center gap-2">
                         {(!equipment.units || equipment.units.length === 0) ? (
                           // Show release button for consumable equipment
-                          (() => {
-                            const releaseStatus = canBeReleased(equipment);
-                            if (!releaseStatus.canRelease) {
-                              return (
-                                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                                  {releaseStatus.message}
-                                </span>
-                              );
-                            }
-                            return (
-                              <button
-                                onClick={() => {
-                                  console.log('Equipment data:', equipment); // Debug log
-                                  handleRelease('equipment_consumable', {
-                                    ...equipment,
-                                    quantity_id: equipment.quantity_id // Ensure quantity_id is included
-                                  });
-                                }}
-                                disabled={isSubmitting}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
-                              >
-                                {isSubmitting ? 'Releasing...' : 'Release'}
-                              </button>
-                            );
-                          })()
-                        ) : (
-                          // Show condition dropdown for non-consumable equipment with units
                           <>
-                            <select
-                              value={equipmentCondition}
-                              onChange={handleEquipmentConditionChange}
-                              className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 min-w-[120px]"
-                            >
-                              <option value="">Select condition</option>
-                              {conditions
-                                .filter(condition => ['2', '3', '4', '6'].includes(condition.id))
-                                .map((condition) => (
-                                  <option key={condition.id} value={condition.id}>
-                                    {condition.condition_name}
-                                  </option>
-                              ))}
-                            </select>
-                            {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
-                              <input
-                                type="number"
-                                min="1"
-                                value={equipmentDefectQty}
-                                onChange={handleEquipmentDefectQtyChange}
-                                placeholder="Qty"
-                                className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 flex-1 min-w-[150px]"
-                              />
-                            )}
-                          </>
-                        )}
-                      </div>
-                    </div>
-                    {/* Show equipment checklists if in use and active */}
-                    {equipment.checklists?.length > 0 && equipment.availability_status === "In Use" && equipment.active === 1 && (
-                      <div className="space-y-2">
-                        <h4 className="text-xs font-medium text-gray-400 mb-2">Checklist Items</h4>
-                        {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
-                      </div>
-                    )}
-                    {equipment.units && equipment.units.length > 0 && (
-                      <div className="mt-4 pt-4 border-t border-gray-100">
-                        <h4 className="text-xs font-medium text-gray-400 mb-3">Units</h4>
-                        <div className="space-y-2">
-                          {equipment.units.map(unit => (
-                            <div key={unit.unit_id} className="bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-gray-100">
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
-                                  <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
-                                    unit.availability_status === "In Use" && unit.active === 1
-                                      ? 'bg-green-100 text-green-700'
-                                      : 'bg-gray-100 text-gray-600'
-                                  }`}>
-                                    {unit.availability_status === "In Use" && unit.active === 1 ? 'In Use' : 'Not In Use'}
-                                  </span>
-                                  {isOverdue(unit) && !unit.is_returned && (
-                                    <span className="px-2 py-0.5 text-xs font-medium text-red-600 bg-red-50 rounded-full">
-                                      Overdue
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2">
-                                  {(() => {
-                                    const releaseStatus = canBeReleased(unit);
-                                    if (!releaseStatus.canRelease) {
-                                      return (
-                                        <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                                          {releaseStatus.message}
-                                        </span>
-                                      );
-                                    }
-                                    return (
-                                      <button
-                                        onClick={() => handleRelease('equipment', unit)}
-                                        disabled={isSubmitting}
-                                        className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
-                                      >
-                                        {isSubmitting ? 'Releasing...' : 'Release'}
-                                      </button>
-                                    );
-                                  })()}
-                                  {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnDropdown('equipment', unit)}
-                                </div>
-                              </div>
-                              {/* Show unit checklists if in use and active */}
-                              {unit.checklists?.length > 0 && unit.availability_status === "In Use" && unit.active === 1 && (
-                                <div className="mt-3 pt-3 border-t border-gray-100">
-                                  <h4 className="text-xs font-medium text-gray-400 mb-2">Unit Checklist Items</h4>
-                                  <div className="space-y-2">
-                                    {unit.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-    );
-  };
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchConditions();
-    }
-  }, [isOpen]);
-
-  useEffect(() => {
-    if (isOpen && selectedTask) {
-      console.log('Modal opened with task:', selectedTask);
-      console.log('Venues:', selectedTask.venues);
-      console.log('Venue statuses:', selectedTask.venues?.map(v => v.availability_status));
-    }
-  }, [isOpen, selectedTask]);
-
-  if (!isOpen || !selectedTask) return null;
-
-  return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
-    >
-      <motion.div
-        initial={{ scale: 0.95, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-gray-50/90 backdrop-blur-xl rounded-xl shadow-xl w-full max-w-3xl max-h-[95vh] overflow-hidden"
-      >
-        {isReleasing ? (
-          <div className="flex flex-col items-center justify-center p-8">
-            <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-            <p className="mt-4 text-gray-600">Releasing items...</p>
-          </div>
-        ) : (
-          <>
-            <div className="sticky top-0 bg-white/70 backdrop-blur-sm px-4 py-3 border-b border-gray-100/80 z-10">
-              <div className="flex justify-between items-center">
-                <div className="flex items-center gap-3">
-                  <h2 className="text-base font-medium text-gray-700">Task Details</h2>
-
-                </div>
-                <button
-                  onClick={onClose}
-                  className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
-                >
-                  <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-120px)]">
-              {renderSection('Event Information', (
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2.5">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">Title</label>
-                      <p className="text-xs sm:text-sm text-gray-700">{selectedTask?.reservation_title}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">Description</label>
-                      <p className="text-xs sm:text-sm text-gray-700">{selectedTask?.reservation_description || 'No description provided'}</p>
-                    </div>
-                  </div>
-                  <div className="space-y-2.5">
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">Start Date</label>
-                      <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(selectedTask?.reservation_start_date)}</p>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium text-gray-400 mb-1">End Date</label>
-                      <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(selectedTask?.reservation_end_date)}</p>
-                    </div>
-                  </div>
-                </div>
-              ), 'info')}
-
-              {selectedTask.venues?.length > 0 && renderSection('Venues', (
-                <div className="space-y-3">
-                  {selectedTask.venues.map((venue, index) => (
-                    <div key={venue.reservation_venue_id} className="bg-white/40 backdrop-blur-sm p-4 rounded-lg border border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm text-gray-700">{venue.name}</p>
-                          {isOverdue(venue) && !venue.is_returned && (
-                            <span className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded-lg">
-                              Overdue
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(() => {
-                            const releaseStatus = canBeReleased(venue);
-                            if (!releaseStatus.canRelease) {
-                              return (
-                                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                                  {releaseStatus.message}
-                                </span>
-                              );
-                            }
-                            return (
-                              <button
-                                onClick={() => handleRelease('venue', venue)}
-                                disabled={isSubmitting}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
-                              >
-                                {isSubmitting ? 'Releasing...' : 'Release'}
-                              </button>
-                            );
-                          })()}
-                          {canBeReturned(venue, 'venue') && !venue.is_returned && renderReturnDropdown('venue', venue)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ), 'venues')}
-
-              {selectedTask.vehicles?.length > 0 && renderSection('Vehicles', (
-                <div className="space-y-3">
-                  {selectedTask.vehicles.map((vehicle, index) => (
-                    <div key={vehicle.reservation_vehicle_id} className="bg-white/40 backdrop-blur-sm rounded-lg p-3 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                        <div>
-                          <p className="text-xs sm:text-sm text-gray-700 font-medium">{vehicle.vehicle_license}</p>
-                          {selectedTask.vehicles.length > 1 && (
-                            <p className="text-xs text-gray-400">Vehicle {index + 1} of {selectedTask.vehicles.length}</p>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {(() => {
-                            const releaseStatus = canBeReleased(vehicle);
-                            if (!releaseStatus.canRelease) {
-                              return (
-                                <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
-                                  {releaseStatus.message}
-                                </span>
-                              );
-                            }
-                            return (
-                              <button
-                                onClick={() => handleRelease('vehicle', vehicle)}
-                                disabled={isSubmitting}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
-                              >
-                                {isSubmitting ? 'Releasing...' : 'Release'}
-                              </button>
-                            );
-                          })()}
-                          {canBeReturned(vehicle, 'vehicle') && !vehicle.is_returned && renderReturnDropdown('vehicle', vehicle)}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ), 'vehicles')}
-
-              {selectedTask.equipments?.length > 0 && renderSection('Equipment', (
-                <div className="space-y-3">
-                  {selectedTask.equipments.map((equipment, index) => (
-                    <div key={equipment.reservation_equipment_id} className="bg-white/40 backdrop-blur-sm rounded-lg p-3 space-y-3">
-                      <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
-                        <div>
-                          <p className="text-xs sm:text-sm text-gray-700 font-medium">{equipment.name}</p>
-                          <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
-                            {selectedTask.equipments.length > 1 && (
-                              <>
-                                <span>Equipment {index + 1} of {selectedTask.equipments.length}</span>
-                                <span>•</span>
-                              </>
-                            )}
-                            <span>Quantity: {equipment.quantity || '0'}</span>
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          {(!equipment.units || equipment.units.length === 0) ? (
-                            // Show release button for consumable equipment
-                            (() => {
+                            {(() => {
                               const releaseStatus = canBeReleased(equipment);
                               if (!releaseStatus.canRelease) {
                                 return (
@@ -1365,50 +1196,76 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                   {isSubmitting ? 'Releasing...' : 'Release'}
                                 </button>
                               );
-                            })()
-                          ) : (
-                            // Show condition dropdown for non-consumable equipment with units
-                            <>
-                              <select
-                                value={equipmentCondition}
-                                onChange={handleEquipmentConditionChange}
-                                className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 min-w-[120px]"
-                              >
-                                <option value="">Select condition</option>
-                                {conditions
-                                  .filter(condition => ['2', '3', '4', '6'].includes(condition.id))
-                                  .map((condition) => (
-                                    <option key={condition.id} value={condition.id}>
-                                      {condition.condition_name}
-                                    </option>
-                                ))}
-                              </select>
-                              {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
-                                <input
-                                  type="number"
-                                  min="1"
-                                  value={equipmentDefectQty}
-                                  onChange={handleEquipmentDefectQtyChange}
-                                  placeholder="Qty"
-                                  className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 flex-1 min-w-[150px]"
-                                />
-                              )}
-                            </>
-                          )}
-                        </div>
+                            })()}
+                            {equipment.active === 1 && canBeReturned(equipment, 'equipment_consumable') && !equipment.is_returned && 
+                              renderReturnButton('equipment_consumable', equipment)}
+                          </>
+                        ) : (
+                          // Show condition dropdown for non-consumable equipment with units
+                          <>
+                           
+                            {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
+                              <input
+                                type="number"
+                                min="1"
+                                value={equipmentDefectQty}
+                                onChange={handleEquipmentDefectQtyChange}
+                                placeholder="Qty"
+                                className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 flex-1 min-w-[150px]"
+                              />
+                            )}
+                          </>
+                        )}
                       </div>
-                      {/* Show equipment checklists if in use and active */}
-                      {equipment.checklists?.length > 0 && equipment.availability_status === "In Use" && equipment.active === 1 && (
+                    </div>
+                    {/* Show equipment checklists if active */}
+                    {equipment.checklists?.length > 0 && equipment.active === 1 && (
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-medium text-gray-400 mb-2">Checklist Items</h4>
+                        {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
+                      </div>
+                    )}
+                    {equipment.units && equipment.units.length > 0 && (
+                      <div className="mt-4 pt-4 border-t border-gray-100">
+                        <h4 className="text-xs font-medium text-gray-400 mb-3">Units</h4>
                         <div className="space-y-2">
-                          <h4 className="text-xs font-medium text-gray-400 mb-2">Checklist Items</h4>
-                          {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
-                        </div>
-                      )}
-                      {equipment.units && equipment.units.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-gray-100">
-                          <h4 className="text-xs font-medium text-gray-400 mb-3">Units</h4>
-                          <div className="space-y-2">
-                            {equipment.units.map(unit => (
+                          {(() => {
+                            // Check if all units are in use and active
+                            const allUnitsInUse = equipment.units.every(unit => 
+                              unit.availability_status === "In Use" && unit.active === 1
+                            );
+
+                            // If all units are in use and active, show checklists at equipment level
+                            if (allUnitsInUse && equipment.checklists?.length > 0) {
+                              return (
+                                <div className="space-y-3">
+                                  <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                                    <h4 className="text-xs font-medium text-blue-600 mb-2">Equipment Checklist Items (All Units In Use)</h4>
+                                    <div className="space-y-2">
+                                      {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
+                                    </div>
+                                  </div>
+                                  {equipment.units.map(unit => (
+                                    <div key={unit.unit_id} className="bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-gray-100">
+                                      <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-3">
+                                          <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
+                                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                            In Use
+                                          </span>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                          {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnButton('equipment', unit)}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              );
+                            }
+
+                            // Otherwise show individual units with their own checklists
+                            return equipment.units.map(unit => (
                               <div key={unit.unit_id} className="bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-gray-100">
                                 <div className="flex items-center justify-between">
                                   <div className="flex items-center gap-3">
@@ -1446,57 +1303,427 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                         </button>
                                       );
                                     })()}
-                                    {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnDropdown('equipment', unit)}
+                                    {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnButton('equipment', unit)}
                                   </div>
                                 </div>
+                                {/* Show unit checklists if in use and active */}
+                                {unit.checklists?.length > 0 && unit.availability_status === "In Use" && unit.active === 1 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <h4 className="text-xs font-medium text-gray-400 mb-2">Unit Checklist Items</h4>
+                                    <div className="space-y-2">
+                                      {unit.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                            ));
+                          })()}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
+    );
+  };
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [section]: !prev[section]
+    }));
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchConditions();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen && selectedTask) {
+      console.log('Modal opened with task:', selectedTask);
+      console.log('Venues:', selectedTask.venues);
+      console.log('Venue statuses:', selectedTask.venues?.map(v => v.availability_status));
+    }
+  }, [isOpen, selectedTask]);
+
+  if (!isOpen || !selectedTask) return null;
+
+  return (
+    <>
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        className="fixed inset-0 bg-gradient-to-br from-gray-900/50 to-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4"
+      >
+        <motion.div
+          initial={{ scale: 0.95, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          exit={{ scale: 0.95, opacity: 0 }}
+          className="bg-gray-50/90 backdrop-blur-xl rounded-xl shadow-xl w-full max-w-3xl max-h-[95vh] overflow-hidden"
+        >
+          {isReleasing ? (
+            <div className="flex flex-col items-center justify-center p-8">
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
+              <p className="mt-4 text-gray-600">Releasing items...</p>
+            </div>
+          ) : (
+            <>
+              <div className="sticky top-0 bg-white/70 backdrop-blur-sm px-4 py-3 border-b border-gray-100/80 z-10">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-base font-medium text-gray-700">Task Details</h2>
+
+                  </div>
+                  <button
+                    onClick={onClose}
+                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+
+              <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-120px)]">
+                {renderSection('Event Information', (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2.5">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Title</label>
+                        <p className="text-xs sm:text-sm text-gray-700">{selectedTask?.reservation_title}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Description</label>
+                        <p className="text-xs sm:text-sm text-gray-700">{selectedTask?.reservation_description || 'No description provided'}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2.5">
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">Start Date</label>
+                        <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(selectedTask?.reservation_start_date)}</p>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium text-gray-400 mb-1">End Date</label>
+                        <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(selectedTask?.reservation_end_date)}</p>
+                      </div>
+                    </div>
+                  </div>
+                ), 'info')}
+
+                {selectedTask.venues?.length > 0 && renderSection('Venues', (
+                  <div className="space-y-3">
+                    {selectedTask.venues.map((venue, index) => (
+                      <div key={venue.reservation_venue_id} className="bg-white/40 backdrop-blur-sm p-4 rounded-lg border border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm text-gray-700">{venue.name}</p>
+                            {isOverdue(venue) && !venue.is_returned && (
+                              <span className="px-2 py-1 text-xs font-medium text-red-600 bg-red-50 rounded-lg">
+                                Overdue
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const releaseStatus = canBeReleased(venue);
+                              if (!releaseStatus.canRelease) {
+                                return (
+                                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                                    {releaseStatus.message}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  onClick={() => handleRelease('venue', venue)}
+                                  disabled={isSubmitting}
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                >
+                                  {isSubmitting ? 'Releasing...' : 'Release'}
+                                </button>
+                              );
+                            })()}
+                            {canBeReturned(venue, 'venue') && !venue.is_returned && renderReturnButton('venue', venue)}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              ), 'equipment')}
-            </div>
+                      </div>
+                    ))}
+                  </div>
+                ), 'venues')}
 
-            <div className="sticky bottom-0 bg-white/70 backdrop-blur-sm px-4 py-3 border-t border-gray-100/80">
-              <div className="flex justify-end gap-2">
-                <button
-                  onClick={onClose}
-                  className="px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleSubmitTask}
-                  disabled={isSubmitting || !isTaskInProgress(selectedTask) || !isAllChecklistsCompleted(selectedTask) || !areAllResourcesDone(selectedTask)}
-                  className={`px-3 py-1.5 text-xs sm:text-sm font-medium text-white rounded-lg flex items-center gap-2 transition-colors
-                    ${isTaskInProgress(selectedTask) && isAllChecklistsCompleted(selectedTask) && areAllResourcesDone(selectedTask)
-                      ? 'bg-blue-500 hover:bg-blue-600'
-                      : 'bg-gray-300 cursor-not-allowed'}
-                    disabled:opacity-50`}
-                >
-                  {isSubmitting ? (
-                    <>
-                      <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
-                      <span>Submitting...</span>
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      <span>Mark Reservation As Done</span>
-                    </>
-                  )}
-                </button>
+                {selectedTask.vehicles?.length > 0 && renderSection('Vehicles', (
+                  <div className="space-y-3">
+                    {selectedTask.vehicles.map((vehicle, index) => (
+                      <div key={vehicle.reservation_vehicle_id} className="bg-white/40 backdrop-blur-sm rounded-lg p-3 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <div>
+                            <p className="text-xs sm:text-sm text-gray-700 font-medium">{vehicle.vehicle_license}</p>
+                            {selectedTask.vehicles.length > 1 && (
+                              <p className="text-xs text-gray-400">Vehicle {index + 1} of {selectedTask.vehicles.length}</p>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {(() => {
+                              const releaseStatus = canBeReleased(vehicle);
+                              if (!releaseStatus.canRelease) {
+                                return (
+                                  <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                                    {releaseStatus.message}
+                                  </span>
+                                );
+                              }
+                              return (
+                                <button
+                                  onClick={() => handleRelease('vehicle', vehicle)}
+                                  disabled={isSubmitting}
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                >
+                                  {isSubmitting ? 'Releasing...' : 'Release'}
+                                </button>
+                              );
+                            })()}
+                            {canBeReturned(vehicle, 'vehicle') && !vehicle.is_returned && renderReturnButton('vehicle', vehicle)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ), 'vehicles')}
+
+                {selectedTask.equipments?.length > 0 && renderSection('Equipment', (
+                  <div className="space-y-3">
+                    {selectedTask.equipments.map((equipment, index) => (
+                      <div key={equipment.reservation_equipment_id} className="bg-white/40 backdrop-blur-sm rounded-lg p-3 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2">
+                          <div>
+                            <p className="text-xs sm:text-sm text-gray-700 font-medium">{equipment.name}</p>
+                            <div className="flex items-center gap-2 text-xs text-gray-400 mt-0.5">
+                              {selectedTask.equipments.length > 1 && (
+                                <>
+                                  <span>Equipment {index + 1} of {selectedTask.equipments.length}</span>
+                                  <span>•</span>
+                                </>
+                              )}
+                              <span>Quantity: {equipment.quantity || '0'}</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            {(!equipment.units || equipment.units.length === 0) ? (
+                              // Show release button for consumable equipment
+                              <>
+                                {(() => {
+                                  const releaseStatus = canBeReleased(equipment);
+                                  if (!releaseStatus.canRelease) {
+                                    return (
+                                      <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                                        {releaseStatus.message}
+                                      </span>
+                                    );
+                                  }
+                                  return (
+                                    <button
+                                      onClick={() => {
+                                        console.log('Equipment data:', equipment); // Debug log
+                                        handleRelease('equipment_consumable', {
+                                          ...equipment,
+                                          quantity_id: equipment.quantity_id // Ensure quantity_id is included
+                                        });
+                                      }}
+                                      disabled={isSubmitting}
+                                      className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                    >
+                                      {isSubmitting ? 'Releasing...' : 'Release'}
+                                    </button>
+                                  );
+                                })()}
+                                {equipment.active === 1 && canBeReturned(equipment, 'equipment_consumable') && !equipment.is_returned && 
+                                  renderReturnButton('equipment_consumable', equipment)}
+                              </>
+                            ) : (
+                              // Show condition dropdown for non-consumable equipment with units
+                              <>
+                              
+                                {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    value={equipmentDefectQty}
+                                    onChange={handleEquipmentDefectQtyChange}
+                                    placeholder="Qty"
+                                    className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 flex-1 min-w-[150px]"
+                                  />
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {/* Show equipment checklists if in use and active */}
+                        {equipment.checklists?.length > 0 && equipment.active === 1 && (
+                          <div className="space-y-2">
+                            <h4 className="text-xs font-medium text-gray-400 mb-2">Checklist Items</h4>
+                            {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
+                          </div>
+                        )}
+                        {equipment.units && equipment.units.length > 0 && (
+                          <div className="mt-4 pt-4 border-t border-gray-100">
+                            <h4 className="text-xs font-medium text-gray-400 mb-3">Units</h4>
+                            <div className="space-y-2">
+                              {(() => {
+                                // Check if all units are in use and active
+                                const allUnitsInUse = equipment.units.every(unit => 
+                                  unit.availability_status === "In Use" && unit.active === 1
+                                );
+
+                                // If all units are in use and active, show checklists at equipment level
+                                if (allUnitsInUse && equipment.checklists?.length > 0) {
+                                  return (
+                                    <div className="space-y-3">
+                                      <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
+                                        <h4 className="text-xs font-medium text-blue-600 mb-2">Equipment Checklist Items (All Units In Use)</h4>
+                                        <div className="space-y-2">
+                                          {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
+                                        </div>
+                                      </div>
+                                      {equipment.units.map(unit => (
+                                        <div key={unit.unit_id} className="bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-gray-100">
+                                          <div className="flex items-center justify-between">
+                                            <div className="flex items-center gap-3">
+                                              <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
+                                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                                In Use
+                                              </span>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                              {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnButton('equipment', unit)}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+
+                                // Otherwise show individual units with their own checklists
+                                return equipment.units.map(unit => (
+                                  <div key={unit.unit_id} className="bg-white/80 backdrop-blur-sm p-3 rounded-lg border border-gray-100">
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
+                                        <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                                          unit.availability_status === "In Use" && unit.active === 1
+                                            ? 'bg-green-100 text-green-700'
+                                            : 'bg-gray-100 text-gray-600'
+                                        }`}>
+                                          {unit.availability_status === "In Use" && unit.active === 1 ? 'In Use' : 'Not In Use'}
+                                        </span>
+                                        {isOverdue(unit) && !unit.is_returned && (
+                                          <span className="px-2 py-0.5 text-xs font-medium text-red-600 bg-red-50 rounded-full">
+                                            Overdue
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        {(() => {
+                                          const releaseStatus = canBeReleased(unit);
+                                          if (!releaseStatus.canRelease) {
+                                            return (
+                                              <span className="text-xs text-amber-600 bg-amber-50 px-2 py-1 rounded">
+                                                {releaseStatus.message}
+                                              </span>
+                                            );
+                                          }
+                                          return (
+                                            <button
+                                              onClick={() => handleRelease('equipment', unit)}
+                                              disabled={isSubmitting}
+                                              className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                            >
+                                              {isSubmitting ? 'Releasing...' : 'Release'}
+                                            </button>
+                                          );
+                                        })()}
+                                        {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnButton('equipment', unit)}
+                                      </div>
+                                    </div>
+                                    {/* Show unit checklists if in use and active */}
+                                    {unit.checklists?.length > 0 && unit.availability_status === "In Use" && unit.active === 1 && (
+                                      <div className="mt-3 pt-3 border-t border-gray-100">
+                                        <h4 className="text-xs font-medium text-gray-400 mb-2">Unit Checklist Items</h4>
+                                        <div className="space-y-2">
+                                          {unit.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+                                ));
+                              })()}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ), 'equipment')}
               </div>
-            </div>
-          </>
-        )}
+
+              <div className="sticky bottom-0 bg-white/70 backdrop-blur-sm px-4 py-3 border-t border-gray-100/80">
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={onClose}
+                    className="px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSubmitTask}
+                    disabled={isSubmitting || !isTaskInProgress(selectedTask) || !isAllChecklistsCompleted(selectedTask) || !areAllResourcesDone(selectedTask)}
+                    className={`px-3 py-1.5 text-xs sm:text-sm font-medium text-white rounded-lg flex items-center gap-2 transition-colors
+                      ${isTaskInProgress(selectedTask) && isAllChecklistsCompleted(selectedTask) && areAllResourcesDone(selectedTask)
+                        ? 'bg-blue-500 hover:bg-blue-600'
+                        : 'bg-gray-300 cursor-not-allowed'}
+                      disabled:opacity-50`}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                        <span>Submitting...</span>
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        <span>Mark Reservation As Done</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </motion.div>
       </motion.div>
-    </motion.div>
+      
+      <ReturnConditionModal
+        isOpen={showReturnModal}
+        onClose={() => {
+          setShowReturnModal(false);
+          setSelectedItemForReturn(null);
+        }}
+        onSubmit={handleReturn}
+        isSubmitting={isSubmitting}
+        item={selectedItemForReturn?.item}
+        type={selectedItemForReturn?.type}
+      />
+    </>
   );
 };
 

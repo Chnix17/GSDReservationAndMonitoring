@@ -4,7 +4,7 @@ import Sidebar from '../Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { FaEdit, FaSearch, FaPlus, FaTrashAlt, FaEye, FaArrowLeft } from 'react-icons/fa';
+import { FaEdit, FaSearch, FaPlus, FaTrashAlt, FaEye, FaArrowLeft, FaChartBar } from 'react-icons/fa';
 import { Modal, Input, Form, TimePicker, Select, Table, Button, Image, Tooltip, Space, Upload, Alert, Empty, Pagination } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -17,6 +17,7 @@ import { sanitizeInput, validateInput } from '../../utils/sanitize';
 import { SecureStorage } from '../../utils/encryption';
 import Create_Modal from './lib/Venue/Create_Modal';
 import Update_Modal from './lib/Venue/Update_Modal';
+import View_Utilization from './lib/Venue/View_Utilization';
 
 const VenueEntry = () => {
     const user_level_id = localStorage.getItem('user_level_id');
@@ -33,6 +34,8 @@ const VenueEntry = () => {
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [sortField, setSortField] = useState('ven_id');
     const [sortOrder, setSortOrder] = useState('desc');
+    const [showUtilizationModal, setShowUtilizationModal] = useState(false);
+    const [selectedVenue, setSelectedVenue] = useState(null);
     const navigate = useNavigate();
     const user_id = SecureStorage.getSessionItem('user_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
@@ -135,6 +138,11 @@ const VenueEntry = () => {
             setSortField(field);
             setSortOrder("asc");
         }
+    };
+
+    const handleViewUtilization = (venue) => {
+        setSelectedVenue(venue);
+        setShowUtilizationModal(true);
     };
 
     const filteredVenues = venues.filter(venue =>
@@ -312,6 +320,13 @@ const VenueEntry = () => {
                                                                     onClick={() => handleArchiveVenue(venue.ven_id)}
                                                                     size="middle"
                                                                 />
+                                                                <Button
+                                                                    type="default"
+                                                                    icon={<FaChartBar />}
+                                                                    onClick={() => handleViewUtilization(venue)}
+                                                                    size="middle"
+                                                                    className="bg-green-50 hover:bg-green-100"
+                                                                />
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -421,6 +436,14 @@ const VenueEntry = () => {
                     icon={<ExclamationCircleOutlined />}
                 />
             </Modal>
+
+            {/* Utilization Modal */}
+            <View_Utilization
+                open={showUtilizationModal}
+                onCancel={() => setShowUtilizationModal(false)}
+                venue={selectedVenue}
+                encryptedUrl={encryptedUrl}
+            />
         </div>
     );
 };

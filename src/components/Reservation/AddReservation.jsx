@@ -166,8 +166,9 @@ const handleRemovePassenger = (passengerId) => {
         setLoading(true);
         try {
           const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+          const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
-          if (encryptedUserLevel !== '3' && encryptedUserLevel !== '15' && encryptedUserLevel !== '16' && encryptedUserLevel !== '17') {
+          if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17) {
               localStorage.clear();
               navigate('/gsd');
           }

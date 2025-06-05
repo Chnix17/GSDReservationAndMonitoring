@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Upload, Button, message as toast } from 'antd';
-import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Modal, Form, Input, Select, Button, message as toast, AutoComplete, Space } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import { SecureStorage } from '../../../../utils/encryption';
+import CategoryModal from './Category_Modal';
 
 const { Option } = Select;
 
@@ -16,32 +17,52 @@ const UpdateEquipmentModal = ({
 }) => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
-    const [newEquipmentName, setNewEquipmentName] = useState('');
+    const [equipmentName, setEquipmentName] = useState('');
     const [selectedCategory, setSelectedCategory] = useState('');
-    const [equipmentType, setEquipmentType] = useState('bulk');
-    const [editingEquipment, setEditingEquipment] = useState(null);
-    const [consumableType, setConsumableType] = useState('non-consumable');
+    const [equipmentType, setEquipmentType] = useState('');
+    const [categories, setCategories] = useState([]);
+    const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
     const baseUrl = SecureStorage.getLocalItem("url");
 
-    // Built-in categories
-    const categories = [
-        { name: 'Tools', type: 'serialized' },
-        { name: 'Electronics', type: 'serialized' },
-        { name: 'Office Supplies', type: 'bulk' },
-        { name: 'Furniture', type: 'serialized' },
-        { name: 'Safety Equipment', type: 'serialized' },
-        { name: 'Cleaning Supplies', type: 'bulk' },
-        { name: 'Medical Equipment', type: 'serialized' },
-        { name: 'Sports Equipment', type: 'serialized' },
-        { name: 'Laboratory Equipment', type: 'serialized' },
-        { name: 'Maintenance Tools', type: 'serialized' }
+    // Equipment types
+    const equipmentTypes = [
+        'Consumable',
+        'Non-Consumable'
     ];
 
     useEffect(() => {
-        if (isOpen && equipmentId) {
-            getEquipmentDetails(equipmentId);
+        if (isOpen) {
+            fetchCategories();
+            if (equipmentId) {
+                getEquipmentDetails(equipmentId);
+            }
         }
     }, [isOpen, equipmentId]);
+
+    const fetchCategories = async () => {
+        const url = `${baseUrl}/user.php`;
+        const jsonData = { operation: "fetchCategories" };
+
+        try {
+            const response = await axios.post(url, new URLSearchParams(jsonData));
+            if (response.data.status === 'success') {
+                setCategories(response.data.data);
+            } else {
+                toast.error("Error fetching categories: " + response.data.message);
+            }
+        } catch (error) {
+            console.error("Error fetching categories:", error);
+            toast.error("An error occurred while fetching categories.");
+        }
+    };
+
+    const handleCategoryManagement = () => {
+        setIsCategoryModalVisible(true);
+    };
+
+    const handleCategoryModalClose = () => {
+        setIsCategoryModalVisible(false);
+    };
 
     const getEquipmentDetails = async (equip_id) => {
         const url = `${baseUrl}/fetchMaster.php`;
@@ -49,25 +70,36 @@ const UpdateEquipmentModal = ({
 
         try {
             const response = await axios.post(url, new URLSearchParams(jsonData));
-            console.log("Equipment Details Response:", response.data);
             if (response.data.status === 'success') {
                 const equipment = response.data.data;
-                setNewEquipmentName(equipment.equip_name);
-                setSelectedCategory(equipment.category_name);
-                setEditingEquipment(equipment);
-                setConsumableType(equipment.equip_type || 'non-consumable');
+                setEquipmentName(equipment.equip_name);
                 
-                // Determine equipment type based on category
-                const category = categories.find(cat => cat.name === equipment.category_name);
-                if (category) {
-                    setEquipmentType(category.type);
+                // Find the category ID that matches the category name
+                const matchingCategory = categories.find(cat => 
+                    cat.equipments_category_name.toLowerCase() === equipment.category_name.toLowerCase()
+                );
+                
+                if (matchingCategory) {
+                    setSelectedCategory(matchingCategory.equipments_category_id);
+                } else {
+                    // If category not found, try to fetch categories again and then set
+                    await fetchCategories();
+                    const updatedMatchingCategory = categories.find(cat => 
+                        cat.equipments_category_name.toLowerCase() === equipment.category_name.toLowerCase()
+                    );
+                    if (updatedMatchingCategory) {
+                        setSelectedCategory(updatedMatchingCategory.equipments_category_id);
+                    } else {
+                        toast.warning(`Category "${equipment.category_name}" not found in the list`);
+                    }
                 }
-
-                // Update form values
+                
+                setEquipmentType(equipment.equip_type || 'Non-Consumable');
+                
                 form.setFieldsValue({
                     equipmentName: equipment.equip_name,
-                    category: equipment.category_name,
-                    consumableType: equipment.equip_type || 'non-consumable'
+                    category: matchingCategory?.equipments_category_id,
+                    equipmentType: equipment.equip_type || 'Non-Consumable'
                 });
             } else {
                 toast.error("Error fetching equipment details: " + response.data.message);
@@ -78,39 +110,30 @@ const UpdateEquipmentModal = ({
         }
     };
 
-    const handleEquipmentNameChange = (value) => {
+    const handleEquipmentNameSearch = (value) => {
         const sanitized = sanitizeInput(value);
         if (!validateInput(sanitized)) {
             toast.error('Invalid input detected. Please avoid special characters and scripts.');
             return;
         }
-        setNewEquipmentName(sanitized);
-    };
-
-    const handleCategoryChange = (value) => {
-        setSelectedCategory(value);
-        const category = categories.find(cat => cat.name === value);
-        if (category) {
-            setEquipmentType(category.type);
-        }
+        setEquipmentName(sanitized);
+        form.setFieldsValue({ equipmentName: sanitized });
     };
 
     const resetForm = () => {
-        setNewEquipmentName('');
+        setEquipmentName('');
         setSelectedCategory('');
-        setEditingEquipment(null);
-        setEquipmentType('bulk');
-        setConsumableType('non-consumable');
+        setEquipmentType('');
         form.resetFields();
     };
 
     const handleSubmit = async () => {
-        if (!validateInput(newEquipmentName)) {
+        if (!validateInput(equipmentName)) {
             toast.error('Equipment name contains invalid characters.');
             return;
         }
 
-        if (!newEquipmentName || !selectedCategory) {
+        if (!equipmentName || !selectedCategory || !equipmentType) {
             toast.error("All fields are required!");
             return;
         }
@@ -119,12 +142,12 @@ const UpdateEquipmentModal = ({
         const requestData = {
             operation: "updateEquipment",
             equipmentData: {
-                equipmentId: editingEquipment.equip_id,
-                name: newEquipmentName,
-                category_name: selectedCategory,
+                name: equipmentName,
+                category_id: selectedCategory,
                 is_active: true,
                 user_admin_id: user_admin_id,
-                equip_type: consumableType
+                equip_type: equipmentType,
+                equipmentId: equipmentId
             }
         };
 
@@ -142,8 +165,6 @@ const UpdateEquipmentModal = ({
                 }
             );
             
-            console.log("Response from server:", response.data);
-            
             if (response.data && response.data.status === 'success') {
                 toast.success(response.data.message || "Equipment updated successfully!");
                 resetForm();
@@ -160,65 +181,93 @@ const UpdateEquipmentModal = ({
         }
     };
 
+    const handleCategorySuccess = () => {
+        fetchCategories(); // Refresh the categories list after adding a new one
+    };
+
     return (
-        <Modal
-            title="Update Equipment"
-            open={isOpen}
-            onCancel={() => {
-                resetForm();
-                onClose();
-            }}
-            onOk={handleSubmit}
-            confirmLoading={loading}
-            width={800}
-        >
-            <Form form={form} layout="vertical">
-                <Form.Item
-                    label="Equipment Name"
-                    name="equipmentName"
-                    rules={[{ required: true, message: 'Please input equipment name!' }]}
-                >
-                    <Input
-                        value={newEquipmentName}
-                        onChange={(e) => handleEquipmentNameChange(e.target.value)}
-                        placeholder="Enter equipment name"
-                    />
-                </Form.Item>
-
-                <Form.Item
-                    label="Category"
-                    name="category"
-                    rules={[{ required: true, message: 'Please select a category!' }]}
-                >
-                    <Select
-                        value={selectedCategory}
-                        onChange={handleCategoryChange}
-                        placeholder="Select category"
+        <>
+            <Modal
+                title="Update Equipment"
+                open={isOpen}
+                onCancel={() => {
+                    resetForm();
+                    onClose();
+                }}
+                onOk={handleSubmit}
+                confirmLoading={loading}
+                width={600}
+            >
+                <Form form={form} layout="vertical">
+                    <Form.Item
+                        label="Equipment Name"
+                        name="equipmentName"
+                        rules={[{ required: true, message: 'Please input equipment name!' }]}
                     >
-                        {categories.map(category => (
-                            <Option key={category.name} value={category.name}>
-                                {category.name}
-                            </Option>
-                        ))}
-                    </Select>
-                </Form.Item>
+                        <AutoComplete
+                            value={equipmentName}
+                            onChange={(value) => handleEquipmentNameSearch(value)}
+                            placeholder="Enter equipment name"
+                            options={equipmentNameOptions}
+                            filterOption={(inputValue, option) =>
+                                option.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
+                            }
+                        />
+                    </Form.Item>
 
-                <Form.Item
-                    label="Equipment Type"
-                    name="consumableType"
-                    rules={[{ required: true, message: 'Please select equipment type!' }]}
-                >
-                    <Select
-                        value={consumableType}
-                        onChange={(value) => setConsumableType(value)}
-                        placeholder="Select equipment type"
+                    <Form.Item
+                        label="Category"
+                        name="category"
+                        rules={[{ required: true, message: 'Please select a category!' }]}
                     >
-                        <Option value="consumable">Consumable</Option>
-                        <Option value="non-consumable">Non-Consumable</Option>
-                    </Select>
-                </Form.Item>
-            </Form>
-        </Modal>
+                        <Space.Compact style={{ width: '100%' }}>
+                            <Select
+                                value={selectedCategory}
+                                onChange={(value) => setSelectedCategory(value)}
+                                placeholder="Select category"
+                                style={{ width: 'calc(100% - 40px)' }}
+                            >
+                                {categories.map(category => (
+                                    <Option key={category.equipments_category_id} value={category.equipments_category_id}>
+                                        {category.equipments_category_name}
+                                    </Option>
+                                ))}
+                            </Select>
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                onClick={handleCategoryManagement}
+                                style={{ width: '40px' }}
+                            />
+                        </Space.Compact>
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Equipment Type"
+                        name="equipmentType"
+                        rules={[{ required: true, message: 'Please select equipment type!' }]}
+                    >
+                        <Select
+                            value={equipmentType}
+                            onChange={(value) => setEquipmentType(value)}
+                            placeholder="Select equipment type"
+                        >
+                            {equipmentTypes.map(type => (
+                                <Option key={type} value={type}>
+                                    {type}
+                                </Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+                </Form>
+            </Modal>
+
+            <CategoryModal
+                isOpen={isCategoryModalVisible}
+                onClose={handleCategoryModalClose}
+                onSuccess={handleCategorySuccess}
+            />
+        </>
     );
 };
 

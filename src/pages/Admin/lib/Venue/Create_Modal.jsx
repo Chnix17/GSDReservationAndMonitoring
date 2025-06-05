@@ -30,6 +30,8 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                     operation: 'fetchStatusAvailability'
                 })
             );
+
+            
             
             if (response.data.status === 'success') {
                 setStatusOptions(response.data.data);
@@ -146,13 +148,14 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
 
             if (response.data.status === 'success') {
                 toast.success("Venue successfully added!");
-                onSuccess();
                 form.resetFields();
                 setVenueName('');
                 setMaxOccupancy('');
                 setVenuePic(null);
                 setPreviewUrl(null);
                 setFileList([]);
+                setSelectedStatus('1');
+                onSuccess();
                 onCancel();
             } else {
                 toast.error(response.data.message || "Failed to save venue");

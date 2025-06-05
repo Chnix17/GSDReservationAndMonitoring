@@ -18,18 +18,20 @@ import {
   subWeeks
 } from 'date-fns';
 import { SecureStorage } from '../utils/encryption';
+import ReservationDetails from '../components/core/reservation_details';
 
 // Updated theme constants
 const themeColors = {
-  primary: '#1a73e8',
-  secondary: '#4285f4',
-  light: '#e8f0fe',
+  primary: '#10B981',
+  secondary: '#059669',
+  light: '#D1FAE5',
   white: '#FFFFFF',
   success: '#34a853',
   warning: '#fbbc04',
   error: '#ea4335',
-  text: '#202124',
-  border: '#dadce0'
+  text: '#1F2937',
+  border: '#E5E7EB',
+  gradient: 'from-green-100 to-white'
 };
 
 // Add animation variants
@@ -85,6 +87,8 @@ const Calendar = () => {
   const [venueDetails, setVenueDetails] = useState(null);
   const [vehicleDetails, setVehicleDetails] = useState(null);
   const [equipmentDetails, setEquipmentDetails] = useState(null);
+  const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
+  const [selectedReservation, setSelectedReservation] = useState(null);
 
   const encryptedUrl = SecureStorage.getLocalItem("url");
 
@@ -110,9 +114,10 @@ const Calendar = () => {
 
   const fetchReservations = async () => {
     try {
+      console.log('Fetching reservations from:', `${encryptedUrl}/records&reports.php`);
       const response = await axios({
         method: 'POST',
-        url: `${encryptedUrl}records&reports.php`,
+        url: `${encryptedUrl}/records&reports.php`,
         data: JSON.stringify({ operation: 'fetchRecord' }),
         headers: {
           'Content-Type': 'application/json'
@@ -126,20 +131,28 @@ const Calendar = () => {
         // Parse dates before setting state
         const parsedReservations = response.data.data.map(reservation => {
           console.log('Processing reservation:', reservation);
-          return {
+          
+          // Ensure dates are properly parsed
+          const parsedReservation = {
             ...reservation,
-            reservation_start_date: new Date(reservation.approval_created_at),
-            // For end date, parse the time from details string or default to same day
-            reservation_end_date: reservation.venue_details || reservation.vehicle_details
-              ? new Date(new Date(reservation.approval_created_at).setHours(17, 0, 0))
-              : new Date(reservation.approval_created_at)
+            // Keep the original date strings as they are
+            reservation_start_date: reservation.reservation_start_date,
+            reservation_end_date: reservation.reservation_end_date
           };
+
+          console.log('Parsed Reservation:', parsedReservation);
+          return parsedReservation;
         });
-        console.log('Parsed reservations:', parsedReservations);
+
+        console.log('All Parsed Reservations:', parsedReservations);
         setReservations(parsedReservations);
+      } else {
+        console.error('API returned unsuccessful status:', response.data.status);
       }
     } catch (error) {
       console.error('Error fetching reservations:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Error status:', error.response?.status);
     }
   };
 
@@ -156,46 +169,39 @@ const Calendar = () => {
   };
 
   const getReservationForDate = (date) => {
-    return reservations.filter(reservation => {
-      // Parse the date strings from venue or vehicle details
-      let startDate, endDate;
+    console.log('Getting reservations for date:', date);
+    const filteredReservations = reservations.filter(reservation => {
+      // Use reservation_start_date and reservation_end_date directly
+      const startDate = new Date(reservation.reservation_start_date);
+      const endDate = new Date(reservation.reservation_end_date);
+      
+      console.log('Reservation dates:', {
+        startDate,
+        endDate,
+        rawStart: reservation.reservation_start_date,
+        rawEnd: reservation.reservation_end_date
+      });
 
-      if (reservation.venue_details) {
-        const dates = reservation.venue_details.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) to (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        if (dates) {
-          startDate = new Date(dates[1]);
-          endDate = new Date(dates[2]);
-        }
-      } else if (reservation.vehicle_details) {
-        const dates = reservation.vehicle_details.match(/(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}) to (\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})/);
-        if (dates) {
-          startDate = new Date(dates[1]);
-          endDate = new Date(dates[2]);
-        }
-      }
+      const isInRange = isDateInRange(date, startDate, endDate);
+      console.log('Is date in range:', isInRange);
+      return isInRange;
+    });
 
-      // Fallback to approval_created_at if no dates found in details
-      if (!startDate || !endDate) {
-        startDate = new Date(reservation.approval_created_at);
-        endDate = new Date(reservation.approval_created_at);
-      }
-
-      return isDateInRange(date, startDate, endDate);
-    }).map(reservation => ({
-      ...reservation,
-      formattedResources: [
-        ...(reservation.venue_form_name ? [{
-          type: 'venue',
-          name: reservation.venue_form_name,
-          details: reservation.venue_details
-        }] : []),
-        ...(reservation.vehicle_form_name ? [{
-          type: 'vehicle',
-          name: reservation.vehicle_form_name,
-          details: reservation.vehicle_details
-        }] : [])
-      ]
-    }));
+    console.log('Filtered reservations for date:', filteredReservations);
+    return filteredReservations.map(reservation => {
+      const displayInfo = {
+        title: reservation.reservation_title || 'Untitled Reservation',
+        user: reservation.user_full_name || 'Unknown User',
+        type: reservation.venue_details ? 'venue' : 'vehicle',
+        startDate: new Date(reservation.reservation_start_date),
+        endDate: new Date(reservation.reservation_end_date)
+      };
+      console.log('Created display info:', displayInfo);
+      return {
+        ...reservation,
+        displayInfo
+      };
+    });
   };
 
 
@@ -237,7 +243,7 @@ const Calendar = () => {
         <div className="fixed inset-0 flex items-center justify-center p-4">
           <Dialog.Panel className="mx-auto max-w-sm rounded-xl bg-white p-6 shadow-xl">
             <Dialog.Title className="text-xl font-semibold mb-4">Select Year</Dialog.Title>
-            <div className="grid grid-cols-3 gap-2 max-h-[400px] overflow-y-auto">
+            <div className="grid grid-cols-3 gap-2 max-h-[400px] overflow-y-auto ">
               {yearsArray.map(year => (
                 <motion.button
                   key={year}
@@ -273,7 +279,7 @@ const Calendar = () => {
   
     return (
       <motion.div 
-        className="grid grid-cols-7 gap-2"
+        className="grid grid-cols-7 gap-2 md:gap-3"
         variants={fadeInUp}
         initial="initial"
         animate="animate"
@@ -283,17 +289,19 @@ const Calendar = () => {
           const isCurrentMonth = isSameMonth(day, currentDate);
           const dayReservations = getReservationForDate(day);
           const isToday = isSameDay(day, new Date());
+          const visibleReservations = dayReservations.slice(0, 2);
+          const remainingCount = Math.max(0, dayReservations.length - 2);
           
           return (
             <motion.div
               key={day.toString()}
               className={`
-                relative min-h-[120px] p-3 rounded-lg
+                relative min-h-[120px] md:min-h-[140px] p-2 md:p-3 rounded-lg
                 transition-all duration-200 ease-in-out
                 ${isCurrentMonth ? 'bg-white' : 'bg-gray-50/50'}
-                ${isToday ? 'ring-2 ring-primary ring-offset-2' : 'border border-border'}
-                hover:shadow-lg hover:border-primary
-                focus-within:ring-2 focus-within:ring-primary
+                ${isToday ? 'ring-2 ring-green-500 ring-offset-2' : 'border border-gray-200'}
+                hover:shadow-lg hover:border-green-500
+                focus-within:ring-2 focus-within:ring-green-500
               `}
               variants={scaleUp}
               whileHover={{ y: -2 }}
@@ -301,49 +309,74 @@ const Calendar = () => {
             >
               <div className="flex items-center justify-between mb-2">
                 <span className={`
-                  text-sm font-medium rounded-full w-7 h-7 flex items-center justify-center
-                  ${isToday ? 'bg-primary text-white' : ''}
-                  ${!isCurrentMonth ? 'text-gray-400' : 'text-text'}
+                  text-sm md:text-base font-medium rounded-full w-7 h-7 md:w-8 md:h-8 flex items-center justify-center
+                  ${isToday ? 'bg-green-500 text-white' : ''}
+                  ${!isCurrentMonth ? 'text-gray-400' : 'text-gray-700'}
                 `}>
                   {format(day, 'd')}
                 </span>
                 {dayReservations.length > 0 && (
-                  <span className="text-xs font-medium text-gray-500">
+                  <span className="text-xs font-medium text-green-600">
                     {dayReservations.length} events
                   </span>
                 )}
               </div>
 
-              <div className="space-y-1">
-                {dayReservations.slice(0, 3).map((reservation, idx) => (
+              <div className="space-y-1.5">
+                {visibleReservations.map((reservation, idx) => (
                   <motion.div
                     key={`${reservation.approval_id}-${idx}`}
                     className="group cursor-pointer"
                     whileHover={{ scale: 1.02 }}
                     onClick={() => handleReservationClick(reservation)}
                   >
-                    {/* Enhanced reservation display */}
-                    {reservation.formattedResources.map((resource, resourceIdx) => (
-                      <div
-                        key={resourceIdx}
-                        className={`
-                          p-1.5 rounded-md text-xs font-medium
-                          ${resourceColors[resource.type]}
-                          group-hover:shadow-sm transition-all
-                        `}
-                      >
-                        <div className="flex items-center space-x-1">
-                          <span className="w-2 h-2 rounded-full bg-current"/>
-                          <span className="truncate">{resource.name}</span>
+                    <div
+                      className={`
+                        p-2 rounded-md text-xs font-medium
+                        ${reservation.displayInfo.type === 'venue' 
+                          ? 'bg-gradient-to-r from-green-100 to-green-50 text-green-800 border-l-4 border-green-500' 
+                          : 'bg-gradient-to-r from-purple-100 to-purple-50 text-purple-800 border-l-4 border-purple-500'}
+                        group-hover:shadow-md transition-all
+                      `}
+                    >
+                      <div className="flex flex-col space-y-1">
+                        <span className="font-semibold truncate">
+                          {reservation.displayInfo.title}
+                        </span>
+                        <span className="text-xs opacity-75 truncate">
+                          {reservation.displayInfo.user}
+                        </span>
+                        <div className="flex items-center space-x-1 text-xs opacity-60">
+                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
+                              d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>
+                            {format(reservation.displayInfo.startDate, 'HH:mm')} - 
+                            {format(reservation.displayInfo.endDate, 'HH:mm')}
+                          </span>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </motion.div>
                 ))}
-                {dayReservations.length > 3 && (
-                  <div className="text-xs text-gray-500 pl-2">
-                    +{dayReservations.length - 3} more
-                  </div>
+                
+                {remainingCount > 0 && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    className="w-full p-1.5 text-xs font-medium text-green-600 bg-green-50 rounded-md hover:bg-green-100 transition-colors"
+                    onClick={() => {
+                      // Handle showing all events for this day
+                      const allEvents = dayReservations.map(r => ({
+                        title: r.displayInfo.title,
+                        user: r.displayInfo.user,
+                        time: `${format(r.displayInfo.startDate, 'HH:mm')} - ${format(r.displayInfo.endDate, 'HH:mm')}`
+                      }));
+                      alert(JSON.stringify(allEvents, null, 2));
+                    }}
+                  >
+                    +{remainingCount} more events
+                  </motion.button>
                 )}
               </div>
             </motion.div>
@@ -355,34 +388,24 @@ const Calendar = () => {
 
   const handleReservationClick = async (reservation) => {
     try {
+      console.log('Fetching details for reservation:', reservation.reservation_id);
       const response = await axios({
         method: 'POST',
-        url: `${encryptedUrl}records&reports.php`,
+        url: `${encryptedUrl}/process_reservation.php`,
         data: JSON.stringify({
-          operation: 'getReservationDetailsById',
-          json: {
-            reservation_id: reservation.reservation_id
-          }
+          operation: 'fetchRequestById',
+          reservation_id: reservation.reservation_id
         }),
         headers: {
           'Content-Type': 'application/json'
         }
       });
 
-      console.log('Response from API:', response.data);
+      console.log('Reservation details response:', response.data);
 
       if (response.data.status === 'success' && response.data.data) {
-        if (response.data.data.venue && Object.values(response.data.data.venue).some(v => v !== null)) {
-          setVenueDetails(response.data.data.venue);
-          setIsVenueModalOpen(true);
-        }
-        if (response.data.data.vehicle && Object.values(response.data.data.vehicle).some(v => v !== null)) {
-          setVehicleDetails(response.data.data.vehicle);
-          setIsVehicleModalOpen(true);
-        }
-        if (response.data.data.equipment && Object.values(response.data.data.equipment).some(v => v !== null)) {
-          setEquipmentDetails(response.data.data.equipment);
-        }
+        setSelectedReservation(response.data.data);
+        setIsDetailsModalOpen(true);
       } else {
         console.error('Invalid response format:', response.data);
         alert('Could not fetch reservation details');
@@ -402,15 +425,15 @@ const Calendar = () => {
     >
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-w-2xl w-full rounded-2xl bg-white shadow-2xl p-6">
-          <div className="flex justify-between items-center mb-6">
+        <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-2xl bg-white shadow-2xl p-4 md:p-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
             <div>
-              <Dialog.Title className="text-2xl font-bold text-gray-900">
+              <Dialog.Title className="text-xl md:text-2xl font-bold text-gray-900">
                 {venueDetails?.venue_form_name || 'Venue Reservation Details'}
               </Dialog.Title>
               {venueDetails && (
                 <div className="mt-2">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
                     Status: {venueDetails.status_request || 'Reserved'}
                   </span>
                 </div>
@@ -418,7 +441,7 @@ const Calendar = () => {
             </div>
             <button
               onClick={() => setIsVenueModalOpen(false)}
-              className="p-2 rounded-full hover:bg-gray-100"
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -427,49 +450,49 @@ const Calendar = () => {
           </div>
 
           {venueDetails && (
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold">Event Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <h3 className="font-semibold text-gray-900">Event Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Venue Name</p>
-                    <p className="font-medium">{venueDetails.venue_name}</p>
+                    <p className="font-medium text-gray-900">{venueDetails.venue_name}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Event Title</p>
-                    <p className="font-medium">{venueDetails.venue_form_event_title}</p>
+                    <p className="font-medium text-gray-900">{venueDetails.venue_form_event_title}</p>
                   </div>
-                  <div>
+                  <div className="md:col-span-2">
                     <p className="text-sm text-gray-500">Description</p>
-                    <p>{venueDetails.venue_form_description}</p>
+                    <p className="text-gray-900">{venueDetails.venue_form_description}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Participants</p>
-                    <p>{venueDetails.venue_participants}</p>
+                    <p className="text-gray-900">{venueDetails.venue_participants}</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold">Schedule</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <h3 className="font-semibold text-gray-900">Schedule</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Start Time</p>
-                    <p>{new Date(venueDetails.venue_form_start_date).toLocaleString()}</p>
+                    <p className="text-gray-900">{new Date(venueDetails.venue_form_start_date).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">End Time</p>
-                    <p>{new Date(venueDetails.venue_form_end_date).toLocaleString()}</p>
+                    <p className="text-gray-900">{new Date(venueDetails.venue_form_end_date).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
 
               {equipmentDetails && (
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold mb-3">Equipment</h3>
-                  <div className="flex items-center space-x-2">
-                    <p>{equipmentDetails.equipment_name}</p>
-                    <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                  <h3 className="font-semibold text-gray-900 mb-3">Equipment</h3>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-gray-900">{equipmentDetails.equipment_name}</p>
+                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
                       Quantity: {equipmentDetails.reservation_equipment_quantity}
                     </span>
                   </div>
@@ -490,15 +513,15 @@ const Calendar = () => {
     >
       <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
       <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto max-w-2xl w-full rounded-2xl bg-white shadow-2xl p-6">
-          <div className="flex justify-between items-center mb-6">
+        <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-2xl bg-white shadow-2xl p-4 md:p-6">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
             <div>
-              <Dialog.Title className="text-2xl font-bold text-gray-900">
+              <Dialog.Title className="text-xl md:text-2xl font-bold text-gray-900">
                 {vehicleDetails?.vehicle_form_name || 'Vehicle Reservation Details'}
               </Dialog.Title>
               {vehicleDetails && (
                 <div className="mt-2">
-                  <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
                     Status: {vehicleDetails.status_request || 'Reserved'}
                   </span>
                 </div>
@@ -506,7 +529,7 @@ const Calendar = () => {
             </div>
             <button
               onClick={() => setIsVehicleModalOpen(false)}
-              className="p-2 rounded-full hover:bg-gray-100"
+              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
             >
               <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -515,64 +538,64 @@ const Calendar = () => {
           </div>
 
           {vehicleDetails && (
-            <div className="space-y-6">
+            <div className="space-y-4 md:space-y-6">
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold">Vehicle Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <h3 className="font-semibold text-gray-900">Vehicle Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">License Plate</p>
-                    <p className="font-medium">{vehicleDetails.vehicle_license}</p>
+                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_license}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Make</p>
-                    <p className="font-medium">{vehicleDetails.vehicle_make}</p>
+                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_make}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Model</p>
-                    <p className="font-medium">{vehicleDetails.vehicle_model}</p>
+                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_model}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Category</p>
-                    <p className="font-medium">{vehicleDetails.vehicle_category}</p>
+                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_category}</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold">Trip Information</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <h3 className="font-semibold text-gray-900">Trip Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Purpose</p>
-                    <p>{vehicleDetails.vehicle_form_purpose}</p>
+                    <p className="text-gray-900">{vehicleDetails.vehicle_form_purpose}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">Destination</p>
-                    <p>{vehicleDetails.vehicle_form_destination}</p>
+                    <p className="text-gray-900">{vehicleDetails.vehicle_form_destination}</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold">Schedule</h3>
-                <div className="grid grid-cols-2 gap-4">
+                <h3 className="font-semibold text-gray-900">Schedule</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <p className="text-sm text-gray-500">Start Time</p>
-                    <p>{vehicleDetails.vehicle_form_start_date && new Date(vehicleDetails.vehicle_form_start_date).toLocaleString()}</p>
+                    <p className="text-gray-900">{vehicleDetails.vehicle_form_start_date && new Date(vehicleDetails.vehicle_form_start_date).toLocaleString()}</p>
                   </div>
                   <div>
                     <p className="text-sm text-gray-500">End Time</p>
-                    <p>{vehicleDetails.vehicle_form_end_date && new Date(vehicleDetails.vehicle_form_end_date).toLocaleString()}</p>
+                    <p className="text-gray-900">{vehicleDetails.vehicle_form_end_date && new Date(vehicleDetails.vehicle_form_end_date).toLocaleString()}</p>
                   </div>
                 </div>
               </div>
 
               <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold mb-3">Passengers</h3>
-                <div className="space-y-2">
+                <h3 className="font-semibold text-gray-900 mb-3">Passengers</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                   {vehicleDetails.passengers && vehicleDetails.passengers.length > 0 ? (
                     vehicleDetails.passengers.map((passenger, index) => (
                       <div key={index} className="px-3 py-2 bg-white rounded-lg shadow-sm">
-                        <p className="text-gray-800">{passenger}</p>
+                        <p className="text-gray-900">{passenger}</p>
                       </div>
                     ))
                   ) : (
@@ -590,32 +613,32 @@ const Calendar = () => {
   useKeyboardNavigation(currentDate, setCurrentDate);
 
   return (
-    <div className="flex h-screen bg-gray-50">
+    <div className={`flex min-h-screen bg-gradient-to-br ${themeColors.gradient}`}>
       <Sidebar />
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-7xl mx-auto p-6">
+      <div className="flex-1 overflow-auto mt-16 md:mt-20 px-4 md:px-6 lg:px-8">
+        <div className="max-w-[1600px] mx-auto p-4 md:p-6">
           <motion.div 
-            className="rounded-xl bg-white shadow-xl"
+            className="rounded-xl bg-white shadow-xl p-4 md:p-6"
             variants={fadeInUp}
             initial="initial"
             animate="animate"
           >
-            <div className="flex items-center justify-between mb-6"> {/* decreased from mb-10 */}
-              <div className="flex items-center space-x-4"> {/* decreased from space-x-6 */}
+            <div className="flex flex-col md:flex-row items-center justify-between mb-6 space-y-4 md:space-y-0">
+              <div className="flex items-center space-x-4">
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  className="p-3 rounded-full hover:bg-gray-100"
+                  className="p-2 md:p-3 rounded-full hover:bg-gray-100 transition-colors"
                   style={{ color: themeColors.primary }}
                   onClick={() => handleDateNavigation('prev')}
                 >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"> 
+                  <svg className="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"> 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                   </svg>
                 </motion.button>
                 <div className="relative">
                   <h2 
-                    className="text-2xl font-bold cursor-pointer hover:text-blue-500" 
+                    className="text-xl md:text-2xl font-bold cursor-pointer hover:text-green-600 transition-colors" 
                     style={{ color: themeColors.primary }}
                     onClick={() => setIsYearModalOpen(true)}
                   > 
@@ -625,21 +648,22 @@ const Calendar = () => {
                 <motion.button
                   whileHover={{ scale: 1.1 }}
                   whileTap={{ scale: 0.9 }}
-                  className="p-3 rounded-full hover:bg-gray-100"
+                  className="p-2 md:p-3 rounded-full hover:bg-gray-100 transition-colors"
+                  style={{ color: themeColors.primary }}
                   onClick={() => handleDateNavigation('next')}
                 >
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"> 
+                  <svg className="w-6 h-6 md:w-8 md:h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"> 
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>
                 </motion.button>
               </div>
             </div>
 
-            <div className="grid grid-cols-7 gap-1 mb-2"> {/* decreased gap and margin */}
+            <div className="grid grid-cols-7 gap-1 mb-4">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
                 <div 
                   key={day} 
-                  className="text-center text-base font-semibold text-gray-600 py-1" /* decreased text and padding */
+                  className="text-center text-sm md:text-base font-semibold py-2"
                   style={{ color: themeColors.primary }}
                 >
                   {day}
@@ -653,6 +677,15 @@ const Calendar = () => {
           </motion.div>
         </div>
       </div>
+
+      <ReservationDetails
+        visible={isDetailsModalOpen}
+        onClose={() => {
+          setIsDetailsModalOpen(false);
+          setSelectedReservation(null);
+        }}
+        reservationDetails={selectedReservation}
+      />
     </div>
   );
 };

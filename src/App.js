@@ -13,7 +13,7 @@ import AddReservation from './components/Reservation/AddReservation'; // Import 
 import { Toaster } from 'sonner';
 import './App.css'; 
 import Logins from './pages/logins';
-import AdminDashboard from './pages/adminDashboard';
+import AdminDashboard from './pages/Admin/adminDashboard';
 import Faculty from './pages/Admin/Faculty';  // Updated casing to match file name
 import Master from './pages/Admin/Master'
 import Vehiclem from './pages/vehiclemake';
@@ -35,13 +35,14 @@ import LandCalendar from './pages/landCalendar';
 import Archive from './pages/archive';
 import NotFound from './components/NotFound';
 import Checklists from './pages/Checklist';
-import Reports from './pages/Reports';
+import Reports from './pages/Admin/Reports';
 import { SecureStorage } from './utils/encryption';
 import NotificationUser from './page_user/notification';
 import NotificationRequest from './page_dean/notification';
 import ChatUser from './page_user/chat';
 import ChatDepartment from './page_dean/chat';
 import ChatPersonnel from './pages/Personnel/chat';
+import ViewMaintenanceTask from './pages/Personnel/VIewMaintenanceTask';
 import Driver from './pages/Drivers';
 
 
@@ -89,6 +90,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
+            '/Personnel/ViewMaintenanceTask'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -157,6 +159,7 @@ const App = () => {
                         <Route path="/Personnel/Dashboard" element={<ProtectedRoute allowedRoles={['Personnel']}><PersonnelDashboard /></ProtectedRoute>} />
                         <Route path="/Personnel/ViewTask" element={<ProtectedRoute allowedRoles={['Personnel']}><ViewTask /></ProtectedRoute>} />
                         <Route path="/Personnel/Chat" element={<ProtectedRoute allowedRoles={['Personnel']}><ChatPersonnel /></ProtectedRoute>} />
+                        <Route path="/Personnel/ViewMaintenanceTask" element={<ProtectedRoute allowedRoles={['Personnel']}><ViewMaintenanceTask /></ProtectedRoute>} />
 
                         {/* chats */}
                         <Route path="/chatAdmin" element={<ProtectedRoute allowedRoles={['Personnel', 'Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Chat /></ProtectedRoute>} />

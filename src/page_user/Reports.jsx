@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Statistic, Table, Tag, Select, DatePicker, Button } from 'antd';
+import { Card, Statistic, Table, Tag, Select, DatePicker, Button, Tabs } from 'antd';
 import { motion } from 'framer-motion';
 import {
   CarOutlined,
@@ -11,7 +11,7 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'sonner';
-import Sidebar from './Sidebar';
+import Sidebar from '../pages/Sidebar';
 import { Line, Pie } from '@ant-design/plots';
 
 const Reports = () => {
@@ -204,6 +204,15 @@ const Reports = () => {
     return <Pie {...config} />;
   };
 
+  // Add this function to filter resources by status
+  const filterResourcesByStatus = (resources, isCompleted) => {
+    return resources.filter(resource => {
+      const isCompletedStatus = resource.condition_name.toLowerCase().includes('completed') || 
+                              resource.condition_name.toLowerCase().includes('good');
+      return isCompleted ? isCompletedStatus : !isCompletedStatus;
+    });
+  };
+
   return (
     <div className="flex h-screen bg-gray-100">
       <Sidebar />
@@ -299,65 +308,175 @@ const Reports = () => {
           
 
           <div className="grid grid-cols-1 gap-6">
-            
-
-            <Card title="Resources Under Maintenance" className="shadow-md">
-              <Table
-                loading={loading}
-                pagination={{ pageSize: 10 }}
-                columns={[
+            <Card title="Maintenance Resources" className="shadow-md">
+              <Tabs
+                defaultActiveKey="pending"
+                items={[
                   {
-                    title: 'Resource Name',
-                    dataIndex: 'resource_name',
-                    key: 'resource_name',
+                    key: 'pending',
+                    label: (
+                      <span>
+                        <ExclamationCircleOutlined className="mr-2" />
+                        Pending/Unset
+                      </span>
+                    ),
+                    children: (
+                      <Table
+                        loading={loading}
+                        pagination={{ pageSize: 10 }}
+                        columns={[
+                          {
+                            title: 'Resource Name',
+                            dataIndex: 'resource_name',
+                            key: 'resource_name',
+                          },
+                          {
+                            title: 'Type',
+                            dataIndex: 'resource_type',
+                            key: 'resource_type',
+                            render: (type) => (
+                              <Tag color={
+                                type === 'venue' ? 'blue' :
+                                type === 'vehicle' ? 'green' :
+                                'purple'
+                              }>
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                              </Tag>
+                            )
+                          },
+                          {
+                            title: 'Due Date',
+                            dataIndex: 'due_date',
+                            key: 'due_date',
+                            render: (date) => date || 'No'
+                          },
+                          {
+                            title: 'Assigned Personnel',
+                            dataIndex: 'assigned_personnel',
+                            key: 'assigned_personnel',
+                            render: (personnel) => personnel || 'No'
+                          },
+                          {
+                            title: 'Status',
+                            dataIndex: 'condition_name',
+                            key: 'condition_name',
+                            render: (condition) => (
+                              <Tag color="orange">
+                                {condition}
+                              </Tag>
+                            )
+                          },
+                          {
+                            title: 'Action',
+                            key: 'action',
+                            render: (_, record) => (
+                              <Button
+                                type="primary"
+                                size="small"
+                                onClick={() => handleMakeAvailable(record.record_id, record.resource_type, record.resource_id)}
+                                icon={<CheckCircleOutlined />}
+                              >
+                                Make Available
+                              </Button>
+                            )
+                          }
+                        ]}
+                        dataSource={filterResourcesByStatus(maintenanceResources, false).map(resource => ({
+                          key: `${resource.resource_type}-${resource.record_id}`,
+                          resource_name: resource.resource_name,
+                          resource_type: resource.resource_type,
+                          condition_name: resource.condition_name,
+                          record_id: resource.record_id,
+                          resource_id: resource.resource_id,
+                          due_date: resource.due_date,
+                          assigned_personnel: resource.assigned_personnel
+                        }))}
+                      />
+                    ),
                   },
                   {
-                    title: 'Type',
-                    dataIndex: 'resource_type',
-                    key: 'resource_type',
-                    render: (type) => (
-                      <Tag color={
-                        type === 'venue' ? 'blue' :
-                        type === 'vehicle' ? 'green' :
-                        'purple'
-                      }>
-                        {type.charAt(0).toUpperCase() + type.slice(1)}
-                      </Tag>
-                    )
+                    key: 'completed',
+                    label: (
+                      <span>
+                        <CheckCircleOutlined className="mr-2" />
+                        Completed
+                      </span>
+                    ),
+                    children: (
+                      <Table
+                        loading={loading}
+                        pagination={{ pageSize: 10 }}
+                        columns={[
+                          {
+                            title: 'Resource Name',
+                            dataIndex: 'resource_name',
+                            key: 'resource_name',
+                          },
+                          {
+                            title: 'Type',
+                            dataIndex: 'resource_type',
+                            key: 'resource_type',
+                            render: (type) => (
+                              <Tag color={
+                                type === 'venue' ? 'blue' :
+                                type === 'vehicle' ? 'green' :
+                                'purple'
+                              }>
+                                {type.charAt(0).toUpperCase() + type.slice(1)}
+                              </Tag>
+                            )
+                          },
+                          {
+                            title: 'Due Date',
+                            dataIndex: 'due_date',
+                            key: 'due_date',
+                            render: (date) => date || 'No'
+                          },
+                          {
+                            title: 'Assigned Personnel',
+                            dataIndex: 'assigned_personnel',
+                            key: 'assigned_personnel',
+                            render: (personnel) => personnel || 'No'
+                          },
+                          {
+                            title: 'Status',
+                            dataIndex: 'condition_name',
+                            key: 'condition_name',
+                            render: (condition) => (
+                              <Tag color="green">
+                                {condition}
+                              </Tag>
+                            )
+                          },
+                          {
+                            title: 'Action',
+                            key: 'action',
+                            render: (_, record) => (
+                              <Button
+                                type="primary"
+                                size="small"
+                                onClick={() => handleMakeAvailable(record.record_id, record.resource_type, record.resource_id)}
+                                icon={<CheckCircleOutlined />}
+                              >
+                                Make Available
+                              </Button>
+                            )
+                          }
+                        ]}
+                        dataSource={filterResourcesByStatus(maintenanceResources, true).map(resource => ({
+                          key: `${resource.resource_type}-${resource.record_id}`,
+                          resource_name: resource.resource_name,
+                          resource_type: resource.resource_type,
+                          condition_name: resource.condition_name,
+                          record_id: resource.record_id,
+                          resource_id: resource.resource_id,
+                          due_date: resource.due_date,
+                          assigned_personnel: resource.assigned_personnel
+                        }))}
+                      />
+                    ),
                   },
-                  {
-                    title: 'Status Availability',
-                    dataIndex: 'condition_name',
-                    key: 'condition_name',
-                    render: (condition) => (
-                      <Tag color="red">
-                        {condition}
-                      </Tag>
-                    )
-                  },
-                  {
-                    title: 'Action',
-                    key: 'action',
-                    render: (_, record) => (
-                      <Button
-                        type="primary"
-                        size="small"
-                        onClick={() => handleMakeAvailable(record.record_id, record.resource_type, record.resource_id)}
-                        icon={<CheckCircleOutlined />}
-                      >
-                        Make Available
-                      </Button>
-                    )
-                  }
                 ]}
-                dataSource={maintenanceResources.map(resource => ({
-                  key: `${resource.resource_type}-${resource.record_id}`,
-                  resource_name: resource.resource_name,
-                  resource_type: resource.resource_type,
-                  condition_name: resource.condition_name,
-                  record_id: resource.record_id,
-                  resource_id: resource.resource_id
-                }))}
               />
             </Card>
           </div>

@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Tabs, Table, Button, Input, Space, Tag, Form, Select, message } from 'antd';
+import { Modal, Tabs, Table, Button, Input, Space, Tag, Form, Select, message, Typography, Statistic } from 'antd';
 import { PlusOutlined, MinusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import SecureStorage from '../../../utils/SecureStorage';
 
 const { TabPane } = Tabs;
+const { Title, Text } = Typography;
 
 const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
     const [activeTab, setActiveTab] = useState('1');
@@ -14,6 +15,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
     const [editForm] = Form.useForm();
     const [editingUnit, setEditingUnit] = useState(null);
     const [quantity, setQuantity] = useState(0);
+    const [viewingUnitUsage, setViewingUnitUsage] = useState(null);
     const baseUrl = SecureStorage.getLocalItem("url");
 
     useEffect(() => {
@@ -165,6 +167,30 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
         }
     };
 
+    const handleViewUnitUsage = async (unitId) => {
+        setLoading(true);
+        try {
+            const url = `${baseUrl}/gsd/user.php`;
+            const response = await axios.post(url, new URLSearchParams({
+                operation: "getEquipmentUnitUsage",
+                unitId: unitId
+            }));
+
+            if (response.data.status === 'success') {
+                return response.data.data;
+            } else {
+                message.error("Failed to fetch unit usage data");
+                return null;
+            }
+        } catch (error) {
+            console.error("Error fetching unit usage:", error);
+            message.error("An error occurred while fetching unit usage");
+            return null;
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const columns = [
         {
             title: 'Serial Number',
@@ -186,6 +212,22 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
             key: 'actions',
             render: (_, record) => (
                 <Space>
+                    <Button
+                        type="primary"
+                        icon={<EyeOutlined />}
+                        size="small"
+                        style={{ backgroundColor: '#548e54' }}
+                        onClick={async () => {
+                            const usageData = await handleViewUnitUsage(record.unit_id);
+                            if (usageData) {
+                                setViewingUnitUsage({
+                                    ...record,
+                                    ...usageData.equipment_unit_details
+                                });
+                            }
+                        }}
+                        title="View Usage"
+                    />
                     <Button
                         type="primary"
                         icon={<EditOutlined />}
@@ -285,7 +327,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
                                 form={form}
                                 onFinish={handleAddUnit}
                                 layout="vertical"
-                                className="bg-white p-4 rounded-lg border border-gray-200"
+                                className="bg-white p-4 rounded-lg border border-gray-200 mb-4"
                             >
                                 <h4 className="text-md font-medium text-gray-900 mb-4">Add New Unit</h4>
                                 <div className="grid grid-cols-2 gap-4">
@@ -313,13 +355,17 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
                                 </Button>
                             </Form>
 
-                            <Table
-                                columns={columns}
-                                dataSource={units}
-                                loading={loading}
-                                rowKey="unit_id"
-                                pagination={false}
-                            />
+                            <div className="bg-white p-4 rounded-lg border border-gray-200">
+                                <h4 className="text-md font-medium text-gray-900 mb-4">Unit List</h4>
+                                <Table
+                                    columns={columns}
+                                    dataSource={units}
+                                    loading={loading}
+                                    rowKey="unit_id"
+                                    pagination={false}
+                                    size="middle"
+                                />
+                            </div>
                         </div>
                     </TabPane>
                 )}
@@ -360,6 +406,65 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
                         </Select>
                     </Form.Item>
                 </Form>
+            </Modal>
+
+            {/* View Unit Usage Modal */}
+            <Modal
+                title={
+                    <Space className="items-center">
+                        <EyeOutlined style={{ color: '#548e54' }} className="text-xl" />
+                        <Title level={4} className="!mb-0 !text-lg md:!text-xl">Equipment Unit Usage</Title>
+                    </Space>
+                }
+                open={!!viewingUnitUsage}
+                onCancel={() => setViewingUnitUsage(null)}
+                footer={null}
+                width={800}
+            >
+                {viewingUnitUsage && (
+                    <div className="space-y-4">
+                        {/* Unit Info Section */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3" style={{ backgroundColor: '#d4f4dc' }}>
+                            <div>
+                                <Title level={4} className="!mb-2 !text-base md:!text-lg">
+                                    {viewingUnitUsage.equip_name}
+                                </Title>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Serial Number:</span> {viewingUnitUsage.serial_number}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Brand:</span> {viewingUnitUsage.brand}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Size:</span> {viewingUnitUsage.size}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Color:</span> {viewingUnitUsage.color}
+                                </Text>
+                            </div>
+                            <div>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Category:</span> {viewingUnitUsage.equipments_category_name}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Type:</span> {viewingUnitUsage.equip_type}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Created At:</span> {viewingUnitUsage.unit_created_at}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Created By:</span> {viewingUnitUsage.admin_full_name}
+                                </Text>
+                                <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                    <span className="font-medium">Status:</span>{' '}
+                                    <Tag color={viewingUnitUsage.status_availability_id === '1' ? 'green' : 'red'}>
+                                        {viewingUnitUsage.status_availability_name}
+                                    </Tag>
+                                </Text>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </Modal>
         </Modal>
     );

@@ -329,6 +329,7 @@ const Update_Modal = ({
             return;
         }
 
+        /* Temporarily disabled unique check
         if (formData.users_email !== originalData.users_email || 
             formData.users_school_id !== originalData.users_school_id) {
             const uniqueCheckResult = await checkUniqueEmailAndSchoolId(
@@ -356,6 +357,7 @@ const Update_Modal = ({
                 return;
             }
         }
+        */
 
         const newErrors = {};
         Object.keys(formData).forEach(key => {

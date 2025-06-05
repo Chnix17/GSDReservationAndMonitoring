@@ -12,11 +12,12 @@ import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
 import { Modal, Input,  Button, Space, Tooltip, Image,  Empty, Pagination, Alert, Dropdown } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DownOutlined } from '@ant-design/icons';
+import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DownOutlined, BarChartOutlined } from '@ant-design/icons';
 import { sanitizeInput, validateInput } from '../../utils/sanitize';
 import {SecureStorage} from '../../utils/encryption'; // Adjust the import path as necessary
 import Create_Modal from './lib/Vehicle/Create_Modal';
 import Update_Modal from './lib/Vehicle/Update_Modal';
+import View_Utilization from './lib/Vehicle/View_Utilization';
 
 const VehicleEntry = () => {
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
@@ -55,6 +56,8 @@ const VehicleEntry = () => {
     const [currentPage, setCurrentPage] = useState(1);
     const [sortField, setSortField] = useState('vehicle_id');
     const [sortOrder, setSortOrder] = useState('desc');
+    const [showUtilizationModal, setShowUtilizationModal] = useState(false);
+    const [selectedVehicleForUtilization, setSelectedVehicleForUtilization] = useState(null);
 
     useEffect(() => {
         const decryptedUserLevel = parseInt(user_level_id);
@@ -388,6 +391,11 @@ const VehicleEntry = () => {
         }
     };
 
+    const handleViewUtilization = (vehicle) => {
+        setSelectedVehicleForUtilization(vehicle);
+        setShowUtilizationModal(true);
+    };
+
     const items = [
         {
             key: 'add',
@@ -594,7 +602,7 @@ const VehicleEntry = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center">
-                                                                <FaEye className="mr-2 text-green-900" />
+                                                  
                                                                 <span className="font-medium">{vehicle.vehicle_license}</span>
                                                             </div>
                                                         </td>
@@ -611,6 +619,13 @@ const VehicleEntry = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex space-x-2">
+                                                                <Button
+                                                                    type="primary"
+                                                                    icon={<BarChartOutlined />}
+                                                                    onClick={() => handleViewUtilization(vehicle)}
+                                                                    size="middle"
+                                                                    className="bg-blue-600 hover:bg-blue-700"
+                                                                />
                                                                 <Button
                                                                     type="primary"
                                                                     icon={<EditOutlined />}
@@ -740,6 +755,17 @@ const VehicleEntry = () => {
                     />
                 )}
             </Modal>
+
+            {/* Add View Utilization Modal */}
+            <View_Utilization
+                open={showUtilizationModal}
+                onCancel={() => {
+                    setShowUtilizationModal(false);
+                    setSelectedVehicleForUtilization(null);
+                }}
+                vehicle={selectedVehicleForUtilization}
+                IMAGE_BASE_URL={IMAGE_BASE_URL}
+            />
         </div>
     );
 };

@@ -4,6 +4,7 @@ import { PlusOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { SecureStorage } from '../../../../utils/encryption';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
+import CategoryModal from './Category_Modal';
 const { Option } = Select;
 
 const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
@@ -147,6 +148,10 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         }
     };
 
+    const handleCategorySuccess = () => {
+        fetchCategories(); // Refresh the categories list after adding a new one
+    };
+
     return (
         <>
             <Modal
@@ -224,6 +229,11 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
                 </Form>
             </Modal>
 
+            <CategoryModal
+                isOpen={isCategoryModalVisible}
+                onClose={handleCategoryModalClose}
+                onSuccess={handleCategorySuccess}
+            />
         </>
     );
 };

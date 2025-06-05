@@ -33,6 +33,7 @@ import Sidebar from "./Sidebar";
 import axios from "axios";
 import moment from "moment";
 import { motion } from "framer-motion";
+import ReservationDetails from "../components/core/reservation_details";
 
 
 const Record = () => {
@@ -59,7 +60,7 @@ const Record = () => {
     setLoading(true);
     try {
       const response = await axios.post(
-        `${url}//records&reports.php`,
+        `${url}/records&reports.php`,
         {
           operation: "fetchRecord",
           json: {},
@@ -397,12 +398,10 @@ const DetailModal = ({ visible, record, onClose }) => {
         setIsLoading(true);
         try {
           const response = await axios.post(
-            `${baseUrl}/records&reports.php`,
+            `${baseUrl}/process_reservation.php`,
             {
-              operation: "getReservationDetailsById",
-              json: {
-                reservation_id: record.reservation_id,
-              },
+              operation: "fetchRequestById",
+              reservation_id: record.reservation_id,
             },
             {
               headers: {
@@ -413,9 +412,12 @@ const DetailModal = ({ visible, record, onClose }) => {
 
           if (response.data?.status === "success") {
             setModalData(response.data.data);
+          } else {
+            toast.error("Failed to fetch reservation details");
           }
         } catch (error) {
-          toast.error("Error fetching details");
+          console.error("Error fetching details:", error);
+          toast.error("Error fetching reservation details");
         } finally {
           setIsLoading(false);
         }
@@ -425,307 +427,28 @@ const DetailModal = ({ visible, record, onClose }) => {
     fetchData();
   }, [visible, record, baseUrl]);
 
-  const getIconForType = (type) => {
-    const icons = {
-      Equipment: <ToolOutlined className="mr-2 text-orange-500" />,
-      Venue: <BuildOutlined className="mr-2 text-green-500" />,
-      Vehicle: <CarOutlined className="mr-2 text-blue-500" />,
-    };
-    return icons[type] || null;
-  };
-
-  const formatDateRange = (startDate, endDate) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-
-    const isSameDay = start.toDateString() === end.toDateString();
-    const monthNames = [
-      "January",
-      "February",
-      "March",
-      "April",
-      "May",
-      "June",
-      "July",
-      "August",
-      "September",
-      "October",
-      "November",
-      "December",
-    ];
-
-    const formatTime = (date) => {
-      return date.toLocaleTimeString("en-US", {
-        hour: "numeric",
-        minute: "2-digit",
-        hour12: true,
-      });
-    };
-
-    if (isSameDay) {
-      return `${monthNames[start.getMonth()]} ${start.getDate()} ${formatTime(
-        start
-      )} to ${formatTime(end)}`;
-    } else {
-      return `${monthNames[start.getMonth()]} ${start.getDate()}-${
-        monthNames[end.getMonth()]
-      } ${end.getDate()}\n${formatTime(start)} to ${formatTime(end)}`;
-    }
-  };
-
-  const ReservedItemsTable = ({ items, type }) => {
-    if (!items || items.length === 0) return null;
-
-    const columns = {
-      venue: [
-        {
-          title: "Venue Name",
-          dataIndex: "venue_name",
-          key: "venue_name",
-          render: (text) => (
-            <div className="flex items-center">
-              <BuildOutlined className="mr-2 text-purple-500" />
-              <span className="font-medium">{text}</span>
-            </div>
-          ),
-        },
-      ],
-      vehicle: [
-        {
-          title: "Vehicle",
-          dataIndex: "vehicle_name",
-          key: "vehicle_name",
-          render: (text) => (
-            <div className="flex items-center">
-              <CarOutlined className="mr-2 text-blue-500" />
-              <span className="font-medium">{text}</span>
-            </div>
-          ),
-        },
-        {
-          title: "Driver",
-          dataIndex: "driver_name",
-          key: "driver_name",
-          render: (text) => (
-            <div className="flex items-center">
-              <UserOutlined className="mr-2 text-blue-500" />
-              <span className="font-medium">
-                {text || "No driver assigned"}
-              </span>
-            </div>
-          ),
-        },
-      ],
-      equipment: [
-        {
-          title: "Equipment",
-          dataIndex: "equipment_name",
-          key: "equipment_name",
-          render: (text) => (
-            <div className="flex items-center">
-              <ToolOutlined className="mr-2 text-orange-500" />
-              <span className="font-medium">{text}</span>
-            </div>
-          ),
-        },
-        {
-          title: "Quantity",
-          dataIndex: "quantity",
-          key: "quantity",
-          render: (text) => <Tag color="orange">Qty: {text}</Tag>,
-        },
-      ],
-    };
-
+  if (isLoading) {
     return (
-      <Table
-        dataSource={items}
-        columns={columns[type]}
-        pagination={false}
-        size="small"
-        className="mb-4"
-      />
+      <Modal
+        visible={visible}
+        onCancel={onClose}
+        footer={null}
+        width={800}
+        maskClosable={false}
+      >
+        <div className="flex justify-center items-center h-64">
+          <Spin size="large" />
+        </div>
+      </Modal>
     );
-  };
+  }
 
   return (
-    <Modal
-      title={null}
+    <ReservationDetails
       visible={visible}
-      onCancel={onClose}
-      width={800}
-      footer={[
-        <Button 
-          key="close" 
-          onClick={onClose} 
-          size="large"
-          className="bg-green-900 hover:bg-lime-900 text-white"
-        >
-          Close
-        </Button>,
-      ]}
-      className="reservation-detail-modal"
-      bodyStyle={{ padding: "0" }}
-      maskClosable={false}
-      zIndex={1000}
-      closable={false}
-    >
-      <div className="p-0">
-        {/* Header Section */}
-        <div className="bg-gradient-to-r from-green-600 to-lime-500 p-6 rounded-t-lg">
-          <div className="flex justify-between items-center">
-            <div>
-              <h2 className="text-2xl font-bold text-white">
-                {modalData?.reservation_title || "Reservation Details"}
-              </h2>
-              <div className="flex items-center gap-2 mt-2">
-                <Tag
-                  color={
-                    modalData?.status_request === "Approved"
-                      ? "green"
-                      : modalData?.status_request === "Declined"
-                      ? "red"
-                      : "blue"
-                  }
-                  className="text-sm px-3 py-1"
-                >
-                  {modalData?.status_request || "Unknown Status"}
-                </Tag>
-              </div>
-            </div>
-            <div className="text-white text-right">
-              <p className="text-white opacity-90 text-sm">Created on</p>
-              <p className="font-semibold">
-                {modalData?.reservation_created_at
-                  ? new Date(modalData.reservation_created_at).toLocaleString()
-                  : "Unknown date"}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Content */}
-        <div className="p-6 bg-[#fafff4]">
-          {isLoading ? (
-            <div className="flex justify-center items-center h-64">
-              <Spin size="large" />
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="bg-white p-4 rounded-lg border border-green-200 shadow-sm">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Requester Information */}
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h3 className="text-lg font-medium mb-4 text-green-900">
-                      Requester Details
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <UserOutlined className="text-green-600" />
-                        <div>
-                          <p className="text-sm text-gray-500">Name</p>
-                          <p className="font-medium">
-                            {modalData?.full_name || "Unknown"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TeamOutlined className="text-green-600" />
-                        <div>
-                          <p className="text-sm text-gray-500">Department</p>
-                          <p className="font-medium">
-                            {modalData?.department_name || "Unknown"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Schedule */}
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <h3 className="text-lg font-medium mb-4 text-green-900">
-                      Schedule
-                    </h3>
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-2">
-                        <CalendarOutlined className="text-green-600" />
-                        <div>
-                          <p className="text-sm text-gray-500">Date & Time</p>
-                          <p className="font-medium">
-                            {modalData?.reservation_start_date &&
-                            modalData?.reservation_end_date
-                              ? formatDateRange(
-                                  modalData.reservation_start_date,
-                                  modalData.reservation_end_date
-                                )
-                              : "Unknown schedule"}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <TeamOutlined className="text-green-600" />
-                        <div>
-                          <p className="text-sm text-gray-500">Participants</p>
-                          <p className="font-medium">
-                            {modalData?.reservation_participants || "Unknown"}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Resources Section */}
-                <div className="mt-6">
-                  <h3 className="text-lg font-medium mb-4 text-green-900">
-                    Requested Resources
-                  </h3>
-                  <div className="space-y-4">
-                    {/* Venues */}
-                    {modalData?.venues?.length > 0 && (
-                      <ReservedItemsTable
-                        items={modalData.venues}
-                        type="venue"
-                      />
-                    )}
-
-                    {/* Vehicles */}
-                    {modalData?.vehicles?.length > 0 && (
-                      <ReservedItemsTable
-                        items={modalData.vehicles}
-                        type="vehicle"
-                      />
-                    )}
-
-                    {/* Equipment */}
-                    {modalData?.equipment?.length > 0 && (
-                      <ReservedItemsTable
-                        items={modalData.equipment}
-                        type="equipment"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Description */}
-                {modalData?.reservation_description && (
-                  <div className="mt-6">
-                    <h3 className="text-lg font-medium mb-2 text-green-900">
-                      Description
-                    </h3>
-                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                      <p className="text-gray-700">
-                        {modalData.reservation_description}
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </Modal>
+      onClose={onClose}
+      reservationDetails={modalData}
+    />
   );
 };
 

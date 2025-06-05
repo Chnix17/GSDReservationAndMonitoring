@@ -278,15 +278,27 @@ const ReservationRequests = () => {
                 return;
             }
 
-            // Prepare equipment units if equipment exists in reservation details
+            // First, prepare equipment units if equipment exists in reservation details
             if (reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
                 try {
-                    await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                    // Format the data to match backend expectations
+                    const equipIds = reservationDetails.equipment.map(eq => parseInt(eq.equipment_id));
+                    const quantities = reservationDetails.equipment.map(eq => parseInt(eq.quantity));
+                    const startDate = new Date(reservationDetails.reservation_start_date).toISOString().split('T')[0];
+                    const endDate = new Date(reservationDetails.reservation_end_date).toISOString().split('T')[0];
+
+                    const insertResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                         operation: 'insertUnits',
-                        equip_ids: reservationDetails.equipment.map(eq => eq.equipment_id),
-                        quantities: reservationDetails.equipment.map(eq => eq.quantity),
-                        reservation_id: currentRequest.reservation_id
+                        equip_ids: equipIds,
+                        quantities: quantities,
+                        reservation_id: parseInt(currentRequest.reservation_id),
+                        start_date: startDate,
+                        end_date: endDate
                     });
+
+                    if (insertResponse.data?.status !== 'success') {
+                        throw new Error('Failed to prepare equipment units');
+                    }
                 } catch (error) {
                     console.error('Error preparing equipment units:', error);
                     toast.error('Failed to prepare equipment units for reservation');
@@ -295,7 +307,7 @@ const ReservationRequests = () => {
                 }
             }
 
-            // Proceed with normal acceptance
+            // Only proceed with handleRequest if equipment units were successfully inserted (or if no equipment needed)
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'handleRequest',
                 reservation_id: currentRequest.reservation_id,
@@ -1012,14 +1024,20 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
     // Add priority checking logic
     const checkPriority = () => {
-        const userPriorities = {
-            'COO': 4,
-            'School Head': 3,
-            'Dean': 2,
-            'CSG': 2,
-            'Faculty&Staff': 1,
-            'SBO PRESIDENT': 1
-        };
+        // Get current user's level and department from reservation details
+        const currentUserLevel = reservationDetails.user_level_name;
+        const currentUserDepartment = reservationDetails.departments_name;
+
+        // Only Department Heads and COO can override reservations
+        const canOverride = currentUserLevel === "Department Head" || currentUserLevel === "COO";
+
+        // If user is not Department Head or COO, they cannot override
+        if (!canOverride) {
+            return {
+                hasPriority: false,
+                message: "Only Department Head of COO can override existing reservations."
+            };
+        }
 
         // First check if there are any actual resource conflicts
         const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
@@ -1041,10 +1059,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             
             if (!unavailableEquipment) return false;
             
-            // Calculate remaining quantity
             const remainingQuantity = parseInt(unavailableEquipment.total_quantity) - parseInt(unavailableEquipment.reserved_quantity);
-            
-            // Return true only if requested quantity exceeds remaining quantity
             return parseInt(requestedEquipment.quantity) > remainingQuantity;
         });
 
@@ -1057,10 +1072,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                 message: "No conflicting reservations found." 
             };
         }
-        
-        // Only check priority if there are actual resource conflicts
-        const currentPriority = userPriorities[reservationDetails.user_level_name] || 0;
-        
+
         // Check against conflicting reservations
         const hasConflicts = reservationDetails.availabilityData?.reservation_users?.length > 0;
         
@@ -1071,18 +1083,47 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             };
         }
 
-        // Check if current request has higher priority than all conflicts
-        const canOverride = reservationDetails.availabilityData.reservation_users.every(conflictUser => {
-            const conflictingPriority = userPriorities[conflictUser.user_level_name] || 0;
-            return currentPriority > conflictingPriority;
+        // For COO, they can override any reservation
+        if (currentUserLevel === "COO") {
+            return {
+                hasPriority: true,
+                message: "As COO, you can override any existing reservation."
+            };
+        }
+
+        // For Department Head, they can only override reservations from their own department
+        // or lower priority departments
+        const canOverrideByDepartment = reservationDetails.availabilityData.reservation_users.every(conflictUser => {
+            // If conflict is from same department, Department Head can override
+            if (conflictUser.departments_name === currentUserDepartment) {
+                return true;
+            }
+            
+            // If conflict is from different department, check if it's a lower priority department
+            const departmentPriorities = {
+                'Academic Affairs': 3,
+                'Student Affairs': 2,
+                'Administrative Services': 1
+                // Add more departments and their priorities as needed
+            };
+
+            const currentDepartmentPriority = departmentPriorities[currentUserDepartment] || 0;
+            const conflictDepartmentPriority = departmentPriorities[conflictUser.departments_name] || 0;
+
+            return currentDepartmentPriority > conflictDepartmentPriority;
         });
 
-        return {
-            hasPriority: canOverride,
-            message: canOverride 
-                ? "You can override existing reservations due to higher priority."
-                : "Cannot proceed - existing reservations have equal or higher priority."
-        };
+        if (canOverrideByDepartment) {
+            return {
+                hasPriority: true,
+                message: `As Department Head of ${currentUserDepartment}, you can override these reservations.`
+            };
+        } else {
+            return {
+                hasPriority: false,
+                message: `Cannot override reservations from other departments with equal or higher priority.`
+            };
+        }
     };
 
     const checkResourceAvailability = (type, id, data) => {
@@ -1189,6 +1230,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                 key: 'license',
                 render: (text) => <Tag color="blue">{text}</Tag>
             }
+            
         ],
         equipment: [
             {
@@ -1485,6 +1527,23 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                     )}
                                 </div>
                             </div>
+
+                            {/* Trip Passengers Section */}
+                            {reservationDetails.passengers && reservationDetails.passengers.length > 0 && (
+                                <div className="mt-6">
+                                    <h3 className="text-lg font-medium mb-4 text-gray-800">Trip Passengers</h3>
+                                    <div className="bg-white p-4 rounded-lg border border-purple-200 shadow-sm">
+                                        <ul className="divide-y divide-purple-100">
+                                            {reservationDetails.passengers.map((passenger, index) => (
+                                                <li key={index} className="py-3 flex items-center gap-3">
+                                                    <UserOutlined className="text-purple-400 text-lg" />
+                                                    <span className="text-gray-700">{passenger.name}</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Description */}
                             {reservationDetails.reservation_description && (

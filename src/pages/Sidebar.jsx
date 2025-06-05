@@ -5,7 +5,7 @@ import {
   FaBars,  FaUserCircle, FaFolder,
  FaChartBar, FaArchive, FaTimes,
   FaComments, FaCogs, FaBell, 
-  FaAngleRight, FaAngleLeft
+  FaAngleRight, FaAngleLeft, FaCalendarAlt
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -359,6 +359,14 @@ const Sidebar = () => {
                 text="Dashboard" 
                 link="/adminDashboard" 
                 active={activeItem === '/adminDashboard'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
+              <MiniSidebarItem 
+                icon={FaCalendarAlt} 
+                text="Calendar" 
+                link="/LandCalendar" 
+                active={activeItem === '/LandCalendar'}
                 isExpanded={isDesktopSidebarOpen}
               />
               
