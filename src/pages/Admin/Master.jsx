@@ -21,6 +21,8 @@ import Sidebar from "../Sidebar";
 import axios from "axios";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";
+import { Modal, Form, Input, Select, Button, DatePicker } from 'antd';
+import dayjs from 'dayjs';
 
 const Master = () => {
   const navigate = useNavigate();
@@ -423,133 +425,133 @@ const Master = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-screen bg-gradient-to-br from-green-100 to-white">
-      <Sidebar />
-      <div className="flex-grow  overflow-y-auto mt-20">
-        <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-          {/* Masters Header */}
-          <div className="bg-[#fafff4] p-4 border rounded-lg shadow-md mb-6 mt-[5rem] md:mt-0 w-full">
-            <motion.h1
-              initial={{ opacity: 0, y: -50 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="text-2xl font-custom-font font-bold text-green-900"
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
+      <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
+        {/* Masters Header */}
+        <div className="bg-[#fafff4] p-4 border rounded-lg shadow-md mb-6 mt-20 w-full">
+          <motion.h1
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="text-2xl font-custom-font font-bold text-green-900"
+          >
+            Masters
+          </motion.h1>
+        </div>
+        {/* Responsive Grid for Cards */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {[
+            {
+              title: "Vehicles",
+              icon: <FaCar />,
+              action: () => setIsAddVehicleModalOpen(true),
+              viewPath: "/VehicleEntry",
+            },
+            {
+              title: "Equipments",
+              icon: <FaListAlt />,
+              action: () => setIsAddEquipmentModalOpen(true),
+              viewPath: "/Equipment",
+            },
+            {
+              title: "Holidays", 
+              icon: <FaPlus />, 
+              action: () => setIsAddHolidayModalOpen(true),
+              viewPath: "/Holiday",
+            },
+            {
+              title: "Drivers",
+              icon: <FaUserTie />,
+              action: () => setIsAddDriverModalOpen(true),
+              viewPath: "/drivers",
+            },
+            {
+              title: "Venues",
+              icon: <FaBuilding />,
+              action: () => setIsAddVenueModalOpen(true),
+              viewPath: "/Venue",
+            },
+            {
+              title: "Users",
+              icon: <FaUsers />,
+              action: () => setIsAddUserModalOpen(true),
+              viewPath: "/Faculty",
+            },
+          ].map((card, index) => (
+            <motion.div
+              key={index}
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.3, delay: index * 0.1 }}
+              whileHover={{ scale: 1.02 }}
+              className="bg-[#fafff4] rounded-2xl shadow-md overflow-hidden w-full flex items-center justify-between p-4 md:block md:flex-none md:items-start md:justify-normal md:p-0"
             >
-              Masters
-            </motion.h1>
-          </div>
-          {/* Responsive Grid for Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
-            {[
-              {
-                title: "Vehicles",
-                icon: <FaCar />,
-                action: () => setIsAddVehicleModalOpen(true),
-                viewPath: "/VehicleEntry",
-              },
-              {
-                title: "Equipments",
-                icon: <FaListAlt />,
-                action: () => setIsAddEquipmentModalOpen(true),
-                viewPath: "/Equipment",
-              },
-              {
-                title: "Holidays", 
-                icon: <FaPlus />, 
-                action: () => setIsAddHolidayModalOpen(true),
-                viewPath: "/holidays",
-              },
-              {
-                title: "Drivers",
-                icon: <FaUserTie />,
-                action: () => setIsAddDriverModalOpen(true),
-                viewPath: "/drivers",
-              },
-              {
-                title: "Venues",
-                icon: <FaBuilding />,
-                action: () => setIsAddVenueModalOpen(true),
-                viewPath: "/Venue",
-              },
-              {
-                title: "Users",
-                icon: <FaUsers />,
-                action: () => setIsAddUserModalOpen(true),
-                viewPath: "/Faculty",
-              },
-            ].map((card, index) => (
-              <motion.div
-                key={index}
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3, delay: index * 0.1 }}
-                whileHover={{ scale: 1.02 }}
-                className="bg-[#fafff4] rounded-2xl shadow-md overflow-hidden w-full flex items-center justify-between p-4 md:block md:flex-none md:items-start md:justify-normal md:p-0"
-              >
-                {/* Mobile View (simple list item) */}
-                <div className="md:hidden flex items-center gap-4 w-full">
-                  <div className="text-green-900 text-2xl">{card.icon}</div>
-                  <h3 className="text-lg font-semibold text-green-950 flex-grow">
+              {/* Mobile View (simple list item) */}
+              <div className="md:hidden flex items-center gap-4 w-full">
+                <div className="text-green-900 text-2xl">{card.icon}</div>
+                <h3 className="text-lg font-semibold text-green-950 flex-grow">
+                  {card.title}
+                </h3>
+                <div className="flex gap-2">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      card.action();
+                      setMessage("");
+                    }}
+                    className="w-10 h-10 flex items-center justify-center bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300"
+                  >
+                    <FaPlus className="text-sm" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => navigate(card.viewPath)}
+                    className="w-10 h-10 flex items-center justify-center bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300"
+                  >
+                    <FaEye className="text-sm" />
+                  </motion.button>
+                </div>
+              </div>
+
+              {/* Desktop View (card) */}
+              <div className="hidden md:block ">
+                <div className="pb-6 border-b border-green-900/20">
+                  <div className="text-green-900 text-3xl mb-2">
+                    {card.icon}
+                  </div>
+                  <h3 className="text-lg font-semibold text-green-950">
                     {card.title}
                   </h3>
-                  <div className="flex gap-2">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        card.action();
-                        setMessage("");
-                      }}
-                      className="w-10 h-10 flex items-center justify-center bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300"
-                    >
-                      <FaPlus className="text-sm" />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => navigate(card.viewPath)}
-                      className="w-10 h-10 flex items-center justify-center bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300"
-                    >
-                      <FaEye className="text-sm" />
-                    </motion.button>
-                  </div>
                 </div>
-
-                {/* Desktop View (card) */}
-                <div className="hidden md:block ">
-                  <div className="pb-6 border-b border-green-900/20">
-                    <div className="text-green-900 text-3xl mb-2">
-                      {card.icon}
-                    </div>
-                    <h3 className="text-lg font-semibold text-green-950">
-                      {card.title}
-                    </h3>
-                  </div>
-                  <div className="pr-4 pt-4 flex justify-between items-center gap-4">
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => {
-                        card.action();
-                        setMessage("");
-                      }}
-                      className="flex-1 py-2 bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300 text-sm"
-                    >
-                      <FaPlus className="mx-auto" />
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      onClick={() => navigate(card.viewPath)}
-                      className="flex-1 py-2 bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300 text-sm"
-                    >
-                      <FaEye className="mx-auto" />
-                    </motion.button>
-                  </div>
+                <div className="pr-4 pt-4 flex justify-between items-center gap-4">
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => {
+                      card.action();
+                      setMessage("");
+                    }}
+                    className="flex-1 py-2 bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300 text-sm"
+                  >
+                    <FaPlus className="mx-auto" />
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                    onClick={() => navigate(card.viewPath)}
+                    className="flex-1 py-2 bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300 text-sm"
+                  >
+                    <FaEye className="mx-auto" />
+                  </motion.button>
                 </div>
-              </motion.div>
-            ))}
-        </div>
+              </div>
+            </motion.div>
+          ))}
         </div>
 
         {/* Modal for Adding Category */}
@@ -800,129 +802,238 @@ const Master = () => {
         )}
 
         {/* Modal for Adding Holiday */}
-        {isAddHolidayModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-            <div className="bg-white p-8 rounded-lg shadow-lg">
-              <h2 className="text-xl font-bold mb-4">Add Holiday</h2>
-              <form onSubmit={handleSaveHolidayData}>
-                <input
-                  type="text"
-                  value={holidayName}
-                  onChange={handleInputChange(setHolidayName)}
-                  placeholder="Enter holiday name"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                />
-                <input                  type="date"                  value={holidayDate}                  onChange={(e) => setHolidayDate(e.target.value)}                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"                />
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="mr-2 py-2 px-4 bg-gray-500 text-white rounded"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="py-2 px-4 bg-blue-500 text-white rounded"
-                  >
-                    Save
-                  </button>
+        <Modal
+            title={
+                <div className="flex items-center">
+                    <FaPlus className="mr-2 text-green-900" />
+                    Add New Holiday
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
+            }
+            open={isAddHolidayModalOpen}
+            onCancel={resetForm}
+            footer={null}
+            width={600}
+        >
+            <Form
+                layout="vertical"
+                onFinish={handleSaveHolidayData}
+                className="p-4"
+            >
+                <Form.Item
+                    label="Holiday Name"
+                    name="holiday_name"
+                    rules={[
+                        { required: true, message: 'Please input holiday name!' },
+                        { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                    ]}
+                >
+                    <Input 
+                        value={holidayName}
+                        onChange={handleInputChange(setHolidayName)}
+                        placeholder="Enter holiday name"
+                    />
+                </Form.Item>
+
+                <Form.Item
+                    label="Holiday Date"
+                    name="holiday_date"
+                    rules={[
+                        { required: true, message: 'Please select holiday date!' }
+                    ]}
+                >
+                    <DatePicker
+                        value={holidayDate ? dayjs(holidayDate) : null}
+                        onChange={(date) => setHolidayDate(date ? date.format('YYYY-MM-DD') : '')}
+                        className="w-full"
+                    />
+                </Form.Item>
+
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button onClick={resetForm}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        type="primary" 
+                        htmlType="submit"
+                        className="bg-green-900 hover:bg-lime-900"
+                    >
+                        Add Holiday
+                    </Button>
+                </div>
+            </Form>
+        </Modal>
 
         {/* Modal for Adding Driver */}
-        {isAddDriverModalOpen && (
-          <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
-            <div className="bg-white p-8 rounded-lg shadow-lg max-w-md w-full">
-              <h2 className="text-xl font-bold mb-4">Add Driver</h2>
-              <form onSubmit={handleSaveDriverData}>
-                <input
-                  type="text"
-                  value={driverFirstName}
-                  onChange={handleInputChange(setDriverFirstName)}
-                  placeholder="Enter first name *"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                  required
-                />
-                <input
-                  type="text"
-                  value={driverMiddleName}
-                  onChange={handleInputChange(setDriverMiddleName)}
-                  placeholder="Enter middle name"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                />
-                <input
-                  type="text"
-                  value={driverLastName}
-                  onChange={handleInputChange(setDriverLastName)}
-                  placeholder="Enter last name *"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                  required
-                />
-                <select
-                  value={driverSuffix}
-                  onChange={(e) => setDriverSuffix(e.target.value)}
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                >
-                  <option value="">Select Suffix</option>
-                  <option value="Jr">Jr</option>
-                  <option value="Sr">Sr</option>
-                  <option value="I">I</option>
-                  <option value="II">II</option>
-                  <option value="III">III</option>
-                  <option value="IV">IV</option>
-                </select>
-                <input
-                  type="tel"
-                  value={driverContactNumber}
-                  onChange={handleInputChange(setDriverContactNumber)}
-                  placeholder="Enter contact number *"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                  required
-                />
-                <textarea
-                  value={driverAddress}
-                  onChange={handleInputChange(setDriverAddress)}
-                  placeholder="Enter address *"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                  required
-                />
-                <input
-                  type="text"
-                  value={driverEmployeeId}
-                  onChange={handleInputChange(setDriverEmployeeId)}
-                  placeholder="Enter employee ID"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                />
-                <input
-                  type="date"
-                  value={driverBirthdate}
-                  onChange={handleInputChange(setDriverBirthdate)}
-                  placeholder="Enter birthdate"
-                  className="border border-gray-300 rounded px-4 py-2 w-full mb-4"
-                />
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={resetForm}
-                    className="mr-2 py-2 px-4 bg-gray-500 text-white rounded"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="py-2 px-4 bg-blue-500 text-white rounded"
-                  >
-                    Save
-                  </button>
+        <Modal
+            title={
+                <div className="flex items-center">
+                    <FaUserTie className="mr-2 text-green-900" />
+                    Add New Driver
                 </div>
-              </form>
-            </div>
-          </div>
-        )}
+            }
+            open={isAddDriverModalOpen}
+            onCancel={resetForm}
+            footer={null}
+            width={800}
+        >
+            <Form
+                layout="vertical"
+                onFinish={handleSaveDriverData}
+                className="p-4"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Form.Item
+                        label="First Name"
+                        name="driver_firstname"
+                        rules={[
+                            { required: true, message: 'Please input first name!' },
+                            { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                        ]}
+                    >
+                        <Input 
+                            value={driverFirstName}
+                            onChange={handleInputChange(setDriverFirstName)}
+                            placeholder="Enter first name"
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Middle Name"
+                        name="driver_middlename"
+                        rules={[
+                            { pattern: /^[a-zA-Z\s]*$/, message: 'Name can only contain letters and spaces' }
+                        ]}
+                    >
+                        <Input 
+                            value={driverMiddleName}
+                            onChange={handleInputChange(setDriverMiddleName)}
+                            placeholder="Enter middle name"
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Last Name"
+                        name="driver_lastname"
+                        rules={[
+                            { required: true, message: 'Please input last name!' },
+                            { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                        ]}
+                    >
+                        <Input 
+                            value={driverLastName}
+                            onChange={handleInputChange(setDriverLastName)}
+                            placeholder="Enter last name"
+                        />
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
+                        label="Suffix"
+                        name="driver_suffix"
+                    >
+                        <Select
+                            value={driverSuffix}
+                            onChange={(value) => setDriverSuffix(value)}
+                            placeholder="Select suffix"
+                        >
+                            <Select.Option value="">None</Select.Option>
+                            <Select.Option value="Jr.">Jr.</Select.Option>
+                            <Select.Option value="Sr.">Sr.</Select.Option>
+                            <Select.Option value="II">II</Select.Option>
+                            <Select.Option value="III">III</Select.Option>
+                            <Select.Option value="IV">IV</Select.Option>
+                            <Select.Option value="V">V</Select.Option>
+                        </Select>
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Birthday"
+                        name="driver_birthday"
+                        rules={[
+                            { required: true, message: 'Please select birthday!' },
+                            { validator: (_, value) => {
+                                if (!value) return Promise.resolve();
+                                const birthDate = new Date(value);
+                                const today = new Date();
+                                let age = today.getFullYear() - birthDate.getFullYear();
+                                const monthDiff = today.getMonth() - birthDate.getMonth();
+                                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                                    age--;
+                                }
+                                return age >= 18 && age <= 100 ? Promise.resolve() : Promise.reject('Age must be between 18 and 100');
+                            }}
+                        ]}
+                    >
+                        <DatePicker
+                            value={driverBirthdate ? dayjs(driverBirthdate) : null}
+                            onChange={(date) => setDriverBirthdate(date ? date.format('YYYY-MM-DD') : '')}
+                            className="w-full"
+                            maxDate={dayjs()}
+                        />
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
+                        label="Contact Number"
+                        name="driver_contact"
+                        rules={[
+                            { required: true, message: 'Please input contact number!' },
+                            { pattern: /^\d{11}$/, message: 'Contact number must be 11 digits' }
+                        ]}
+                    >
+                        <Input 
+                            value={driverContactNumber}
+                            onChange={handleInputChange(setDriverContactNumber)}
+                            placeholder="Enter contact number"
+                        />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Employee ID"
+                        name="driver_employee_id"
+                        rules={[
+                            { required: true, message: 'Please input employee ID!' }
+                        ]}
+                    >
+                        <Input 
+                            value={driverEmployeeId}
+                            onChange={handleInputChange(setDriverEmployeeId)}
+                            placeholder="Enter employee ID"
+                        />
+                    </Form.Item>
+                </div>
+
+                <Form.Item
+                    label="Address"
+                    name="driver_address"
+                    rules={[
+                        { required: true, message: 'Please input address!' }
+                    ]}
+                >
+                    <Input.TextArea 
+                        value={driverAddress}
+                        onChange={handleInputChange(setDriverAddress)}
+                        placeholder="Enter address"
+                        rows={4}
+                    />
+                </Form.Item>
+
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button onClick={resetForm}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        type="primary" 
+                        htmlType="submit"
+                        className="bg-green-900 hover:bg-lime-900"
+                    >
+                        Add Driver
+                    </Button>
+                </div>
+            </Form>
+        </Modal>
 
         {/* Modal for Adding Vehicle */}
         <CreateVehicleModal

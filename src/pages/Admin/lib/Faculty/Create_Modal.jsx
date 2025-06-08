@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Modal, Button, Form } from 'react-bootstrap';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faUser } from '@fortawesome/free-solid-svg-icons';
+import { Modal, Form, Input, Select, Button, Upload } from 'antd';
+import { PlusOutlined } from '@ant-design/icons';
+import { FaUser } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
@@ -14,26 +14,11 @@ const Create_Modal = ({
     generateAvatarColor,
     fetchUsers
 }) => {
+    const [form] = Form.useForm();
     const timeoutRef = useRef(null);
     const [userLevels, setUserLevels] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [formData, setFormData] = useState({
-        users_firstname: '',
-        users_middlename: '',
-        users_lastname: '',
-        users_suffix: '',
-        users_school_id: '',
-        users_contact_number: '',
-        users_email: '',
-        departments_name: '',
-        users_password: '',
-        users_role: '',
-        users_birthday: '',
-    });
-
-    const [errors, setErrors] = useState({});
-    const [touchedFields, setTouchedFields] = useState({});
     const [duplicateFields, setDuplicateFields] = useState({
         email: false,
         schoolId: false
@@ -117,68 +102,11 @@ const Create_Modal = ({
         }
     };
 
-    const handleBlur = (e) => {
-        const { name, value } = e.target;
-        setTouchedFields(prev => ({ ...prev, [name]: true }));
-        const error = validateField(name, value);
-        setErrors(prev => ({ ...prev, [name]: error }));
-
-        if ((name === 'users_email' || name === 'users_school_id') && value) {
-            checkDuplicates(name === 'users_email' ? 'email' : 'schoolId', value);
-        }
-    };
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        let finalValue = value;
-        
-        if (name !== 'users_password') {
-            finalValue = sanitizeInput(value);
-            
-            if (finalValue && !validateInput(finalValue)) {
-                toast.error('Invalid input detected');
-                return;
-            }
-        }
-        
-        setFormData(prev => ({
-            ...prev,
-            [name]: finalValue
-        }));
-        
-        setErrors(prev => ({
-            ...prev,
-            [name]: ''
-        }));
-        
-        if (name === 'users_email' || name === 'users_school_id') {
-            setDuplicateFields(prev => ({
-                ...prev,
-                [name === 'users_email' ? 'email' : 'schoolId']: false
-            }));
-            
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-            
-            timeoutRef.current = setTimeout(() => {
-                checkDuplicates(
-                    name === 'users_email' ? 'email' : 'schoolId',
-                    finalValue
-                );
-            }, 500);
-        }
-    };
-
     const checkDuplicates = async (field, value) => {
         if (!value) {
             setDuplicateFields(prev => ({
                 ...prev,
                 [field]: false
-            }));
-            setErrors(prev => ({
-                ...prev,
-                [field === 'email' ? 'users_email' : 'users_school_id']: ''
             }));
             return;
         }
@@ -212,29 +140,20 @@ const Create_Modal = ({
                             ...prev,
                             [field]: true
                         }));
-                        setErrors(prev => ({
-                            ...prev,
-                            [field === 'email' ? 'users_email' : 'users_school_id']: duplicate.message
-                        }));
+                        form.setFields([{
+                            name: field === 'email' ? 'users_email' : 'users_school_id',
+                            errors: [duplicate.message]
+                        }]);
                     } else {
                         setDuplicateFields(prev => ({
                             ...prev,
                             [field]: false
                         }));
-                        setErrors(prev => ({
-                            ...prev,
-                            [field === 'email' ? 'users_email' : 'users_school_id']: ''
-                        }));
+                        form.setFields([{
+                            name: field === 'email' ? 'users_email' : 'users_school_id',
+                            errors: []
+                        }]);
                     }
-                } else {
-                    setDuplicateFields(prev => ({
-                        ...prev,
-                        [field]: false
-                    }));
-                    setErrors(prev => ({
-                        ...prev,
-                        [field === 'email' ? 'users_email' : 'users_school_id']: ''
-                    }));
                 }
             }
         } catch (error) {
@@ -243,162 +162,75 @@ const Create_Modal = ({
         }
     };
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-
-        const isValid = Object.entries(formData).every(([key, value]) => {
-            if (key === 'users_middlename') return true;
-            return validateInput(value);
-        });
-
-        if (!isValid) {
-            toast.error('Please check your inputs for invalid characters or patterns.');
-            return;
-        }
-
-        const emailRegex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
-        if (!emailRegex.test(formData.users_email)) {
-            toast.error('Please enter a valid email address');
-            return;
-        }
-
-        const nameRegex = /^[a-zA-Z\s]+$/;
-        if (!nameRegex.test(formData.users_firstname) || 
-            (formData.users_middlename && !nameRegex.test(formData.users_middlename)) || 
-            !nameRegex.test(formData.users_lastname)) {
-            toast.error('Names can only contain letters and spaces');
-            return;
-        }
-
-        const uniqueCheckResult = await checkUniqueEmailAndSchoolId(
-            formData.users_email,
-            formData.users_school_id
-        );
-
-        if (uniqueCheckResult && uniqueCheckResult.email_exists) {
-            setErrors(prev => ({
-                ...prev,
-                users_email: 'This email is already in use'
-            }));
-            toast.error('Email is already registered');
-            return;
-        }
-
-        if (uniqueCheckResult && uniqueCheckResult.school_id_exists) {
-            setErrors(prev => ({
-                ...prev,
-                users_school_id: 'This school ID is already in use'
-            }));
-            toast.error('School ID is already registered');
-            return;
-        }
-
-        const newErrors = {};
-        Object.keys(formData).forEach(key => {
-            if (key !== 'users_middlename') {
-                const error = validateField(key, formData[key]);
-                if (error) newErrors[key] = error;
-            }
-        });
-
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
-            setTouchedFields(
-                Object.keys(formData).reduce((acc, key) => ({ ...acc, [key]: true }), {})
-            );
-            toast.error('Please fix the validation errors');
-            return;
-        }
-
-        const selectedDepartment = departments.find(
-            dept => dept.departments_name === formData.departments_name
-        );
-        
-        if (!selectedDepartment) {
-            console.error('Department not found:', formData.departments_name);
-            return;
-        }
-
-        let operation = 'saveUser';
-        let jsonData;
-
-        if (formData.users_role === '13') {
-            jsonData = {
-                operation: operation,
-                data: {
-                    fullName: `${formData.users_firstname} ${formData.users_middlename} ${formData.users_lastname}`.trim(),
-                    email: formData.users_email,
-                    schoolId: formData.users_school_id,
-                    contact: formData.users_contact_number,
-                    userLevelId: formData.users_role,
-                    password: formData.users_password,
-                    departmentId: selectedDepartment.departments_id,
-                    pic: "",
-                    suffix: formData.users_suffix || "",
-                    birthdate: formData.users_birthday || ""
-                }
-            };
-        } else {
-            jsonData = {
-                operation: operation,
-                data: {
-                    fname: formData.users_firstname,
-                    mname: formData.users_middlename,
-                    lname: formData.users_lastname,
-                    email: formData.users_email,
-                    schoolId: formData.users_school_id,
-                    contact: formData.users_contact_number,
-                    userLevelId: formData.users_role,
-                    password: formData.users_password,
-                    departmentId: selectedDepartment.departments_id,
-                    suffix: formData.users_suffix || "",
-                    birthdate: formData.users_birthday || ""
-                }
-            };
-        }
-
+    const handleSubmit = async (values) => {
+        setLoading(true);
         try {
+            const selectedDepartment = departments.find(
+                dept => dept.departments_name === values.departments_name
+            );
+            
+            if (!selectedDepartment) {
+                console.error('Department not found:', values.departments_name);
+                return;
+            }
+
+            let operation = 'saveUser';
+            let jsonData;
+
+            if (values.users_role === '13') {
+                jsonData = {
+                    operation: operation,
+                    data: {
+                        fullName: `${values.users_firstname} ${values.users_middlename} ${values.users_lastname}`.trim(),
+                        email: values.users_email,
+                        schoolId: values.users_school_id,
+                        contact: values.users_contact_number,
+                        userLevelId: values.users_role,
+                        password: values.users_password,
+                        departmentId: selectedDepartment.departments_id,
+                        pic: "",
+                        suffix: values.users_suffix || "",
+                        birthdate: values.users_birthday || ""
+                    }
+                };
+            } else {
+                jsonData = {
+                    operation: operation,
+                    data: {
+                        fname: values.users_firstname,
+                        mname: values.users_middlename,
+                        lname: values.users_lastname,
+                        email: values.users_email,
+                        schoolId: values.users_school_id,
+                        contact: values.users_contact_number,
+                        userLevelId: values.users_role,
+                        password: values.users_password,
+                        departmentId: selectedDepartment.departments_id,
+                        suffix: values.users_suffix || "",
+                        birthdate: values.users_birthday || ""
+                    }
+                };
+            }
+
             const response = await axios.post(`${baseUrl}/insert_master.php`, jsonData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
             });
 
-            console.log('Server Response:', response.data);
-
             if (response.data.status === 'success') {
                 toast.success('Faculty successfully added!');
                 fetchUsers();
                 onHide();
+                form.resetFields();
             } else {
                 throw new Error(response.data.message || "Unknown error");
             }
         } catch (error) {
             console.error('Error details:', error);
             toast.error(`Failed to add faculty: ${error.message}`);
-        }
-    };
-
-    const checkUniqueEmailAndSchoolId = async (email, schoolId) => {
-        try {
-            const response = await axios.post(
-                `${baseUrl}/user.php`,
-                {
-                    operation: 'checkUniqueEmailAndSchoolId',
-                    email: email,
-                    schoolId: schoolId
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            return response.data;
-        } catch (error) {
-            console.error('Error checking unique email and school ID:', error);
-            throw error;
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -441,8 +273,6 @@ const Create_Modal = ({
                 }
             });
     
-            console.log('Department response:', response.data); // Debug log
-    
             if (response.data && Array.isArray(response.data.data)) {
                 setDepartments(response.data.data);
             } else {
@@ -476,229 +306,194 @@ const Create_Modal = ({
     }, []);
 
     return (
-        <Modal show={show} onHide={onHide} centered size="lg" className="rounded-xl faculty-modal">
-            <Modal.Header closeButton className="bg-green-900 text-white">
-                <Modal.Title className="flex items-center gap-2">
-                    <FontAwesomeIcon icon={faUser} className="text-xl" />
-                    <span className="font-bold">Add New Faculty</span>
-                </Modal.Title>
-            </Modal.Header>
-            <Modal.Body className="bg-[#fafff4] p-4">
-                <Form onSubmit={handleSubmit} noValidate className="p-2">
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <Form.Group>
-                            <Form.Label className="font-semibold">First Name <span className="text-red-500">*</span></Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="users_firstname"
-                                value={formData.users_firstname}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_firstname && errors.users_firstname}
-                                className="border-green-200 focus:border-green-400 focus:ring focus:ring-green-200"
-                                required
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_firstname}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                        <Form.Group>
-                            <Form.Label className="font-semibold">Middle Name</Form.Label>
-                            <Form.Control 
-                                type="text" 
-                                name="users_middlename" 
-                                value={formData.users_middlename} 
-                                onChange={handleChange}
-                                className="border-green-200 focus:border-green-400 focus:ring focus:ring-green-200" 
-                            />
-                        </Form.Group>
-                        <Form.Group>
-                            <Form.Label className="font-semibold">Last Name <span className="text-red-500">*</span></Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="users_lastname"
-                                value={formData.users_lastname}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_lastname && errors.users_lastname}
-                                className="border-green-200 focus:border-green-400 focus:ring focus:ring-green-200"
-                                required
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_lastname}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                    </div>
+        <Modal
+            title={
+                <div className="flex items-center">
+                    <FaUser className="mr-2 text-green-900" /> 
+                    Add New Faculty
+                </div>
+            }
+            open={show}
+            onCancel={onHide}
+            footer={null}
+            width={800}
+        >
+            <Form
+                form={form}
+                layout="vertical"
+                onFinish={handleSubmit}
+                className="p-4"
+            >
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <Form.Item
+                        label="First Name"
+                        name="users_firstname"
+                        rules={[
+                            { required: true, message: 'Please input first name!' },
+                            { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                        ]}
+                    >
+                        <Input placeholder="Enter first name" />
+                    </Form.Item>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <Form.Group>
-                            <Form.Label>School ID <span className="text-red-500">*</span></Form.Label>
-                            <Form.Control
-                                type="text"
-                                name="users_school_id"
-                                value={formData.users_school_id}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={!!errors.users_school_id}
-                                required
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_school_id}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                        <Form.Group>
-                            <Form.Label>Phone Number <span className="text-red-500">*</span></Form.Label>
-                            <Form.Control
-                                type="tel"
-                                name="users_contact_number"
-                                value={formData.users_contact_number}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_contact_number && errors.users_contact_number}
-                                required
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_contact_number}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                    </div>
+                    <Form.Item
+                        label="Middle Name"
+                        name="users_middlename"
+                        rules={[
+                            { pattern: /^[a-zA-Z\s]*$/, message: 'Name can only contain letters and spaces' }
+                        ]}
+                    >
+                        <Input placeholder="Enter middle name" />
+                    </Form.Item>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <Form.Group>
-                            <Form.Label>Email Address <span className="text-red-500">*</span></Form.Label>
-                            <Form.Control
-                                type="email"
-                                name="users_email"
-                                value={formData.users_email}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={!!errors.users_email}
-                                required
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_email}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                        <Form.Group>
-                            <Form.Label>Role <span className="text-red-500">*</span></Form.Label>
-                            <Form.Select
-                                name="users_role"
-                                value={formData.users_role}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_role && errors.users_role}
-                                required
-                            >
-                                <option value="">Select Role</option>
-                                {userLevels.map((level) => (
-                                    <option key={level.user_level_id} value={level.user_level_id}>
-                                        {level.user_level_name}
-                                    </option>
-                                ))}
-                            </Form.Select>
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_role}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                    </div>
+                    <Form.Item
+                        label="Last Name"
+                        name="users_lastname"
+                        rules={[
+                            { required: true, message: 'Please input last name!' },
+                            { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                        ]}
+                    >
+                        <Input placeholder="Enter last name" />
+                    </Form.Item>
+                </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <Form.Group>
-                            <Form.Label>Department <span className="text-red-500">*</span></Form.Label>
-                            <Form.Select
-                                name="departments_name"
-                                value={formData.departments_name}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.departments_name && errors.departments_name}
-                                required
-                            >
-                                <option value="">Select Department</option>
-                                {departments && departments.map((department) => (
-                                    <option key={department.departments_id} value={department.departments_name}>
-                                        {department.departments_name}
-                                    </option>
-                                ))}
-                            </Form.Select>
-                            <Form.Control.Feedback type="invalid">
-                                {errors.departments_name}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                        <Form.Group>
-                            <Form.Label>Password <span className="text-red-500">*</span></Form.Label>
-                            <Form.Control
-                                type="password"
-                                name="users_password"
-                                value={formData.users_password}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_password && errors.users_password}
-                                required
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_password}
-                            </Form.Control.Feedback>
-                            <Form.Text className="text-muted">
-                                Password must contain at least 8 characters, including 1 uppercase, 1 lowercase, 
-                                1 number, and exactly 1 special character (!@#$%^&*).
-                            </Form.Text>
-                        </Form.Group>
-                    </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
+                        label="School ID"
+                        name="users_school_id"
+                        rules={[
+                            { required: true, message: 'Please input school ID!' },
+                            { pattern: /^[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+$/, message: 'School ID must be in the format x1-x1-x1' }
+                        ]}
+                    >
+                        <Input placeholder="Enter school ID" />
+                    </Form.Item>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                        <Form.Group>
-                            <Form.Label>Suffix</Form.Label>
-                            <Form.Select
-                                name="users_suffix"
-                                value={formData.users_suffix}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_suffix && errors.users_suffix}
-                            >
-                                <option value="">Select Suffix</option>
-                                <option value="Jr.">Jr.</option>
-                                <option value="Sr.">Sr.</option>
-                                <option value="II">II</option>
-                                <option value="III">III</option>
-                                <option value="IV">IV</option>
-                                <option value="V">V</option>
-                            </Form.Select>
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_suffix}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                        <Form.Group>
-                            <Form.Label>Birthday*</Form.Label>
-                            <Form.Control
-                                type="date"
-                                name="users_birthday"
-                                value={formData.users_birthday}
-                                onChange={handleChange}
-                                onBlur={handleBlur}
-                                isInvalid={touchedFields.users_birthday && errors.users_birthday}
-                                required
-                                max={new Date().toISOString().split('T')[0]}
-                            />
-                            <Form.Control.Feedback type="invalid">
-                                {errors.users_birthday}
-                            </Form.Control.Feedback>
-                        </Form.Group>
-                    </div>
-                </Form>
-            </Modal.Body>
-            <Modal.Footer className="bg-[#fafff4] border-t border-green-100">
-                <Button variant="outline-secondary" onClick={onHide} className="px-4">
-                    Cancel
-                </Button>
-                <Button 
-                    variant="success" 
-                    onClick={handleSubmit} 
-                    className="bg-green-900 hover:bg-lime-900 border-green-900 px-4"
-                    disabled={duplicateFields && (duplicateFields.email || duplicateFields.schoolId)}
-                >
-                    Add Faculty
-                </Button>
-            </Modal.Footer>
+                    <Form.Item
+                        label="Phone Number"
+                        name="users_contact_number"
+                        rules={[
+                            { required: true, message: 'Please input phone number!' },
+                            { pattern: /^\d{11}$/, message: 'Contact number must be 11 digits' }
+                        ]}
+                    >
+                        <Input placeholder="Enter phone number" />
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
+                        label="Email Address"
+                        name="users_email"
+                        rules={[
+                            { required: true, message: 'Please input email address!' },
+                            { type: 'email', message: 'Please enter a valid email address' }
+                        ]}
+                    >
+                        <Input placeholder="Enter email address" />
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Role"
+                        name="users_role"
+                        rules={[{ required: true, message: 'Please select a role!' }]}
+                    >
+                        <Select placeholder="Select role">
+                            {userLevels.map((level) => (
+                                <Select.Option key={level.user_level_id} value={level.user_level_id}>
+                                    {level.user_level_name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
+                        label="Department"
+                        name="departments_name"
+                        rules={[{ required: true, message: 'Please select a department!' }]}
+                    >
+                        <Select placeholder="Select department">
+                            {departments.map((department) => (
+                                <Select.Option key={department.departments_id} value={department.departments_name}>
+                                    {department.departments_name}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Password"
+                        name="users_password"
+                        rules={[
+                            { required: true, message: 'Please input password!' },
+                            { pattern: passwordRegex, message: 'Password must meet requirements' },
+                            { validator: (_, value) => {
+                                const specialCharCount = (value.match(passwordSingleSpecialCharRegex) || []).length;
+                                return specialCharCount === 1 ? Promise.resolve() : Promise.reject('Password must contain exactly 1 special character');
+                            }}
+                        ]}
+                        tooltip="Password must contain at least 8 characters, including 1 uppercase, 1 lowercase, 1 number, and exactly 1 special character (!@#$%^&*)"
+                    >
+                        <Input.Password placeholder="Enter password" />
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
+                        label="Suffix"
+                        name="users_suffix"
+                    >
+                        <Select placeholder="Select suffix">
+                            <Select.Option value="">None</Select.Option>
+                            <Select.Option value="Jr.">Jr.</Select.Option>
+                            <Select.Option value="Sr.">Sr.</Select.Option>
+                            <Select.Option value="II">II</Select.Option>
+                            <Select.Option value="III">III</Select.Option>
+                            <Select.Option value="IV">IV</Select.Option>
+                            <Select.Option value="V">V</Select.Option>
+                        </Select>
+                    </Form.Item>
+
+                    <Form.Item
+                        label="Birthday"
+                        name="users_birthday"
+                        rules={[
+                            { required: true, message: 'Please select birthday!' },
+                            { validator: (_, value) => {
+                                if (!value) return Promise.resolve();
+                                const birthDate = new Date(value);
+                                const today = new Date();
+                                let age = today.getFullYear() - birthDate.getFullYear();
+                                const monthDiff = today.getMonth() - birthDate.getMonth();
+                                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                                    age--;
+                                }
+                                return age >= 18 && age <= 100 ? Promise.resolve() : Promise.reject('Age must be between 18 and 100');
+                            }}
+                        ]}
+                    >
+                        <Input type="date" max={new Date().toISOString().split('T')[0]} />
+                    </Form.Item>
+                </div>
+
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button onClick={onHide}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        type="primary" 
+                        htmlType="submit"
+                        loading={loading}
+                        className="bg-green-900 hover:bg-lime-900"
+                        disabled={duplicateFields && (duplicateFields.email || duplicateFields.schoolId)}
+                    >
+                        Add Faculty
+                    </Button>
+                </div>
+            </Form>
         </Modal>
     );
 };

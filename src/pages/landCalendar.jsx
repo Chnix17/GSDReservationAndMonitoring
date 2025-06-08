@@ -171,6 +171,11 @@ const Calendar = () => {
   const getReservationForDate = (date) => {
     console.log('Getting reservations for date:', date);
     const filteredReservations = reservations.filter(reservation => {
+      // Check if reservation is active and has "Reserved" status
+      if (reservation.reservation_status_name !== "Reserved" || reservation.reservation_active !== "1") {
+        return false;
+      }
+
       // Use reservation_start_date and reservation_end_date directly
       const startDate = new Date(reservation.reservation_start_date);
       const endDate = new Date(reservation.reservation_end_date);

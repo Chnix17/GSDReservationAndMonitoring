@@ -36,7 +36,8 @@ const NotificationPage = () => {
     const fetchNotifications = async () => {
       try {
         const userId = SecureStorage.getSessionItem('user_id');
-        const response = await fetch('http://localhost/coc/gsd/faculty&staff.php', {
+        const baseUrl = SecureStorage.getLocalItem("url");
+        const response = await fetch(`${baseUrl}/faculty&staff.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion, AnimatePresence } from 'framer-motion';
-import { FiCalendar, FiList, FiHelpCircle, FiLogOut, FiBell, FiUser, FiSettings, 
-  FiClock, FiCheckCircle, FiAlertCircle, FiBarChart2, FiUsers, FiBookmark, 
-  FiX, FiCheck, FiTrash2, FiInfo, FiMessageSquare, FiMapPin, FiEye } from 'react-icons/fi';
+import { motion,  } from 'framer-motion';
+import { FiCalendar, 
+  FiClock, 
+ } from 'react-icons/fi';
 import { Modal, Tabs } from 'antd';
-import { InfoCircleOutlined, BuildOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined, AppstoreOutlined } from '@ant-design/icons';
+import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import ReservationCalendar from '../components/ReservationCalendar';
 import Sidebar from './component/user_sidebar';
@@ -16,16 +16,11 @@ const { TabPane } = Tabs;
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [notificationsLoading, setNotificationsLoading] = useState(true);
   const [userName, setUserName] = useState('');
-  const [showSupportTicket, setShowSupportTicket] = useState(false);
   const [activeReservations, setActiveReservations] = useState([]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [reservationDetails, setReservationDetails] = useState(null);
-  const [currentRequest, setCurrentRequest] = useState(null);
   const [completedReservations, setCompletedReservations] = useState([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
@@ -53,92 +48,14 @@ const Dashboard = () => {
           }
       }, [navigate]);
 
-  const navButtonVariants = {
-    hover: { 
-      scale: 1.05,
-      backgroundColor: "rgba(16, 185, 129, 0.1)",
-      transition: { duration: 0.2 }
-    },
-    tap: { scale: 0.95 }
-  };
 
-  const statsData = [
-    { title: "Total Reservations", value: "156", icon: FiBookmark, color: "bg-blue-500" },
-    { title: "Pending Requests", value: "8", icon: FiClock, color: "bg-yellow-500" },
-    { title: "Approved Today", value: "12", icon: FiCheckCircle, color: "bg-green-500" },
-    
-  ];
 
-  const recentActivities = [
-    { type: "Approved", message: "Roofdeck reservation approved", time: "2 minutes ago" },
-    { type: "Pending", message: "New reservation request for Ms Lobby", time: "1 hour ago" },
-    { type: "Cancelled", message: "Multipurpose Hall reservation cancelled", time: "3 hours ago" },
-    { type: "Completed", message: "Event in Auditorium completed", time: "5 hours ago" },
-  ];
 
-  const fetchNotifications = async () => {
-    setNotificationsLoading(true);
-    try {
-      const response = await fetch('http://localhost/coc/gsd/fetch_reserve.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchNotificationsByUserId',
-          user_id: localStorage.getItem('user_id')
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
 
-      const result = await response.json();
-      if (result.status === 'success') {
-        setNotifications(result.data);
-      } else {
-        console.error('Failed to fetch notifications:', result);
-      }
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    } finally {
-      setNotificationsLoading(false);
-    }
-  };
 
-  const markNotificationAsRead = async (notificationId) => {
-    try {
-      const response = await fetch('http://localhost/coc/gsd/update_master.php', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'updateNotification',
-          notification_id: notificationId
-        })
-      });
 
-      const result = await response.json();
-      if (result.status === 'success') {
-        // Update local state to reflect the change
-        setNotifications(notifications.map(notif => 
-          notif.notification_id === notificationId 
-            ? {...notif, is_read_by_user: '1'}
-            : notif
-        ));
-      } else {
-        console.error('Failed to mark notification as read:', result.message);
-      }
-    } catch (error) {
-      console.error('Error marking notification as read:', error);
-    }
-  };
 
-  useEffect(() => {
-    fetchNotifications();
-  }, []);
+
 
   useEffect(() => {
     const storedName = SecureStorage.getSessionItem('name');
@@ -149,9 +66,10 @@ const Dashboard = () => {
     const fetchReservations = async () => {
       try {
         const userId = SecureStorage.getSessionItem('user_id');
+        const baseUrl = SecureStorage.getLocalItem("url");
         console.log('Fetching reservations for user ID:', userId);
 
-        const response = await fetch('http://localhost/coc/gsd/faculty&staff.php', {
+        const response = await fetch(`${baseUrl}/faculty&staff.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -230,9 +148,10 @@ const Dashboard = () => {
 
   const handleViewReservation = async (reservation) => {
     try {
+      const baseUrl = SecureStorage.getLocalItem("url");
       // Fetch reservation details, status history, and maintenance resources
       const [detailsResponse, statusResponse, maintenanceResponse] = await Promise.all([
-        fetch('http://localhost/coc/gsd/faculty&staff.php', {
+        fetch(`${baseUrl}/faculty&staff.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -240,7 +159,7 @@ const Dashboard = () => {
             reservationId: reservation.id
           })
         }),
-        fetch('http://localhost/coc/gsd/faculty&staff.php', {
+        fetch(`${baseUrl}/faculty&staff.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -248,7 +167,7 @@ const Dashboard = () => {
             reservationId: reservation.id
           })
         }),
-        fetch('http://localhost/coc/gsd/faculty&staff.php', {
+        fetch(`${baseUrl}/faculty&staff.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -281,210 +200,16 @@ const Dashboard = () => {
     }
   };
 
-  const getNotificationIcon = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'success':
-        return <FiCheck className="w-5 h-5 text-green-500" />;
-      case 'warning':
-        return <FiAlertCircle className="w-5 h-5 text-yellow-500" />;
-      case 'error':
-        return <FiAlertCircle className="w-5 h-5 text-red-500" />;
-      default:
-        return <FiInfo className="w-5 h-5 text-blue-500" />;
-    }
-  };
 
-  const getNotificationStyle = (type) => {
-    switch (type?.toLowerCase()) {
-      case 'success':
-        return 'border-l-4 border-green-500 bg-green-50';
-      case 'warning':
-        return 'border-l-4 border-yellow-500 bg-yellow-50';
-      case 'error':
-        return 'border-l-4 border-red-500 bg-red-50';
-      default:
-        return 'border-l-4 border-blue-500 bg-blue-50';
-    }
-  };
 
-  const NotificationsPopup = () => (
-    <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: -20 }}
-        className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl z-50 overflow-hidden"
-      >
-        <div className="p-4 bg-gradient-to-r from-green-600 to-green-500 text-white">
-          <div className="flex justify-between items-center">
-            <h3 className="font-bold text-lg">Notifications</h3>
-            <div className="flex items-center space-x-2">
-              <button 
-                onClick={() => setNotifications([])}
-                className="p-1 hover:bg-green-700 rounded-full transition-colors"
-                title="Clear all notifications"
-              >
-                <FiTrash2 className="w-4 h-4" />
-              </button>
-            </div>
-          </div>
-          <p className="text-sm text-green-100 mt-1">
-            {notifications.length} {notifications.length === 1 ? 'notification' : 'notifications'}
-          </p>
-        </div>
 
-        <div className="max-h-[60vh] overflow-y-auto">
-          {notificationsLoading ? (
-            <div className="flex items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-500"></div>
-            </div>
-          ) : notifications.length > 0 ? (
-            <motion.div layout>
-              {notifications.map((notif, index) => (
-                <motion.div
-                  layout
-                  key={notif.notification_id}
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                  className={`relative ${
-                    notif.is_read_by_user === '0'
-                      ? getNotificationStyle(notif.type)
-                      : 'bg-gray-50'
-                  } p-4 hover:bg-opacity-90 transition-all cursor-pointer group`}
-                  onClick={() => markNotificationAsRead(notif.notification_id)}
-                >
-                  <div className="flex items-start space-x-3">
-                    <div className="flex-shrink-0 mt-1">
-                      {getNotificationIcon(notif.type)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-medium ${
-                        notif.is_read_by_user === '0' ? 'text-gray-900' : 'text-gray-600'
-                      }`}>
-                        {notif.notification_message}
-                      </p>
-                      <div className="mt-1 flex items-center space-x-2">
-                        <span className="text-xs text-gray-500">
-                          {new Date(notif.notification_created_at).toLocaleString()}
-                        </span>
-                        {notif.is_read_by_user === '0' && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                            New
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                    <motion.button
-                      whileHover={{ scale: 1.1 }}
-                      whileTap={{ scale: 0.9 }}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-gray-200 rounded-full transition-all"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        const updatedNotifications = notifications.filter(
-                          n => n.notification_id !== notif.notification_id
-                        );
-                        setNotifications(updatedNotifications);
-                      }}
-                    >
-                      <FiTrash2 className="w-4 h-4 text-gray-500" />
-                    </motion.button>
-                  </div>
-                </motion.div>
-              ))}
-            </motion.div>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="flex flex-col items-center justify-center p-8 text-gray-500"
-            >
-              <FiBell className="w-12 h-12 mb-2 text-gray-400" />
-              <p className="text-center">No notifications yet</p>
-              <p className="text-sm text-center text-gray-400">
-                We'll notify you when something arrives
-              </p>
-            </motion.div>
-          )}
-        </div>
 
-        <div className="p-3 bg-gray-50 border-t text-xs text-center text-gray-500">
-          Click on a notification to mark it as read
-        </div>
-      </motion.div>
-    </AnimatePresence>
-  );
 
-  const SupportTicketPopup = () => (
-    <motion.div
-      initial={{ opacity: 0, y: -20 }}
-      animate={{ opacity: 1, y: 0 }}
-      exit={{ opacity: 0, y: -20 }}
-      className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-2xl z-50"
-    >
-      <div className="p-4 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-t-lg">
-        <h3 className="font-bold text-lg">Support Tickets</h3>
-        <p className="text-sm text-blue-100">Create or view your support tickets</p>
-      </div>
-      <div className="p-4 space-y-3">
-        <button
-          onClick={() => navigate('/support/new')}
-          className="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 py-3 px-4 rounded-lg flex items-center space-x-3 transition-colors"
-        >
-          <FiMessageSquare className="w-5 h-5" />
-          <span>Create New Ticket</span>
-        </button>
-        <button
-          onClick={() => navigate('/support/list')}
-          className="w-full bg-gray-50 hover:bg-gray-100 text-gray-700 py-3 px-4 rounded-lg flex items-center space-x-3 transition-colors"
-        >
-          <FiList className="w-5 h-5" />
-          <span>View My Tickets</span>
-        </button>
-      </div>
-    </motion.div>
-  );
-
-  const NotificationBell = () => (
-    <div className="relative">
-      <motion.button
-        whileHover={{ scale: 1.1 }}
-        whileTap={{ scale: 0.95 }}
-        className="p-2 text-gray-700 hover:text-green-600 transition-colors relative"
-        onClick={() => setShowNotifications(!showNotifications)}
-      >
-        <FiBell className="w-6 h-6" />
-        <AnimatePresence>
-          {notifications.filter(n => n.is_read_by_user === '0').length > 0 && (
-            <motion.span
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              exit={{ scale: 0 }}
-              className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center"
-            >
-              {notifications.filter(n => n.is_read_by_user === '0').length}
-            </motion.span>
-          )}
-        </AnimatePresence>
-      </motion.button>
-      <AnimatePresence>
-        {showNotifications && <NotificationsPopup />}
-      </AnimatePresence>
-    </div>
-  );
 
   const DetailModal = ({ visible, onClose, reservationDetails }) => {
     if (!reservationDetails) return null;
 
-    const getStatusColor = () => {
-      if (reservationDetails.active === "0") return "gold";
-      switch (reservationDetails.reservation_status?.toLowerCase()) {
-        case 'approved': return "green";
-        case 'declined': return "red";
-        case 'pending': return "blue";
-        default: return "blue";
-      }
-    };
+
 
     const isCompleted = reservationDetails.statusHistory?.some(
       status => status.status_id === "4" && status.active === "1"
@@ -830,9 +555,7 @@ const Dashboard = () => {
         onClose={() => setIsCalendarOpen(false)}
       />
 
-      <AnimatePresence>
-        {showSupportTicket && <SupportTicketPopup />}
-      </AnimatePresence>
+
 
       <DetailModal 
         visible={isDetailModalOpen}

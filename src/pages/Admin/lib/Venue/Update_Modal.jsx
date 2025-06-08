@@ -216,11 +216,10 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             }
             open={visible}
             onCancel={onCancel}
-            okText="Update"
-            onOk={handleSubmit}
-            confirmLoading={loading}
+            footer={null}
+            width={800}
         >
-            <Form form={form} layout="vertical">
+            <Form form={form} layout="vertical" className="p-4">
                 <Form.Item
                     label="Venue Name"
                     name="name"
@@ -298,6 +297,19 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                         ))}
                     </Select>
                 </Form.Item>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button onClick={onCancel}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        type="primary" 
+                        onClick={handleSubmit}
+                        loading={loading}
+                        className="bg-green-900 hover:bg-lime-900"
+                    >
+                        Update Venue
+                    </Button>
+                </div>
             </Form>
         </Modal>
     );

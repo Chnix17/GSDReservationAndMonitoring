@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Modal, Form, Input, Select, Upload, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { Calendar } from 'primereact/calendar';
-import { FaEye } from 'react-icons/fa';
+import { FaCar } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import dayjs from 'dayjs';
@@ -294,19 +294,17 @@ const Create_Modal = ({
             <Modal
                 title={
                     <div className="flex items-center">
-                        <FaEye className="mr-2 text-green-900" /> 
+                        <FaCar className="mr-2 text-green-900" /> 
                         Add Vehicle
                     </div>
                 }
                 open={open}
                 onCancel={handleClose}
-                okText="Add"
-                onOk={handleSubmit}
-                confirmLoading={isSubmitting}
+                footer={null}
                 width={800}
                 className="vehicle-modal"
             >
-                <Form form={form} layout="vertical">
+                <Form form={form} layout="vertical" className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-4">
                             <div className="flex items-end gap-2">
@@ -469,6 +467,19 @@ const Create_Modal = ({
                                 )}
                             </Form.Item>
                         </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button onClick={handleClose}>
+                            Cancel
+                        </Button>
+                        <Button 
+                            type="primary" 
+                            onClick={handleSubmit}
+                            loading={isSubmitting}
+                            className="bg-green-900 hover:bg-lime-900"
+                        >
+                            Add Vehicle
+                        </Button>
                     </div>
                 </Form>
             </Modal>

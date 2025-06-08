@@ -417,127 +417,194 @@ const Drivers = () => {
             </div>
 
             {/* Add/Edit Driver Modal */}
-            <Modal
-                title={
-                    <div className="flex items-center">
-                        <FaUser className="mr-2 text-green-900" /> 
+            <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+                <div className="bg-white p-8 rounded-lg shadow-lg w-full max-w-2xl">
+                    <h2 className="text-xl font-bold mb-4 flex items-center">
+                        <FaUser className="mr-2 text-green-900" />
                         {editMode ? 'Edit Driver' : 'Add Driver'}
-                    </div>
-                }
-                open={showModal}
-                onCancel={closeModal}
-                okText={editMode ? 'Update' : 'Add'}
-                onOk={handleSave}
-                confirmLoading={isSubmitting}
-            >
-                <Form form={form} layout="vertical">
-                    <Form.Item
-                        label="First Name"
-                        name="firstName"
-                        initialValue={formData.firstName}
-                        rules={[{ required: true, message: 'Please input first name!' }]}
-                    >
-                        <Input
-                            value={formData.firstName}
-                            onChange={(e) => setFormData({ ...formData, firstName: sanitizeInput(e.target.value) })}
-                            placeholder="Enter first name"
-                        />
-                    </Form.Item>
+                    </h2>
+                    <Form form={form} layout="vertical" onFinish={handleSave}>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <Form.Item
+                                    label="First Name"
+                                    name="firstName"
+                                    initialValue={formData.firstName}
+                                    rules={[
+                                        { required: true, message: 'Please input first name!' },
+                                        { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                                    ]}
+                                >
+                                    <Input
+                                        value={formData.firstName}
+                                        onChange={(e) => setFormData({ ...formData, firstName: sanitizeInput(e.target.value) })}
+                                        placeholder="Enter first name"
+                                        className="border border-gray-300 rounded px-4 py-2 w-full"
+                                    />
+                                </Form.Item>
+                            </div>
 
-                    <Form.Item
-                        label="Middle Name"
-                        name="middleName"
-                        initialValue={formData.middleName}
-                    >
-                        <Input
-                            value={formData.middleName}
-                            onChange={(e) => setFormData({ ...formData, middleName: sanitizeInput(e.target.value) })}
-                            placeholder="Enter middle name"
-                        />
-                    </Form.Item>
+                            <div>
+                                <Form.Item
+                                    label="Middle Name"
+                                    name="middleName"
+                                    initialValue={formData.middleName}
+                                    rules={[
+                                        { pattern: /^[a-zA-Z\s]*$/, message: 'Name can only contain letters and spaces' }
+                                    ]}
+                                >
+                                    <Input
+                                        value={formData.middleName}
+                                        onChange={(e) => setFormData({ ...formData, middleName: sanitizeInput(e.target.value) })}
+                                        placeholder="Enter middle name"
+                                        className="border border-gray-300 rounded px-4 py-2 w-full"
+                                    />
+                                </Form.Item>
+                            </div>
 
-                    <Form.Item
-                        label="Last Name"
-                        name="lastName"
-                        initialValue={formData.lastName}
-                        rules={[{ required: true, message: 'Please input last name!' }]}
-                    >
-                        <Input
-                            value={formData.lastName}
-                            onChange={(e) => setFormData({ ...formData, lastName: sanitizeInput(e.target.value) })}
-                            placeholder="Enter last name"
-                        />
-                    </Form.Item>
+                            <div>
+                                <Form.Item
+                                    label="Last Name"
+                                    name="lastName"
+                                    initialValue={formData.lastName}
+                                    rules={[
+                                        { required: true, message: 'Please input last name!' },
+                                        { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
+                                    ]}
+                                >
+                                    <Input
+                                        value={formData.lastName}
+                                        onChange={(e) => setFormData({ ...formData, lastName: sanitizeInput(e.target.value) })}
+                                        placeholder="Enter last name"
+                                        className="border border-gray-300 rounded px-4 py-2 w-full"
+                                    />
+                                </Form.Item>
+                            </div>
 
-                    <Form.Item
-                        label="Suffix"
-                        name="suffix"
-                        initialValue={formData.suffix}
-                    >
-                        <Select
-                            value={formData.suffix}
-                            onChange={(value) => setFormData({ ...formData, suffix: value })}
+                            <div>
+                                <Form.Item
+                                    label="Suffix"
+                                    name="suffix"
+                                    initialValue={formData.suffix}
+                                >
+                                    <Select
+                                        value={formData.suffix}
+                                        onChange={(value) => setFormData({ ...formData, suffix: value })}
+                                        placeholder="Select suffix"
+                                        className="w-full"
+                                    >
+                                        {suffixOptions.map((suffix) => (
+                                            <Select.Option key={suffix} value={suffix}>
+                                                {suffix || 'None'}
+                                            </Select.Option>
+                                        ))}
+                                    </Select>
+                                </Form.Item>
+                            </div>
+
+                            <div>
+                                <Form.Item
+                                    label="Birthday"
+                                    name="birthdate"
+                                    initialValue={formData.birthdate ? dayjs(formData.birthdate) : null}
+                                    rules={[
+                                        { required: true, message: 'Please select birthday!' },
+                                        { validator: (_, value) => {
+                                            if (!value) return Promise.resolve();
+                                            const birthDate = new Date(value);
+                                            const today = new Date();
+                                            let age = today.getFullYear() - birthDate.getFullYear();
+                                            const monthDiff = today.getMonth() - birthDate.getMonth();
+                                            if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+                                                age--;
+                                            }
+                                            return age >= 18 && age <= 100 ? Promise.resolve() : Promise.reject('Age must be between 18 and 100');
+                                        }}
+                                    ]}
+                                >
+                                    <DatePicker
+                                        value={formData.birthdate ? dayjs(formData.birthdate) : null}
+                                        onChange={(date) => setFormData({ ...formData, birthdate: date ? date.format('YYYY-MM-DD') : '' })}
+                                        className="w-full"
+                                        maxDate={dayjs()}
+                                    />
+                                </Form.Item>
+                            </div>
+
+                            <div>
+                                <Form.Item
+                                    label="Contact Number"
+                                    name="contactNumber"
+                                    initialValue={formData.contactNumber}
+                                    rules={[
+                                        { required: true, message: 'Please input contact number!' },
+                                        { pattern: /^\d{11}$/, message: 'Contact number must be 11 digits' }
+                                    ]}
+                                >
+                                    <Input
+                                        value={formData.contactNumber}
+                                        onChange={(e) => setFormData({ ...formData, contactNumber: sanitizeInput(e.target.value) })}
+                                        placeholder="Enter contact number"
+                                        className="border border-gray-300 rounded px-4 py-2 w-full"
+                                    />
+                                </Form.Item>
+                            </div>
+
+                            <div>
+                                <Form.Item
+                                    label="Employee ID"
+                                    name="employeeId"
+                                    initialValue={formData.employeeId}
+                                    rules={[
+                                        { required: true, message: 'Please input employee ID!' }
+                                    ]}
+                                >
+                                    <Input
+                                        value={formData.employeeId}
+                                        onChange={(e) => setFormData({ ...formData, employeeId: sanitizeInput(e.target.value) })}
+                                        placeholder="Enter employee ID"
+                                        className="border border-gray-300 rounded px-4 py-2 w-full"
+                                    />
+                                </Form.Item>
+                            </div>
+                        </div>
+
+                        <Form.Item
+                            label="Address"
+                            name="address"
+                            initialValue={formData.address}
+                            rules={[
+                                { required: true, message: 'Please input address!' }
+                            ]}
                         >
-                            {suffixOptions.map((suffix) => (
-                                <Select.Option key={suffix} value={suffix}>
-                                    {suffix || 'None'}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
+                            <Input.TextArea
+                                value={formData.address}
+                                onChange={(e) => setFormData({ ...formData, address: sanitizeInput(e.target.value) })}
+                                placeholder="Enter address"
+                                rows={4}
+                                className="border border-gray-300 rounded px-4 py-2 w-full"
+                            />
+                        </Form.Item>
 
-                    <Form.Item
-                        label="Employee ID"
-                        name="employeeId"
-                        initialValue={formData.employeeId}
-                    >
-                        <Input
-                            value={formData.employeeId}
-                            onChange={(e) => setFormData({ ...formData, employeeId: sanitizeInput(e.target.value) })}
-                            placeholder="Enter employee ID"
-                        />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Birthdate"
-                        name="birthdate"
-                        initialValue={formData.birthdate ? dayjs(formData.birthdate) : null}
-                    >
-                        <DatePicker
-                            style={{ width: '100%' }}
-                            value={formData.birthdate ? dayjs(formData.birthdate) : null}
-                            onChange={(date) => setFormData({ ...formData, birthdate: date ? date.format('YYYY-MM-DD') : '' })}
-                        />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Contact Number"
-                        name="contactNumber"
-                        initialValue={formData.contactNumber}
-                        rules={[{ required: true, message: 'Please input contact number!' }]}
-                    >
-                        <Input
-                            value={formData.contactNumber}
-                            onChange={(e) => setFormData({ ...formData, contactNumber: sanitizeInput(e.target.value) })}
-                            placeholder="Enter contact number"
-                        />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Address"
-                        name="address"
-                        initialValue={formData.address}
-                        rules={[{ required: true, message: 'Please input address!' }]}
-                    >
-                        <Input.TextArea
-                            value={formData.address}
-                            onChange={(e) => setFormData({ ...formData, address: sanitizeInput(e.target.value) })}
-                            placeholder="Enter address"
-                            rows={3}
-                        />
-                    </Form.Item>
-                </Form>
-            </Modal>
+                        <div className="flex justify-end gap-2 mt-4">
+                            <button
+                                type="button"
+                                onClick={closeModal}
+                                className="py-2 px-4 bg-gray-500 text-white rounded hover:bg-gray-600 transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={isSubmitting}
+                                className="py-2 px-4 bg-green-900 text-white rounded hover:bg-lime-900 transition-colors disabled:opacity-50"
+                            >
+                                {isSubmitting ? 'Saving...' : (editMode ? 'Update' : 'Add')} Driver
+                            </button>
+                        </div>
+                    </Form>
+                </div>
+            </div>
 
             {/* Confirm Delete Modal */}
             <Modal

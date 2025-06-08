@@ -27,6 +27,9 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     // Add user_admin_id state
     const [userAdminId] = useState(1); // This should come from your auth system
 
+    // Get base URL from SecureStorage
+    const baseUrl = SecureStorage.getLocalItem("url");
+
     // Example data - replace with actual data from your backend
     const [users] = useState([
         'John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Wilson', 'Tom Brown'
@@ -47,7 +50,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         console.log('Fetching equipment details for ID:', equipmentId);
         setLoading(true);
         try {
-            const url = "http://localhost/coc/gsd/fetchMaster.php";
+            const url = `${baseUrl}/fetchMaster.php`;
             const params = new URLSearchParams({
                 operation: "fetchEquipmentById",
                 id: equipmentId,
@@ -95,7 +98,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     }
                 };
 
-                const response = await axios.post("http://localhost/coc/gsd/insert_master.php", stockData);
+                const response = await axios.post(`${baseUrl}/insert_master.php`, stockData);
 
                 if (response.data.status === 'success') {
                     message.success(`Stock updated to ${quickAdjustment.quantity} items`);
@@ -136,7 +139,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     }
                 };
 
-                const response = await axios.post("http://localhost/coc/gsd/insert_master.php", unitData);
+                const response = await axios.post(`${baseUrl}/insert_master.php`, unitData);
                 
                 if (response.data.status !== 'success') {
                     throw new Error(response.data.message || 'Failed to save unit');
@@ -198,7 +201,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             console.log('Editing Unit ID:', editingUnitId);
             console.log('Form Data:', quickAdjustment);
 
-            const response = await axios.post("http://localhost/coc/gsd/update_master1.php", unitData);
+            const response = await axios.post(`${baseUrl}/update_master1.php`, unitData);
             console.log('Update response:', response.data);
 
             if (response.data.status === 'success') {
@@ -237,7 +240,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         resourceId: unit.unit_id
                     };
 
-                    const response = await axios.post("http://localhost/coc/gsd/delete_master.php", archiveData);
+                    const response = await axios.post(`${baseUrl}/delete_master.php`, archiveData);
 
                     if (response.data.status === 'success') {
                         message.success('Unit archived successfully');
@@ -256,7 +259,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
     const handleViewUnitUsage = async (unitId) => {
         try {
-            const url = "http://localhost/coc/gsd/user.php";
+            const url = `${baseUrl}/user.php`;
             const response = await axios.post(url, new URLSearchParams({
                 operation: "getEquipmentUnitUsage",
                 unitId: unitId

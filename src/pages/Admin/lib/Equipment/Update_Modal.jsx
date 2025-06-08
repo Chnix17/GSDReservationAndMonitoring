@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, Button, message as toast, AutoComplete, Space } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
+import { FaTools } from 'react-icons/fa';
 import axios from 'axios';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import { SecureStorage } from '../../../../utils/encryption';
@@ -90,7 +91,7 @@ const UpdateEquipmentModal = ({
                     if (updatedMatchingCategory) {
                         setSelectedCategory(updatedMatchingCategory.equipments_category_id);
                     } else {
-                        toast.warning(`Category "${equipment.category_name}" not found in the list`);
+                       
                     }
                 }
                 
@@ -188,17 +189,21 @@ const UpdateEquipmentModal = ({
     return (
         <>
             <Modal
-                title="Update Equipment"
+                title={
+                    <div className="flex items-center">
+                        <FaTools className="mr-2 text-green-900" /> 
+                        Update Equipment
+                    </div>
+                }
                 open={isOpen}
                 onCancel={() => {
                     resetForm();
                     onClose();
                 }}
-                onOk={handleSubmit}
-                confirmLoading={loading}
+                footer={null}
                 width={600}
             >
-                <Form form={form} layout="vertical">
+                <Form form={form} layout="vertical" className="p-4">
                     <Form.Item
                         label="Equipment Name"
                         name="equipmentName"
@@ -259,6 +264,23 @@ const UpdateEquipmentModal = ({
                             ))}
                         </Select>
                     </Form.Item>
+
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button onClick={() => {
+                            resetForm();
+                            onClose();
+                        }}>
+                            Cancel
+                        </Button>
+                        <Button 
+                            type="primary" 
+                            onClick={handleSubmit}
+                            loading={loading}
+                            className="bg-green-900 hover:bg-lime-900"
+                        >
+                            Update Equipment
+                        </Button>
+                    </div>
                 </Form>
             </Modal>
 

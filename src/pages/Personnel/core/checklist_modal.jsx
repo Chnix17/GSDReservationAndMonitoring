@@ -4,6 +4,8 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../../../utils/encryption';
 
+const BASE_URL = SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/";
+
 const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, type }) => {
   const [selectedCondition, setSelectedCondition] = useState('');
   const [goodQuantity, setGoodQuantity] = useState('');
@@ -317,7 +319,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
 
   const fetchConditions = async () => {
     try {
-      const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php', new URLSearchParams({ operation: 'fetchConditions' }));
+      const response = await axios.post(`${BASE_URL}fetchMaster.php`, new URLSearchParams({ operation: 'fetchConditions' }));
       if (response.data.status === 'success') {
         setConditions(response.data.data);
       } else {
@@ -407,7 +409,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
       });
 
       // Then update the backend
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', {
+      const response = await axios.post(`${BASE_URL}personnel.php`, {
         operation: 'updateTask',
         type: type,
         id: reservationChecklistId,
@@ -434,7 +436,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
 
   const updateTaskStatus = async (type, id, isActive) => {
     try {
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', {
+      const response = await axios.post(`${BASE_URL}personnel.php`, {
         operation: 'updateTask',
         type: type,
         id: id,
@@ -543,7 +545,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         });
       }
 
-      const conditionResponse = await axios.post('http://localhost/coc/gsd/personnel.php', conditionsPayload, {
+      const conditionResponse = await axios.post(`${BASE_URL}personnel.php`, conditionsPayload, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -555,7 +557,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
           reservation_id: selectedTask.reservation_id
         };
 
-        const statusResponse = await axios.post('http://localhost/coc/gsd/personnel.php', updateStatusPayload, {
+        const statusResponse = await axios.post(`${BASE_URL}personnel.php`, updateStatusPayload, {
           headers: {
             'Content-Type': 'application/json'
           }
@@ -638,7 +640,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
       console.log('Release payload:', payload);
 
       const response = await axios.post(
-        'http://localhost/coc/gsd/personnel.php',
+        `${BASE_URL}personnel.php`,
         payload,
         {
           headers: {
@@ -859,7 +861,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
 
       console.log('Return payload:', payload);
 
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', payload);
+      const response = await axios.post(`${BASE_URL}personnel.php`, payload);
 
       if (response.data.status === 'success') {
         toast.success(`Successfully returned ${type}`);

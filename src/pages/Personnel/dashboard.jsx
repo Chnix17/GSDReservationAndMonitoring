@@ -18,6 +18,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [priorityTasks, setPriorityTasks] = useState([]);
+  const [baseUrl, setBaseUrl] = useState('');
 
   const [refreshKey, setRefreshKey] = useState(0); // Add this new state
   const [currentPage, setCurrentPage] = useState(1);
@@ -25,22 +26,20 @@ const Dashboard = () => {
   const [recentActivities, setRecentActivities] = useState([]);
 
   useEffect(() => {
-            const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-            const decryptedUserLevel = parseInt(encryptedUserLevel);
-            if (decryptedUserLevel !== 2 && decryptedUserLevel !== 2) {
-                localStorage.clear();
-                navigate('/gsd');
-            }
-      }, [navigate]);
-
-
-
-
-  
+    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
+    if (decryptedUserLevel !== 2 && decryptedUserLevel !== 2) {
+      localStorage.clear();
+      navigate('/gsd');
+    }
+    // Set the base URL from SecureStorage
+    const url = SecureStorage.getLocalItem("url");
+    setBaseUrl(url);
+  }, [navigate]);
 
   const fetchTasks = async () => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/personnel.php', {
+      const response = await fetch(`${baseUrl}/personnel.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -80,7 +79,7 @@ const Dashboard = () => {
 
   const fetchRecentActivities = useCallback(async () => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/personnel.php', {
+      const response = await fetch(`${baseUrl}/personnel.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -122,11 +121,9 @@ const Dashboard = () => {
     fetchTasks();
   }, [refreshKey]); // Add refreshKey as dependency
 
-
-
   const handleTaskComplete = async (taskId) => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/update_master.php', {
+      const response = await fetch(`${baseUrl}/update_master.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -147,7 +144,6 @@ const Dashboard = () => {
       console.error('Error completing task:', error);
     }
   };
-
 
   return (
     <div className="flex min-h-screen bg-gray-50">

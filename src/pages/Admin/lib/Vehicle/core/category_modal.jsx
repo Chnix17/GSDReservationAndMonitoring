@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, Form, Input, Button } from 'antd';
 import { toast } from 'sonner';
 import axios from 'axios';
+import {SecureStorage} from '../../../../../utils/encryption';
 
 const CategoryModal = ({ open, onCancel, onSuccess }) => {
     const [form] = Form.useForm();
@@ -11,11 +12,12 @@ const CategoryModal = ({ open, onCancel, onSuccess }) => {
         try {
             const values = await form.validateFields();
             setIsSubmitting(true);
+            const encryptedUrl = SecureStorage.getLocalItem("url");
 
             console.log('Submitting category data:', values.categoryName);
 
             const response = await axios.post(
-                "http://localhost/coc/gsd/vehicle_master.php",
+                `${encryptedUrl}/gsd/vehicle_master.php`,
                 {
                     operation: "saveCategoryData",
                     json: {

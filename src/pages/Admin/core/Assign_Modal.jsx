@@ -17,6 +17,7 @@ const AssignModal = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [personnel, setPersonnel] = useState([]);
+  const baseUrl = SecureStorage.getLocalItem("url");
 
   useEffect(() => {
     if (isOpen) {
@@ -30,7 +31,7 @@ const AssignModal = ({
   const fetchPersonnel = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/fetch2.php', {
+      const response = await axios.post(`${baseUrl}/fetch2.php`, {
         operation: 'fetchPersonnel'
       });
 
@@ -57,7 +58,7 @@ const AssignModal = ({
   const fetchReservationDetails = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/fetch2.php', {
+      const response = await axios.post(`${baseUrl}/fetch2.php`, {
         operation: 'getReservedById',
         reservation_id: selectedReservation.id
       });
@@ -191,7 +192,7 @@ const AssignModal = ({
         }
       };
 
-      const response = await axios.post('http://localhost/coc/gsd/fetch2.php', payload);
+      const response = await axios.post(`${baseUrl}/fetch2.php`, payload);
 
       if (response.data.status === 'success') {
         onSuccess({

@@ -7,7 +7,7 @@ import {FaCar, FaBuilding, FaTools} from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useNavigate } from 'react-router-dom';
-import { Modal,  Tag, Button, Alert, Table, Tooltip, Input, Radio, Space, Empty, Pagination } from 'antd';
+import { Modal,  Tag, Button, Alert, Table, Tooltip, Input, Radio, Space, Empty, Pagination, Segmented } from 'antd';
 import { 
     CarOutlined, 
     BuildOutlined, 
@@ -20,7 +20,9 @@ import {
     EyeOutlined,
     InfoCircleOutlined,
     ReloadOutlined,
-    SearchOutlined
+    SearchOutlined,
+    ClockCircleOutlined,
+    HistoryOutlined
 } from '@ant-design/icons';
 import { SecureStorage } from '../../utils/encryption';
 import AssignModal from './core/Assign_Modal';
@@ -727,41 +729,51 @@ const ReservationRequests = () => {
                     </motion.div>
                     
                     {/* Tabs */}
-                    <div className="mb-6 bg-[#fafff4] p-2 rounded-xl shadow-md inline-flex">
-                        {['Waiting for Approval', 'Final Confirmation', 'History'].map((tab) => (
-                            <motion.button
-                                key={tab}
-                                whileHover={{ scale: 1.05 }}
-                                whileTap={{ scale: 0.95 }}
-                                onClick={() => {
-                                    const tabKey = tab === 'Waiting for Approval' ? '1' : 
-                                                 tab === 'Final Confirmation' ? '2' : '3';
-                                    handleTabChange(tabKey);
-                                }}
-                                className={`px-6 py-3 rounded-lg transition-all duration-200 ${
-                                    (tab === 'Waiting for Approval' && activeTab === '1') ||
-                                    (tab === 'Final Confirmation' && activeTab === '2') ||
-                                    (tab === 'History' && activeTab === '3')
-                                        ? 'bg-green-900 text-white shadow-sm'
-                                        : 'text-gray-600 hover:bg-gray-100'
-                                }`}
-                            >
-                                <div className="flex items-center space-x-2">
-                                    <span className="font-medium">{tab}</span>
-                                    <span className={`px-2 py-0.5 rounded-full text-sm ${
-                                        (tab === 'Waiting for Approval' && activeTab === '1') ||
-                                        (tab === 'Final Confirmation' && activeTab === '2') ||
-                                        (tab === 'History' && activeTab === '3')
-                                            ? 'bg-white bg-opacity-30 text-white'
-                                            : 'bg-gray-200 text-gray-700'
-                                    }`}>
-                                        {tab === 'Waiting for Approval' ? reservations.filter(r => r.active === "1").length :
-                                         tab === 'Final Confirmation' ? reservations.filter(r => r.active === "0").length :
-                                         reservations.length}
-                                    </span>
-                                </div>
-                            </motion.button>
-                        ))}
+                    <div className="mb-6">
+                        <div className="bg-white rounded-lg shadow-sm">
+                            <div className="flex">
+                                {[
+                                    {
+                                        key: '1',
+                                        label: 'Waiting',
+                                        icon: <ClockCircleOutlined />,
+                                        count: reservations.filter(r => r.active === "1").length,
+                                        color: 'blue'
+                                    },
+                                    {
+                                        key: '2',
+                                        label: 'Final',
+                                        icon: <CheckCircleOutlined />,
+                                        count: reservations.filter(r => r.active === "0").length,
+                                        color: 'amber'
+                                    }
+                                ].map((tab) => (
+                                    <button
+                                        key={tab.key}
+                                        onClick={() => handleTabChange(tab.key)}
+                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-b-2 transition-colors duration-200 ${
+                                            activeTab === tab.key
+                                                ? 'border-green-600 text-green-600'
+                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
+                                        }`}
+                                    >
+                                        <span className={`text-base ${activeTab === tab.key ? 'text-green-600' : `text-${tab.color}-500`}`}>
+                                            {tab.icon}
+                                        </span>
+                                        <span className="font-medium text-sm">
+                                            {tab.label}
+                                        </span>
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                            activeTab === tab.key
+                                                ? 'bg-green-100 text-green-600'
+                                                : `bg-${tab.color}-50 text-${tab.color}-600`
+                                        }`}>
+                                            {tab.count}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
                     </div>
                     
                     {/* Search & Controls */}

@@ -353,13 +353,11 @@ const Update_Modal = ({
                 }
                 open={open}
                 onCancel={handleClose}
-                okText="Update"
-                onOk={handleSubmit}
-                confirmLoading={isSubmitting}
+                footer={null}
                 width={800}
                 className="vehicle-modal"
             >
-                <Form form={form} layout="vertical">
+                <Form form={form} layout="vertical" className="p-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-4">
                             <div className="flex items-end gap-2">
@@ -522,6 +520,19 @@ const Update_Modal = ({
                                 )}
                             </Form.Item>
                         </div>
+                    </div>
+                    <div className="flex justify-end gap-2 mt-4">
+                        <Button onClick={handleClose}>
+                            Cancel
+                        </Button>
+                        <Button 
+                            type="primary" 
+                            onClick={handleSubmit}
+                            loading={isSubmitting}
+                            className="bg-green-900 hover:bg-lime-900"
+                        >
+                            Update Vehicle
+                        </Button>
                     </div>
                 </Form>
             </Modal>

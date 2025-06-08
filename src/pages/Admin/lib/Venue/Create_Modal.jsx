@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Upload, Select, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
-import { FaEye } from 'react-icons/fa';
+import { FaBuilding } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import { SecureStorage } from '../../../../utils/encryption';
@@ -172,17 +172,16 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
         <Modal
             title={
                 <div className="flex items-center">
-                    <FaEye className="mr-2 text-green-900" /> 
+                    <FaBuilding className="mr-2 text-green-900" /> 
                     Add Venue
                 </div>
             }
             open={visible}
             onCancel={onCancel}
-            okText="Add"
-            onOk={handleSubmit}
-            confirmLoading={loading}
+            footer={null}
+            width={800}
         >
-            <Form form={form} layout="vertical">
+            <Form form={form} layout="vertical" className="p-4">
                 <Form.Item
                     label="Venue Name"
                     name="name"
@@ -262,6 +261,19 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                         ))}
                     </Select>
                 </Form.Item>
+                <div className="flex justify-end gap-2 mt-4">
+                    <Button onClick={onCancel}>
+                        Cancel
+                    </Button>
+                    <Button 
+                        type="primary" 
+                        onClick={handleSubmit}
+                        loading={loading}
+                        className="bg-green-900 hover:bg-lime-900"
+                    >
+                        Add Venue
+                    </Button>
+                </div>
             </Form>
         </Modal>
     );

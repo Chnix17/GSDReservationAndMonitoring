@@ -8,7 +8,9 @@ import { faSearch, faUserPlus, faEye, faCheckCircle, faSyncAlt } from '@fortawes
 import dayjs from 'dayjs';
 import { toast } from 'sonner';
 import AssignModal from './core/Assign_Modal';
+import AllAssignedPersonnel from './core/allassigned_personnel';
 import { SecureStorage } from '../../utils/encryption';
+import { ClockCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 
 const AssignPersonnel = () => {
   const [activeTab, setActiveTab] = useState('Not Assigned');
@@ -107,8 +109,8 @@ const AssignPersonnel = () => {
     setLoading(true);
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
-        operation: 'fetchAssignedRelease'
+      const response = await axios.post(`${encryptedUrl}user.php`, {
+        operation: 'fetchAllAssignedReleases'
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -117,24 +119,47 @@ const AssignPersonnel = () => {
 
       if (response.data.status === 'success' && Array.isArray(response.data.data)) {
         const formattedData = response.data.data.map(item => {
-          const masterData = item.master_data;
+          // Calculate progress based on checklist completion
+          let totalChecklists = 0;
+          let completedChecklists = 0;
+
+          // Check venues and their checklists
+          if (item.venues && item.venues.length > 0) {
+            item.venues.forEach(venue => {
+              if (venue.checklists) {
+                totalChecklists += venue.checklists.length;
+                completedChecklists += venue.checklists.filter(checklist => 
+                  checklist.isChecked === 1
+                ).length;
+              }
+            });
+          }
+
+          // Check vehicles if they exist
+          if (item.vehicles && item.vehicles.length > 0) {
+            item.vehicles.forEach(vehicle => {
+              if (vehicle.checklists) {
+                totalChecklists += vehicle.checklists.length;
+                completedChecklists += vehicle.checklists.filter(checklist => 
+                  checklist.isChecked === 1
+                ).length;
+              }
+            });
+          }
+
+          const progress = totalChecklists > 0 ? (completedChecklists / totalChecklists) * 100 : 0;
+
           return {
-            id: masterData.reservation_id,
-            type: masterData.venue_form_name ? 'Venue' : 'Vehicle',
-            name: masterData.venue_form_name || masterData.vehicle_form_name,
-            details: '',
-            personnel: masterData.personnel_name || 'Unknown',
-            checklists: masterData.venue_form_name 
-              ? item.venue_equipment.map(eq => ({
-                  name: eq.release_checklist_name,
-                  status: eq.status_checklist_name || (eq.release_isActive === '1' ? 'completed' : 'pending')
-                }))
-              : item.vehicle_checklist.map(vc => ({
-                  name: vc.release_checklist_name,
-                  status: vc.status_checklist_name || (vc.release_isActive === '1' ? 'completed' : 'pending')
-                })),
+            id: item.reservation_id,
+            title: item.reservation_title,
+            name: item.reservation_title,
+            requestor: item.user_details?.full_name || 'Unknown',
+            startDate: item.reservation_start_date,
+            endDate: item.reservation_end_date,
+            personnel: item.venues?.[0]?.checklists?.[0]?.personnel_name || 'Not Assigned',
+            progress: Math.round(progress),
             status: 'Assigned',
-            createdAt: masterData.reservation_date
+            rawData: item
           };
         });
         setReservations(formattedData);
@@ -213,18 +238,43 @@ const AssignPersonnel = () => {
   // Filter reservations based on search term and active tab
   const filteredReservations = reservations
     .filter(res => res.status === activeTab)
-    .filter(res => res.name.toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter(res => {
+      const searchableText = res.name || res.title || '';
+      return searchableText.toLowerCase().includes(searchTerm.toLowerCase());
+    });
 
   // Table columns configuration
   const columns = [
-   
     {
-      title: 'Reservation Name',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: true, 
-      sortOrder: sortField === 'name' ? sortOrder : null,
+      title: 'Reservation Title',
+      dataIndex: 'title',
+      key: 'title',
+      sorter: true,
+      sortOrder: sortField === 'title' ? sortOrder : null,
       render: (text) => <span className="font-medium text-green-800">{text}</span>
+    },
+    {
+      title: 'Requestor',
+      dataIndex: 'requestor',
+      key: 'requestor',
+      sorter: true,
+      sortOrder: sortField === 'requestor' ? sortOrder : null,
+    },
+    {
+      title: 'Start Date',
+      dataIndex: 'startDate',
+      key: 'startDate',
+      sorter: true,
+      sortOrder: sortField === 'startDate' ? sortOrder : null,
+      render: (text) => dayjs(text).format('MMM D, YYYY HH:mm')
+    },
+    {
+      title: 'End Date',
+      dataIndex: 'endDate',
+      key: 'endDate',
+      sorter: true,
+      sortOrder: sortField === 'endDate' ? sortOrder : null,
+      render: (text) => dayjs(text).format('MMM D, YYYY HH:mm')
     },
     {
       title: 'Assigned Personnel',
@@ -233,7 +283,7 @@ const AssignPersonnel = () => {
       sorter: true,
       sortOrder: sortField === 'personnel' ? sortOrder : null,
       render: (text) => {
-        if (text === 'N/A') {
+        if (text === 'Not Assigned') {
           return <span className="text-gray-500 italic">Not Assigned</span>;
         }
         return (
@@ -247,110 +297,40 @@ const AssignPersonnel = () => {
       }
     },
     {
-      title: 'Created At',
-      dataIndex: 'createdAt',
-      key: 'createdAt',
-      width: 170,
+      title: 'Progress',
+      dataIndex: 'progress',
+      key: 'progress',
       sorter: true,
-      sortOrder: sortField === 'createdAt' ? sortOrder : null,
-      render: (text) => dayjs(text).format('MMM D, YYYY HH:mm')
-    },
-    {
-      title: 'Status',
-      dataIndex: 'status',
-      key: 'status',
-      width: 120,
-      sorter: true,
-      sortOrder: sortField === 'status' ? sortOrder : null,
-      render: (status, record) => {
-        if (status === 'Not Assigned') {
-          return <Tag color="warning" className="rounded-full px-2 py-1 text-xs font-medium">Not Assigned</Tag>;
-        } else if (status === 'Assigned') {
-          const allCompleted = record.checklists && record.checklists.every(item => item.status === 'completed');
-          return (
-            <Tag color={allCompleted ? "success" : "processing"} className="rounded-full px-2 py-1 text-xs font-medium">
-              {allCompleted ? 'Ready to Complete' : 'In Progress'}
-            </Tag>
-          );
-        } else {
-          return <Tag color="success" className="rounded-full px-2 py-1 text-xs font-medium">Completed</Tag>;
-        }
-      }
+      sortOrder: sortField === 'progress' ? sortOrder : null,
+      render: (progress) => (
+        <div className="w-full bg-gray-200 rounded-full h-2.5">
+          <div
+            className="bg-green-600 h-2.5 rounded-full"
+            style={{ width: `${progress}%` }}
+          ></div>
+        </div>
+      )
     },
     {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
-      width: 180,
-      render: (_, record) => {
-        if (record.status === 'Not Assigned') {
-          return (
-            <Tooltip title="Assign Personnel">
-              <Button
-                type="primary"
-                icon={<FontAwesomeIcon icon={faUserPlus} />}
-                onClick={() => handleOpenModal(record)}
-                size="small"
-                className="bg-green-900 hover:bg-lime-900 border-green-900"
-                loading={loading}
-              >
-                Assign
-              </Button>
-            </Tooltip>
-          );
-        } else if (record.status === 'Assigned') {
-          return (
-            <Space>
-              {record.checklists.length > 0 && (
-                <Tooltip title="View Checklists">
-                  <Button
-                    icon={<FontAwesomeIcon icon={faEye} />}
-                    onClick={() => {
-                      setSelectedChecklists(record.checklists);
-                      setIsChecklistModalOpen(true);
-                    }}
-                    size="small"
-                    className="border-gray-300 text-gray-600"
-                    loading={loading}
-                  >
-                    Checklists
-                  </Button>
-                </Tooltip>
-              )}
-              {record.checklists.every(item => item.status === 'completed') && (
-                <Tooltip title="Mark as Complete">
-                  <Button
-                    type="primary"
-                    icon={<FontAwesomeIcon icon={faCheckCircle} />}
-                    onClick={() => handleComplete(record.id, record.personnel_id)}
-                    size="small"
-                    className="bg-green-900 hover:bg-lime-900 border-green-900"
-                    loading={loading}
-                  >
-                    Complete
-                  </Button>
-                </Tooltip>
-              )}
-            </Space>
-          );
-        } else {
-          return (
-            <Tooltip title="View Checklists">
-              <Button
-                icon={<FontAwesomeIcon icon={faEye} />}
-                onClick={() => {
-                  setSelectedChecklists(record.checklists);
-                  setIsChecklistModalOpen(true);
-                }}
-                size="small"
-                className="border-gray-300 text-gray-600"
-              >
-                Checklists
-              </Button>
-            </Tooltip>
-          );
-        }
-      },
+      width: 100,
+      render: (_, record) => (
+        <Tooltip title="View Checklists">
+          <Button
+            icon={<FontAwesomeIcon icon={faEye} />}
+            onClick={() => {
+              setSelectedReservation(record.rawData);
+              setIsChecklistModalOpen(true);
+            }}
+            size="small"
+            className="border-gray-300 text-gray-600"
+          >
+            View
+          </Button>
+        </Tooltip>
+      ),
     },
   ];
 
@@ -385,31 +365,58 @@ const AssignPersonnel = () => {
           </motion.div>
           
           {/* Tabs */}
-          <div className="mb-6 bg-[#fafff4] p-2 rounded-xl shadow-md inline-flex">
-            {['Not Assigned', 'Assigned', 'Completed'].map((tab) => (
-              <motion.button
-                key={tab}
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => setActiveTab(tab)}
-                className={`px-6 py-3 rounded-lg transition-all duration-200 ${
-                  activeTab === tab
-                    ? 'bg-green-900 text-white shadow-sm'
-                    : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <span className="font-medium">{tab}</span>
-                  <span className={`px-2 py-0.5 rounded-full text-sm ${
-                    activeTab === tab
-                      ? 'bg-white bg-opacity-30 text-white'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}>
-                    {reservations.filter(r => r.status === tab).length}
-                  </span>
-                </div>
-              </motion.button>
-            ))}
+          <div className="mb-6">
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="flex">
+                {[
+                  {
+                    key: 'Not Assigned',
+                    label: 'Not Assigned',
+                    icon: <ClockCircleOutlined />,
+                    count: reservations.filter(r => r.status === 'Not Assigned').length,
+                    color: 'blue'
+                  },
+                  {
+                    key: 'Assigned',
+                    label: 'Assigned',
+                    icon: <CheckCircleOutlined />,
+                    count: reservations.filter(r => r.status === 'Assigned').length,
+                    color: 'amber'
+                  },
+                  {
+                    key: 'Completed',
+                    label: 'Completed',
+                    icon: <CheckCircleOutlined />,
+                    count: reservations.filter(r => r.status === 'Completed').length,
+                    color: 'green'
+                  }
+                ].map((tab) => (
+                  <button
+                    key={tab.key}
+                    onClick={() => setActiveTab(tab.key)}
+                    className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-b-2 transition-colors duration-200 ${
+                      activeTab === tab.key
+                        ? 'border-green-600 text-green-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
+                    }`}
+                  >
+                    <span className={`text-base ${activeTab === tab.key ? 'text-green-600' : `text-${tab.color}-500`}`}>
+                      {tab.icon}
+                    </span>
+                    <span className="font-medium text-sm">
+                      {tab.label}
+                    </span>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      activeTab === tab.key
+                        ? 'bg-green-100 text-green-600'
+                        : `bg-${tab.color}-50 text-${tab.color}-600`
+                    }`}>
+                      {tab.count}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
           
           {/* Search & Controls */}
@@ -550,45 +557,14 @@ const AssignPersonnel = () => {
       />
 
       {/* Checklist Modal */}
-      <Modal
-        title={<div className="text-xl font-bold text-green-900">Checklist Items</div>}
-        open={isChecklistModalOpen}
-        onCancel={() => setIsChecklistModalOpen(false)}
-        footer={[
-          <Button key="close" onClick={() => setIsChecklistModalOpen(false)}>
-            Close
-          </Button>
-        ]}
-        width={500}
-        centered
-      >
-        <div className="mt-4 space-y-2">
-          {selectedChecklists.map((checklist, index) => (
-            <motion.div 
-              key={index} 
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: index * 0.05 }}
-              className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              <span className={`text-sm flex-1 ${checklist.status === 'completed' ? 'line-through text-gray-500' : 'text-gray-900'}`}>
-                {checklist.name}
-              </span>
-              <Tag 
-                color={checklist.status === 'completed' ? 'success' : 'warning'}
-                className="capitalize rounded-full px-2 py-0.5 text-xs"
-              >
-                {checklist.status}
-              </Tag>
-            </motion.div>
-          ))}
-          {selectedChecklists.length === 0 && (
-            <div className="text-center py-4 text-gray-500">
-              No checklist items available
-            </div>
-          )}
-        </div>
-      </Modal>
+      <AllAssignedPersonnel
+        isOpen={isChecklistModalOpen}
+        onClose={() => {
+          setIsChecklistModalOpen(false);
+          setSelectedReservation(null);
+        }}
+        reservationData={selectedReservation}
+      />
     </div>
   );
 };

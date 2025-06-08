@@ -6,6 +6,9 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { SecureStorage } from '../../utils/encryption';
 import ChecklistModal from './core/checklist_modal';
+import { Input, Button, Table, Tag, Empty, Pagination, Tooltip } from 'antd';
+import { SearchOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
+import { FaEye, FaChartBar } from 'react-icons/fa';
 
 const ViewPersonnelTask = () => {
   const [tasks, setTasks] = useState([]);
@@ -15,7 +18,7 @@ const ViewPersonnelTask = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState('grid');
   const [currentPage, setCurrentPage] = useState(1);
-  const tasksPerPage = 10;
+  const [pageSize, setPageSize] = useState(10);
   const [filter, setFilter] = useState('ongoing'); // 'ongoing' or 'completed'
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [conditions, setConditions] = useState([]);
@@ -26,6 +29,11 @@ const ViewPersonnelTask = () => {
   const [otherVehicleCondition, setOtherVehicleCondition] = useState('');
   const [otherEquipmentCondition, setOtherEquipmentCondition] = useState('');
   const [equipmentDefectQty, setEquipmentDefectQty] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortField, setSortField] = useState('reservation_id');
+  const [sortOrder, setSortOrder] = useState('desc');
+
+  const baseUrl = SecureStorage.getLocalItem("url");
 
   const idMapping = {
     venue: 'reservation_checklist_venue_id',
@@ -114,7 +122,7 @@ const ViewPersonnelTask = () => {
   const fetchConditions = async () => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/fetchMaster.php', new URLSearchParams({ operation: 'fetchConditions' }));
+      const response = await axios.post(`${baseUrl}fetchMaster.php`, new URLSearchParams({ operation: 'fetchConditions' }));
       if (response.data.status === 'success') {
         setConditions(response.data.data);
       } else {
@@ -130,7 +138,7 @@ const ViewPersonnelTask = () => {
   const fetchPersonnelTasks = async () => {
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', {
+      const response = await axios.post(`${baseUrl}personnel.php`, {
         operation: 'fetchAssignedRelease',
         personnel_id: SecureStorage.getSessionItem('user_id')
       }, {
@@ -296,7 +304,7 @@ const ViewPersonnelTask = () => {
 
   const updateTaskStatus = async (type, id, isActive) => {
     try {
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', {
+      const response = await axios.post(`${baseUrl}personnel.php`, {
         operation: 'updateTask',
         type: type,
         id: id,
@@ -354,7 +362,7 @@ const ViewPersonnelTask = () => {
   const fetchCompletedTasks = async () => {
     try {
       setLoading(true);
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', {
+      const response = await axios.post(`${baseUrl}personnel.php`, {
         operation: 'fetchCompletedTask',
         personnel_id: SecureStorage.getSessionItem('user_id')
       }, {
@@ -490,7 +498,7 @@ const ViewPersonnelTask = () => {
         });
       }
 
-      const conditionResponse = await axios.post('http://localhost/coc/gsd/personnel.php', conditionsPayload, {
+      const conditionResponse = await axios.post(`${baseUrl}personnel.php`, conditionsPayload, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -502,7 +510,7 @@ const ViewPersonnelTask = () => {
           reservation_id: selectedTask.reservation_id
         };
 
-        const statusResponse = await axios.post('http://localhost/coc/gsd/personnel.php', updateStatusPayload, {
+        const statusResponse = await axios.post(`${baseUrl}personnel.php`, updateStatusPayload, {
           headers: {
             'Content-Type': 'application/json'
           }
@@ -639,7 +647,7 @@ const ViewPersonnelTask = () => {
 
       console.log('Return payload:', payload);
 
-      const response = await axios.post('http://localhost/coc/gsd/personnel.php', payload);
+      const response = await axios.post(`${baseUrl}personnel.php`, payload);
 
       if (response.data.status === 'success') {
         toast.success('Successfully returned');
@@ -692,7 +700,7 @@ const ViewPersonnelTask = () => {
       };
 
       const response = await axios.post(
-        'http://localhost/coc/gsd/personnel.php',
+        `${baseUrl}personnel.php`,
         payload,
         {
           headers: {
@@ -740,716 +748,21 @@ const ViewPersonnelTask = () => {
     }
   };
 
-  const indexOfLastTask = currentPage * tasksPerPage;
-  const indexOfFirstTask = indexOfLastTask - tasksPerPage;
-  const currentTasks = tasks.slice(indexOfFirstTask, indexOfLastTask);
-  const totalPages = Math.ceil(tasks.length / tasksPerPage);
-
-  const renderTaskCard = (task) => {
-    const hasInUseItems = task.venues?.some(v => v.availability_status === "In Use") ||
-                         task.vehicles?.some(v => v.availability_status === "In Use") ||
-                         task.equipments?.some(e => e.availability_status === "In Use");
-
-    // Calculate progress for checklists
-    const calculateProgress = (items) => {
-      if (!items) return 0;
-      const total = items.reduce((acc, item) => acc + (item.checklists?.length || 0), 0);
-      const completed = items.reduce((acc, item) => 
-        acc + (item.checklists?.filter(c => c.isChecked === "1" || c.isChecked === 1).length || 0), 0);
-      return total > 0 ? (completed / total) * 100 : 0;
-    };
-
-    const venueProgress = calculateProgress(task.venues);
-    const vehicleProgress = calculateProgress(task.vehicles);
-    const equipmentProgress = calculateProgress(task.equipments);
-
-    const getStatusColor = (status) => {
-      switch(status) {
-        case 'In Use': return 'bg-amber-100 text-amber-800';
-        case 'Available': return 'bg-green-100 text-green-800';
-        case 'Released': return 'bg-blue-100 text-blue-800';
-        default: return 'bg-gray-100 text-gray-800';
-      }
-    };
-
-    return (
-      <motion.div
-        key={task.master_data?.checklist_id || task.reservation_title}
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        whileHover={{ y: -5 }}
-        className="bg-white rounded-xl shadow-lg hover:shadow-xl transition-all duration-300 p-6 border border-gray-100 relative overflow-hidden group"
-      >
-        {/* Decorative background element */}
-        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-        
-        <div className="flex flex-col gap-4 relative">
-          <div className="flex justify-between items-start space-x-3">
-            <div className="flex-1">
-              <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 group-hover:text-blue-600 transition-colors">
-                {task.reservation_title || 'Untitled Task'}
-              </h3>
-              <p className="text-sm text-gray-500 mt-1 line-clamp-1">
-                {task.venue?.name || task.vehicle?.vehicle_license || 'General Task'}
-              </p>
-            </div>
-            <div className="flex flex-col gap-2">
-              <span className={`px-3 py-1.5 text-xs font-medium rounded-full ${getStatusColor(hasInUseItems ? 'In Use' : 'Available')}`}>
-                {hasInUseItems ? 'In Progress' : 'Available'}
-              </span>
-              {task.is_returned === 1 && (
-                <span className="px-3 py-1.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                  Returned
-                </span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-3 text-sm text-gray-600">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2 text-gray-700">
-                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="font-medium">Schedule:</span>
-                <span>{task.formattedStartDate}</span>
-              </div>
-              <div className="flex items-center gap-2 text-gray-700">
-                <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-                <span className="font-medium">Duration:</span>
-                <span>{task.formattedEndDate}</span>
-              </div>
-            </div>
-
-            {/* Progress Indicators */}
-            <div className="space-y-2 pt-2">
-              {task.venues?.length > 0 && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-medium text-gray-700">Venue Checklist</span>
-                    <span className="text-gray-500">{Math.round(venueProgress)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-blue-500 rounded-full transition-all duration-300"
-                      style={{ width: `${venueProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {task.vehicles?.length > 0 && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-medium text-gray-700">Vehicle Checklist</span>
-                    <span className="text-gray-500">{Math.round(vehicleProgress)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-green-500 rounded-full transition-all duration-300"
-                      style={{ width: `${vehicleProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {task.equipments?.length > 0 && (
-                <div className="space-y-1">
-                  <div className="flex justify-between text-xs">
-                    <span className="font-medium text-gray-700">Equipment Checklist</span>
-                    <span className="text-gray-500">{Math.round(equipmentProgress)}%</span>
-                  </div>
-                  <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                    <div 
-                      className="h-full bg-purple-500 rounded-full transition-all duration-300"
-                      style={{ width: `${equipmentProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="flex flex-col gap-2 pt-2">
-            <button
-              onClick={() => handleModalOpen(task)}
-              className={`w-full py-2.5 px-4 text-sm font-medium rounded-lg flex items-center justify-center gap-2 transition-all duration-300 ${
-                hasInUseItems
-                  ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-sm hover:shadow'
-                  : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-              }`}
-            >
-              <span>{hasInUseItems ? 'Manage Task' : 'View Details'}</span>
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
-          </div>
-        </div>
-      </motion.div>
-    );
+  const calculateProgress = (items) => {
+    if (!items) return 0;
+    const total = items.reduce((acc, item) => acc + (item.checklists?.length || 0), 0);
+    const completed = items.reduce((acc, item) => 
+      acc + (item.checklists?.filter(c => c.isChecked === "1" || c.isChecked === 1).length || 0), 0);
+    return total > 0 ? (completed / total) * 100 : 0;
   };
 
-  const renderListItem = (task) => (
-    <motion.div
-      key={task.master_data?.checklist_id || task.reservation_title}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="bg-white rounded-xl shadow-sm p-4 mb-4 hover:shadow-md transition-shadow"
-    >
-      <div className="flex flex-col md:flex-row md:items-center justify-between"> 
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900">
-            {task.reservation_title || 'Untitled Task'}
-          </h3>
-          <div className="flex flex-col gap-1">
-            {task.venue && <p className="text-sm text-gray-500">Venue: {task.venue.name}</p>}
-            {task.vehicle && <p className="text-sm text-gray-500">Vehicle: {task.vehicle.vehicle_license}</p>}
-          </div>
-        </div>
-        <div className="flex items-center mt-2 md:mt-0 gap-3">
-          <span className="px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full">
-            {task.master_data.checklist_type || 'Task'}
-          </span>
-          {filter === 'completed' ? (
-            <span className="px-3 py-1 text-sm bg-green-100 text-green-800 rounded-full">
-              Completed
-            </span>
-          ) : (
-            <button
-              onClick={() => handleModalOpen(task)}
-              className="px-4 py-1 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
-              Manage
-            </button>
-          )}
-        </div>
-      </div>
-    </motion.div>
-  );
-
-  const renderSubmitButton = () => {
-    const isPassedEndDate = selectedTask && isTaskInProgress(selectedTask);
-    const isChecklistsCompleted = selectedTask && isAllChecklistsCompleted(selectedTask);
-    
-    const canSubmit = isPassedEndDate && isChecklistsCompleted;
-
-    const getButtonTooltip = () => {
-      if (!selectedTask) return '';
-      if (!isPassedEndDate) {
-        const endDate = new Date(selectedTask.reservation_end_date);
-        return `This task can only be submitted after ${endDate.toLocaleString()}`;
-      }
-      if (!isChecklistsCompleted) {
-        return 'Complete all checklist items before submitting';
-      }
-      return '';
-    };
-
-    return (
-      <div className="flex justify-end gap-2 pt-3 border-t">
-        <button
-          onClick={() => setIsModalOpen(false)}
-          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
-        >
-          Cancel
-        </button>
-        <div className="relative" title={getButtonTooltip()}>
-          <button
-            onClick={handleSubmitTask}
-            disabled={isSubmitting || !canSubmit}
-            className={`px-3 py-1.5 text-sm font-medium text-white rounded-lg flex items-center gap-2
-              ${canSubmit 
-                ? 'bg-blue-600 hover:bg-blue-700' 
-                : 'bg-gray-400 cursor-not-allowed'}
-              disabled:opacity-50`}
-          >
-            {isSubmitting ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
-                <span>Submitting...</span>
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                <span>Submit</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-    );
-  };
-
-  const renderModalContent = () => (
-    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[85vh] overflow-hidden">
-      <div className="sticky top-0 bg-white px-6 py-4 border-b border-gray-200 backdrop-blur-sm bg-white/80">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-gray-900">Task Details</h2>
-            {canBeReturned(selectedTask) && !selectedTask?.is_returned && (
-              <button
-                onClick={() => handleReturn(selectedTask)}
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all duration-300 flex items-center gap-2"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-                {isSubmitting ? 'Returning...' : 'Return'}
-              </button>
-            )}
-          </div>
-          <button
-            onClick={() => setIsModalOpen(false)}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors"
-          >
-            <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(85vh-180px)]">
-        {selectedTask ? (
-          <div className="space-y-6">
-            <div className="bg-gradient-to-br from-blue-50 to-white rounded-xl p-6 border border-blue-100 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider flex items-center gap-2">
-                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
-                    Event Information
-                  </h3>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Title</label>
-                      <p className="mt-1 text-base text-gray-900 font-medium">{selectedTask.reservation_title}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-500">Description</label>
-                      <p className="mt-1 text-base text-gray-900">{selectedTask.reservation_description || 'No description provided'}</p>
-                    </div>
-                    <div className="flex gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-500">Start Date</label>
-                        <p className="mt-1 text-base text-gray-900">{formatDateTime(selectedTask.reservation_start_date)}</p>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-500">End Date</label>
-                        <p className="mt-1 text-base text-gray-900">{formatDateTime(selectedTask.reservation_end_date)}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider flex items-center gap-2">
-                    <svg className="w-4 h-4 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                    Requester Information
-                  </h3>
-                  <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
-                    <div className="flex items-start space-x-4">
-                      <div className="flex-shrink-0">
-                        <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white">
-                          {selectedTask.user_details?.full_name?.charAt(0) || 'U'}
-                        </div>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">{selectedTask.user_details?.full_name || 'N/A'}</p>
-                        <p className="text-sm text-gray-500">{selectedTask.user_details?.department || 'N/A'}</p>
-                        <p className="text-sm text-gray-500">{selectedTask.user_details?.role || 'N/A'}</p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {!isTaskInProgress(selectedTask) && (
-                <div className="mt-4 bg-amber-50 border border-amber-200 rounded-lg p-4">
-                  <div className="flex items-center">
-                    <svg className="w-5 h-5 text-amber-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <p className="text-sm text-amber-700">
-                      This task can only be submitted after its scheduled time
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {selectedTask.venues && selectedTask.venues.map((venue, index) => (
-              <div key={venue.reservation_venue_id} className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-shadow">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900 flex items-center gap-2">
-                      <svg className="w-5 h-5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                      </svg>
-                      Venue Inspection {selectedTask.venues.length > 1 ? `(${index + 1}/${selectedTask.venues.length})` : ''}
-                    </h3>
-                    <p className="text-sm text-gray-500 mt-1">Location: {venue.name}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
-                        venue.is_released === 1 || venue.is_released === "1"
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {venue.is_released === 1 || venue.is_released === "1" ? 'Released' : 'Not Released'}
-                      </span>
-                      {venue.is_released !== 1 && venue.is_released !== "1" && (
-                        <button
-                          onClick={() => handleRelease('venue', venue)}
-                          disabled={isSubmitting}
-                          className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-all duration-300 flex items-center gap-1"
-                        >
-                          <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                          </svg>
-                          {isSubmitting ? 'Releasing...' : 'Release'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={venueCondition}
-                      onChange={(e) => setVenueCondition(e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select condition</option>
-                      {conditions.map((condition) => (
-                        <option key={condition.id} value={condition.condition_name}>
-                          {condition.condition_name}
-                        </option>
-                      ))}
-                    </select>
-                    {venueCondition === 'Other' && (
-                      <input
-                        type="text"
-                        value={otherVenueCondition}
-                        onChange={(e) => setOtherVenueCondition(e.target.value)}
-                        placeholder="Specify condition"
-                        className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {venue.checklists && venue.checklists.map((item) => (
-                    <div key={item.checklist_venue_id} 
-                         className="bg-gray-50 p-4 rounded-lg border border-gray-200 hover:border-gray-300 transition-colors">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-medium text-gray-900">{item.checklist_name || 'Unnamed Item'}</p>
-                        <div className="flex gap-4">
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`venue-${item.checklist_venue_id}`}
-                              value="1"
-                              checked={item.isChecked === "1" || item.isChecked === 1}
-                              onChange={() => handleChecklistUpdate('venue', item.checklist_venue_id, "1")}
-                              className="form-radio h-4 w-4 text-green-600 focus:ring-green-500"
-                            />
-                            <span className="ml-2 text-sm text-green-600">Pass</span>
-                          </label>
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`venue-${item.checklist_venue_id}`}
-                              value="0"
-                              checked={item.isChecked === "0" || item.isChecked === 0}
-                              onChange={() => handleChecklistUpdate('venue', item.checklist_venue_id, "0")}
-                              className="form-radio h-4 w-4 text-red-600 focus:ring-red-500"
-                            />
-                            <span className="ml-2 text-sm text-red-600">Fail</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {selectedTask.vehicles && selectedTask.vehicles.map((vehicle, index) => (
-              <div key={vehicle.reservation_vehicle_id} className="bg-white rounded-xl p-6 border border-gray-200">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Vehicle Inspection {selectedTask.vehicles.length > 1 ? `(${index + 1}/${selectedTask.vehicles.length})` : ''}</h3>
-                    <p className="text-sm text-gray-500">Vehicle: {vehicle.vehicle_license}</p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
-                        vehicle.is_released === 1 || vehicle.is_released === "1"
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {vehicle.is_released === 1 || vehicle.is_released === "1" ? 'Released' : 'Not Released'}
-                      </span>
-                      {vehicle.is_released !== 1 && vehicle.is_released !== "1" && (
-                        <button
-                          onClick={() => handleRelease('vehicle', vehicle)}
-                          disabled={isSubmitting}
-                          className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
-                        >
-                          {isSubmitting ? 'Releasing...' : 'Release'}
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={vehicleCondition}
-                      onChange={(e) => setVehicleCondition(e.target.value)}
-                      className="text-sm border border-gray-300 rounded-lg p-1.5"
-                    >
-                      <option value="">Select condition</option>
-                      {conditions.map((condition) => (
-                        <option key={condition.id} value={condition.condition_name}>
-                          {condition.condition_name}
-                        </option>
-                      ))}
-                    </select>
-                    {vehicleCondition === 'Other' && (
-                      <input
-                        type="text"
-                        value={otherVehicleCondition}
-                        onChange={(e) => setOtherVehicleCondition(e.target.value)}
-                        placeholder="Specify condition"
-                        className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  {vehicle.checklists && vehicle.checklists.map((item) => (
-                    <div key={item.checklist_vehicle_id} 
-                         className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{item.checklist_name || 'Unnamed Item'}</p>
-                        </div>
-                        <div className="flex gap-4">
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`vehicle-${item.checklist_vehicle_id}`}
-                              value="1"
-                              checked={item.isChecked === "1" || item.isChecked === 1}
-                              onChange={() => handleChecklistUpdate('vehicle', item.checklist_vehicle_id, "1")}
-                              className="form-radio h-4 w-4 text-green-600"
-                            />
-                            <span className="ml-2 text-sm text-green-600">Pass</span>
-                          </label>
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`vehicle-${item.checklist_vehicle_id}`}
-                              value="0"
-                              checked={item.isChecked === "0" || item.isChecked === 0}
-                              onChange={() => handleChecklistUpdate('vehicle', item.checklist_vehicle_id, "0")}
-                              className="form-radio h-4 w-4 text-red-600"
-                            />
-                            <span className="ml-2 text-sm text-red-600">Fail</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-
-            {selectedTask.equipments && selectedTask.equipments.map((equipment, index) => (
-              <div key={equipment.reservation_equipment_id} className="bg-white rounded-xl p-6 border border-gray-200">
-                <div className="flex justify-between items-center mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-900">Equipment Inspection {selectedTask.equipments.length > 1 ? `(${index + 1}/${selectedTask.equipments.length})` : ''}</h3>
-                    <div className="flex items-center gap-2 text-sm text-gray-500">
-                      <p>Equipment: {equipment.name}</p>
-                      <span className="text-gray-400">•</span>
-                      <p>Quantity: {equipment.quantity || '0'}</p>
-                    </div>
-                    {equipment.units && equipment.units.length > 0 && (
-                      <div className="mt-2">
-                        <h4 className="text-sm font-medium text-gray-700 mb-2">Units:</h4>
-                        <div className="space-y-2">
-                          {equipment.units.map(unit => (
-                            <div key={unit.unit_id} className="flex items-center justify-between bg-gray-50 p-2 rounded-lg">
-                              <div className="flex items-center gap-4 flex-1">
-                                <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
-                                <div className="flex items-center gap-2">
-                                  <select
-                                    value={equipmentCondition}
-                                    onChange={handleEquipmentConditionChange}
-                                    className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                  >
-                                    <option value="">Select condition</option>
-                                    {conditions
-                                      .filter(condition => ['2', '3', '4', '6'].includes(condition.id))
-                                      .map((condition) => (
-                                        <option key={condition.id} value={condition.id}>
-                                          {condition.condition_name}
-                                        </option>
-                                    ))}
-                                  </select>
-                                  {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
-                                    <input
-                                      type="number"
-                                      min="1"
-                                      value={equipmentDefectQty}
-                                      onChange={handleEquipmentDefectQtyChange}
-                                      placeholder="Enter quantity"
-                                      className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                                    />
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full ${
-                                  unit.is_released === 1 || unit.is_released === "1"
-                                    ? 'bg-green-100 text-green-800'
-                                    : 'bg-gray-100 text-gray-800'
-                                }`}>
-                                  {unit.is_released === 1 || unit.is_released === "1" ? 'Released' : 'Not Released'}
-                                </span>
-                                {canBeReleased(selectedTask, 'equipment') && unit.is_released !== 1 && unit.is_released !== "1" && (
-                                  <button
-                                    onClick={() => handleRelease('equipment', unit)}
-                                    disabled={isSubmitting}
-                                    className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
-                                  >
-                                    {isSubmitting ? 'Releasing...' : 'Release'}
-                                  </button>
-                                )}
-                                {selectedTask && new Date(selectedTask.reservation_end_date) <= new Date() && (
-                                  <button
-                                    onClick={() => handleReturn(unit)}
-                                    disabled={isSubmitting}
-                                    className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                  >
-                                    {isSubmitting ? 'Returning...' : 'Return'}
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <select
-                      value={equipmentCondition}
-                      onChange={handleEquipmentConditionChange}
-                      className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value="">Select condition</option>
-                      {conditions
-                        .filter(condition => ['2', '3', '4', '6'].includes(condition.id))
-                        .map((condition) => (
-                          <option key={condition.id} value={condition.id}>
-                            {condition.condition_name}
-                          </option>
-                      ))}
-                    </select>
-                    {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
-                      <input
-                        type="number"
-                        min="1"
-                        value={equipmentDefectQty}
-                        onChange={handleEquipmentDefectQtyChange}
-                        placeholder="Enter quantity"
-                        className="text-sm border border-gray-300 rounded-lg px-3 py-2 bg-white shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                      />
-                    )}
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  {equipment.checklists && equipment.checklists.map((item) => (
-                    <div key={item.checklist_equipment_id} 
-                         className="bg-gray-50 p-3 rounded-lg border border-gray-100">
-                      <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-                        <div className="flex-1">
-                          <p className="text-sm font-medium text-gray-900">{item.checklist_name || 'Unnamed Item'}</p>
-                        </div>
-                        <div className="flex gap-4">
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`equipment-${item.checklist_equipment_id}`}
-                              value="1"
-                              checked={item.isChecked === "1" || item.isChecked === 1}
-                              onChange={() => handleChecklistUpdate('equipment', item.checklist_equipment_id, "1")}
-                              className="form-radio h-4 w-4 text-green-600"
-                            />
-                            <span className="ml-2 text-sm text-green-600">Pass</span>
-                          </label>
-                          <label className="inline-flex items-center">
-                            <input
-                              type="radio"
-                              name={`equipment-${item.checklist_equipment_id}`}
-                              value="0"
-                              checked={item.isChecked === "0" || item.isChecked === 0}
-                              onChange={() => handleChecklistUpdate('equipment', item.checklist_equipment_id, "0")}
-                              className="form-radio h-4 w-4 text-red-600"
-                            />
-                            <span className="ml-2 text-sm text-red-600">Fail</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-12">
-            <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M12 12h.01M12 14h.01M12 16h.01M10 20h4a8 8 0 10-16 0h4a4 4 0 118 0z" />
-            </svg>
-            <p className="mt-2 text-sm text-gray-500">Failed to load checklist details</p>
-          </div>
-        )}
-      </div>
-
-      <div className="sticky bottom-0 bg-white px-6 py-4 border-t border-gray-200 backdrop-blur-sm bg-white/80">
-        {renderSubmitButton()}
-      </div>
-    </div>
-  );
-
-  // Add a function to check if condition selections are valid
-  const hasValidConditions = () => {
-    const hasVenues = selectedTask?.venues?.length > 0;
-    const hasVehicles = selectedTask?.vehicles?.length > 0;
-    const hasEquipments = selectedTask?.equipments?.length > 0;
-    
-    const isVenueConditionValid = !hasVenues || venueCondition !== '';
-    const isVehicleConditionValid = !hasVehicles || vehicleCondition !== '';
-    const isEquipmentConditionValid = !hasEquipments || equipmentCondition !== '';
-    
-    // Also check "Other" conditions have text values if selected
-    const isOtherVenueValid = venueCondition !== 'Other' || otherVenueCondition.trim() !== '';
-    const isOtherVehicleValid = vehicleCondition !== 'Other' || otherVehicleCondition.trim() !== '';
-    const isOtherEquipmentValid = equipmentCondition !== '6' || otherEquipmentCondition.trim() !== '';
-    
-    // For equipment, check if quantity is provided when needed
-    const isEquipmentQtyValid = !needsDefectQuantity(equipmentCondition) || 
-      (equipmentDefectQty !== '' && parseInt(equipmentDefectQty) > 0);
-    
-    return isVenueConditionValid && isVehicleConditionValid && isEquipmentConditionValid &&
-      isOtherVenueValid && isOtherVehicleValid && isOtherEquipmentValid && isEquipmentQtyValid;
+  const handleSort = (field) => {
+    if (field === sortField) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
   };
 
   return (
@@ -1457,7 +770,7 @@ const ViewPersonnelTask = () => {
       <Sidebar />
       <div className="flex-1 p-3 sm:p-6 overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-6 sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm pt-2 pb-4">
+          <div className="mb-6 sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm pt-2 pb-4 mt-20">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                 <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
@@ -1486,85 +799,218 @@ const ViewPersonnelTask = () => {
               </div>
 
               <div className="flex items-center gap-2">
-                <button
-                  onClick={handleRefresh}
-                  className="p-2 rounded-lg bg-white shadow-sm border border-gray-200 hover:bg-gray-50 transition-all"
-                >
-                  <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                </button>
-                <div className="flex p-1 bg-white rounded-lg shadow-sm border border-gray-200">
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`p-2 rounded-md transition-all ${
-                      viewMode === 'grid' 
-                        ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`p-2 rounded-md transition-all ${
-                      viewMode === 'list' 
-                        ? 'bg-blue-600 text-white shadow-sm' 
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-                    </svg>
-                  </button>
+                <Tooltip title="Refresh data">
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleRefresh}
+                    size="large"
+                  />
+                </Tooltip>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row gap-4 flex-1">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search tasks by title"
+                    allowClear
+                    prefix={<SearchOutlined />}
+                    size="large"
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full"
+                  />
                 </div>
               </div>
             </div>
           </div>
 
-          {loading ? (
-            <div className="flex justify-center items-center h-48">
-              <div className="animate-spin rounded-full h-10 w-10 border-4 border-blue-600 border-t-transparent"></div>
-            </div>
-          ) : (
-            <div className={viewMode === 'grid' 
-              ? "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-4" 
-              : "space-y-4"
-            }>
-              {currentTasks.map(task => viewMode === 'grid' ? renderTaskCard(task) : renderListItem(task))}
-            </div>
-          )}
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="loader"></div>
+              </div>
+            ) : (
+              <>
+                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                  <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                    <tr>
+                      <th scope="col" className="px-6 py-3" onClick={() => handleSort('reservation_id')}>
+                        <div className="flex items-center cursor-pointer hover:text-gray-900">
+                          ID
+                          {sortField === 'reservation_id' && (
+                            <span className="ml-1">
+                              {sortOrder === "asc" ? "↑" : "↓"}
+                            </span>
+                          )}
+                        </div>
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        <div className="flex items-center">
+                          Title
+                        </div>
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        <div className="flex items-center">
+                          Start Date
+                        </div>
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        <div className="flex items-center">
+                          End Date
+                        </div>
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        <div className="flex items-center">
+                          Status
+                        </div>
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        <div className="flex items-center">
+                          Progress
+                        </div>
+                      </th>
+                      <th scope="col" className="px-6 py-3">
+                        <div className="flex items-center">
+                          Actions
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tasks && tasks.length > 0 ? (
+                      tasks
+                        .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                        .map((task) => (
+                          <tr
+                            key={task.reservation_id}
+                            className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                          >
+                            <td className="px-6 py-4">{task.reservation_id}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex items-center">
+                                <FaEye className="mr-2 text-green-900" />
+                                <span className="font-medium">{task.reservation_title}</span>
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">{task.formattedStartDate}</td>
+                            <td className="px-6 py-4">{task.formattedEndDate}</td>
+                            <td className="px-6 py-4">
+                              <div className="flex flex-col gap-1">
+                                <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
+                                  {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
+                                </Tag>
+                                {task.is_returned === 1 && (
+                                  <Tag color="success">Returned</Tag>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="space-y-2">
+                                {task.venues?.length > 0 && (
+                                  <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                      <span>Venue</span>
+                                      <span>{Math.round(calculateProgress(task.venues))}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-blue-500 rounded-full"
+                                        style={{ width: `${calculateProgress(task.venues)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {task.vehicles?.length > 0 && (
+                                  <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                      <span>Vehicle</span>
+                                      <span>{Math.round(calculateProgress(task.vehicles))}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-green-500 rounded-full"
+                                        style={{ width: `${calculateProgress(task.vehicles)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                                {task.equipments?.length > 0 && (
+                                  <div>
+                                    <div className="flex justify-between text-xs mb-1">
+                                      <span>Equipment</span>
+                                      <span>{Math.round(calculateProgress(task.equipments))}%</span>
+                                    </div>
+                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                      <div 
+                                        className="h-full bg-purple-500 rounded-full"
+                                        style={{ width: `${calculateProgress(task.equipments)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </td>
+                            <td className="px-6 py-4">
+                              <div className="flex space-x-2">
+                                <Button
+                                  type="primary"
+                                  icon={<EditOutlined />}
+                                  onClick={() => handleModalOpen(task)}
+                                  size="middle"
+                                  className="bg-green-900 hover:bg-lime-900"
+                                />
+                                {canBeReturned(task) && !task.is_returned && (
+                                  <Button
+                                    type="default"
+                                    icon={<FaChartBar />}
+                                    onClick={() => handleReturn(task)}
+                                    size="middle"
+                                    className="bg-green-50 hover:bg-green-100"
+                                  />
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td colSpan={7} className="px-6 py-24 text-center">
+                          <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description={
+                              <span className="text-gray-500 dark:text-gray-400">
+                                No tasks found
+                              </span>
+                            }
+                          />
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
 
-          <div className="mt-6 flex justify-center">
-            <div className="flex gap-2">
-              <button
-                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                disabled={currentPage === 1}
-                className="px-3 py-1 text-sm rounded bg-white border disabled:opacity-50"
-              >
-                Previous
-              </button>
-              {[...Array(totalPages)].map((_, i) => (
-                <button
-                  key={i + 1}
-                  onClick={() => setCurrentPage(i + 1)}
-                  className={`px-3 py-1 text-sm rounded ${
-                    currentPage === i + 1 ? 'bg-blue-600 text-white' : 'bg-white border'
-                  }`}
-                >
-                  {i + 1}
-                </button>
-              ))}
-              <button
-                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                disabled={currentPage === totalPages}
-                className="px-3 py-1 text-sm rounded bg-white border disabled:opacity-50"
-              >
-                Next
-              </button>
-            </div>
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={tasks ? tasks.length : 0}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    }}
+                    showSizeChanger={true}
+                    showTotal={(total, range) =>
+                      `${range[0]}-${range[1]} of ${total} items`
+                    }
+                    className="flex justify-end"
+                  />
+                </div>
+              </>
+            )}
           </div>
 
           <ChecklistModal 
@@ -1576,10 +1022,8 @@ const ViewPersonnelTask = () => {
             selectedTask={selectedTask}
             onTaskUpdate={(updatedTask) => {
               if (updatedTask === null) {
-                // Task was completed, refresh the list
                 fetchPersonnelTasks();
               } else {
-                // Task was updated, update the selected task
                 setSelectedTask(updatedTask);
               }
             }}

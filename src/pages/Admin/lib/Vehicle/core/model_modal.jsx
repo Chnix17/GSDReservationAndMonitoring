@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Modal, Form, Input, Select, Button } from 'antd';
 import { toast } from 'sonner';
 import axios from 'axios';
+import {SecureStorage} from '../../../../../utils/encryption';
 
 const ModelModal = ({ open, onCancel, onSuccess }) => {
     const [form] = Form.useForm();
@@ -9,8 +10,9 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
     const [categories, setCategories] = useState([]);
     const [selectedMake, setSelectedMake] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const BASE_URL = "http://localhost/coc/gsd/vehicle_master.php";
-    const FETCH_URL = "http://localhost/coc/gsd/fetchMaster.php";
+    const encryptedUrl = SecureStorage.getLocalItem("url");
+    const BASE_URL = `${encryptedUrl}/vehicle_master.php`;
+    const FETCH_URL = `${encryptedUrl}/fetchMaster.php`;
 
     useEffect(() => {
         if (open) {

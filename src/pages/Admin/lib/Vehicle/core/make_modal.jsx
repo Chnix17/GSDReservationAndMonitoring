@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { Modal, Form, Input, Button } from 'antd';
 import { toast } from 'sonner';
 import axios from 'axios';
+import {SecureStorage} from '../../../../../utils/encryption';
 
 const MakeModal = ({ open, onCancel, onSuccess }) => {
     const [form] = Form.useForm();
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const BASE_URL = "http://localhost/coc/gsd/vehicle_master.php";
+    const BASE_URL = SecureStorage.getLocalItem("url");
 
     const handleSubmit = async () => {
         try {

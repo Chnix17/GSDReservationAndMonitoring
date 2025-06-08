@@ -1,13 +1,12 @@
-import React from 'react';
-import { FaArrowLeft, FaArrowRight, FaList } from 'react-icons/fa';
+import React, { useState, useEffect } from 'react';
+import { FaArrowLeft, FaArrowRight, FaList, FaEye } from 'react-icons/fa';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import ReservationDetails from '../../../components/core/reservation_details';
+import { SecureStorage } from '../../../utils/encryption';
 
 // Helper function for status badges
-const getReservationStatusBadge = (status, startDate, endDate) => {
-    const now = new Date();
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    // First check the explicit status
+const getReservationStatusBadge = (status) => {
     switch(status) {
         case 'Pending':
             return (
@@ -17,7 +16,7 @@ const getReservationStatusBadge = (status, startDate, endDate) => {
             );
         case 'Approved':
             return (
-                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                     Approved
                 </span>
             );
@@ -25,6 +24,12 @@ const getReservationStatusBadge = (status, startDate, endDate) => {
             return (
                 <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200">
                     Rejected
+                </span>
+            );
+        case 'Reserved':
+            return (
+                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                    Reserve
                 </span>
             );
         case 'Cancelled':
@@ -35,50 +40,88 @@ const getReservationStatusBadge = (status, startDate, endDate) => {
             );
         case 'Completed':
             return (
-                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
                     Completed
                 </span>
             );
+        default:
+            return (
+                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
+                    {status}
+                </span>
+            );
     }
-
-    // If no explicit status, check the date-based status
-    if (now < start) {
-        return (
-            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
-                Upcoming
-            </span>
-        );
-    } else if (now >= start && now <= end) {
-        return (
-            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200">
-                Ongoing
-            </span>
-        );
-    } else if (now > end) {
-        return (
-            <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200">
-                Expired
-            </span>
-        );
-    }
-
-    return null;
 };
 
 const RecentReservations = ({ reservations, currentPage, setCurrentPage, itemsPerPage }) => {
-    const totalPages = Math.ceil(reservations.length / itemsPerPage);
+    const [filteredReservations, setFilteredReservations] = useState([]);
+    const [dateFilter, setDateFilter] = useState('7days');
+    const [isModalVisible, setIsModalVisible] = useState(false);
+    const [selectedReservation, setSelectedReservation] = useState(null);
+    const encryptedUrl = SecureStorage.getLocalItem("url");
+
+    useEffect(() => {
+        const now = new Date();
+        const filterDate = new Date();
+        
+        switch(dateFilter) {
+            case '1day':
+                filterDate.setDate(now.getDate() - 1);
+                break;
+            case '3days':
+                filterDate.setDate(now.getDate() - 3);
+                break;
+            case '7days':
+                filterDate.setDate(now.getDate() - 7);
+                break;
+            default:
+                filterDate.setDate(now.getDate() - 7);
+        }
+
+        // Display all reservations without filtering
+        setFilteredReservations(reservations);
+    }, [reservations, dateFilter]);
+
+    const totalPages = Math.ceil(filteredReservations.length / itemsPerPage);
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
-    const currentReservations = reservations.slice(startIndex, endIndex);
+    const currentReservations = filteredReservations.slice(startIndex, endIndex);
 
     const formatDate = (dateString) => {
         return new Date(dateString).toLocaleDateString('en-US', {
-            year: 'numeric',
             month: 'short',
             day: 'numeric',
             hour: '2-digit',
             minute: '2-digit'
         });
+    };
+
+    const calculateDuration = (startDate, endDate) => {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        const diffMs = end - start;
+        const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+        const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+        return `${diffHrs}h ${diffMins}m`;
+    };
+
+    const handleViewReservation = async (reservationId) => {
+        try {
+            const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                operation: 'fetchRequestById',
+                reservation_id: reservationId
+            });
+
+            if (response.data && response.data.status === 'success') {
+                setSelectedReservation(response.data.data);
+                setIsModalVisible(true);
+            } else {
+                toast.error('Failed to fetch reservation details');
+            }
+        } catch (error) {
+            console.error('Error fetching reservation details:', error);
+            toast.error('Error fetching reservation details');
+        }
     };
 
     return (
@@ -87,8 +130,23 @@ const RecentReservations = ({ reservations, currentPage, setCurrentPage, itemsPe
                 <h2 className="text-white text-base md:text-lg font-semibold flex items-center">
                     <FaList className="mr-2 text-sm md:text-base" /> Recent Reservation Requests
                 </h2>
-                <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
-                    {currentReservations.length} Requests
+                <div className="flex items-center space-x-2">
+                    <select 
+                        value={dateFilter}
+                        onChange={(e) => setDateFilter(e.target.value)}
+                        className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white border-none focus:ring-2 focus:ring-white/50 appearance-none cursor-pointer hover:bg-white/40"
+                        style={{
+                            WebkitAppearance: 'none',
+                            MozAppearance: 'none'
+                        }}
+                    >
+                        <option value="1day" className="bg-lime-900 text-white">Last 24 Hours</option>
+                        <option value="3days" className="bg-lime-900 text-white">Last 3 Days</option>
+                        <option value="7days" className="bg-lime-900 text-white">Last 7 Days</option>
+                    </select>
+                    <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
+                        {currentReservations.length} Requests
+                    </div>
                 </div>
             </div>
             <div className="p-3 md:p-4">
@@ -98,37 +156,38 @@ const RecentReservations = ({ reservations, currentPage, setCurrentPage, itemsPe
                             <table className="min-w-full divide-y divide-gray-200">
                                 <thead className="bg-gray-50/50">
                                     <tr>
+                                        <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Title</th>
                                         <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Requestor</th>
-                                        <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Facility</th>
-                                        <th scope="col" className="hidden sm:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Start Date</th>
-                                        <th scope="col" className="hidden md:table-cell px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">End Date</th>
+                                        <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Schedule</th>
                                         <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
+                                        <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody className="bg-white/50 divide-y divide-gray-200">
                                     {currentReservations.map((reservation, index) => (
                                         <tr key={index} className="hover:bg-gray-50/50 transition-colors duration-150">
                                             <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                                <div className="font-medium">{reservation.requestor_name}</div>
-                                                <div className="sm:hidden text-xs text-gray-500 mt-1">
-                                                    {formatDate(reservation.reservation_start_date)}
-                                                </div>
+                                                <div className="font-medium">{reservation.reservation_title}</div>
                                             </td>
                                             <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {reservation.facility_name}
+                                                <div className="font-medium">{reservation.user_full_name}</div>
                                             </td>
-                                            <td className="hidden sm:table-cell px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {formatDate(reservation.reservation_start_date)}
-                                            </td>
-                                            <td className="hidden md:table-cell px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                                {formatDate(reservation.reservation_end_date)}
+                                            <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <div className="space-y-0.5">
+                                                    <div className="font-medium">{formatDate(reservation.reservation_start_date)} - {formatDate(reservation.reservation_end_date)}</div>
+                                                    <div className="text-xs text-gray-500">Duration: {calculateDuration(reservation.reservation_start_date, reservation.reservation_end_date)}</div>
+                                                </div>
                                             </td>
                                             <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap">
-                                                {getReservationStatusBadge(
-                                                    reservation.reservation_status,
-                                                    reservation.reservation_start_date,
-                                                    reservation.reservation_end_date
-                                                )}
+                                                {getReservationStatusBadge(reservation.reservation_status_name)}
+                                            </td>
+                                            <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
+                                                <button
+                                                    onClick={() => handleViewReservation(reservation.reservation_id)}
+                                                    className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-lime-700 bg-lime-100 hover:bg-lime-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lime-500"
+                                                >
+                                                    <FaEye className="mr-1" /> View
+                                                </button>
                                             </td>
                                         </tr>
                                     ))}
@@ -141,7 +200,7 @@ const RecentReservations = ({ reservations, currentPage, setCurrentPage, itemsPe
                     <div className="flex items-center justify-between px-6 py-3 bg-white/50 border-t border-gray-200">
                         <div className="flex items-center">
                             <span className="text-sm text-gray-700">
-                                Showing {startIndex + 1} to {Math.min(endIndex, reservations.length)} of {reservations.length} entries
+                                Showing {startIndex + 1} to {Math.min(endIndex, filteredReservations.length)} of {filteredReservations.length} entries
                             </span>
                         </div>
                         <div className="flex items-center space-x-2">
@@ -176,6 +235,13 @@ const RecentReservations = ({ reservations, currentPage, setCurrentPage, itemsPe
                     </div>
                 </div>
             </div>
+
+            {/* Add ReservationDetails Modal */}
+            <ReservationDetails
+                visible={isModalVisible}
+                onClose={() => setIsModalVisible(false)}
+                reservationDetails={selectedReservation}
+            />
         </div>
     );
 };

@@ -2,7 +2,7 @@
     import { useNavigate } from 'react-router-dom';
     import Sidebar from '../Sidebar';
     import {
-    FaCar, FaUsers, FaBuilding, FaTools,  FaClock,  FaCalendar, FaArrowLeft, FaArrowRight, FaCheck, FaTimes
+    FaCar, FaUsers, FaBuilding, FaTools
     } from 'react-icons/fa';
     import { motion } from 'framer-motion';
     import axios from 'axios';
@@ -64,10 +64,6 @@
         const [ongoingReservations, setOngoingReservations] = useState([]);
         const [completedReservations, setCompletedReservations] = useState([]);
         const [inUseFacilities, setInUseFacilities] = useState([]);
-        const [venuesPage, setVenuesPage] = useState(1);
-        const [vehiclesPage, setVehiclesPage] = useState(1);
-        const [equipmentPage, setEquipmentPage] = useState(1);
-        const itemsPerPage = 5;
         const [setReturnFacilities] = useState([]);
         const [recentReservationsPage, setRecentReservationsPage] = useState(1);
 
@@ -167,29 +163,20 @@
 
         const fetchReservations = useCallback(async () => {
             try {
-                const response = await axios.post(`${encryptedUrl}/user.php`, {
-                    operation: 'fetchAllReservations',
+                const response = await axios.post(`${encryptedUrl}/records&reports.php`, {
+                    operation: 'fetchRecord'
                 });
 
                 if (response.data && response.data.status === 'success') {
-                    // Filter and update ongoing reservations
-                    const currentDate = new Date();
-                    const ongoing = response.data.data.filter(reservation => {
-                        const startDate = new Date(reservation.reservation_start_date);
-                        const endDate = new Date(reservation.reservation_end_date);
-                        return startDate <= currentDate && currentDate <= endDate && reservation.reservation_status === 'Reserved';
-                    });
-                    setOngoingReservations(ongoing);
-
-                    // Filter and update completed reservations
-                    const completed = response.data.data.filter(reservation => 
-                        reservation.reservation_status === 'Completed'
-                    );
-                    setCompletedReservations(completed);
+                    // Set all reservations without filtering by status
+                    setOngoingReservations(response.data.data);
+                    setCompletedReservations([]); // Clear completed reservations since we're not filtering anymore
                 } else {
+                    toast.error('Failed to fetch reservations');
                 }
             } catch (error) {
-                toast.error('Error fetching reservations.');
+                console.error('Error fetching reservations:', error);
+                toast.error('Error fetching reservations');
             }
         }, [encryptedUrl]);
 
@@ -304,14 +291,6 @@
             }
         };
 
-        const itemVariants = {
-            hidden: { y: 20, opacity: 0 },
-            visible: { 
-                y: 0, 
-                opacity: 1,
-                transition: { type: 'spring', stiffness: 100 }
-            }
-        };
 
         const svgVariants = {
             hidden: { pathLength: 0, opacity: 0 },

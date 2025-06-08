@@ -44,6 +44,7 @@ import ChatDepartment from './page_dean/chat';
 import ChatPersonnel from './pages/Personnel/chat';
 import ViewMaintenanceTask from './pages/Personnel/VIewMaintenanceTask';
 import Driver from './pages/Drivers';
+import Holiday from './pages/Admin/Holiday';
 
 
 
@@ -90,7 +91,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Personnel/ViewMaintenanceTask'
+            '/Personnel/ViewMaintenanceTask', '/Holiday'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -135,7 +136,7 @@ const App = () => {
                         <Route path="/equipmentCat" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
                         <Route path="/archive" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Archive /></ProtectedRoute>} />
                         <Route path="/Reports" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Reports /></ProtectedRoute>} />
-                        
+                        <Route path="/Holiday" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Holiday /></ProtectedRoute>} />
                                                             
                         {/* Dean/Secretary Routes */}
                         <Route path="/Department/Dashboard" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DeanDashboard /></ProtectedRoute>} />

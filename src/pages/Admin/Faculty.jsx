@@ -389,17 +389,10 @@ const Faculty = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                            <Button
-                                type="primary"
-                                icon={<FaArrowLeft />}
-                                onClick={() => navigate('/master')}
-                                className="bg-green-900 hover:bg-lime-900"
-                            >
-                                Back to Master
-                            </Button>
+
                            
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Users 
+                                Manage Users
                             </h2>
 
                         </div>
