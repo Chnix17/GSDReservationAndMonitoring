@@ -37,11 +37,11 @@ const availabilityStatus = {
   }
 };
 
-const ReservationCalendar = ({ onDateSelect, selectedResource }) => {
+const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedStartDate, setSelectedStartDate] = useState(null);
   const [selectedEndDate, setSelectedEndDate] = useState(null);
-  const [reservations, setReservations] = useState([]);
+  const [reservations, setReservations] = useState(initialData?.reservations || []);
   const [view, setView] = useState('month');
   const [timeModalOpen, setTimeModalOpen] = useState(false);
   const [selectedTimes, setSelectedTimes] = useState({
@@ -52,6 +52,17 @@ const ReservationCalendar = ({ onDateSelect, selectedResource }) => {
   });
   const [dateRange, setDateRange] = useState(null);
   const [baseUrl, setBaseUrl] = useState('');
+  const [holidays, setHolidays] = useState(initialData?.holidays || []);
+  const [equipmentAvailability, setEquipmentAvailability] = useState(initialData?.equipmentAvailability || []);
+
+  // Update state when initialData changes
+  useEffect(() => {
+    if (initialData) {
+      setReservations(initialData.reservations || []);
+      setHolidays(initialData.holidays || []);
+      setEquipmentAvailability(initialData.equipmentAvailability || []);
+    }
+  }, [initialData]);
 
   useEffect(() => {
     const encryptedUrl = SecureStorage.getLocalItem("url");
@@ -59,6 +70,47 @@ const ReservationCalendar = ({ onDateSelect, selectedResource }) => {
       setBaseUrl(encryptedUrl);
     }
   }, []);
+
+  // Add immediate data fetch when component mounts
+  useEffect(() => {
+    const fetchInitialData = async () => {
+      if (!baseUrl) return;
+
+      try {
+        // Fetch holidays if not provided in initialData
+        if (!initialData?.holidays?.length) {
+          const holidayResponse = await axios.post(
+            `${baseUrl}/user.php`,
+            {
+              operation: 'fetchHoliday'
+            }
+          );
+
+          if (holidayResponse.data.status === 'success') {
+            const formattedHolidays = holidayResponse.data.data.map(holiday => ({
+              name: holiday.holiday_name,
+              date: holiday.holiday_date
+            }));
+            setHolidays(formattedHolidays);
+          }
+        }
+
+        // Fetch reservations/equipment availability if not provided in initialData
+        if (!initialData?.reservations?.length && !initialData?.equipmentAvailability?.length) {
+          if (selectedResource.type === 'equipment') {
+            await fetchEquipmentAvailability();
+          } else {
+            await fetchReservations();
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching initial data:', error);
+        toast.error('Failed to fetch initial calendar data');
+      }
+    };
+
+    fetchInitialData();
+  }, [baseUrl, selectedResource, initialData]);
 
   // Define now and today as constants that are used throughout the component
   const now = new Date();
@@ -72,10 +124,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource }) => {
   const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
-  const [holidays, setHolidays] = useState([]);
   const [selectionMode, setSelectionMode] = useState('full');
-
-  const [equipmentAvailability, setEquipmentAvailability] = useState([]);
 
   const isSelectionValid = () => {
     if (selectionMode === 'full') {

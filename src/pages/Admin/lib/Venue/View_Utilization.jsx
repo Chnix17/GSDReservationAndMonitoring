@@ -92,13 +92,21 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
         reservations.forEach(reservation => {
             const month = moment(reservation.reservation_start_date).format('MMM');
             monthlyData[month].utilizations++;
-            if (reservation.condition_id !== "1") { // If not in good condition
-                monthlyData[month].issues++;
-            }
         });
 
-        const avgUsageTime = calculateAverageUsageTime(reservations);
+        // Calculate total issues from usage statistics
         const totalIssues = usage_statistics.broken_count + usage_statistics.missing_count;
+        
+        // Distribute issues proportionally across months based on utilization
+        const totalUtilizations = usage_statistics.total_usage;
+        if (totalUtilizations > 0) {
+            allMonths.forEach(month => {
+                const monthUtilizations = monthlyData[month].utilizations;
+                monthlyData[month].issues = Math.round((monthUtilizations / totalUtilizations) * totalIssues);
+            });
+        }
+
+        const avgUsageTime = calculateAverageUsageTime(reservations);
         const successRate = usage_statistics.total_usage > 0 
             ? ((usage_statistics.total_usage - totalIssues) / usage_statistics.total_usage * 100).toFixed(1)
             : 0;

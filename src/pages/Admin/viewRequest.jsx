@@ -581,6 +581,22 @@ const ReservationRequests = () => {
                 width: '20%',
             },
             {
+                title: 'Start Date',
+                dataIndex: 'reservation_start_date',
+                key: 'reservation_start_date',
+                sorter: true,
+                sortOrder: sortField === 'reservation_start_date' ? sortOrder : null,
+                render: (text) => new Date(text).toLocaleString(),
+            },
+            {
+                title: 'End Date',
+                dataIndex: 'reservation_end_date',
+                key: 'reservation_end_date',
+                sorter: true,
+                sortOrder: sortField === 'reservation_end_date' ? sortOrder : null,
+                render: (text) => new Date(text).toLocaleString(),
+            },
+            {
                 title: 'Requester',
                 dataIndex: 'requester_name',
                 key: 'requester_name',
@@ -599,32 +615,40 @@ const ReservationRequests = () => {
                 title: 'Status',
                 dataIndex: 'reservation_status',
                 key: 'reservation_status',
-                render: (status, record) => (
-                    <Tag color={
-                    record.active === "0" ? 'gold' :
-                    status === 'Pending' ? 'blue' :
-                    status === 'Approved' ? 'green' :
-                    status === 'Declined' ? 'red' : 'default'
-                    }
-                    className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
-                    >
-                    {record.active === "0" ? "Final Confirmation" : "Waiting for Approval"}
-                    </Tag>
-                ),
+                render: (status, record) => {
+                    const isExpired = new Date(record.reservation_end_date) < new Date();
+                    return (
+                        <Tag color={
+                            isExpired ? 'red' :
+                            record.active === "0" ? 'gold' :
+                            status === 'Pending' ? 'blue' :
+                            status === 'Approved' ? 'green' :
+                            status === 'Declined' ? 'red' : 'default'
+                        }
+                        className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
+                        >
+                        {isExpired ? "Expired" :
+                         record.active === "0" ? "Final Confirmation" : "Waiting for Approval"}
+                        </Tag>
+                    );
+                },
             },
             {
                 title: 'Action',
                 key: 'action',
-                render: (_, record) => (
-                    <Button 
-                        type="primary"
-                        onClick={() => onView(record.reservation_id)}
-                        icon={<EyeOutlined />}
-                        className="bg-green-900 hover:bg-lime-900"
-                    >
-                        View
-                    </Button>
-                ),
+                render: (_, record) => {
+                    const isExpired = new Date(record.reservation_end_date) < new Date();
+                    return (
+                        <Button 
+                            type="primary"
+                            onClick={() => onView(record.reservation_id)}
+                            icon={<EyeOutlined />}
+                            className="bg-green-900 hover:bg-lime-900"
+                        >
+                            View
+                        </Button>
+                    );
+                },
             },
         ];
 
@@ -1036,6 +1060,15 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
     // Add priority checking logic
     const checkPriority = () => {
+        // First check if the reservation is expired
+        const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+        if (isExpired) {
+            return {
+                hasPriority: false,
+                message: "This reservation has expired and cannot be approved."
+            };
+        }
+
         // First check if there are any actual resource conflicts
         const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
             reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
@@ -1148,6 +1181,18 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         if (reservationDetails.active === "0") {
             const priorityCheck = checkPriority();
             const isDisabled = needsTripTicketApproval() ? !tripTicketApproved : hasPendingTripTicket();
+            const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+            
+            if (isExpired) {
+                return [
+                    <Button key="decline" danger loading={isDeclining} onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDeclineReasonModalOpen(true);
+                    }} size="large" icon={<CloseCircleOutlined />}>
+                        Decline
+                    </Button>
+                ];
+            }
             
             return [
                 <Button key="decline" danger loading={isDeclining} onClick={(e) => {

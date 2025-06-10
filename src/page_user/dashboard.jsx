@@ -75,7 +75,7 @@ const Dashboard = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            operation: 'fetchMyActiveReservation',
+            operation: 'fetchMyReservation',
             userId: userId
           })
         });
@@ -109,10 +109,10 @@ const Dashboard = () => {
               startTime,
               endTime,
               feedback: res.feedback || 'No feedback',
-              status: res.reservation_status
+              status: res.reservation_status_name
             };
 
-            if (res.reservation_status === "Completed") {
+            if (res.reservation_status_name === "Completed") {
               completed.push(formattedReservation);
             } else {
               const isOngoing = currentTime >= startTime && currentTime <= endTime;
@@ -421,12 +421,7 @@ const Dashboard = () => {
               animate={{ opacity: 1, x: 0 }}
               className="flex-1"
             >
-              <h1 className="text-4xl font-bold text-gray-800">
-                Dashboard
-              </h1>
-              <p className="text-gray-500 mt-2">
-                Welcome back, {userName}! Here's your reservation overview.
-              </p>
+             
             </motion.div>
             
           </div>
@@ -439,39 +434,101 @@ const Dashboard = () => {
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-sm p-6"
+              className="bg-[#fafff4] rounded-xl shadow-sm overflow-hidden border border-gray-100"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">Active Reservations</h2>
-                <span className="bg-green-100 text-green-800 text-sm font-medium px-3 py-1 rounded-full">
+              <div className="bg-gradient-to-r from-lime-900 to-green-900 p-3 md:p-4 flex justify-between items-center">
+                <h2 className="text-white text-base md:text-lg font-semibold flex items-center">
+                  <FiCalendar className="mr-2 text-sm md:text-base" /> Active Reservations
+                </h2>
+                <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
                   {activeReservations.length} Active
-                </span>
+                </div>
               </div>
-              <div className="space-y-4">
-                {activeReservations.length > 0 ? (
-                  activeReservations.map((reservation) => (
+              <div className="p-3 md:p-4">
+                <div className="space-y-4">
+                  {activeReservations.length > 0 ? (
+                    activeReservations.map((reservation) => (
+                      <motion.div
+                        key={reservation.id}
+                        className="p-4 bg-white/50 border border-gray-100 rounded-xl hover:border-green-200 transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        onClick={() => handleViewReservation(reservation)}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
+                            <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
+                            {reservation.participants > 0 && (
+                              <p className="text-gray-500 text-sm mt-1">
+                                Participants: {reservation.participants}
+                              </p>
+                            )}
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            reservation.status === 'Ongoing' 
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-blue-100 text-blue-800'
+                          }`}>
+                            {reservation.status}
+                          </span>
+                        </div>
+                        <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
+                          <div className="flex items-center">
+                            <FiCalendar className="w-4 h-4 mr-2" />
+                            {reservation.date}
+                          </div>
+                          <div className="flex items-center">
+                            <FiClock className="w-4 h-4 mr-2" />
+                            {reservation.time}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 bg-white/50 rounded-xl">
+                      <FiCalendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p>No active reservations found</p>
+                      <button
+                        onClick={() => navigate('/add-reservation')}
+                        className="mt-4 text-green-600 hover:text-green-700 font-medium"
+                      >
+                        Create a new reservation
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+
+            {/* Completed Reservations */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-[#fafff4] rounded-xl shadow-sm overflow-hidden border border-gray-100"
+            >
+              <div className="bg-gradient-to-r from-lime-900 to-green-900 p-3 md:p-4 flex justify-between items-center">
+                <h2 className="text-white text-base md:text-lg font-semibold flex items-center">
+                  <FiCalendar className="mr-2 text-sm md:text-base" /> Completed Reservations
+                </h2>
+                <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
+                  {completedReservations.length} Completed
+                </div>
+              </div>
+              <div className="p-3 md:p-4">
+                <div className="space-y-4">
+                  {completedReservations.map((reservation) => (
                     <motion.div
                       key={reservation.id}
-                      className="p-4 border border-gray-100 rounded-xl hover:border-green-200 transition-colors"
+                      className="p-4 bg-white/50 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors"
                       whileHover={{ scale: 1.02 }}
-                      onClick={() => handleViewReservation(reservation)}
                     >
                       <div className="flex justify-between items-start">
                         <div>
                           <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
                           <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
-                          {reservation.participants > 0 && (
-                            <p className="text-gray-500 text-sm mt-1">
-                              Participants: {reservation.participants}
-                            </p>
-                          )}
                         </div>
-                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          reservation.status === 'Ongoing' 
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-blue-100 text-blue-800'
-                        }`}>
-                          {reservation.status}
+                        <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                          {reservation.feedback}
                         </span>
                       </div>
                       <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
@@ -485,62 +542,8 @@ const Dashboard = () => {
                         </div>
                       </div>
                     </motion.div>
-                  ))
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <FiCalendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
-                    <p>No active reservations found</p>
-                    <button
-                      onClick={() => navigate('/add-reservation')}
-                      className="mt-4 text-green-600 hover:text-green-700 font-medium"
-                    >
-                      Create a new reservation
-                    </button>
-                  </div>
-                )}
-              </div>
-            </motion.div>
-
-            {/* Completed Reservations */}
-            <motion.div 
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="bg-white rounded-2xl shadow-sm p-6"
-            >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-bold text-gray-800">Completed Reservations</h2>
-                <span className="bg-gray-100 text-gray-800 text-sm font-medium px-3 py-1 rounded-full">
-                  {completedReservations.length} Completed
-                </span>
-              </div>
-              <div className="space-y-4">
-                {completedReservations.map((reservation) => (
-                  <motion.div
-                    key={reservation.id}
-                    className="p-4 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors"
-                    whileHover={{ scale: 1.02 }}
-                  >
-                    <div className="flex justify-between items-start">
-                      <div>
-                        <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
-                        <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
-                      </div>
-                      <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
-                        {reservation.feedback}
-                      </span>
-                    </div>
-                    <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
-                      <div className="flex items-center">
-                        <FiCalendar className="w-4 h-4 mr-2" />
-                        {reservation.date}
-                      </div>
-                      <div className="flex items-center">
-                        <FiClock className="w-4 h-4 mr-2" />
-                        {reservation.time}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
+                  ))}
+                </div>
               </div>
             </motion.div>
           </div>

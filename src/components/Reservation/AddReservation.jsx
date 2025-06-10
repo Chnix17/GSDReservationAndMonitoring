@@ -89,6 +89,13 @@ const AddReservation = () => {
   const [selectedVenueEquipment, setSelectedVenueEquipment] = useState({});
   const [equipmentQuantities, setEquipmentQuantities] = useState({});
 
+  // Add new state for calendar data
+  const [calendarData, setCalendarData] = useState({
+    reservations: [],
+    holidays: [],
+    equipmentAvailability: []
+  });
+
   const [formData, setFormData] = useState({
     resourceType: '',
     startDate: null,
@@ -750,6 +757,7 @@ const renderStepContent = () => {
                 ? formData.venues
                 : selectedModels
           }}
+          initialData={calendarData} // Pass the fetched calendar data
         />
       </div>
     ),
@@ -1592,6 +1600,78 @@ useEffect(() => {
   fetchVehicles();
   fetchEquipment();
 }, []);
+
+// Add useEffect to handle calendar data fetching
+useEffect(() => {
+  if (currentStep === 2) { // Calendar step
+    const fetchCalendarData = async () => {
+      try {
+        // Fetch holidays
+        const holidayResponse = await axios.post(
+          `${encryptedUrl}/user.php`,
+          {
+            operation: 'fetchHoliday'
+          }
+        );
+
+        if (holidayResponse.data.status === 'success') {
+          const formattedHolidays = holidayResponse.data.data.map(holiday => ({
+            name: holiday.holiday_name,
+            date: holiday.holiday_date
+          }));
+          setCalendarData(prev => ({ ...prev, holidays: formattedHolidays }));
+        }
+
+        // Fetch reservations based on resource type
+        if (formData.resourceType === 'equipment') {
+          const equipmentResponse = await axios.post(
+            `${encryptedUrl}/user.php`,
+            {
+              operation: 'fetchAvailability',
+              itemType: 'equipment',
+              itemId: Object.entries(equipmentQuantities)
+                .filter(([_, qty]) => qty > 0)
+                .map(([id, qty]) => ({
+                  id: parseInt(id),
+                  quantity: qty
+                }))
+            }
+          );
+
+          if (equipmentResponse.data.status === 'success') {
+            setCalendarData(prev => ({
+              ...prev,
+              equipmentAvailability: equipmentResponse.data.data
+            }));
+          }
+        } else {
+          const reservationResponse = await axios.post(
+            `${encryptedUrl}/user.php`,
+            {
+              operation: 'fetchReservations',
+              resourceType: formData.resourceType,
+              resourceIds: formData.resourceType === 'venue' 
+                ? formData.venues 
+                : selectedModels
+            }
+          );
+
+          if (reservationResponse.data.status === 'success') {
+            setCalendarData(prev => ({
+              ...prev,
+              reservations: reservationResponse.data.data
+            }));
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching calendar data:', error);
+        toast.error('Failed to fetch calendar data');
+      }
+    };
+
+    fetchCalendarData();
+  }
+}, [currentStep, formData.resourceType, formData.venues, selectedModels, equipmentQuantities, encryptedUrl]);
 
 return (
   <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">

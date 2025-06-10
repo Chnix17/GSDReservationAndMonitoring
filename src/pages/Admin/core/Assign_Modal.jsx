@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Form, Select, Button, Tag } from 'antd';
+import { Modal, Form, Select, Button, Tag, Alert } from 'antd';
 import axios from 'axios';
 import { toast } from 'sonner';
 import { SecureStorage } from '../../../utils/encryption';
+import { useNavigate } from 'react-router-dom';
 
 const AssignModal = ({ 
   isOpen, 
@@ -10,6 +11,7 @@ const AssignModal = ({
   selectedReservation, 
   onSuccess
 }) => {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({
     personnel: '',
     checklists: []
@@ -17,6 +19,7 @@ const AssignModal = ({
   const [errorMessage, setErrorMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [personnel, setPersonnel] = useState([]);
+  const [itemsWithoutChecklist, setItemsWithoutChecklist] = useState([]);
   const baseUrl = SecureStorage.getLocalItem("url");
 
   useEffect(() => {
@@ -66,6 +69,7 @@ const AssignModal = ({
       if (response.data.status === 'success') {
         const { data } = response.data;
         let checklists = [];
+        let noChecklistItems = [];
         
         // Process venues
         if (data.venues && data.venues.length > 0) {
@@ -82,6 +86,12 @@ const AssignModal = ({
               checklists.push({
                 category: `Venue: ${venue.name}`,
                 items: venueItems
+              });
+            } else {
+              noChecklistItems.push({
+                type: 'venue',
+                name: venue.name,
+                id: venue.venue_id
               });
             }
           });
@@ -103,6 +113,12 @@ const AssignModal = ({
                 category: `Equipment: ${equipment.name} (Qty: ${equipment.quantity})`,
                 items: equipmentItems
               });
+            } else {
+              noChecklistItems.push({
+                type: 'equipment',
+                name: equipment.name,
+                id: equipment.equipment_id
+              });
             }
           });
         }
@@ -123,10 +139,17 @@ const AssignModal = ({
                 category: `Vehicle: ${vehicle.model || 'N/A'} (License: ${vehicle.license || 'N/A'})`,
                 items: vehicleItems
               });
+            } else {
+              noChecklistItems.push({
+                type: 'vehicle',
+                name: vehicle.model || 'N/A',
+                id: vehicle.vehicle_id
+              });
             }
           });
         }
 
+        setItemsWithoutChecklist(noChecklistItems);
         setFormData({
           personnel: '',
           checklists: checklists
@@ -224,6 +247,10 @@ const AssignModal = ({
     setErrorMessage('');
   };
 
+  const handleNavigateToChecklist = () => {
+    navigate('/Checklist');
+  };
+
   return (
     <Modal
       title={
@@ -248,6 +275,7 @@ const AssignModal = ({
           loading={loading} 
           onClick={handleAssign}
           className="bg-green-900 hover:bg-lime-900"
+          disabled={itemsWithoutChecklist.length > 0}
         >
           Assign Personnel
         </Button>
@@ -257,6 +285,34 @@ const AssignModal = ({
       centered
     >
       <Form layout="vertical" className="mt-4">
+        {itemsWithoutChecklist.length > 0 && (
+          <Alert
+            message="Items Without Checklists"
+            description={
+              <div>
+                <p>The following items have no checklists:</p>
+                <ul className="list-disc ml-4 mt-2">
+                  {itemsWithoutChecklist.map((item, index) => (
+                    <li key={index}>
+                      {item.type.charAt(0).toUpperCase() + item.type.slice(1)}: {item.name}
+                    </li>
+                  ))}
+                </ul>
+                <Button 
+                  type="link" 
+                  onClick={handleNavigateToChecklist}
+                  className="p-0 mt-2"
+                >
+                  Go to Checklist Management
+                </Button>
+              </div>
+            }
+            type="warning"
+            showIcon
+            className="mb-4"
+          />
+        )}
+        
         <Form.Item 
           label="Select Personnel" 
           validateStatus={errorMessage ? "error" : ""}

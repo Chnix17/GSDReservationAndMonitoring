@@ -20,10 +20,11 @@ import { Chip } from 'primereact/chip';
 import { Tooltip } from 'primereact/tooltip';
 import { sanitizeInput, validateInput } from '../../utils/sanitize';
 import { SecureStorage } from '../../utils/encryption';
-import { ExclamationCircleOutlined } from '@ant-design/icons';
+import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import Create_Modal from './lib/Faculty/Create_Modal';
 import Update_Modal from './lib/Faculty/Update_Modal';
 import { Alert } from 'antd';
+import { Button as AntButton } from 'antd';
 
 const generateAvatarColor = (str) => {
     let hash = 0;
@@ -304,27 +305,19 @@ const Faculty = () => {
 
         return (
             <div className="flex space-x-2">
-                <Tooltip target=".edit-btn" />
-                <Tooltip target=".archive-btn" />
-
-                <Button 
-                    type="button"
+                <AntButton
+                    type="primary"
+                    icon={<EditOutlined />}
                     onClick={handleEditClick}
-                    className="edit-btn bg-green-900 hover:bg-lime-900 text-white"
-                    data-pr-tooltip="Edit Faculty"
-                    data-pr-position="top"
-                >
-                    <FontAwesomeIcon icon={faEdit} />
-                </Button>
-                <Button 
-                    type="button"
+                    size="middle"
+                    className="bg-green-900 hover:bg-lime-900"
+                />
+                <AntButton
+                    danger
+                    icon={<DeleteOutlined />}
                     onClick={() => handleArchiveClick(rowData)}
-                    className="archive-btn bg-red-600 hover:bg-red-700 text-white"
-                    data-pr-tooltip="Archive Faculty"
-                    data-pr-position="top"
-                >
-                    <FontAwesomeIcon icon={faArchive} />
-                </Button>
+                    size="middle"
+                />
             </div>
         );
     };

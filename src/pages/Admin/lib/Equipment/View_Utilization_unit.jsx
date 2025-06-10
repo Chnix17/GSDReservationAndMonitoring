@@ -90,20 +90,27 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
             };
         });
 
-        // Process reservations
+        // Process reservations for utilizations
         if (reservations) {
             reservations.forEach(reservation => {
                 const month = moment(reservation.reservation_start_date).format('MMM');
                 monthlyData[month].utilizations++;
-                if (reservation.condition_id !== "1") { // If not in good condition
-                    monthlyData[month].issues++;
-                }
+            });
+        }
+
+        // Calculate total issues from usage statistics
+        const totalIssues = usage_statistics ? (usage_statistics.broken_count + usage_statistics.missing_count) : 0;
+        const totalUsage = usage_statistics ? usage_statistics.total_usage : 0;
+
+        // Distribute issues proportionally across months based on utilization
+        if (totalUsage > 0) {
+            allMonths.forEach(month => {
+                const monthUtilizations = monthlyData[month].utilizations;
+                monthlyData[month].issues = Math.round((monthUtilizations / totalUsage) * totalIssues);
             });
         }
 
         const avgUsageTime = calculateAverageUsageTime(reservations);
-        const totalIssues = usage_statistics ? (usage_statistics.broken_count + usage_statistics.missing_count) : 0;
-        const totalUsage = usage_statistics ? usage_statistics.total_usage : 0;
         const successRate = totalUsage > 0 
             ? ((totalUsage - totalIssues) / totalUsage * 100).toFixed(1)
             : 0;

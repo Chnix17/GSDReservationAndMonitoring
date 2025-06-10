@@ -8,9 +8,7 @@ const BASE_URL = SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/
 
 const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, type }) => {
   const [selectedCondition, setSelectedCondition] = useState('');
-  const [goodQuantity, setGoodQuantity] = useState('');
   const [badQuantity, setBadQuantity] = useState('');
-  const isConsumable = !item?.units || item.units.length === 0;
   const totalQuantity = parseInt(item?.quantity || 0);
   const isEquipmentConsumable = type === 'equipment_consumable';
 
@@ -214,8 +212,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     vehicles: true,
     equipment: true
   });
-  const [returnCondition, setReturnCondition] = useState('');
-  const [showReturnDropdown, setShowReturnDropdown] = useState(false);
+ 
   const [selectedItemForReturn, setSelectedItemForReturn] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
 
@@ -233,14 +230,6 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
 
   const needsDefectQuantity = (conditionId) => {
     return ['3', '4'].includes(conditionId);
-  };
-
-  const handleEquipmentConditionChange = (e) => {
-    const value = e.target.value;
-    setEquipmentCondition(value);
-    if (!needsDefectQuantity(value)) {
-      setEquipmentDefectQty('');
-    }
   };
 
   const handleEquipmentDefectQtyChange = (e) => {
@@ -366,6 +355,9 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
             }
           }
           break;
+
+        default:
+          break;
       }
 
       if (!checklist || !reservationItemId) {
@@ -402,6 +394,8 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
             break;
           case 'equipment':
             updatedData.equipments = updateChecklistItems(updatedData.equipments);
+            break;
+          default:
             break;
         }
 
@@ -587,7 +581,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
       return;
     }
 
-    setIsSubmitting(true);
+    setIsReleasing(true);
     try {
       let reservationId;
       let resourceId;
@@ -597,19 +591,23 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         case 'venue':
           reservationId = item.reservation_venue_id;
           resourceId = item.reservation_venue_venue_id;
+          setVenueCondition('In Use');
           break;
         case 'vehicle':
           reservationId = item.reservation_vehicle_id;
           resourceId = item.reservation_vehicle_vehicle_id;
+          setVehicleCondition('In Use');
           break;
         case 'equipment':
           reservationId = item.reservation_unit_id;
           resourceId = item.unit_id;
+          setEquipmentCondition('In Use');
           break;
         case 'equipment_consumable':
           reservationId = item.reservation_equipment_id;
           resourceId = item.quantity_id;
           quantity = item.quantity;
+          setEquipmentCondition('In Use');
           break;
         default:
           toast.error('Invalid type');
@@ -719,7 +717,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
       console.error('Error releasing:', error);
       toast.error('An error occurred while releasing');
     } finally {
-      setIsSubmitting(false);
+      setIsReleasing(false);
     }
   };
 
@@ -821,18 +819,34 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         case 'venue':
           reservation_id = item.reservation_venue_id;
           resource_id = item.reservation_venue_venue_id;
+          setVenueCondition(condition);
+          if (condition === 'Other') {
+            setOtherVenueCondition(condition);
+          }
           break;
         case 'vehicle':
           reservation_id = item.reservation_vehicle_id;
           resource_id = item.reservation_vehicle_vehicle_id;
+          setVehicleCondition(condition);
+          if (condition === 'Other') {
+            setOtherVehicleCondition(condition);
+          }
           break;
         case 'equipment':
           reservation_id = item.reservation_unit_id;
           resource_id = item.unit_id;
+          setEquipmentCondition(condition);
+          if (condition === 'Other') {
+            setOtherEquipmentCondition(condition);
+          }
           break;
         case 'equipment_consumable':
           reservation_id = item.reservation_equipment_id;
           resource_id = item.quantity_id;
+          setEquipmentCondition(condition);
+          if (condition === 'Other') {
+            setOtherEquipmentCondition(condition);
+          }
           break;
         default:
           toast.error('Invalid type');
@@ -1567,7 +1581,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                             )}
                           </div>
                         </div>
-                        {/* Show equipment checklists if in use and active */}
+                        {/* Show equipment checklists if active */}
                         {equipment.checklists?.length > 0 && equipment.active === 1 && (
                           <div className="space-y-2">
                             <h4 className="text-xs font-medium text-gray-400 mb-2">Checklist Items</h4>

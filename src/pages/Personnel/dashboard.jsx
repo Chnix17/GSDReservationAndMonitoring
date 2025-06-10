@@ -7,7 +7,8 @@ import {
   FiClock,
   FiClipboard,
   FiFilter,
-  FiMapPin
+  FiMapPin,
+  FiCalendar
 } from 'react-icons/fi';
 import ReservationCalendar from '../../components/ReservationCalendar';
 import Sidebar from './component/sidebar';  // Updated import path
@@ -17,13 +18,10 @@ import { SecureStorage } from '../../utils/encryption'; // Ensure this path is c
 const Dashboard = () => {
   const navigate = useNavigate();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [priorityTasks, setPriorityTasks] = useState([]);
   const [baseUrl, setBaseUrl] = useState('');
-
-  const [refreshKey, setRefreshKey] = useState(0); // Add this new state
-  const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 3;
   const [recentActivities, setRecentActivities] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 5;
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
@@ -37,8 +35,22 @@ const Dashboard = () => {
     setBaseUrl(url);
   }, [navigate]);
 
-  const fetchTasks = async () => {
+  const formatTimeAgo = (date) => {
+    return format(new Date(date));
+  };
+
+  const fetchRecentActivities = useCallback(async () => {
     try {
+      const url = SecureStorage.getLocalItem("url");
+      if (!url) {
+        console.error('Base URL is not set in SecureStorage');
+        return;
+      }
+
+      // Ensure the URL doesn't end with a slash
+      const baseUrl = url.endsWith('/') ? url.slice(0, -1) : url;
+      console.log('Making request to:', `${baseUrl}/personnel.php`);
+
       const response = await fetch(`${baseUrl}/personnel.php`, {
         method: 'POST',
         headers: {
@@ -46,57 +58,29 @@ const Dashboard = () => {
         },
         body: JSON.stringify({
           operation: 'fetchAssignedRelease',
-          personnel_id: localStorage.getItem('user_id')
+          personnel_id: SecureStorage.getSessionItem('user_id')
         })
       });
 
-      const result = await response.json();
-      if (result.status === 'success' && Array.isArray(result.data)) {
-        // Transform the data to match our needs
-        const transformedTasks = result.data.map(item => ({
-          id: item.master_data.checklist_id,
-          title: item.master_data.vehicle_form_name,
-          venue: item.master_data.venue_form_name,
-          time: new Date(item.master_data.vehicle_form_start_date).toLocaleTimeString(),
-          startDate: new Date(item.master_data.vehicle_form_start_date).toLocaleDateString(),
-          endDate: new Date(item.master_data.vehicle_form_end_date).toLocaleDateString(),
-          status: item.master_data.status_checklist_name,
-          priority: item.master_data.checklist_status_id === "4" ? "high" : "medium"
-        }));
-        setPriorityTasks(transformedTasks);
-      } else {
-        setPriorityTasks([]);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    } catch (error) {
-      console.error('Error fetching tasks:', error);
-      setPriorityTasks([]);
-    }
-  };
-
-  const formatTimeAgo = (date) => {
-    return format(new Date(date));
-  };
-
-  const fetchRecentActivities = useCallback(async () => {
-    try {
-      const response = await fetch(`${baseUrl}/personnel.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchRecent'
-        })
-      });
 
       const result = await response.json();
       if (result.status === 'success' && Array.isArray(result.data)) {
-        const transformedActivities = result.data.map(item => ({
-          type: 'Task Added',
-          message: `Task was added`,
-          time: item.checklist_updated_at,
-          timeAgo: formatTimeAgo(item.checklist_updated_at)
-        }));
+        const transformedActivities = result.data
+          .filter(task => task.reservation_status === 'Reserved')
+          .map(item => ({
+            type: 'Task',
+            message: item.reservation_title,
+            time: item.reservation_start_date,
+            timeAgo: formatTimeAgo(item.reservation_start_date),
+            reservation_id: item.reservation_id,
+            user_details: item.user_details,
+            start_date: item.reservation_start_date,
+            end_date: item.reservation_end_date
+          }))
+          .sort((a, b) => new Date(a.start_date) - new Date(b.start_date)); // Sort by start date
         setRecentActivities(transformedActivities);
       } else {
         setRecentActivities([]);
@@ -114,39 +98,15 @@ const Dashboard = () => {
   // Calculate pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
-  const currentTasks = priorityTasks.slice(indexOfFirstItem, indexOfLastItem);
-  const totalPages = Math.ceil(priorityTasks.length / itemsPerPage);
+  const currentItems = recentActivities.slice(indexOfFirstItem, indexOfLastItem);
+  const totalPages = Math.ceil(recentActivities.length / itemsPerPage);
 
-  useEffect(() => {
-    fetchTasks();
-  }, [refreshKey]); // Add refreshKey as dependency
-
-  const handleTaskComplete = async (taskId) => {
-    try {
-      const response = await fetch(`${baseUrl}/update_master.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'updateTaskStatus',
-          task_id: taskId,
-          status: 'completed'
-        })
-      });
-
-      const result = await response.json();
-      if (result.status === 'success') {
-        // Trigger a refresh of the tasks
-        setRefreshKey(prev => prev + 1);
-      }
-    } catch (error) {
-      console.error('Error completing task:', error);
-    }
+  const handleViewTask = (reservationId) => {
+    navigate('/Personnel/ViewTask', { state: { reservationId } });
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex min-h-screen bg-gradient-to-br from-white to-green-100">
       <Sidebar />
       
       <main className="flex-1 p-6 overflow-x-hidden mt-20">
@@ -157,133 +117,81 @@ const Dashboard = () => {
           </div>
         </div>
 
-
-
-        {/* Three Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Priority Tasks */}
-          <motion.div 
-            className="bg-white rounded-xl shadow-sm p-6"
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-800">Priority Tasks</h2>
-              <button className="text-gray-400 hover:text-gray-600">
-                <FiFilter className="w-5 h-5" />
-              </button>
+        {/* Recent Tasks */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="bg-[#fafff4] rounded-xl shadow-sm overflow-hidden border border-gray-100"
+        >
+          <div className="bg-gradient-to-r from-lime-900 to-green-900 p-3 md:p-4 flex justify-between items-center">
+            <h2 className="text-white text-base md:text-lg font-semibold flex items-center">
+              <FiCalendar className="mr-2 text-sm md:text-base" /> Recent Tasks
+            </h2>
+            <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
+              {recentActivities.length} Tasks
             </div>
+          </div>
+          <div className="p-3 md:p-4">
             <div className="space-y-4">
-              {currentTasks.length === 0 ? (
-                <div className="text-center py-8">
-                  <FiInfo className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No active tasks available</p>
-                </div>
-              ) : (
-                <>
-                  {currentTasks.map((item) => (
-                    <div key={item.id} className={`p-4 rounded-lg border-l-4 ${
-                      item.priority === 'high' ? 'border-red-500 bg-red-50' : 'border-yellow-500 bg-yellow-50'
-                    }`}>
-                      <h3 className="font-semibold text-gray-800">{item.title}</h3>
-                      <div className="mt-2 space-y-2">
-                        <div className="flex items-center text-sm text-gray-600 gap-4">
-                          <span className="flex items-center gap-1">
-                            <FiMapPin className="w-4 h-4" /> {item.venue}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <FiClock className="w-4 h-4" /> {item.time}
-                          </span>
-                        </div>
-                        <div className="flex items-center text-sm text-gray-600 gap-4">
-                          <span>From: {item.startDate}</span>
-                          <span>To: {item.endDate}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className={`text-sm ${
-                            item.status.toLowerCase() === 'pending' ? 'text-yellow-600' : 'text-blue-600'
-                          }`}>
-                            Status: {item.status}
-                          </span>
-                          <button 
-                            onClick={() => handleTaskComplete(item.id)}
-                            className="text-green-600 hover:text-green-700"
-                          >
-                            <FiCheck className="w-5 h-5" />
-                          </button>
-                        </div>
+              {currentItems.length > 0 ? (
+                currentItems.map((activity, index) => (
+                  <motion.div
+                    key={index}
+                    className="p-4 bg-white/50 border border-gray-100 rounded-xl hover:border-green-200 transition-colors cursor-pointer"
+                    whileHover={{ scale: 1.02 }}
+                    onClick={() => handleViewTask(activity.reservation_id)}
+                  >
+                    <div className="flex justify-between items-start">
+                      <div>
+                        <h3 className="font-semibold text-gray-800">{activity.message}</h3>
+                        <p className="text-gray-500 text-sm mt-1">
+                          {activity.user_details?.full_name} - {activity.user_details?.department}
+                        </p>
                       </div>
-                    </div>
-                  ))}
-                  {/* Pagination */}
-                  {totalPages > 1 && (
-                    <div className="flex justify-center items-center gap-2 mt-4">
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                        disabled={currentPage === 1}
-                        className="px-3 py-1 rounded bg-gray-100 disabled:opacity-50"
-                      >
-                        Previous
-                      </button>
-                      <span className="text-sm text-gray-600">
-                        Page {currentPage} of {totalPages}
+                      <span className="px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                        {activity.timeAgo}
                       </span>
-                      <button
-                        onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
-                        disabled={currentPage === totalPages}
-                        className="px-3 py-1 rounded bg-gray-100 disabled:opacity-50"
-                      >
-                        Next
-                      </button>
                     </div>
-                  )}
-                </>
-              )}
-            </div>
-          </motion.div>
-
-          {/* Recent Activities */}
-          <motion.div 
-            className="bg-white rounded-xl shadow-sm p-6 lg:col-span-2"
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-          >
-            <div className="flex justify-between items-center mb-4">
-              <h2 className="text-lg font-bold text-gray-800">Recent Activities</h2>
-              <select className="text-sm border rounded-lg px-2 py-1">
-                <option>All Activities</option>
-                <option>Approvals</option>
-                <option>Rejections</option>
-                <option>Updates</option>
-              </select>
-            </div>
-            <div className="space-y-4">
-              {recentActivities.length === 0 ? (
-                <div className="text-center py-8">
-                  <FiInfo className="w-12 h-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No recent activities</p>
-                </div>
-              ) : (
-                recentActivities.map((activity, index) => (
-                  <div key={index} className="flex items-start gap-4 p-4 hover:bg-gray-50 rounded-lg transition-colors">
-                    <div className="p-2 rounded-full shrink-0 bg-blue-100 text-blue-600">
-                      <FiClipboard className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start">
-                        <p className="font-medium text-gray-800">{activity.message}</p>
-                        <span className="text-sm text-gray-500">{activity.timeAgo}</span>
+                    <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
+                      <div className="flex items-center">
+                        <FiClock className="w-4 h-4 mr-2" />
+                        {new Date(activity.start_date).toLocaleString()} - {new Date(activity.end_date).toLocaleString()}
                       </div>
-                      <p className="text-sm text-gray-600 mt-1">
-                        Status: <span className="font-medium text-blue-600">{activity.type}</span>
-                      </p>
                     </div>
-                  </div>
+                  </motion.div>
                 ))
+              ) : (
+                <div className="text-center py-8 text-gray-500 bg-white/50 rounded-xl">
+                  <FiCalendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                  <p>No recent tasks found</p>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="flex justify-center items-center gap-2 mt-6">
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                    disabled={currentPage === 1}
+                    className="px-4 py-2 rounded-lg bg-white/50 border border-gray-200 text-gray-700 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    Page {currentPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={currentPage === totalPages}
+                    className="px-4 py-2 rounded-lg bg-white/50 border border-gray-200 text-gray-700 hover:bg-white/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  >
+                    Next
+                  </button>
+                </div>
               )}
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </motion.div>
       </main>
 
       <ReservationCalendar 

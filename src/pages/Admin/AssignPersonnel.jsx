@@ -88,7 +88,9 @@ const AssignPersonnel = () => {
         const formattedData = response.data.data.map(item => ({
           id: item.reservation_id,
           type: item.venue_form_name ? 'Venue' : 'Vehicle',
+          title: item.reservation_title || 'Untitled',
           name: item.reservation_title || 'Untitled',
+          requestor: item.requestor_name || 'Unknown',
           details: item.venue_details || item.vehicle_details,
           personnel: 'N/A',
           checklists: [],
@@ -296,7 +298,7 @@ const AssignPersonnel = () => {
         );
       }
     },
-    {
+    ...(activeTab !== 'Not Assigned' ? [{
       title: 'Progress',
       dataIndex: 'progress',
       key: 'progress',
@@ -310,24 +312,29 @@ const AssignPersonnel = () => {
           ></div>
         </div>
       )
-    },
+    }] : []),
     {
       title: 'Actions',
       key: 'actions',
       fixed: 'right',
       width: 100,
       render: (_, record) => (
-        <Tooltip title="View Checklists">
+        <Tooltip title={activeTab === 'Not Assigned' ? "Assign Personnel" : "View Checklists"}>
           <Button
-            icon={<FontAwesomeIcon icon={faEye} />}
+            icon={<FontAwesomeIcon icon={activeTab === 'Not Assigned' ? faUserPlus : faEye} />}
             onClick={() => {
-              setSelectedReservation(record.rawData);
-              setIsChecklistModalOpen(true);
+              if (activeTab === 'Not Assigned') {
+                setSelectedReservation(record);
+                setIsModalOpen(true);
+              } else {
+                setSelectedReservation(record.rawData);
+                setIsChecklistModalOpen(true);
+              }
             }}
             size="small"
             className="border-gray-300 text-gray-600"
           >
-            View
+            {activeTab === 'Not Assigned' ? 'Assign' : 'View'}
           </Button>
         </Tooltip>
       ),

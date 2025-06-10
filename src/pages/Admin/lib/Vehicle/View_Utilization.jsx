@@ -96,24 +96,19 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
             monthlyData[month].utilizations++;
         });
 
-        // Calculate total issues from broken and missing counts
+        // Calculate total issues from usage statistics
         const totalIssues = usage_statistics.broken_count + usage_statistics.missing_count;
-
-        // Distribute issues proportionally based on utilization
-        const totalUtilizations = Object.values(monthlyData).reduce((acc, curr) => acc + curr.utilizations, 0);
         
-        // Only distribute issues if there are utilizations
+        // Distribute issues proportionally across months based on utilization
+        const totalUtilizations = usage_statistics.total_usage;
         if (totalUtilizations > 0) {
-            Object.keys(monthlyData).forEach(month => {
-                const monthUtilization = monthlyData[month].utilizations;
-                // Calculate proportional issues for the month
-                monthlyData[month].issues = Math.round((monthUtilization / totalUtilizations) * totalIssues);
+            allMonths.forEach(month => {
+                const monthUtilizations = monthlyData[month].utilizations;
+                monthlyData[month].issues = Math.round((monthUtilizations / totalUtilizations) * totalIssues);
             });
         }
 
         const avgUsageTime = calculateAverageUsageTime(reservations);
-        
-        // Calculate success rate based on good condition count
         const successRate = usage_statistics.total_usage > 0 
             ? ((usage_statistics.good_condition_count / usage_statistics.total_usage) * 100).toFixed(1)
             : 0;
