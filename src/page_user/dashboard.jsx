@@ -17,7 +17,7 @@ const { TabPane } = Tabs;
 const Dashboard = () => {
   const navigate = useNavigate();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [userName, setUserName] = useState('');
+
   const [activeReservations, setActiveReservations] = useState([]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [reservationDetails, setReservationDetails] = useState(null);
@@ -57,10 +57,6 @@ const Dashboard = () => {
 
 
 
-  useEffect(() => {
-    const storedName = SecureStorage.getSessionItem('name');
-    setUserName(storedName || 'User');
-  }, []);
 
   useEffect(() => {
     const fetchReservations = async () => {

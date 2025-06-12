@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import Sidebar from './Sidebar';
@@ -81,38 +81,13 @@ const Calendar = () => {
   const [setShowYearSelect] = useState(false);
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
   const [reservations, setReservations] = useState([]);
-  const user_level_id = localStorage.getItem('user_level_id');
-  const [isVenueModalOpen, setIsVenueModalOpen] = useState(false);
-  const [isVehicleModalOpen, setIsVehicleModalOpen] = useState(false);
-  const [venueDetails, setVenueDetails] = useState(null);
-  const [vehicleDetails, setVehicleDetails] = useState(null);
-  const [equipmentDetails, setEquipmentDetails] = useState(null);
+
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState(null);
 
   const encryptedUrl = SecureStorage.getLocalItem("url");
 
-  // Add venue and vehicle color mapping
-  const resourceColors = {
-    venue: 'bg-emerald-200 text-emerald-800',
-    vehicle: 'bg-purple-200 text-purple-800'
-  };
-
-  useEffect(() => {
-    fetchReservations();
-  }, []);
-
-  useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-    const decryptedUserLevel = parseInt(encryptedUserLevel);
-    console.log("this is encryptedUserLevel", encryptedUserLevel);
-    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
-        localStorage.clear();
-        navigate('/gsd');
-    }
-}, [navigate]);
-
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     try {
       console.log('Fetching reservations from:', `${encryptedUrl}/records&reports.php`);
       const response = await axios({
@@ -154,7 +129,21 @@ const Calendar = () => {
       console.error('Error details:', error.response?.data);
       console.error('Error status:', error.response?.status);
     }
-  };
+  }, [encryptedUrl]);
+
+  useEffect(() => {
+    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
+    console.log("this is encryptedUserLevel", encryptedUserLevel);
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
+        localStorage.clear();
+        navigate('/gsd');
+    }
+}, [navigate]);
+
+  useEffect(() => {
+    fetchReservations();
+  }, [fetchReservations]);
 
   const isDateInRange = (date, startDate, endDate) => {
     const compareDate = new Date(date);
@@ -421,199 +410,8 @@ const Calendar = () => {
     }
   };
 
-  // Enhanced modal rendering with new animations and styling
-  const VenueDetailsModal = () => (
-    <Dialog
-      open={isVenueModalOpen}
-      onClose={() => setIsVenueModalOpen(false)}
-      className="relative z-50"
-    >
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-2xl bg-white shadow-2xl p-4 md:p-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
-            <div>
-              <Dialog.Title className="text-xl md:text-2xl font-bold text-gray-900">
-                {venueDetails?.venue_form_name || 'Venue Reservation Details'}
-              </Dialog.Title>
-              {venueDetails && (
-                <div className="mt-2">
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                    Status: {venueDetails.status_request || 'Reserved'}
-                  </span>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setIsVenueModalOpen(false)}
-              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
 
-          {venueDetails && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">Event Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Venue Name</p>
-                    <p className="font-medium text-gray-900">{venueDetails.venue_name}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Event Title</p>
-                    <p className="font-medium text-gray-900">{venueDetails.venue_form_event_title}</p>
-                  </div>
-                  <div className="md:col-span-2">
-                    <p className="text-sm text-gray-500">Description</p>
-                    <p className="text-gray-900">{venueDetails.venue_form_description}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Participants</p>
-                    <p className="text-gray-900">{venueDetails.venue_participants}</p>
-                  </div>
-                </div>
-              </div>
 
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">Schedule</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Start Time</p>
-                    <p className="text-gray-900">{new Date(venueDetails.venue_form_start_date).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">End Time</p>
-                    <p className="text-gray-900">{new Date(venueDetails.venue_form_end_date).toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              {equipmentDetails && (
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <h3 className="font-semibold text-gray-900 mb-3">Equipment</h3>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-gray-900">{equipmentDetails.equipment_name}</p>
-                    <span className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-sm">
-                      Quantity: {equipmentDetails.reservation_equipment_quantity}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </Dialog.Panel>
-      </div>
-    </Dialog>
-  );
-
-  const VehicleDetailsModal = () => (
-    <Dialog
-      open={isVehicleModalOpen}
-      onClose={() => setIsVehicleModalOpen(false)}
-      className="relative z-50"
-    >
-      <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" aria-hidden="true" />
-      <div className="fixed inset-0 flex items-center justify-center p-4">
-        <Dialog.Panel className="mx-auto w-full max-w-2xl rounded-2xl bg-white shadow-2xl p-4 md:p-6">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 space-y-4 md:space-y-0">
-            <div>
-              <Dialog.Title className="text-xl md:text-2xl font-bold text-gray-900">
-                {vehicleDetails?.vehicle_form_name || 'Vehicle Reservation Details'}
-              </Dialog.Title>
-              {vehicleDetails && (
-                <div className="mt-2">
-                  <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                    Status: {vehicleDetails.status_request || 'Reserved'}
-                  </span>
-                </div>
-              )}
-            </div>
-            <button
-              onClick={() => setIsVehicleModalOpen(false)}
-              className="p-2 rounded-full hover:bg-gray-100 transition-colors"
-            >
-              <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-
-          {vehicleDetails && (
-            <div className="space-y-4 md:space-y-6">
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">Vehicle Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">License Plate</p>
-                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_license}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Make</p>
-                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_make}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Model</p>
-                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_model}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Category</p>
-                    <p className="font-medium text-gray-900">{vehicleDetails.vehicle_category}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">Trip Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Purpose</p>
-                    <p className="text-gray-900">{vehicleDetails.vehicle_form_purpose}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">Destination</p>
-                    <p className="text-gray-900">{vehicleDetails.vehicle_form_destination}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4 space-y-3">
-                <h3 className="font-semibold text-gray-900">Schedule</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-sm text-gray-500">Start Time</p>
-                    <p className="text-gray-900">{vehicleDetails.vehicle_form_start_date && new Date(vehicleDetails.vehicle_form_start_date).toLocaleString()}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500">End Time</p>
-                    <p className="text-gray-900">{vehicleDetails.vehicle_form_end_date && new Date(vehicleDetails.vehicle_form_end_date).toLocaleString()}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h3 className="font-semibold text-gray-900 mb-3">Passengers</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {vehicleDetails.passengers && vehicleDetails.passengers.length > 0 ? (
-                    vehicleDetails.passengers.map((passenger, index) => (
-                      <div key={index} className="px-3 py-2 bg-white rounded-lg shadow-sm">
-                        <p className="text-gray-900">{passenger}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-gray-500 italic">No passengers listed</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </Dialog.Panel>
-      </div>
-    </Dialog>
-  );
 
   useKeyboardNavigation(currentDate, setCurrentDate);
 
@@ -677,8 +475,6 @@ const Calendar = () => {
             </div>
             {renderCalendarGrid()}
             {renderYearModal()}
-            <VenueDetailsModal />
-            <VehicleDetailsModal />
           </motion.div>
         </div>
       </div>

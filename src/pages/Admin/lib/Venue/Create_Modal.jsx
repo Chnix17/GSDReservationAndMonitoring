@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Form, Input, Upload, Select, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { FaBuilding } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
-import { SecureStorage } from '../../../../utils/encryption';
 import axios from 'axios';
 
 const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, encryptedUserLevel }) => {
@@ -19,19 +18,13 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
     const [selectedStatus, setSelectedStatus] = useState('1');
     const [statusOptions, setStatusOptions] = useState([]);
 
-    useEffect(() => {
-        fetchStatusAvailability();
-    }, []);
-
-    const fetchStatusAvailability = async () => {
+    const fetchStatusAvailability = useCallback(async () => {
         try {
             const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
                 new URLSearchParams({
                     operation: 'fetchStatusAvailability'
                 })
             );
-
-            
             
             if (response.data.status === 'success') {
                 setStatusOptions(response.data.data);
@@ -41,7 +34,11 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
         } catch (error) {
             console.error("Error fetching status availability:", error);
         }
-    };
+    }, [encryptedUrl]);
+
+    useEffect(() => {
+        fetchStatusAvailability();
+    }, [fetchStatusAvailability]);
 
     const checkVenueExists = async () => {
         const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Card, Statistic, Table, Tag, Select, DatePicker, Button, Tabs, Input, Tooltip, Space, Row, Col } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Card, Statistic, Table, Tag, Select, Button, Tabs, Input, Tooltip, Row, Col } from 'antd';
 import { motion } from 'framer-motion';
 import {
   CarOutlined,
@@ -15,15 +15,13 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import Sidebar from '../Sidebar';
-import { Line, Pie } from '@ant-design/plots';
-import MaintenanceModal from './core/Maintennance_Modal';
+import { Line } from '@ant-design/plots';
 import {SecureStorage} from '../../utils/encryption';
 
 const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [maintenanceResources, setMaintenanceResources] = useState([]);
   const [maintenanceResourcesWithStatus, setMaintenanceResourcesWithStatus] = useState([]);
-  const [conditionStats, setConditionStats] = useState({ good: 0, poor: 0 });
   const [totalCounts, setTotalCounts] = useState({
     venues: 0,
     vehicles: 0,
@@ -34,21 +32,11 @@ const Reports = () => {
   });
   const [timeRange, setTimeRange] = useState('week');
   const [usageHistory, setUsageHistory] = useState([]);
-  const [maintenanceModalVisible, setMaintenanceModalVisible] = useState(false);
-  const [selectedResource, setSelectedResource] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
-  useEffect(() => {
-    fetchAvailabilityStats();
-    fetchUsageStats();
-    fetchMaintenanceResources();
-    fetchMaintenanceResourcesWithStatus();
-    fetchConditionStats();
-  }, [timeRange]);
-
-  const fetchAvailabilityStats = async () => {
+  const fetchAvailabilityStats = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(`${baseUrl}/get_totals.php`, {
@@ -63,9 +51,9 @@ const Reports = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
-  const fetchUsageStats = async () => {
+  const fetchUsageStats = useCallback(async () => {
     try {
       const response = await axios.post(`${baseUrl}/get_totals.php`, {
         operation: 'fetchUsageHistory',
@@ -78,23 +66,9 @@ const Reports = () => {
     } catch (error) {
       toast.error('Error fetching usage statistics');
     }
-  };
+  }, [baseUrl, timeRange]);
 
-  const fetchTotals = async () => {
-    try {
-      const response = await axios.post(`${baseUrl}/get_totals.php`, {
-        operation: 'getTotals'
-      });
-
-      if (response.data.status === 'success') {
-        setTotalCounts(response.data.data);
-      }
-    } catch (error) {
-      toast.error('Error fetching totals');
-    }
-  };
-
-  const fetchMaintenanceResources = async () => {
+  const fetchMaintenanceResources = useCallback(async () => {
     try {
       const response = await axios.post(`${baseUrl}/get_totals.php`, {
         operation: 'displayedMaintenanceResources'
@@ -106,9 +80,9 @@ const Reports = () => {
     } catch (error) {
       toast.error('Error fetching maintenance resources');
     }
-  };
+  }, [baseUrl]);
 
-  const fetchMaintenanceResourcesWithStatus = async () => {
+  const fetchMaintenanceResourcesWithStatus = useCallback(async () => {
     try {
       const response = await axios.post(`${baseUrl}/user.php`, {
         operation: 'displayedMaintenanceResourcesDone'
@@ -120,21 +94,7 @@ const Reports = () => {
     } catch (error) {
       toast.error('Error fetching maintenance resources with status');
     }
-  };
-
-  const fetchConditionStats = async () => {
-    try {
-      const response = await axios.post(`${baseUrl}/get_totals.php`, {
-        operation: 'countMaintenanceResources'
-      });
-
-      if (response.data.status === 'success') {
-        setConditionStats(response.data.data);
-      }
-    } catch (error) {
-      toast.error('Error fetching condition statistics');
-    }
-  };
+  }, [baseUrl]);
 
   const handleScheduleMaintenance = (record) => {
     // Ensure we have the record_id from the maintenance resources
@@ -143,15 +103,6 @@ const Reports = () => {
       record_id: record.record_id || record.maintenance_id // fallback to maintenance_id if record_id is not present
     };
     console.log('Resource being passed to modal:', resourceWithRecordId);
-    setSelectedResource(resourceWithRecordId);
-    setMaintenanceModalVisible(true);
-  };
-
-  const handleMaintenanceSuccess = () => {
-    fetchMaintenanceResources();
-    fetchMaintenanceResourcesWithStatus();
-    fetchAvailabilityStats();
-    fetchConditionStats();
   };
 
   // Enhanced Resource Card Component
@@ -215,20 +166,6 @@ const Reports = () => {
   };
 
   // Condition Distribution Chart
-  const ConditionChart = ({ data }) => {
-    const config = {
-      data,
-      angleField: 'value',
-      colorField: 'type',
-      radius: 0.8,
-      label: {
-        text: (datum) => `${datum.type}: ${datum.value}%`,
-        position: 'spider'
-      }
-    };
-
-    return <Pie {...config} />;
-  };
 
   // Update the filter function to handle two statuses
   const filterResourcesByStatus = (resources, status) => {
@@ -318,13 +255,19 @@ const Reports = () => {
     fetchUsageStats();
     fetchMaintenanceResources();
     fetchMaintenanceResourcesWithStatus();
-    fetchConditionStats();
     setSearchTerm('');
   };
 
   const filteredMaintenanceResources = maintenanceResources.filter(resource =>
     resource.resource_name && resource.resource_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  useEffect(() => {
+    fetchAvailabilityStats();
+    fetchUsageStats();
+    fetchMaintenanceResources();
+    fetchMaintenanceResourcesWithStatus();
+  }, [timeRange, fetchAvailabilityStats, fetchUsageStats, fetchMaintenanceResources, fetchMaintenanceResourcesWithStatus]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
@@ -383,6 +326,19 @@ const Reports = () => {
               />
             </Col>
           </Row>
+
+          <Card 
+            title={
+              <div className="flex items-center text-xl font-bold text-green-900">
+                <BarChartOutlined className="mr-2" />
+                Resource Usage History
+              </div>
+            }
+            className="shadow-lg bg-[#fafff4] border-0 mb-8"
+            bodyStyle={{ padding: '1.5rem' }}
+          >
+            <UsageChart data={usageHistory} />
+          </Card>
 
           <Card 
             className="shadow-lg bg-[#fafff4] border-0 mb-8"
@@ -491,12 +447,7 @@ const Reports = () => {
         </div>
       </div>
 
-      <MaintenanceModal
-        visible={maintenanceModalVisible}
-        onClose={() => setMaintenanceModalVisible(false)}
-        resource={selectedResource}
-        onSuccess={handleMaintenanceSuccess}
-      />
+   
     </div>
   );
 };

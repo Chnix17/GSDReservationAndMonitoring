@@ -3,11 +3,9 @@ import { useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiCalendar, 
   FiClock,
-  FiEye,
-  FiCheck,
-  FiX
+  FiEye
  } from 'react-icons/fi';
-import { Modal, Tabs, Table, Button, Empty, Tag } from 'antd';
+import { Modal, Tabs, Button, Empty  } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import ReservationCalendar from '../components/ReservationCalendar';
@@ -21,7 +19,7 @@ const { TabPane } = Tabs;
 const Dashboard = () => {
   const navigate = useNavigate();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [userName, setUserName] = useState('');
+
   const [activeReservations, setActiveReservations] = useState([]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [reservationDetails, setReservationDetails] = useState(null);
@@ -64,10 +62,7 @@ const Dashboard = () => {
     }
 }, [navigate]);
 
-  useEffect(() => {
-    const storedName = SecureStorage.getSessionItem('name');
-    setUserName(storedName || 'User');
-  }, []);
+
 
   useEffect(() => {
     const fetchReservations = async () => {

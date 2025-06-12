@@ -5,8 +5,7 @@ import {
     CalendarOutlined,
     BuildOutlined,
     CarOutlined,
-    ToolOutlined,
-    InfoCircleOutlined
+    ToolOutlined
 } from '@ant-design/icons';
 
 const formatDateRange = (startDate, endDate) => {

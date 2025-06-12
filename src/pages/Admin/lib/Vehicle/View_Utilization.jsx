@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
 import { CarOutlined, ToolOutlined, ClockCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { SecureStorage } from '../../../../utils/encryption';
@@ -34,48 +34,7 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
 
     const COLORS = ['#548e54', '#83b383'];
 
-    useEffect(() => {
-        const fetchUtilizationData = async () => {
-            if (open && vehicle?.vehicle_id) {
-                setLoading(true);
-                try {
-                    const response = await axios.post(
-                        `${encryptedUrl}/user.php`,
-                        new URLSearchParams({
-                            operation: "getVehicleUsage",
-                            vehicleId: vehicle.vehicle_id
-                        })
-                    );
-
-                    if (response.data.status === 'success') {
-                        setVehicleDetails(response.data.data.vehicle_details);
-                        processUtilizationData(response.data.data);
-                    }
-                } catch (error) {
-                    console.error('Error fetching utilization data:', error);
-                } finally {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchUtilizationData();
-    }, [open, vehicle, encryptedUrl]);
-
-    const calculateAverageUsageTime = (reservations) => {
-        if (!reservations || reservations.length === 0) return 0;
-
-        const totalHours = reservations.reduce((acc, reservation) => {
-            const start = moment(reservation.reservation_start_date);
-            const end = moment(reservation.reservation_end_date);
-            const duration = moment.duration(end.diff(start));
-            return acc + duration.asHours();
-        }, 0);
-
-        return (totalHours / reservations.length).toFixed(1);
-    };
-
-    const processUtilizationData = (data) => {
+    const processUtilizationData = useCallback((data) => {
         const { usage_statistics, reservations } = data;
         
         // Initialize all months of the year
@@ -124,6 +83,47 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
                 issues: monthlyData[month].issues
             }))
         });
+    }, []);
+
+    useEffect(() => {
+        const fetchUtilizationData = async () => {
+            if (open && vehicle?.vehicle_id) {
+                setLoading(true);
+                try {
+                    const response = await axios.post(
+                        `${encryptedUrl}/user.php`,
+                        new URLSearchParams({
+                            operation: "getVehicleUsage",
+                            vehicleId: vehicle.vehicle_id
+                        })
+                    );
+
+                    if (response.data.status === 'success') {
+                        setVehicleDetails(response.data.data.vehicle_details);
+                        processUtilizationData(response.data.data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching utilization data:', error);
+                } finally {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchUtilizationData();
+    }, [open, vehicle, encryptedUrl, processUtilizationData]);
+
+    const calculateAverageUsageTime = (reservations) => {
+        if (!reservations || reservations.length === 0) return 0;
+
+        const totalHours = reservations.reduce((acc, reservation) => {
+            const start = moment(reservation.reservation_start_date);
+            const end = moment(reservation.reservation_end_date);
+            const duration = moment.duration(end.diff(start));
+            return acc + duration.asHours();
+        }, 0);
+
+        return (totalHours / reservations.length).toFixed(1);
     };
 
     const renderMonthlyUtilizationChart = () => {

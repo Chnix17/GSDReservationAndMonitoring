@@ -1,11 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import dayjs from 'dayjs';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { FaEdit, FaSearch, FaPlus, FaTrashAlt, FaEye, FaArrowLeft, FaChartBar } from 'react-icons/fa';
-import { Modal, Input, Form, TimePicker, Select, Table, Button, Image, Tooltip, Space, Upload, Alert, Empty, Pagination } from 'antd';
+import {  FaEye, FaChartBar } from 'react-icons/fa';
+import { Modal, Input,  Button, Tooltip, Alert, Empty, Pagination } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { motion } from 'framer-motion';
@@ -13,14 +12,12 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { sanitizeInput, validateInput } from '../../utils/sanitize';
 import { SecureStorage } from '../../utils/encryption';
-import Create_Modal from './lib/Venue/Create_Modal';
-import Update_Modal from './lib/Venue/Update_Modal';
-import View_Utilization from './lib/Venue/View_Utilization';
+import CreateModal from './lib/Venue/Create_Modal';
+import UpdateModal from './lib/Venue/Update_Modal';
+import ViewUtilization from './lib/Venue/View_Utilization';
 
 const VenueEntry = () => {
-    const user_level_id = localStorage.getItem('user_level_id');
     const [venues, setVenues] = useState([]);
     const [loading, setLoading] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -29,13 +26,12 @@ const VenueEntry = () => {
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showUpdateModal, setShowUpdateModal] = useState(false);
     const [selectedVenueId, setSelectedVenueId] = useState(null);
-    const [viewImageModal, setViewImageModal] = useState(false);
-    const [currentImage, setCurrentImage] = useState(null);
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [sortField, setSortField] = useState('ven_id');
     const [sortOrder, setSortOrder] = useState('desc');
     const [showUtilizationModal, setShowUtilizationModal] = useState(false);
     const [selectedVenue, setSelectedVenue] = useState(null);
+    const [selectedVenues, setSelectedVenues] = useState([]);
     const navigate = useNavigate();
     const user_id = SecureStorage.getSessionItem('user_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
@@ -47,13 +43,10 @@ const VenueEntry = () => {
             localStorage.clear();
             navigate('/gsd');
         }
-    }, [navigate]);
+    }, [navigate, encryptedUserLevel]);
 
-    useEffect(() => {
-        fetchVenues();
-    }, []);
 
-    const fetchVenues = async () => {
+    const fetchVenues = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({ operation: "fetchVenue" }));
@@ -68,7 +61,12 @@ const VenueEntry = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [encryptedUrl]);
+
+    useEffect(() => {
+        fetchVenues();
+    }, [fetchVenues]);
+
 
     const handleAddVenue = () => {
         setShowCreateModal(true);
@@ -79,8 +77,8 @@ const VenueEntry = () => {
         setShowUpdateModal(true);
     };
 
-    const handleArchiveVenue = (venueId) => {
-        setSelectedVenueId(venueId);
+    const handleArchiveVenue = (venueIds) => {
+        setSelectedVenues(Array.isArray(venueIds) ? venueIds : [venueIds]);
         setShowConfirmDelete(true);
     };
     
@@ -92,7 +90,7 @@ const VenueEntry = () => {
                 {
                     operation: "archiveResource",
                     resourceType: "venue",
-                    resourceId: selectedVenueId
+                    resourceId: selectedVenues
                 },
                 {
                     headers: {
@@ -102,29 +100,22 @@ const VenueEntry = () => {
             );
 
             if (response.data.status === 'success') {
-                toast.success("Venue successfully archived!");
+                toast.success(selectedVenues.length > 1 ? "Venues successfully archived!" : "Venue successfully archived!");
                 fetchVenues();
                 setShowConfirmDelete(false);
+                setSelectedVenues([]);
             } else {
-                toast.error("Failed to archive venue: " + response.data.message);
+                toast.error("Failed to archive venue(s): " + response.data.message);
             }
         } catch (error) {
-            console.error("Error archiving venue:", error);
-            toast.error("An error occurred while archiving the venue.");
+            console.error("Error archiving venue(s):", error);
+            toast.error("An error occurred while archiving the venue(s).");
         } finally {
             setLoading(false);
         }
     };
 
-    const getImageUrl = (venuePic) => {
-        if (!venuePic) return null;
-        return `${encryptedUrl}/${venuePic}`;
-    };
 
-    const handleViewImage = (imageUrl) => {
-        setCurrentImage(imageUrl);
-        setViewImageModal(true);
-    };
 
     const handleRefresh = () => {
         fetchVenues();
@@ -164,9 +155,7 @@ const VenueEntry = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                                <FaArrowLeft className="mr-2" /> Back to Master
-                            </Button>
+
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
                                 Venue 
                             </h2>
@@ -189,6 +178,16 @@ const VenueEntry = () => {
                                 </div>
                             </div>
                             <div className="flex gap-2">
+                                {selectedVenues.length > 0 && (
+                                    <Button
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => handleArchiveVenue(selectedVenues)}
+                                        size="large"
+                                    >
+                                        Archive Selected ({selectedVenues.length})
+                                    </Button>
+                                )}
                                 <Tooltip title="Refresh data">
                                     <Button
                                         icon={<ReloadOutlined />}
@@ -219,19 +218,20 @@ const VenueEntry = () => {
                                 <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
                                     <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('ven_id')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    ID
-                                                    {sortField === 'ven_id' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
                                             <th scope="col" className="px-6 py-3">
                                                 <div className="flex items-center">
-                                                    Image
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedVenues(filteredVenues.map(venue => venue.ven_id));
+                                                            } else {
+                                                                setSelectedVenues([]);
+                                                            }
+                                                        }}
+                                                        checked={selectedVenues.length === filteredVenues.length}
+                                                    />
                                                 </div>
                                             </th>
                                             <th scope="col" className="px-6 py-3" onClick={() => handleSort('ven_name')}>
@@ -273,23 +273,23 @@ const VenueEntry = () => {
                                                 .map((venue) => (
                                                     <tr
                                                         key={venue.ven_id}
-                                                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                                        className={`bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
+                                                            selectedVenues.includes(venue.ven_id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                                        }`}
                                                     >
-                                                        <td className="px-6 py-4">{venue.ven_id}</td>
                                                         <td className="px-6 py-4">
-                                                            {venue.ven_pic ? (
-                                                                <div className="cursor-pointer" onClick={() => handleViewImage(getImageUrl(venue.ven_pic))}>
-                                                                    <img 
-                                                                        src={getImageUrl(venue.ven_pic)} 
-                                                                        alt={venue.ven_name} 
-                                                                        className="w-12 h-12 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
-                                                                    />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
-                                                                    <i className="pi pi-image text-xl"></i>
-                                                                </div>
-                                                            )}
+                                                            <input
+                                                                type="checkbox"
+                                                                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                                checked={selectedVenues.includes(venue.ven_id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedVenues([...selectedVenues, venue.ven_id]);
+                                                                    } else {
+                                                                        setSelectedVenues(selectedVenues.filter(id => id !== venue.ven_id));
+                                                                    }
+                                                                }}
+                                                            />
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center">
@@ -371,7 +371,7 @@ const VenueEntry = () => {
             </div>
 
             {/* Create Modal */}
-            <Create_Modal
+            <CreateModal
                 visible={showCreateModal}
                 onCancel={() => setShowCreateModal(false)}
                 onSuccess={fetchVenues}
@@ -381,64 +381,59 @@ const VenueEntry = () => {
             />
 
             {/* Update Modal */}
-            <Update_Modal
+            <UpdateModal
                 visible={showUpdateModal}
                 onCancel={() => setShowUpdateModal(false)}
                 onSuccess={fetchVenues}
                 encryptedUrl={encryptedUrl}
                 venueId={selectedVenueId}
             />
-
-            {/* Image Preview Modal */}
-            <Modal
-                open={viewImageModal}
-                footer={null}
-                onCancel={() => setViewImageModal(false)}
-                width={700}
-                centered
-            >
-                {currentImage && (
-                    <Image
-                        src={currentImage}
-                        alt="Venue"
-                        className="w-full object-contain max-h-[70vh]"
-                        preview={false}
-                    />
-                )}
-            </Modal>
             
             {/* Confirm Delete Modal */}
             <Modal
-                title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
-                open={showConfirmDelete}
-                onCancel={() => setShowConfirmDelete(false)}
-                footer={[
-                    <Button key="back" onClick={() => setShowConfirmDelete(false)}>
-                        Cancel
-                    </Button>,
-                    <Button
-                        key="submit"
-                        type="primary"
-                        danger
-                        loading={loading}
-                        onClick={() => confirmDelete()}
-                        icon={<DeleteOutlined />}
-                    >
-                        Delete
-                    </Button>,
-                ]}
+                show={showConfirmDelete}
+                onHide={() => {
+                    setShowConfirmDelete(false);
+                    setSelectedVenues([]);
+                }}
+                centered
             >
-                <Alert
-                    message="Warning"
-                    description={`Are you sure you want to archive this venue? This action cannot be undone.`}
-                    type="warning"
-                    showIcon
-                    icon={<ExclamationCircleOutlined />}
-                />
+                <Modal.Header closeButton>
+                    <Modal.Title className="text-red-600 flex items-center">
+                        <ExclamationCircleOutlined className="mr-2" /> Confirm Archive
+                    </Modal.Title>
+                </Modal.Header>
+                <Modal.Body>
+                    <Alert
+                        message="Warning"
+                        description={`Are you sure you want to archive ${selectedVenues.length} venue(s)? This action cannot be undone.`}
+                        type="warning"
+                        showIcon
+                        icon={<ExclamationCircleOutlined />}
+                    />
+                </Modal.Body>
+                <Modal.Footer>
+                    <Button 
+                        variant="secondary" 
+                        onClick={() => {
+                            setShowConfirmDelete(false);
+                            setSelectedVenues([]);
+                        }}
+                    >
+                        Cancel
+                    </Button>
+                    <Button 
+                        variant="danger" 
+                        onClick={confirmDelete}
+                        className="bg-red-600 hover:bg-red-700"
+                    >
+                        Archive
+                    </Button>
+                </Modal.Footer>
             </Modal>
 
             {/* Utilization Modal */}
-            <View_Utilization
+            <ViewUtilization
                 open={showUtilizationModal}
                 onCancel={() => setShowUtilizationModal(false)}
                 venue={selectedVenue}

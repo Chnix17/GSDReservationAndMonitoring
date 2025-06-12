@@ -2,9 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
 import Sidebar from '../Sidebar';
-import {  Button, Tag, Space, Input, Tooltip, Modal, Empty, Pagination } from 'antd';
+import {  Button, Input, Tooltip, Empty, Pagination } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faUserPlus, faEye, faCheckCircle, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
+import { faSearch, faUserPlus, faEye, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
 import dayjs from 'dayjs';
 import { toast } from 'sonner';
 import AssignModal from './core/Assign_Modal';
@@ -18,7 +18,6 @@ const AssignPersonnel = () => {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [reservations, setReservations] = useState([]);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
-  const [selectedChecklists, setSelectedChecklists] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -26,10 +25,7 @@ const AssignPersonnel = () => {
   const [sortField, setSortField] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  const handleOpenModal = (reservation) => {
-    setSelectedReservation(reservation);
-    setIsModalOpen(true);
-  };
+
 
   const handleAssignSuccess = (updatedReservation) => {
     setReservations(prev => 
@@ -43,34 +39,6 @@ const AssignPersonnel = () => {
     }
   };
 
-  const handleComplete = async (reservationId, personnelId) => {
-    setLoading(true);
-    try {
-      const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
-        operation: 'updateReleaseStatus',
-        json: {
-          reservation_id: reservationId,
-          status_checklist_id: 2 // Assuming 2 is the ID for "Completed" status
-        }
-      });
-
-      if (response.data.status === 'success') {
-        toast.success('Reservation marked as completed!');
-        // Refresh the current tab's data
-        if (activeTab === 'Assigned') {
-          fetchAssignedReservations();
-        }
-      } else {
-        toast.error('Failed to update status');
-      }
-    } catch (error) {
-      console.error('Error updating release status:', error);
-      toast.error('Error updating release status');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const fetchNotAssignedReservations = async () => {
     setLoading(true);

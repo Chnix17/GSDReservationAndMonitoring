@@ -3,15 +3,11 @@ import "bootstrap/dist/css/bootstrap.min.css";
 import {SecureStorage} from "../utils/encryption";
 
 import {
-  BuildOutlined,
-  CalendarOutlined,
-  CarOutlined,
+
   EyeOutlined,
   ReloadOutlined,
   SearchOutlined,
-  TeamOutlined,
-  ToolOutlined,
-  UserOutlined,
+
 } from "@ant-design/icons";
 import {
   Button,
@@ -19,15 +15,12 @@ import {
   Input,
   Modal,
   Pagination,
-
   Spin,
-  Table,
   Tag,
   Tooltip,
-  Typography,
 } from "antd";
 import { ToastContainer, toast } from "react-toastify";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import Sidebar from "./Sidebar";
 import axios from "axios";
@@ -48,13 +41,7 @@ const Record = () => {
   const [sortOrder, setSortOrder] = useState("desc");
   const [baseUrl, setBaseUrl] = useState("");
 
-  useEffect(() => {
-    const url = SecureStorage.getLocalItem("url");
-    setBaseUrl(url);
-    fetchReservations(url);
-  }, []);
-
-  const fetchReservations = async (url) => {
+  const fetchReservations = useCallback(async (url) => {
     if (!url) return;
     
     setLoading(true);
@@ -94,7 +81,13 @@ const Record = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    const url = SecureStorage.getLocalItem("url");
+    setBaseUrl(url);
+    fetchReservations(url);
+  }, [fetchReservations]);
 
   const consolidateReservations = (data) => {
     return data.map((item) => ({

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import axios from 'axios';
@@ -39,8 +39,8 @@ const availabilityStatus = {
 
 const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
-  const [selectedStartDate, setSelectedStartDate] = useState(null);
-  const [selectedEndDate, setSelectedEndDate] = useState(null);
+  // const [selectedStartDate, setSelectedStartDate] = useState(null);
+  // const [selectedEndDate, setSelectedEndDate] = useState(null);
   const [reservations, setReservations] = useState(initialData?.reservations || []);
   const [view, setView] = useState('month');
   const [timeModalOpen, setTimeModalOpen] = useState(false);
@@ -50,7 +50,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
     startMinute: null,
     endMinute: null
   });
-  const [dateRange, setDateRange] = useState(null);
+  const [dateRange, setDateRange] = useState({ start: null, end: null });
   const [baseUrl, setBaseUrl] = useState('');
   const [holidays, setHolidays] = useState(initialData?.holidays || []);
   const [equipmentAvailability, setEquipmentAvailability] = useState(initialData?.equipmentAvailability || []);
@@ -72,45 +72,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   }, []);
 
   // Add immediate data fetch when component mounts
-  useEffect(() => {
-    const fetchInitialData = async () => {
-      if (!baseUrl) return;
 
-      try {
-        // Fetch holidays if not provided in initialData
-        if (!initialData?.holidays?.length) {
-          const holidayResponse = await axios.post(
-            `${baseUrl}/user.php`,
-            {
-              operation: 'fetchHoliday'
-            }
-          );
-
-          if (holidayResponse.data.status === 'success') {
-            const formattedHolidays = holidayResponse.data.data.map(holiday => ({
-              name: holiday.holiday_name,
-              date: holiday.holiday_date
-            }));
-            setHolidays(formattedHolidays);
-          }
-        }
-
-        // Fetch reservations/equipment availability if not provided in initialData
-        if (!initialData?.reservations?.length && !initialData?.equipmentAvailability?.length) {
-          if (selectedResource.type === 'equipment') {
-            await fetchEquipmentAvailability();
-          } else {
-            await fetchReservations();
-          }
-        }
-      } catch (error) {
-        console.error('Error fetching initial data:', error);
-        toast.error('Failed to fetch initial calendar data');
-      }
-    };
-
-    fetchInitialData();
-  }, [baseUrl, selectedResource, initialData]);
 
   // Define now and today as constants that are used throughout the component
   const now = new Date();
@@ -122,91 +84,32 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   const [conflictDetails, setConflictDetails] = useState(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
-  const [startDate, setStartDate] = useState(null);
-  const [endDate, setEndDate] = useState(null);
   const [selectionMode, setSelectionMode] = useState('full');
 
   const isSelectionValid = () => {
     if (selectionMode === 'full') {
       return (
-        selectedStartDate && 
-        selectedEndDate && 
+        dateRange.start && 
+        dateRange.end && 
         selectedTimes.startTime !== null && 
         selectedTimes.endTime !== null &&
         selectedTimes.startTime >= 5 &&
-        selectedTimes.endTime <= 19
+        selectedTimes.endTime <= 19 &&
+        setSelectionMode('full')
       );
     } else {
       return (
-        selectedStartDate && 
-        selectedEndDate &&
+        dateRange.start && 
+        dateRange.end &&
         selectedTimes.endTime !== null &&
-        selectedTimes.endTime <= 19
+        selectedTimes.endTime <= 19 &&
+        setSelectionMode('partial')
       );
     }
   };
 
-  const getReservedTimeSlots = (date) => {
-    if (!date) return { hours: [], timeRanges: [] };
-    
-    const timeRanges = [];
-    const reservedHours = new Set();
-    
-    // Get all reservations for this date
-    const dayReservations = reservations.filter(res => 
-      res.isReserved && isSameDay(new Date(res.startDate), date)
-    );
 
-    // Create a Map to track unique time slots by their start and end times
-    const uniqueTimeSlots = new Map();
-    
-    dayReservations.forEach(res => {
-      const start = new Date(res.startDate);
-      const end = new Date(res.endDate);
-      
-      // Create a unique key for this time slot
-      const timeKey = `${start.getHours()}-${start.getMinutes()}-${end.getHours()}-${end.getMinutes()}`;
-      
-      // Only add this time range if we haven't seen it before
-      if (!uniqueTimeSlots.has(timeKey)) {
-        uniqueTimeSlots.set(timeKey, {
-          start,
-          end,
-          reservation: res
-        });
-        
-        // Add hours to the set of reserved hours
-        for (let hour = start.getHours(); hour <= end.getHours(); hour++) {
-          reservedHours.add(hour);
-        }
-      }
-    });
-    
-    // Convert the map values to our timeRanges array
-    uniqueTimeSlots.forEach(item => {
-      timeRanges.push({
-        start: item.start,
-        end: item.end,
-        reservation: item.reservation
-      });
-    });
-    
-    return {
-      hours: Array.from(reservedHours),
-      timeRanges: timeRanges
-    };
-  };
 
-  useEffect(() => {
-    if (selectedResource.type === 'equipment') {
-      fetchEquipmentAvailability();
-    } else {
-      // Ensure selectedResource.id is always an array
-      const itemIds = Array.isArray(selectedResource.id) ? selectedResource.id : [selectedResource.id].filter(Boolean);
-      
-      fetchReservations();
-    }
-  }, [selectedResource]);
 
   useEffect(() => {
     const fetchHolidays = async () => {
@@ -241,18 +144,15 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
     fetchHolidays();
   }, [baseUrl]);
 
-  const fetchReservations = async () => {
+  const fetchReservations = useCallback(async () => {
     if (!baseUrl) return;
-    
     setIsLoading(true);
     try {
       const itemIds = Array.isArray(selectedResource.id) ? selectedResource.id : [selectedResource.id].filter(Boolean);
-      
       console.log('Fetching reservations with:', {
         itemType: selectedResource.type,
         itemIds: itemIds
       });
-
       const response = await axios.post(
         `${baseUrl}/user.php`,
         {
@@ -266,9 +166,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
           }
         }
       );
-
       console.log('Reservations response:', response.data);
-
       if (response.data.status === 'success') {
         const formattedReservations = (response.data.data || []).map(res => ({
           startDate: res.reservation_start_date,
@@ -293,18 +191,16 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [baseUrl, selectedResource]);
 
-  const fetchEquipmentAvailability = async () => {
+  const fetchEquipmentAvailability = useCallback(async () => {
     if (!baseUrl) return;
-    
     setIsLoading(true);
     try {
       const equipments = selectedResource.id.map((item, index) => ({
         id: item.id,
         quantity: item.quantity
       }));
-
       const response = await axios.post(
         `${baseUrl}/user.php`,
         {
@@ -319,7 +215,6 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
           }
         }
       );
-
       if (response.data.status === 'success') {
         setEquipmentAvailability(response.data.data.map(item => ({
           equipId: item.equip_id,
@@ -337,23 +232,9 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [baseUrl, selectedResource]);
 
-  const isDateReserved = (date) => {
-    return reservations.some(res => {
-      if (!res.isReserved) return false;
-      
-      const resStart = new Date(res.startDate);
-      const resEnd = new Date(res.endDate);
-      const current = new Date(date);
-      
-      current.setHours(0, 0, 0, 0);
-      const startDay = new Date(resStart).setHours(0, 0, 0, 0);
-      const endDay = new Date(resEnd).setHours(0, 0, 0, 0);
-  
-      return current >= startDay && current <= endDay;
-    });
-  };
+
 
   const isWithinSevenDays = (date, startDate) => {
     if (!startDate || !date) return false;
@@ -419,9 +300,9 @@ const handleDateClick = (date) => {
   }
 
   // If we already have a start date selected
-  if (selectedStartDate && !selectedEndDate) {
+  if (dateRange.start && !dateRange.end) {
     // Check if the new date is within 7 days of the start date
-    if (!isWithinSevenDays(date, selectedStartDate)) {
+    if (!isWithinSevenDays(date, dateRange.start)) {
       toast.error('End date must be within 7 days of start date', {
         position: 'top-center',
         icon: '📅',
@@ -430,7 +311,7 @@ const handleDateClick = (date) => {
       return;
     }
     // Check if the new date is before start date
-    if (isBefore(date, selectedStartDate)) {
+    if (isBefore(date, dateRange.start)) {
       toast.error('End date cannot be before start date', {
         position: 'top-center',
         icon: '❌',
@@ -452,14 +333,10 @@ const handleDateClick = (date) => {
   }
   
   // Set the selected dates
-  if (!selectedStartDate) {
-    setSelectedStartDate(date);
-    setStartDate(date);
-    setEndDate(null);
-    setSelectedEndDate(null);
+  if (!dateRange.start) {
+    setDateRange({ start: date, end: null });
   } else {
-    setSelectedEndDate(date);
-    setEndDate(date);
+    setDateRange({ ...dateRange, end: date });
   }
   
   // Set default times based on current time if it's today
@@ -520,9 +397,7 @@ const handleDateClick = (date) => {
     setCurrentDate(newDate);
   };
 
-  const handleReservationClick = (reservation) => {
-    console.log('Reservation clicked:', reservation);
-  };
+
 
   const getAvailabilityStatus = (date, allReservations) => {
     // First create a properly formatted date for comparison
@@ -641,6 +516,46 @@ const handleDateClick = (date) => {
     return hasPartialReservations ? 'partial' : 'available';
 };
 
+useEffect(() => {
+  const fetchInitialData = async () => {
+    if (!baseUrl) return;
+
+    try {
+      // Fetch holidays if not provided in initialData
+      if (!initialData?.holidays?.length) {
+        const holidayResponse = await axios.post(
+          `${baseUrl}/user.php`,
+          {
+            operation: 'fetchHoliday'
+          }
+        );
+
+        if (holidayResponse.data.status === 'success') {
+          const formattedHolidays = holidayResponse.data.data.map(holiday => ({
+            name: holiday.holiday_name,
+            date: holiday.holiday_date
+          }));
+          setHolidays(formattedHolidays);
+        }
+      }
+
+      // Fetch reservations/equipment availability if not provided in initialData
+      if (!initialData?.reservations?.length && !initialData?.equipmentAvailability?.length) {
+        if (selectedResource.type === 'equipment') {
+          await fetchEquipmentAvailability();
+        } else {
+          await fetchReservations();
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching initial data:', error);
+      toast.error('Failed to fetch initial calendar data');
+    }
+  };
+
+  fetchInitialData();
+}, [baseUrl, selectedResource, initialData, fetchEquipmentAvailability, fetchReservations]);
+
 
 
 
@@ -687,10 +602,10 @@ const renderCalendarGrid = () => {
         const isPresentDate = isSameDay(day, today);
         const currentTime = now.getHours();
         const isAfterBusinessHours = isPresentDate && currentTime >= 19;
-        const isBeforeBusinessHours = isPresentDate && currentTime < 5;
+        // const isBeforeBusinessHours = isPresentDate && currentTime < 5;
         const isUnavailable = isPastDate || isAfterBusinessHours || isWeekend;
-        const isSelected = selectedStartDate && day >= selectedStartDate && 
-                         (selectedEndDate ? day <= selectedEndDate : day === selectedStartDate);
+        const isSelected = dateRange.start && day >= dateRange.start && 
+                         (dateRange.end ? day <= dateRange.end : day === dateRange.start);
         let status = isPastDate || isWeekend ? 'past' : getAvailabilityStatus(day, reservations);
         
         if (isPresentDate && isAfterBusinessHours) {
@@ -841,7 +756,7 @@ const renderCalendarGrid = () => {
 // Add this new function to handle showing more items
 const handleShowMoreItems = (day, reservations, equipment) => {
   // Create and show a modal with all items for the selected day
-  setSelectedDate(day);
+
   setDayDetails({
     reservations,
     equipment,
@@ -852,7 +767,7 @@ const handleShowMoreItems = (day, reservations, equipment) => {
 
 // Add state for the day details modal
 const [showDayDetailsModal, setShowDayDetailsModal] = useState(false);
-const [selectedDate, setSelectedDate] = useState(null);
+// const [selectedDate, setSelectedDate] = useState(null);
 const [dayDetails, setDayDetails] = useState(null);
 
 // Add this new component for the day details modal
@@ -1060,6 +975,18 @@ const DayDetailsModal = () => {
   
     return 'available';
   };
+
+  useEffect(() => {
+    if (selectedResource.type === 'equipment') {
+      fetchEquipmentAvailability();
+    } else {
+      // Ensure selectedResource.id is always an array
+      // const itemIds = Array.isArray(selectedResource.id) ? selectedResource.id : [selectedResource.id].filter(Boolean);
+      
+      fetchReservations();
+    }
+  }, [selectedResource, fetchEquipmentAvailability, fetchReservations]);
+
 
   // Update the renderWeekView function
   const renderWeekView = () => {
@@ -1608,8 +1535,8 @@ const handleTimeSelection = () => {
 
   try {
     // Create safe Date objects
-    const startDateTime = new Date(selectedStartDate);
-    const endDateTime = new Date(selectedEndDate || selectedStartDate);
+    const startDateTime = new Date(dateRange.start);
+    const endDateTime = new Date(dateRange.end || dateRange.start);
 
     // Validate end time is not equal to start time
     if (selectedTimes.startTime === selectedTimes.endTime && 
@@ -1743,17 +1670,17 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
 
     // Case 2: Multi-day reservation
     // Check each day's business hours (5 AM - 7 PM)
-    const startTimeOnDay = (date) => {
-      const dayStart = new Date(date);
-      dayStart.setHours(5, 0, 0, 0);
-      return dayStart;
-    };
+    // const startTimeOnDay = (date) => {
+    //   const dayStart = new Date(date);
+    //   dayStart.setHours(5, 0, 0, 0);
+    //   return dayStart;
+    // };
 
-    const endTimeOnDay = (date) => {
-      const dayEnd = new Date(date);
-      dayEnd.setHours(19, 0, 0, 0);
-      return dayEnd;
-    };
+    // const endTimeOnDay = (date) => {
+    //   const dayEnd = new Date(date);
+    //   dayEnd.setHours(19, 0, 0, 0);
+    //   return dayEnd;
+    // };
 
     // For the start day, check from the attempted/reserved start time until 7 PM
     // For the end day, check from 5 AM until the attempted/reserved end time
@@ -1908,7 +1835,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                 startMinute: null,
                 endMinute: null
               });
-              setDateRange(null);
+              setDateRange({ start: null, end: null });
             }}
           >
             Choose Different Time
@@ -1920,20 +1847,20 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   );
   // Update the RangePicker in renderEnhancedDateTimeSelection
   
-  const getBusinessHoursStatus = (date) => {
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  // const getBusinessHoursStatus = (date) => {
+  //   const now = new Date();
+  //   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  //   const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
     
-    if (compareDate < today) return 'past';
-    if (compareDate.getTime() === today.getTime()) {
-      const currentHour = now.getHours();
-      if (currentHour >= 19) return 'past'; // After business hours
-      if (currentHour < 5) return 'upcoming'; // Before business hours
-      return 'current';
-    }
-    return 'upcoming';
-  };
+  //   if (compareDate < today) return 'past';
+  //   if (compareDate.getTime() === today.getTime()) {
+  //     const currentHour = now.getHours();
+  //     if (currentHour >= 19) return 'past'; // After business hours
+  //     if (currentHour < 5) return 'upcoming'; // Before business hours
+  //     return 'current';
+  //   }
+  //   return 'upcoming';
+  // };
   // Update renderAvailabilityLegend to include yellow option
   const renderAvailabilityLegend = () => (
     <div className="flex flex-wrap gap-2 items-center mb-3 sm:mb-4 p-2 sm:p-3 bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700/30 shadow-sm text-[10px] sm:text-xs">
@@ -1967,39 +1894,37 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   );
 
   // Add this new function to handle day clicks
-  const handleDayClick = (day) => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const compareDate = new Date(day);
-    compareDate.setHours(0, 0, 0, 0);
+  // const handleDayClick = (day) => {
+  //   const today = new Date();
+  //   today.setHours(0, 0, 0, 0);
+  //   const compareDate = new Date(day);
+  //   compareDate.setHours(0, 0, 0, 0);
     
-    // Only prevent dates before today (midnight)
-    if (compareDate < today) {
-      toast.error('Cannot select past dates');
-      return;
-    }
+  //   // Only prevent dates before today (midnight)
+  //   if (compareDate < today) {
+  //     toast.error('Cannot select past dates');
+  //     return;
+  //   }
   
-    const status = getAvailabilityStatus(day, reservations);
-    const holidayInfo = holidays.find(h => h.date === day.toISOString().split('T')[0]);
+  //   const status = getAvailabilityStatus(day, reservations);
+  //   const holidayInfo = holidays.find(h => h.date === day.toISOString().split('T')[0]);
   
-    if (status === 'full') {
-      toast.error('This date is already fully reserved');
-      return;
-    }
+  //   if (status === 'full') {
+  //     toast.error('This date is already fully reserved');
+  //     return;
+  //   }
     
-    if (holidayInfo) {
-      toast.error(`Reservations not allowed on ${holidayInfo.name}`);
-      return;
-    }
+  //   if (holidayInfo) {
+  //     toast.error(`Reservations not allowed on ${holidayInfo.name}`);
+  //     return;
+  //   }
   
-    // Set only start date and open modal directly
-    setSelectedStartDate(day);
-    setStartDate(day);
-    setEndDate(null);
-    setSelectedEndDate(null);
-    setIsDatePickerModalOpen(true);
-    setSelectionMode('full');
-  };
+  //   // Set only start date and open modal directly
+  //   setDateRange({ start: day, end: null });
+  //   setEndDate(date);
+  //   setIsDatePickerModalOpen(true);
+  //   setSelectionMode('full');
+  // };
 
   // Add new handler for weekly/daily time slot clicks
   const handleTimeSlotClick = (day, hour) => {
@@ -2051,8 +1976,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     }
   
     // Set start date and initial time
-    setSelectedStartDate(day);
-    setStartDate(day);
+    setDateRange({ start: day, end: null });
     setSelectedTimes(prev => ({
       ...prev,
       startTime: hour,
@@ -2062,8 +1986,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     }));
     
     // Reset end date
-    setEndDate(null);
-    setSelectedEndDate(day); // Set same day as default end date
+
     
     // Show modal
     setIsDatePickerModalOpen(true);
@@ -2087,7 +2010,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
           <div className="space-y-4">
             <div className="mb-4">
               <p className="text-sm text-gray-600">Start Date:</p>
-              <p className="font-medium">{dayjs(startDate).format('MMMM D, YYYY')}</p>
+              <p className="font-medium">{dayjs(dateRange.start).format('MMMM D, YYYY')}</p>
             </div>
             
             <div>
@@ -2150,12 +2073,12 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                   return;
                 }
 
-                const startDateTime = dayjs(startDate)
+                const startDateTime = dayjs(dateRange.start)
                   .hour(selectedTimes.startTime)
                   .minute(selectedTimes.startMinute || 0)
                   .toDate();
 
-                const endDateTime = dayjs(startDate)
+                const endDateTime = dayjs(dateRange.start)
                   .hour(selectedTimes.endTime)
                   .minute(selectedTimes.endMinute || 0)
                   .toDate();
@@ -2195,17 +2118,14 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   const renderDateTimeSelectionModal = () => {
     // Get current time for validation
     const now = new Date();
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
-    const isToday = selectedStartDate && isSameDay(selectedStartDate, now);
+    // const currentHour = now.getHours();
+    // const currentMinute = now.getMinutes();
+    const isToday = dateRange.start && isSameDay(dateRange.start, now);
     
     // Function to reset all selection state when modal is closed
     const handleCloseModal = () => {
       setIsDatePickerModalOpen(false);
-      setSelectedStartDate(null);
-      setSelectedEndDate(null);
-      setStartDate(null);
-      setEndDate(null);
+      setDateRange({ start: null, end: null });
       setSelectedTimes({
         startTime: null,
         endTime: null,
@@ -2242,7 +2162,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
               <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800/30">
                 <label className="block text-xs sm:text-sm font-medium mb-2 text-blue-700 dark:text-blue-300">Selected Date</label>
                 <div className="text-base sm:text-lg font-medium text-blue-800 dark:text-blue-200">
-                  {dayjs(selectedStartDate).format('dddd, MMMM D, YYYY')}
+                  {dayjs(dateRange.start).format('dddd, MMMM D, YYYY')}
                 </div>
                 <div className="mt-2 text-xs text-blue-600 dark:text-blue-400 flex items-center">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
@@ -2265,8 +2185,8 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                 <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">End Date</label>
                 <DatePicker
                   className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
-                  value={selectedEndDate ? dayjs(selectedEndDate) : null}
-                  onChange={(date) => setSelectedEndDate(date.toDate())}
+                  value={dateRange.end ? dayjs(dateRange.end) : null}
+                  onChange={(date) => setDateRange({ ...dateRange, end: date.toDate() })}
                   disabledDate={(current) => {
                     // Disable weekends
                     if (current && (current.day() === 0 || current.day() === 6)) {
@@ -2280,9 +2200,9 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     }
                     
                     // Disable dates before start date or past dates
-                    return current < dayjs(selectedStartDate).startOf('day') ||
+                    return current < dayjs(dateRange.start).startOf('day') ||
                            current < dayjs().startOf('day') ||
-                           !isWithinSevenDays(current.toDate(), selectedStartDate);
+                           !isWithinSevenDays(current.toDate(), dateRange.start);
                   }}
                 />
               </div>
@@ -2302,7 +2222,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     }
                     disabledTime={() => {
                       const now = new Date();
-                      const isToday = selectedStartDate && isSameDay(selectedStartDate, now);
+                      const isToday = dateRange.start && isSameDay(dateRange.start, now);
                       const currentHour = now.getHours();
                       const currentMinute = now.getMinutes();
 
@@ -2327,7 +2247,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                           const disabledMinutes = [];
                           
                           // If today and selecting current hour, disable minutes before current minute
-                          if (isToday && selectedHour === currentHour) {
+                          if (isToday && selectedTimes.startTime !== null && selectedTimes.endTime !== null && selectedTimes.startTime <= selectedTimes.endTime && selectedTimes.startTime <= currentHour && selectedTimes.endTime >= currentHour) {
                             for (let m = 0; m < currentMinute; m++) {
                               disabledMinutes.push(m);
                             }
@@ -2365,7 +2285,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                         const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 20);
                         
                         // If start time is selected, disable all hours before and including start hour
-                        if (selectedTimes.startTime !== null && isSameDay(selectedStartDate, selectedEndDate)) {
+                        if (selectedTimes.startTime !== null && isSameDay(dateRange.start, dateRange.end)) {
                           // Disable all hours <= start hour
                           for (let h = 5; h <= selectedTimes.startTime; h++) {
                             baseDisabled.push(h);
@@ -2379,7 +2299,8 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                         
                         // If same hour as start time, disable minutes <= start minute
                         if (selectedTimes.startTime !== null && 
-                            isSameDay(selectedStartDate, selectedEndDate) && 
+                            isSameDay(dateRange.start, dateRange.end) && 
+                            selectedTimes.endTime !== null && 
                             selectedHour === selectedTimes.startTime) {
                           // Disable all minutes <= start minute
                           for (let m = 0; m <= selectedTimes.startMinute; m++) {
@@ -2426,7 +2347,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     <span className="text-amber-700 dark:text-amber-300">Times before {format(now, 'h:mm a')} are disabled for today</span>
                   </div>
                 )}
-                {selectedStartDate !== selectedEndDate && (
+                {dateRange.start !== dateRange.end && (
                   <div className="flex items-start">
                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1.5 mt-0.5 flex-shrink-0" viewBox="0 0 20 20" fill="currentColor">
                       <path fillRule="evenodd" d="M16.707 5.293a1 1 010 1.414l-8 8a1 1 01-1.414 0l-4-4a1 1 011.414-1.414L8 12.586l7.293-7.293a1 1 011.414 1.414z" clipRule="evenodd" />
@@ -2451,8 +2372,8 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                          hover:bg-blue-600 rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => {
                   // Validate date selection
-                  if (!selectedStartDate || !selectedEndDate) {
-                    toast.error('Please select both start and end dates');
+                  if (!dateRange.start) {
+                    toast.error('Please select a start date');
                     return;
                   }
 
@@ -2462,12 +2383,12 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     return;
                   }
 
-                  const startDateTime = dayjs(selectedStartDate)
+                  const startDateTime = dayjs(dateRange.start)
                     .hour(selectedTimes.startTime)
                     .minute(selectedTimes.startMinute || 0)
                     .toDate();
 
-                  const endDateTime = dayjs(selectedEndDate)
+                  const endDateTime = dayjs(dateRange.start)
                     .hour(selectedTimes.endTime)
                     .minute(selectedTimes.endMinute || 0)
                     .toDate();
@@ -2496,7 +2417,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                   onDateSelect(startDateTime, endDateTime);
                   setIsDatePickerModalOpen(false);
                 }}
-                disabled={!selectedStartDate || !selectedEndDate || !selectedTimes.startTime || !selectedTimes.endTime}
+                disabled={!dateRange.start || !selectedTimes.startTime || !selectedTimes.endTime}
               >
                 Confirm Reservation
               </button>

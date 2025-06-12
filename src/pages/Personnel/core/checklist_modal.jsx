@@ -428,28 +428,6 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     }
   };
 
-  const updateTaskStatus = async (type, id, isActive) => {
-    try {
-      const response = await axios.post(`${BASE_URL}personnel.php`, {
-        operation: 'updateTask',
-        type: type,
-        id: id,
-        isActive: isActive
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.data.status !== 'success') {
-        toast.error('Failed to update task');
-        throw new Error('Update failed');
-      }
-    } catch (err) {
-      console.error('Error updating task:', err);
-      throw err;
-    }
-  };
 
   const handleSubmitTask = async () => {
     if (venueCondition === 'Other' && !otherVenueCondition.trim()) {
@@ -924,6 +902,8 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                     }
                   : equipment
               );
+              break;
+            default:
               break;
           }
           return updatedTask;

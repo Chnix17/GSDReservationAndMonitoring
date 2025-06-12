@@ -1,10 +1,10 @@
-import React, { useState, useEffect } from 'react';
-import { Button, Tag, Space, message, Modal, Table, Input } from 'antd';
-import { EditOutlined, DeleteOutlined, PlusOutlined, MinusOutlined, UserOutlined, CalendarOutlined, EyeOutlined } from '@ant-design/icons';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Button, Tag, Space, message, Modal, Table, Input, Alert } from 'antd';
+import { EditOutlined, DeleteOutlined, PlusOutlined, UserOutlined, CalendarOutlined, EyeOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { SecureStorage } from '../../../../../utils/encryption';
-import View_Utilization from '../View_Utilization_unit';
-import View_Utilization_Consumable from '../View_Utilization_Consumable';
+import ViewUtilization from '../View_Utilization_unit';
+import ViewUtilizationConsumable from '../View_Utilization_Consumable';
 
 const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     console.log('EquipmentView component rendered with ID:', equipmentId);
@@ -24,29 +24,10 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     const [editingUnitId, setEditingUnitId] = useState(null);
     const [isAddModalVisible, setIsAddModalVisible] = useState(false);
 
-    // Add user_admin_id state
-    const [userAdminId] = useState(1); // This should come from your auth system
-
     // Get base URL from SecureStorage
     const baseUrl = SecureStorage.getLocalItem("url");
 
-    // Example data - replace with actual data from your backend
-    const [users] = useState([
-        'John Smith', 'Jane Doe', 'Mike Johnson', 'Sarah Wilson', 'Tom Brown'
-    ]);
-
-    const [viewingUnitUsage, setViewingUnitUsage] = useState(null);
-    const [isViewUtilizationOpen, setIsViewUtilizationOpen] = useState(false);
-    const [selectedUnit, setSelectedUnit] = useState(null);
-
-    useEffect(() => {
-        if (isOpen && equipmentId) {
-            console.log('useEffect triggered, equipmentId:', equipmentId);
-            fetchEquipmentDetails();
-        }
-    }, [equipmentId, isOpen]);
-
-    const fetchEquipmentDetails = async () => {
+    const fetchEquipmentDetails = useCallback(async () => {
         console.log('Fetching equipment details for ID:', equipmentId);
         setLoading(true);
         try {
@@ -74,7 +55,19 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [equipmentId, baseUrl]);
+
+    useEffect(() => {
+        if (isOpen && equipmentId) {
+            console.log('useEffect triggered, equipmentId:', equipmentId);
+            fetchEquipmentDetails();
+        }
+    }, [equipmentId, isOpen, fetchEquipmentDetails]);
+
+    const [isViewUtilizationOpen, setIsViewUtilizationOpen] = useState(false);
+    const [selectedUnit, setSelectedUnit] = useState(null);
+    const [selectedUnits, setSelectedUnits] = useState([]);
+    const [showConfirmArchive, setShowConfirmArchive] = useState(false);
 
     const handleQuickAdjustment = async (type) => {
         if (!equipment) {
@@ -226,35 +219,43 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     };
 
     const handleArchiveUnit = (unit) => {
-        Modal.confirm({
-            title: 'Archive Unit',
-            content: `Are you sure you want to archive unit with serial number ${unit.serial_number}?`,
-            okText: 'Yes, Archive',
-            okType: 'danger',
-            cancelText: 'No',
-            onOk: async () => {
-                try {
-                    const archiveData = {
-                        operation: "archiveResource",
-                        resourceType: "equipment",
-                        resourceId: unit.unit_id
-                    };
+        setSelectedUnits([unit.unit_id]);
+        setShowConfirmArchive(true);
+    };
 
-                    const response = await axios.post(`${baseUrl}/delete_master.php`, archiveData);
+    const handleMultipleArchive = (units) => {
+        const unitIds = units.map(unit => unit.unit_id);
+        setSelectedUnits(unitIds);
+        setShowConfirmArchive(true);
+    };
 
-                    if (response.data.status === 'success') {
-                        message.success('Unit archived successfully');
-                        // Refresh equipment data
-                        fetchEquipmentDetails();
-                    } else {
-                        throw new Error(response.data.message || 'Failed to archive unit');
-                    }
-                } catch (error) {
-                    console.error('Error archiving unit:', error);
-                    message.error('Failed to archive unit: ' + (error.message || 'Unknown error'));
-                }
+    const confirmArchive = async () => {
+        if (!selectedUnits.length) return;
+        
+        try {
+            const archiveData = {
+                operation: "archiveResource",
+                resourceType: "equipment",
+                resourceId: selectedUnits,
+                is_serialize: true
+            };
+
+            const response = await axios.post(`${baseUrl}/delete_master.php`, archiveData);
+
+            if (response.data.status === 'success') {
+                message.success(selectedUnits.length > 1 ? 'Units archived successfully' : 'Unit archived successfully');
+                // Refresh equipment data
+                fetchEquipmentDetails();
+            } else {
+                throw new Error(response.data.message || 'Failed to archive unit(s)');
             }
-        });
+        } catch (error) {
+            console.error('Error archiving unit(s):', error);
+            message.error('Failed to archive unit(s): ' + (error.message || 'Unknown error'));
+        } finally {
+            setShowConfirmArchive(false);
+            setSelectedUnits([]);
+        }
     };
 
     const handleViewUnitUsage = async (unitId) => {
@@ -377,14 +378,26 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                     <UserOutlined className="mr-2 text-blue-600" />
                                     Unit Details
                                 </h4>
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
-                                    onClick={() => setIsAddModalVisible(true)}
-                                    className="bg-green-600 hover:bg-green-700"
-                                >
-                                    Add Unit
-                                </Button>
+                                <Space>
+                                    {selectedUnits.length > 0 && (
+                                        <Button
+                                            danger
+                                            icon={<DeleteOutlined />}
+                                            onClick={() => handleMultipleArchive(equipment.units.filter(unit => selectedUnits.includes(unit.unit_id)))}
+                                            size="middle"
+                                        >
+                                            Archive Selected ({selectedUnits.length})
+                                        </Button>
+                                    )}
+                                    <Button
+                                        type="primary"
+                                        icon={<PlusOutlined />}
+                                        onClick={() => setIsAddModalVisible(true)}
+                                        className="bg-green-600 hover:bg-green-700"
+                                    >
+                                        Add Unit
+                                    </Button>
+                                </Space>
                             </div>
                             {equipment.units && equipment.units.length > 0 ? (
                                 <Table
@@ -392,6 +405,11 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                     rowKey="unit_id"
                                     pagination={false}
                                     className="unit-table"
+                                    rowSelection={{
+                                        type: 'checkbox',
+                                        selectedRowKeys: selectedUnits,
+                                        onChange: (selectedRowKeys) => setSelectedUnits(selectedRowKeys),
+                                    }}
                                     columns={[
                                         {
                                             title: 'Serial Number',
@@ -723,18 +741,52 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     {renderContent()}
                     {renderAddModal()}
                     {equipment?.equip_type === 'Consumable' ? (
-                        <View_Utilization_Consumable
+                        <ViewUtilizationConsumable
                             open={isViewUtilizationOpen}
                             onCancel={() => setIsViewUtilizationOpen(false)}
                             equipment={equipment}
                         />
                     ) : (
-                        <View_Utilization
+                        <ViewUtilization
                             open={isViewUtilizationOpen}
                             onCancel={() => setIsViewUtilizationOpen(false)}
                             equipment={selectedUnit}
                         />
                     )}
+                    <Modal
+                        title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Archive</div>}
+                        open={showConfirmArchive}
+                        onCancel={() => {
+                            setShowConfirmArchive(false);
+                            setSelectedUnits([]);
+                        }}
+                        footer={[
+                            <Button key="back" onClick={() => {
+                                setShowConfirmArchive(false);
+                                setSelectedUnits([]);
+                            }}>
+                                Cancel
+                            </Button>,
+                            <Button
+                                key="submit"
+                                type="primary"
+                                danger
+                                loading={loading}
+                                onClick={confirmArchive}
+                                icon={<DeleteOutlined />}
+                            >
+                                Archive
+                            </Button>,
+                        ]}
+                    >
+                        <Alert
+                            message="Warning"
+                            description={`Are you sure you want to archive ${selectedUnits.length} unit(s)? This action cannot be undone.`}
+                            type="warning"
+                            showIcon
+                            icon={<ExclamationCircleOutlined />}
+                        />
+                    </Modal>
                 </>
             )}
         </Modal>

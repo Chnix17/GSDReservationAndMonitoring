@@ -1,9 +1,9 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Modal, Form, Input, Select, Button } from 'antd';
 import { FaUser } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
+import {validateInput } from '../../../../utils/sanitize';
 import { SecureStorage } from '../../../../utils/encryption';
 
 const Update_Modal = ({ 
@@ -12,7 +12,6 @@ const Update_Modal = ({
     user, 
     departments, 
     userLevels,
-    generateAvatarColor,
     fetchUsers,
     getUserDetails
 }) => {
@@ -20,7 +19,6 @@ const Update_Modal = ({
     const timeoutRef = useRef(null);
     const [hasChanges, setHasChanges] = useState(false);
     const [originalData, setOriginalData] = useState(null);
-    const [imageUrl, setImageUrl] = useState('');
     const [loading, setLoading] = useState(false);
     const baseUrl = SecureStorage.getLocalItem("url");
 
@@ -30,6 +28,7 @@ const Update_Modal = ({
         users_middlename: '',
         users_lastname: '',
         users_suffix: '',
+        users_title: '',
         users_school_id: '',
         users_contact_number: '',
         users_email: '',
@@ -39,12 +38,7 @@ const Update_Modal = ({
         users_birthday: '',
     });
 
-    const [errors, setErrors] = useState({});
-    const [touchedFields, setTouchedFields] = useState({});
-    const [duplicateFields, setDuplicateFields] = useState({
-        email: false,
-        schoolId: false
-    });
+    const [titles, setTitles] = useState([]);
 
     // Password validation regex
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]*$/;
@@ -66,6 +60,7 @@ const Update_Modal = ({
                         users_middlename: userDetails.users_mname,
                         users_lastname: userDetails.users_lname,
                         users_suffix: userDetails.users_suffix || '',
+                        users_title: userDetails.title_abbreviation || '',
                         users_email: userDetails.users_email,
                         users_school_id: userDetails.users_school_id,
                         users_contact_number: userDetails.users_contact_number,
@@ -76,7 +71,6 @@ const Update_Modal = ({
                     };
                     setFormData(newFormData);
                     setOriginalData(newFormData);
-                    setImageUrl(userDetails.users_pic ? `${baseUrl}/${userDetails.users_pic}` : '');
                     
                     // Set form values using Ant Design's form instance
                     form.setFieldsValue(newFormData);
@@ -86,6 +80,40 @@ const Update_Modal = ({
 
         fetchUserData();
     }, [user, getUserDetails, baseUrl, form]);
+
+    const fetchTitles = useCallback(async () => {
+        try {
+            const response = await axios({
+                method: 'post',
+                url: `${baseUrl}/user.php`,
+                data: new URLSearchParams({
+                    operation: 'fetchTitle'
+                }).toString(),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
+                setTitles(response.data.data);
+            } else {
+                console.error('Invalid title data:', response.data);
+                toast.error("Invalid title data format");
+            }
+        } catch (error) {
+            console.error('Title fetch error:', error);
+            toast.error("Failed to fetch titles");
+        }
+    }, [baseUrl]);
+
+    useEffect(() => {
+        const initializeData = async () => {
+            await Promise.all([
+                fetchTitles()
+            ]);
+        };
+        initializeData();
+    }, [fetchTitles]);
 
     const validateField = (name, value) => {
         // Skip email and school ID validation in edit mode if they haven't changed
@@ -167,145 +195,6 @@ const Update_Modal = ({
         }
     };
 
-    const handleBlur = (e) => {
-        const { name, value } = e.target;
-        setTouchedFields(prev => ({ ...prev, [name]: true }));
-        const error = validateField(name, value);
-        setErrors(prev => ({ ...prev, [name]: error }));
-
-        if ((name === 'users_email' || name === 'users_school_id') && value) {
-            checkDuplicates(name === 'users_email' ? 'email' : 'schoolId', value);
-        }
-    };
-
-    const handleChange = (e) => {
-        const { name, value } = e.target;
-        let finalValue = value;
-        
-        if (name !== 'users_password') {
-            finalValue = sanitizeInput(value);
-            
-            if (finalValue && !validateInput(finalValue)) {
-                toast.error('Invalid input detected');
-                return;
-            }
-        }
-        
-        setFormData(prev => {
-            const newData = {
-                ...prev,
-                [name]: finalValue
-            };
-            
-            if (originalData) {
-                const hasAnyChange = Object.keys(originalData).some(key => {
-                    if (key === 'users_password') return false;
-                    return originalData[key] !== newData[key];
-                });
-                const passwordChange = newData.users_password !== '';
-                setHasChanges(hasAnyChange || passwordChange);
-            }
-            
-            return newData;
-        });
-        
-        setErrors(prev => ({
-            ...prev,
-            [name]: ''
-        }));
-        
-        if (name === 'users_email' || name === 'users_school_id') {
-            setDuplicateFields(prev => ({
-                ...prev,
-                [name === 'users_email' ? 'email' : 'schoolId']: false
-            }));
-            
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
-            }
-            
-            timeoutRef.current = setTimeout(() => {
-                checkDuplicates(
-                    name === 'users_email' ? 'email' : 'schoolId',
-                    finalValue
-                );
-            }, 500);
-        }
-    };
-
-    const checkDuplicates = async (field, value) => {
-        if (!value) {
-            setDuplicateFields(prev => ({
-                ...prev,
-                [field]: false
-            }));
-            setErrors(prev => ({
-                ...prev,
-                [field === 'email' ? 'users_email' : 'users_school_id']: ''
-            }));
-            return;
-        }
-
-        try {
-            const response = await axios.post(
-                `${baseUrl}/user.php`,
-                {
-                    operation: 'checkUniqueEmailAndSchoolId',
-                    email: field === 'email' ? value : '',
-                    schoolId: field === 'schoolId' ? value : ''
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            if (response.data) {
-                const { status, exists, duplicates } = response.data;
-                
-                if (status === 'success' && exists && Array.isArray(duplicates)) {
-                    const duplicate = duplicates.find(d => 
-                        (field === 'email' && d.field === 'email') || 
-                        (field === 'schoolId' && d.field === 'school_id')
-                    );
-
-                    if (duplicate) {
-                        setDuplicateFields(prev => ({
-                            ...prev,
-                            [field]: true
-                        }));
-                        setErrors(prev => ({
-                            ...prev,
-                            [field === 'email' ? 'users_email' : 'users_school_id']: duplicate.message
-                        }));
-                    } else {
-                        setDuplicateFields(prev => ({
-                            ...prev,
-                            [field]: false
-                        }));
-                        setErrors(prev => ({
-                            ...prev,
-                            [field === 'email' ? 'users_email' : 'users_school_id']: ''
-                        }));
-                    }
-                } else {
-                    setDuplicateFields(prev => ({
-                        ...prev,
-                        [field]: false
-                    }));
-                    setErrors(prev => ({
-                        ...prev,
-                        [field === 'email' ? 'users_email' : 'users_school_id']: ''
-                    }));
-                }
-            }
-        } catch (error) {
-            console.error('Error checking duplicates:', error);
-            toast.error('Error checking for duplicates');
-        }
-    };
-
     const handleSubmit = async (values) => {
         const isValid = Object.entries(values).every(([key, value]) => {
             if (key === 'users_middlename' || key === 'users_password') return true;
@@ -339,15 +228,6 @@ const Update_Modal = ({
             }
         });
 
-        if (Object.keys(newErrors).length > 0) {
-            setErrors(newErrors);
-            setTouchedFields(
-                Object.keys(values).reduce((acc, key) => ({ ...acc, [key]: true }), {})
-            );
-            toast.error('Please fix the validation errors');
-            return;
-        }
-
         const selectedDepartment = departments.find(
             dept => dept.departments_name === values.departments_name
         );
@@ -366,6 +246,8 @@ const Update_Modal = ({
                 lname: values.users_lastname,
                 birthdate: values.users_birthday || '',
                 suffix: values.users_suffix || '',
+                title: values.users_title || '',
+                title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null,
                 email: values.users_email,
                 schoolId: values.users_school_id,
                 contact: values.users_contact_number,
@@ -422,33 +304,11 @@ const Update_Modal = ({
         }
     };
 
-    const checkUniqueEmailAndSchoolId = async (email, schoolId) => {
-        try {
-            const response = await axios.post(
-                `${baseUrl}/user.php`,
-                {
-                    operation: 'checkUniqueEmailAndSchoolId',
-                    email: email,
-                    schoolId: schoolId
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
-
-            return response.data;
-        } catch (error) {
-            console.error('Error checking unique email and school ID:', error);
-            throw error;
-        }
-    };
-
     React.useEffect(() => {
+        const currentTimeout = timeoutRef.current;
         return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
+            if (currentTimeout) {
+                clearTimeout(currentTimeout);
             }
         };
     }, []);
@@ -617,6 +477,22 @@ const Update_Modal = ({
                     </Form.Item>
 
                     <Form.Item
+                        label="Title"
+                        name="users_title"
+                    >
+                        <Select placeholder="Select title">
+                            <Select.Option value="">None</Select.Option>
+                            {titles.map((title) => (
+                                <Select.Option key={title.id} value={title.abbreviation}>
+                                    {title.abbreviation}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
                         label="Birthday"
                         name="users_birthday"
                         rules={[
@@ -647,10 +523,7 @@ const Update_Modal = ({
                         htmlType="submit"
                         loading={loading}
                         className="bg-green-900 hover:bg-lime-900"
-                        disabled={
-                            !hasChanges || 
-                            (duplicateFields && (duplicateFields.email || duplicateFields.schoolId))
-                        }
+                        disabled={!hasChanges}
                     >
                         Save Changes
                     </Button>

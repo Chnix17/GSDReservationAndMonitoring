@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Modal, Form, Input, Select, Upload, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { Calendar } from 'primereact/calendar';
@@ -38,14 +38,7 @@ const Create_Modal = ({
     const encryptedUrl = SecureStorage.getLocalItem("url");
     const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
 
-    useEffect(() => {
-        if (open) {
-            fetchMakes();
-            fetchStatusAvailability();
-        }
-    }, [open]);
-
-    const fetchMakes = async () => {
+    const fetchMakes = useCallback(async () => {
         try {
             const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchMake" }));
             if (response.data.status === 'success') {
@@ -59,7 +52,7 @@ const Create_Modal = ({
             toast.error(error.message);
             return [];
         }
-    };
+    }, [BASE_URL]);
 
     const fetchCategories = async (makeId) => {
         if (!makeId) return;
@@ -118,7 +111,7 @@ const Create_Modal = ({
         }
     };
 
-    const fetchStatusAvailability = async () => {
+    const fetchStatusAvailability = useCallback(async () => {
         try {
             const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
                 new URLSearchParams({ operation: "fetchStatusAvailability" })
@@ -131,7 +124,14 @@ const Create_Modal = ({
         } catch (error) {
             toast.error(error.message);
         }
-    };
+    }, [encryptedUrl]);
+
+    useEffect(() => {
+        if (open) {
+            fetchMakes();
+            fetchStatusAvailability();
+        }
+    }, [open, fetchMakes, fetchStatusAvailability]);
 
     const handleMakeChange = async (selectedMakeId) => {
         setMakeId(selectedMakeId);
@@ -184,7 +184,7 @@ const Create_Modal = ({
         setIsModelModalOpen(true);
     };
 
-    const handleModelModalSuccess = async (values) => {
+    const handleModelModalSuccess = async () => {
         if (category) {
             await fetchModels(category);
         }
@@ -228,17 +228,17 @@ const Create_Modal = ({
         try {
             const values = await form.validateFields();
             
-            if (!vehicleModelId || !year || !selectedStatus || !vehicleLicensed) {
+            if (!values.model || !values.year || !values.status || !values.license) {
                 toast.error("Please fill in all required fields.");
                 return;
             }
 
             const formData = {
-                vehicle_model_id: vehicleModelId,
-                vehicle_license: vehicleLicensed,
-                year: dayjs(year).format('YYYY'),
+                vehicle_model_id: values.model,
+                vehicle_license: values.license,
+                year: dayjs(values.year).format('YYYY'),
                 vehicle_pic: vehicleImage,
-                status_availability_id: selectedStatus,
+                status_availability_id: values.status,
                 user_admin_id: SecureStorage.getSessionItem('user_id')
             };
 

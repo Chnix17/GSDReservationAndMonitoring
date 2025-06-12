@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Form, Select, Button, Tag, Alert } from 'antd';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -22,16 +22,7 @@ const AssignModal = ({
   const [itemsWithoutChecklist, setItemsWithoutChecklist] = useState([]);
   const baseUrl = SecureStorage.getLocalItem("url");
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchPersonnel();
-      if (selectedReservation) {
-        fetchReservationDetails();
-      }
-    }
-  }, [isOpen, selectedReservation]);
-
-  const fetchPersonnel = async () => {
+  const fetchPersonnel = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(`${baseUrl}/fetch2.php`, {
@@ -56,9 +47,9 @@ const AssignModal = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
-  const fetchReservationDetails = async () => {
+  const fetchReservationDetails = useCallback(async () => {
     setLoading(true);
     try {
       const response = await axios.post(`${baseUrl}/fetch2.php`, {
@@ -164,7 +155,16 @@ const AssignModal = ({
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseUrl, selectedReservation]);
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPersonnel();
+      if (selectedReservation) {
+        fetchReservationDetails();
+      }
+    }
+  }, [isOpen, selectedReservation, fetchPersonnel, fetchReservationDetails]);
 
   const handleAssign = async () => {
     setErrorMessage('');
@@ -199,6 +199,8 @@ const AssignModal = ({
               break;
             case 'vehicle':
               entry.reservation_vehicle_id = item.reservation_vehicle_id;
+              break;
+            default:
               break;
           }
 

@@ -5,16 +5,14 @@ import {
   FiMessageCircle, FiMoreVertical, FiPaperclip, 
   FiSend, FiX, FiChevronLeft, 
   FiSmile, FiImage, FiVideo, FiFile,
-  FiSearch, FiPhone, FiVideo as FiVideoCall,
-  FiMoreHorizontal, FiShare, FiBookmark, FiEdit,
-  FiArchive, FiFolder, FiStar, FiChevronDown,
+  FiSearch, 
+  FiMoreHorizontal,  FiEdit,
+  FiArchive,  FiStar, 
   FiCheck, FiCheckCircle, FiUserPlus, FiRefreshCw,
   FiAlertCircle, FiHeart, FiThumbsUp, FiCornerUpRight,
-  FiChevronRight, FiTrash, FiArrowLeft, FiMessageSquare, FiPlus
+ FiTrash,  FiPlus
 } from 'react-icons/fi';
-import { FaComments, FaLock, FaRegLaughBeam, FaShieldAlt } from 'react-icons/fa';
-import { debounce } from 'lodash';
-import { Virtuoso } from 'react-virtuoso';
+import {  FaRegLaughBeam} from 'react-icons/fa';
 import { useInView } from 'react-intersection-observer';
 import Sidebar from './component/user_sidebar';
 import {SecureStorage} from '../utils/encryption';
@@ -194,8 +192,6 @@ const Chat = () => {
   });
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
   const messagesEndRef = useRef(null);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
@@ -211,8 +207,7 @@ const Chat = () => {
   });
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [reactions] = useState({});
+
   const fileInputRef = useRef(null);
   
   // Remove these states related to voice recording
@@ -220,34 +215,19 @@ const Chat = () => {
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef(null);
 
-  // Add new states for enhanced features
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [messageToReply, setMessageToReply] = useState(null);
-  const [isTyping, setIsTyping] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const typingTimeoutRef = useRef(null);
-
-  // Add new states for Telegram-like features
   const [selectedMessages, setSelectedMessages] = useState([]);
-  const [showForwardDialog, setShowForwardDialog] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [pinnedMessages, setPinnedMessages] = useState([]);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [chatFilter, setChatFilter] = useState('all'); // all, unread, personal, groups
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
-  
-  // Add state for view mode (list or conversation)
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
+
   const [viewMode, setViewMode] = useState('list');
-  
-  // Track previous conversations for back navigation
-  const [conversationHistory, setConversationHistory] = useState([]);
-
-  // Add state for conversation search
   const [conversationSearch, setConversationSearch] = useState('');
-
-  // Track mobile view state
   const [isMobile, setIsMobile] = useState(false);
 
   // Set up responsive design
@@ -269,16 +249,10 @@ const Chat = () => {
   // Listen for sidebar collapsed state changes from Sidebar component
   useEffect(() => {
     // Add event listener for sidebar toggle
-    const handleSidebarToggle = (e) => {
-      if (e.detail && typeof e.detail.collapsed !== 'undefined') {
-        setIsSidebarCollapsed(e.detail.collapsed);
-      }
-    };
 
     // Add event listener for mobile sidebar toggle
     const handleMobileSidebarToggle = (e) => {
       if (e.detail && typeof e.detail.open !== 'undefined') {
-        // Adjust mobile layout when sidebar changes
         const mobileContainer = document.querySelector('.mobile-chat-container');
         if (mobileContainer) {
           if (e.detail.open) {
@@ -290,11 +264,9 @@ const Chat = () => {
       }
     };
 
-    window.addEventListener('sidebar-toggle', handleSidebarToggle);
-    window.addEventListener('mobile-sidebar-toggle', handleMobileSidebarToggle);
+
     
     return () => {
-      window.removeEventListener('sidebar-toggle', handleSidebarToggle);
       window.removeEventListener('mobile-sidebar-toggle', handleMobileSidebarToggle);
     };
   }, []);
@@ -425,18 +397,11 @@ const Chat = () => {
     return () => clearInterval(intervalId);
   }, [memorizeFetchAllChats]);
 
-  const toggleChat = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const closeChat = () => {
-    setIsVisible(false);
-  };
 
   // Helper function to get avatar URL
   const getAvatarUrl = (picture) => {
     if (!picture || picture === undefined || picture === null) return 'default-avatar.svg';
-    return `http://localhost/coc/gsd/${picture}`;
+    return `${apiUrl}${picture}`;
   };
 
   const renderChatHeader = () => {
@@ -468,19 +433,7 @@ const Chat = () => {
                 <div>
                   <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
                   <p className="text-sm text-white/80 flex items-center gap-1">
-                    {isTyping ? (
-                      <>
-                        <span className="relative flex h-2 w-2">
-                          <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                        </span>
-                        <span className="text-xs">typing a message...</span>
-                      </>
-                    ) : (
-                      <>
-                        <span className="text-xs">Active now</span>
-                      </>
-                    )}
+                    {activeConversation?.lastMessage}
                   </p>
                 </div>
               </div>
@@ -727,13 +680,28 @@ const Chat = () => {
         <input
           type="file"
           ref={fileInputRef}
+          className="hidden"
           onChange={(e) => {
             if (e.target.files?.[0]) {
-              setAttachmentPreview(e.target.files[0]);
-              setSelectedFile(e.target.files[0]);
+              const file = e.target.files[0];
+              // Check file size (max 10MB)
+              if (file.size > 10 * 1024 * 1024) {
+                setErrorMessage('File size exceeds 10MB limit');
+                return;
+              }
+              
+              // Check file type
+              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'audio/mp3', 'application/pdf'];
+              if (!allowedTypes.includes(file.type)) {
+                setErrorMessage('Unsupported file type');
+                return;
+              }
+              
+  
+              setAttachmentPreview(file);
             }
           }}
-          className="hidden"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
         />
       </div>
     </div>
@@ -830,19 +798,12 @@ const Chat = () => {
     }
   };
 
-  // Add debounced typing indicator
-  const debouncedSetTyping = useCallback(
-    debounce((value) => {
-      setIsTyping(value);
-    }, 1000),
-    []
-  );
+
 
   const handleInputChange = (e) => {
     const value = e.target.value;
     setNewMessage(value);
-    debouncedSetTyping(true);
-    setTimeout(() => debouncedSetTyping(false), 2000);
+  
   };
 
   const handleNewConversation = (user) => {
@@ -967,7 +928,10 @@ const Chat = () => {
     }
 
     try {
-      const socket = new WebSocket('ws://localhost:8080');
+      const apiUrl = SecureStorage.getLocalItem("url");
+      // Convert http:// to ws:// for WebSocket connection
+      const wsUrl = apiUrl.replace('http://', 'ws://').replace('/coc/gsd/', '');
+      const socket = new WebSocket(`${wsUrl}:8080`);
       setConnectionStatus('connecting');
 
       socket.onopen = () => {
@@ -1071,7 +1035,7 @@ const Chat = () => {
         ws.close();
       }
     };
-  }, [connectWebSocket]);
+  }, [connectWebSocket, ws]);
 
   // Add connection status indicator in the UI
   useEffect(() => {
@@ -1162,12 +1126,21 @@ const Chat = () => {
         ? prev.filter(id => id !== message.id) 
         : [...prev, message.id]
     );
+    setSelectedMessageId(message.id);
+    setShowReactionPicker(true);
   };
 
   const handleReaction = (messageId, emoji) => {
-    // Handle reaction logic here
-    console.log(`Reaction ${emoji} added to message ${messageId}`);
-    // You would normally update the message with the reaction
+    setShowReactionPicker(false);
+    setSelectedMessageId(null);
+    // Add reaction to message
+    setMessages(prev => 
+      prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, reactions: [...(msg.reactions || []), { emoji, userId: currentUser.id }] }
+          : msg
+      )
+    );
   };
 
   // Add a useEffect for polling new messages
@@ -1184,9 +1157,21 @@ const Chat = () => {
     return () => clearInterval(pollingInterval);
   }, [activeConversation, currentUser.id, memorizeFetchAllChats]);
 
-  if (!isVisible) {
-    return null;
-  }
+  // Add error handling component
+  const ErrorMessage = ({ message, onClose }) => (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+    >
+      <FiAlertCircle className="w-5 h-5" />
+      <p>{message}</p>
+      <button onClick={onClose} className="ml-2 hover:text-white/80">
+        <FiX className="w-4 h-4" />
+      </button>
+    </motion.div>
+  );
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gradient-to-br from-white to-green-100">
@@ -1576,20 +1561,6 @@ const Chat = () => {
         )}
       </AnimatePresence>
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files[0];
-          if (file) {
-            setAttachmentPreview(file);
-            setSelectedFile(file);
-          }
-        }}
-        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
-      />
-      
       {/* Add style for hiding scrollbar on the conversation list */}
       <style jsx global>{`
         :root {
@@ -1722,6 +1693,48 @@ const Chat = () => {
           }
         }
       `}</style>
+
+      {/* Add error handling component */}
+      <AnimatePresence>
+        {errorMessage && (
+          <ErrorMessage 
+            message={errorMessage} 
+            onClose={() => setErrorMessage('')} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Update WebSocket connection status display */}
+      {!isConnected && (
+        <div className="fixed bottom-4 right-4 z-50 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <FiAlertCircle className="w-5 h-5" />
+          <p>Connection lost. Attempting to reconnect...</p>
+        </div>
+      )}
+
+      {/* Update reaction picker */}
+      <AnimatePresence>
+        {showReactionPicker && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50"
+          >
+            <div className="grid grid-cols-6 gap-1">
+              {['❤️', '👍', '😂', '😊', '😍', '🎉'].map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => handleReaction(selectedMessageId, emoji)}
+                  className="w-8 h-8 hover:bg-gray-100 rounded-lg flex items-center justify-center text-xl"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Button, message as toast, AutoComplete, Space } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Form, Select, Button, message as toast, AutoComplete, Space } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { FaTools } from 'react-icons/fa';
 import axios from 'axios';
@@ -25,14 +25,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         'Non-Consumable'
     ];
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchEquipmentNames();
-            fetchCategories();
-        }
-    }, [isOpen]);
-
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         const url = `${baseUrl}/user.php`;
         const jsonData = { operation: "fetchCategories" };
 
@@ -47,17 +40,9 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
             console.error("Error fetching categories:", error);
             toast.error("An error occurred while fetching categories.");
         }
-    };
+    }, [baseUrl]);
 
-    const handleCategoryManagement = () => {
-        setIsCategoryModalVisible(true);
-    };
-
-    const handleCategoryModalClose = () => {
-        setIsCategoryModalVisible(false);
-    };
-
-    const fetchEquipmentNames = async () => {
+    const fetchEquipmentNames = useCallback(async () => {
         const url = `${baseUrl}/user.php`;
         const jsonData = { operation: "fetchEquipmentName" };
 
@@ -76,6 +61,21 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
             }
         } catch (error) {
         }
+    }, [baseUrl]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchEquipmentNames();
+            fetchCategories();
+        }
+    }, [isOpen, fetchEquipmentNames, fetchCategories]);
+
+    const handleCategoryManagement = () => {
+        setIsCategoryModalVisible(true);
+    };
+
+    const handleCategoryModalClose = () => {
+        setIsCategoryModalVisible(false);
     };
 
     const handleEquipmentNameSearch = (value) => {

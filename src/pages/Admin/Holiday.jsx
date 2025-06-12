@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from '../Sidebar';
 import { FaArrowLeft, FaCalendarAlt } from 'react-icons/fa';
@@ -40,11 +40,7 @@ const Holiday = () => {
         }
     }, [navigate]);
 
-    useEffect(() => {
-        fetchHolidays();
-    }, []);
-
-    const fetchHolidays = async () => {
+    const fetchHolidays = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios.post(`${baseUrl}user.php`, 
@@ -61,7 +57,11 @@ const Holiday = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [baseUrl]);
+
+    useEffect(() => {
+        fetchHolidays();
+    }, [fetchHolidays]);
 
     const handleArchive = (id) => {
         console.log('Delete clicked for holiday ID:', id);

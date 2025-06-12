@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Tabs, Table, Button, Input, Space, Tag, Form, Select, message, Typography, Statistic } from 'antd';
+import { Modal, Tabs, Table, Button, Input, Space, Tag, Form, Select, message, Typography } from 'antd';
 import { PlusOutlined, MinusOutlined, EditOutlined, DeleteOutlined, EyeOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import SecureStorage from '../../../utils/SecureStorage';

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Button } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Form, Input, Select } from 'antd';
 import { toast } from 'sonner';
 import axios from 'axios';
 import {SecureStorage} from '../../../../../utils/encryption';
@@ -14,13 +14,7 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
     const BASE_URL = `${encryptedUrl}/vehicle_master.php`;
     const FETCH_URL = `${encryptedUrl}/fetchMaster.php`;
 
-    useEffect(() => {
-        if (open) {
-            fetchMakes();
-        }
-    }, [open]);
-
-    const fetchMakes = async () => {
+    const fetchMakes = useCallback(async () => {
         try {
             const response = await axios.post(FETCH_URL, new URLSearchParams({ operation: "fetchMake" }));
             if (response.data.status === 'success') {
@@ -31,7 +25,13 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
         } catch (error) {
             toast.error(error.message);
         }
-    };
+    }, [FETCH_URL]);
+
+    useEffect(() => {
+        if (open) {
+            fetchMakes();
+        }
+    }, [open, fetchMakes]);
 
     const fetchCategories = async (makeId) => {
         if (!makeId) return;

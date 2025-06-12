@@ -2,20 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { 
     FaEye,
-    FaTags,
-    FaArrowLeft
 } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Sidebar from './component/user_sidebar';
-import { Modal, Tabs, Table, Input, Button, Tooltip,  Pagination, Empty, Select } from 'antd';
+import {  Input, Button, Tooltip,  Pagination, Empty, Select } from 'antd';
 import { SecureStorage } from '../utils/encryption';
-import { InfoCircleOutlined, BuildOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined, AppstoreOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import {  SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import ReservationDetails from './component/reservation_details';
 
-const { TabPane } = Tabs;
+
 
 const ViewReserve = () => {
     const navigate = useNavigate();

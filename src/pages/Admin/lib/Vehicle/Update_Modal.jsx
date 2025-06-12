@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Modal, Form, Input, Select, Upload, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { Calendar } from 'primereact/calendar';
@@ -40,74 +40,7 @@ const Update_Modal = ({
     const encryptedUrl = SecureStorage.getLocalItem("url");
     const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
 
-    useEffect(() => {
-        if (open) {
-            fetchMakes();
-            fetchStatusAvailability();
-        }
-    }, [open]);
-
-    useEffect(() => {
-        if (open && editingVehicle && makes.length > 0) {
-            const selectedMake = makes.find(make => make.vehicle_make_name === editingVehicle.vehicle_make_name);
-            if (selectedMake) {
-                setMakeId(selectedMake.vehicle_make_id);
-                form.setFieldsValue({ make: selectedMake.vehicle_make_id });
-                fetchCategories(selectedMake.vehicle_make_id);
-            }
-        }
-    }, [open, editingVehicle, makes]);
-
-    useEffect(() => {
-        if (open && editingVehicle && categories.length > 0) {
-            const selectedCategory = categories.find(cat => cat.vehicle_category_name === editingVehicle.vehicle_category_name);
-            if (selectedCategory) {
-                setCategory(selectedCategory.vehicle_category_id);
-                form.setFieldsValue({ category: selectedCategory.vehicle_category_id });
-                fetchModels(selectedCategory.vehicle_category_id);
-            }
-        }
-    }, [open, editingVehicle, categories]);
-
-    useEffect(() => {
-        if (open && editingVehicle && modelsByCategory[category]?.length > 0) {
-            const models = modelsByCategory[category] || [];
-            const selectedModel = models.find(model => model.vehicle_model_name === editingVehicle.vehicle_model_name);
-            if (selectedModel) {
-                setVehicleModelId(selectedModel.vehicle_model_id);
-                form.setFieldsValue({ model: selectedModel.vehicle_model_id });
-            }
-        }
-    }, [open, editingVehicle, modelsByCategory, category]);
-
-    useEffect(() => {
-        if (open && editingVehicle && statusAvailability.length > 0) {
-            setVehicleLicensed(editingVehicle.vehicle_license);
-            form.setFieldsValue({ license: editingVehicle.vehicle_license });
-
-            setYear(new Date(editingVehicle.year));
-            form.setFieldsValue({ year: new Date(editingVehicle.year) });
-
-            const selectedStatusObj = statusAvailability.find(status => status.status_availability_name === editingVehicle.status_availability_name);
-            if (selectedStatusObj) {
-                setSelectedStatus(selectedStatusObj.status_availability_id);
-                form.setFieldsValue({ status: selectedStatusObj.status_availability_id });
-            }
-
-            if (editingVehicle.vehicle_pic) {
-                const imageUrl = `${IMAGE_BASE_URL}${editingVehicle.vehicle_pic}`;
-                setVehicleImage(imageUrl);
-                setFileList([{
-                    uid: '-1',
-                    name: 'vehicle-image',
-                    status: 'done',
-                    url: imageUrl
-                }]);
-            }
-        }
-    }, [open, editingVehicle, statusAvailability, form, IMAGE_BASE_URL]);
-
-    const fetchMakes = async () => {
+    const fetchMakes = useCallback(async () => {
         try {
             const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchMake" }));
             if (response.data.status === 'success') {
@@ -121,9 +54,9 @@ const Update_Modal = ({
             toast.error(error.message);
             return [];
         }
-    };
+    }, [BASE_URL]);
 
-    const fetchCategories = async (makeId) => {
+    const fetchCategories = useCallback(async (makeId) => {
         if (!makeId) return;
         try {
             console.log('Fetching categories for makeId:', makeId);
@@ -144,9 +77,9 @@ const Update_Modal = ({
             console.error('Error fetching categories:', error);
             toast.error(error.message);
         }
-    };
+    }, [BASE_URL]);
 
-    const fetchModels = async (categoryId) => {
+    const fetchModels = useCallback(async (categoryId) => {
         if (!categoryId || !makeId) return;
         
         // Check if models are already fetched for this category
@@ -178,9 +111,9 @@ const Update_Modal = ({
             console.error('Error fetching models:', error);
             toast.error(error.message);
         }
-    };
+    }, [BASE_URL, makeId, modelsByCategory]);
 
-    const fetchStatusAvailability = async () => {
+    const fetchStatusAvailability = useCallback(async () => {
         try {
             const response = await axios.post(BASE_URL, 
                 new URLSearchParams({ operation: "fetchStatusAvailability" })
@@ -193,7 +126,74 @@ const Update_Modal = ({
         } catch (error) {
             toast.error(error.message);
         }
-    };
+    }, [BASE_URL]);
+
+    useEffect(() => {
+        if (open) {
+            fetchMakes();
+            fetchStatusAvailability();
+        }
+    }, [open, fetchMakes, fetchStatusAvailability]);
+
+    useEffect(() => {
+        if (open && editingVehicle && makes.length > 0) {
+            const selectedMake = makes.find(make => make.vehicle_make_name === editingVehicle.vehicle_make_name);
+            if (selectedMake) {
+                setMakeId(selectedMake.vehicle_make_id);
+                form.setFieldsValue({ make: selectedMake.vehicle_make_id });
+                fetchCategories(selectedMake.vehicle_make_id);
+            }
+        }
+    }, [open, editingVehicle, makes, form, fetchCategories]);
+
+    useEffect(() => {
+        if (open && editingVehicle && categories.length > 0) {
+            const selectedCategory = categories.find(cat => cat.vehicle_category_name === editingVehicle.vehicle_category_name);
+            if (selectedCategory) {
+                setCategory(selectedCategory.vehicle_category_id);
+                form.setFieldsValue({ category: selectedCategory.vehicle_category_id });
+                fetchModels(selectedCategory.vehicle_category_id);
+            }
+        }
+    }, [open, editingVehicle, categories, form, fetchModels]);
+
+    useEffect(() => {
+        if (open && editingVehicle && modelsByCategory[category]?.length > 0) {
+            const models = modelsByCategory[category] || [];
+            const selectedModel = models.find(model => model.vehicle_model_name === editingVehicle.vehicle_model_name);
+            if (selectedModel) {
+                setVehicleModelId(selectedModel.vehicle_model_id);
+                form.setFieldsValue({ model: selectedModel.vehicle_model_id });
+            }
+        }
+    }, [open, editingVehicle, modelsByCategory, category, form]);
+
+    useEffect(() => {
+        if (open && editingVehicle && statusAvailability.length > 0) {
+            setVehicleLicensed(editingVehicle.vehicle_license);
+            form.setFieldsValue({ license: editingVehicle.vehicle_license });
+
+            setYear(new Date(editingVehicle.year));
+            form.setFieldsValue({ year: new Date(editingVehicle.year) });
+
+            const selectedStatusObj = statusAvailability.find(status => status.status_availability_name === editingVehicle.status_availability_name);
+            if (selectedStatusObj) {
+                setSelectedStatus(selectedStatusObj.status_availability_id);
+                form.setFieldsValue({ status: selectedStatusObj.status_availability_id });
+            }
+
+            if (editingVehicle.vehicle_pic) {
+                const imageUrl = `${IMAGE_BASE_URL}${editingVehicle.vehicle_pic}`;
+                setVehicleImage(imageUrl);
+                setFileList([{
+                    uid: '-1',
+                    name: 'vehicle-image',
+                    status: 'done',
+                    url: imageUrl
+                }]);
+            }
+        }
+    }, [open, editingVehicle, statusAvailability, form, IMAGE_BASE_URL]);
 
     const handleMakeChange = async (selectedMakeId) => {
         setMakeId(selectedMakeId);
@@ -278,7 +278,7 @@ const Update_Modal = ({
         try {
             const values = await form.validateFields();
             
-            if (!vehicleModelId || !year || !selectedStatus || !vehicleLicensed) {
+            if (!values.model || !values.year || !values.status || !values.license) {
                 toast.error("Please fill in all required fields.");
                 return;
             }
@@ -287,10 +287,10 @@ const Update_Modal = ({
                 operation: "updateVehicleLicense",
                 vehicleData: {
                     vehicle_id: editingVehicle.vehicle_id,
-                    vehicle_model_id: vehicleModelId,
-                    vehicle_license: vehicleLicensed,
-                    year: dayjs(year).format('YYYY'),
-                    status_availability_id: selectedStatus,
+                    vehicle_model_id: values.model,
+                    vehicle_license: values.license,
+                    year: dayjs(values.year).format('YYYY'),
+                    status_availability_id: values.status,
                     user_admin_id: SecureStorage.getSessionItem('user_id'),
                     is_active: 1
                 }

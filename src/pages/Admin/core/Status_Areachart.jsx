@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useMemo } from 'react';
 import * as Chart from 'chart.js';
 import { FaChartArea } from 'react-icons/fa';
 
@@ -7,9 +7,10 @@ const SimpleAreaChart = () => {
   const chartInstance = useRef(null);
 
   const currentMonth = new Date().getMonth();
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  
+  const months = useMemo(() => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], []);
 
-  const data = {
+  const data = useMemo(() => ({
     labels: months,
     datasets: [
       {
@@ -47,9 +48,9 @@ const SimpleAreaChart = () => {
         pointHoverRadius: 0,
       }
     ]
-  };
+  }), [months]);
 
-  const options = {
+  const options = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -124,7 +125,7 @@ const SimpleAreaChart = () => {
         }
       }
     }
-  };
+  }), [months, currentMonth]);
 
   useEffect(() => {
     if (chartRef.current) {
@@ -218,7 +219,7 @@ const SimpleAreaChart = () => {
         chartInstance.current.destroy();
       }
     };
-  }, []);
+  }, [data, months, options]);
 
   return (
     <div className="bg-[#fafff4] rounded-xl shadow-sm overflow-hidden border border-gray-100 dark:bg-gray-800/90 dark:border-gray-700 h-full">

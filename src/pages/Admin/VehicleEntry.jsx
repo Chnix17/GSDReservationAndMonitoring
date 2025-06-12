@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react'; // Add useRef to imports
+import React, { useState, useEffect, useRef, useCallback } from 'react'; // Add useCallback to imports
 import Sidebar from '../Sidebar';
-import { FaCar, FaEye } from 'react-icons/fa';
+import { FaCar } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 
 import 'primereact/resources/themes/lara-light-green/theme.css';
@@ -13,11 +13,11 @@ import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
 import { Modal, Input,  Button, Space, Tooltip, Image,  Empty, Pagination, Alert, Dropdown } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DownOutlined, BarChartOutlined } from '@ant-design/icons';
-import { sanitizeInput, validateInput } from '../../utils/sanitize';
+
 import {SecureStorage} from '../../utils/encryption'; // Adjust the import path as necessary
-import Create_Modal from './lib/Vehicle/Create_Modal';
-import Update_Modal from './lib/Vehicle/Update_Modal';
-import View_Utilization from './lib/Vehicle/View_Utilization';
+import CreateModal from './lib/Vehicle/Create_Modal';
+import UpdateModal from './lib/Vehicle/Update_Modal';
+import ViewUtilization from './lib/Vehicle/View_Utilization';
 
 const VehicleEntry = () => {
     const user_level_id = SecureStorage.getSessionItem('user_level_id');
@@ -31,26 +31,20 @@ const VehicleEntry = () => {
     const [modelsByCategory, setModelsByCategory] = useState({});
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
-    const [vehicleLicensed, setVehicleLicensed] = useState('');
-    const [makeId, setMakeId] = useState('');
-    const [vehicleModelId, setVehicleModelId] = useState('');
-    const [category, setCategory] = useState('');
-    const [selectedVehicleId, setSelectedVehicleId] = useState(null);
+
     const [loading, setLoading] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState(null);
-    const [year, setYear] = useState(new Date());
-    const [vehicleImage, setVehicleImage] = useState(null);
-    const [fileList, setFileList] = useState([]);
+
     const [statusAvailability, setStatusAvailability] = useState([]);
-    const [selectedStatus, setSelectedStatus] = useState('');
+
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [viewImageModal, setViewImageModal] = useState(false);
     const [currentImage, setCurrentImage] = useState(null);
     const navigate = useNavigate();
     const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
-    const user_id = localStorage.getItem('user_id');
+
     const IMAGE_BASE_URL = encryptedUrl;
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
@@ -58,6 +52,7 @@ const VehicleEntry = () => {
     const [sortOrder, setSortOrder] = useState('desc');
     const [showUtilizationModal, setShowUtilizationModal] = useState(false);
     const [selectedVehicleForUtilization, setSelectedVehicleForUtilization] = useState(null);
+    const [selectedVehicles, setSelectedVehicles] = useState([]);
 
     useEffect(() => {
         const decryptedUserLevel = parseInt(user_level_id);
@@ -68,14 +63,7 @@ const VehicleEntry = () => {
         }
     }, [user_level_id, navigate]);
 
-    useEffect(() => {
-        fetchVehicles();
-        fetchMakes();
-        fetchCategoriesAndModels();
-        fetchStatusAvailability(); // Add this line
-    }, []);
-
-    const fetchVehicles = async () => {
+    const fetchVehicles = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchAllVehicles" }));
@@ -90,9 +78,9 @@ const VehicleEntry = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [BASE_URL]);
 
-    const fetchMakes = async () => {
+    const fetchMakes = useCallback(async () => {
         try {
             const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchMake" }));
             if (response.data.status === 'success') {
@@ -106,80 +94,67 @@ const VehicleEntry = () => {
             toast.error(error.message);
             return [];
         }
-    };
+    }, [BASE_URL]);
+
+    const fetchCategoriesAndModels = useCallback(async (makeId) => {
+        if (!makeId) return;
+        try {
+            const response = await axios.post(BASE_URL, new URLSearchParams({ 
+                operation: "fetchCategoriesAndModels",
+                make_id: makeId
+            }));
+            if (response.data.status === 'success') {
+                setCategories(response.data.data.categories);
+                setModelsByCategory(response.data.data.modelsByCategory);
+            } else {
+                toast.error(response.data.message);
+            }
+        } catch (error) {
+            toast.error(error.message);
+        }
+    }, [BASE_URL]);
+
+    const fetchStatusAvailability = useCallback(async () => {
+        try {
+            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
+                new URLSearchParams({ operation: "fetchStatusAvailability" })
+            );
+            if (response.data.status === 'success') {
+                setStatusAvailability(response.data.data);
+            } else {
+                toast.error(response.data.message);
+            }
+        } catch (error) {
+            toast.error(error.message);
+        }
+    }, [encryptedUrl]);
 
     useEffect(() => {
-        if (editingVehicle && categories.length > 0) {
-            const selectedCategory = categories.find(cat => cat.vehicle_category_name === editingVehicle.vehicle_category_name);
-            if (selectedCategory) {
-                setCategory(selectedCategory.vehicle_category_id);
-                
-                const models = modelsByCategory[selectedCategory.vehicle_category_id] || [];
-                const selectedModel = models.find(model => model.vehicle_model_name === editingVehicle.vehicle_model_name);
-                if (selectedModel) {
-                    setVehicleModelId(selectedModel.vehicle_model_id);
-                }
-            }
-        }
-    }, [editingVehicle, categories, modelsByCategory]);
+        fetchVehicles();
+        fetchMakes();
+        fetchCategoriesAndModels();
+        fetchStatusAvailability();
+    }, [fetchVehicles, fetchMakes, fetchCategoriesAndModels, fetchStatusAvailability]);
 
     const handleAddVehicle = () => {
         resetForm();
-        setSelectedVehicleId(null);
+     
         setShowAddModal(true);
     };
 
     const resetForm = () => {
-        setVehicleLicensed('');
-        setMakeId('');
-        setCategory('');
-        setVehicleModelId('');
+
         setCategories([]);
         setModelsByCategory({});
-        setSelectedVehicleId(null);
-        setYear(new Date());
-        setVehicleImage(null);
-        setFileList([]);
-        setSelectedStatus('');
+
         if (fileUploadRef.current) {
             fileUploadRef.current.clear();
         }
     };
 
-    const sanitizeAndValidateLicense = (value) => {
-        const sanitized = sanitizeInput(value);
-        if (!validateInput(sanitized)) {
-            toast.error('Invalid characters detected in license number');
-            return '';
-        }
-        return sanitized;
-    };
 
-    const handleLicenseChange = (e) => {
-        const value = e.target.value;
-        setVehicleLicensed(sanitizeAndValidateLicense(value));
-    };
 
-    const handleImageUpload = ({ fileList: newFileList }) => {
-        setFileList(newFileList);
-        
-        if (newFileList.length > 0) {
-            const file = newFileList[0].originFileObj;
-            if (file) {
-                // Create a reader to convert the file to base64
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => {
-                    setVehicleImage(reader.result);
-                };
-            } else if (newFileList[0].url) {
-                // If it's already uploaded and has a URL
-                setVehicleImage(newFileList[0].url);
-            }
-        } else {
-            setVehicleImage(null);
-        }
-    };
+
 
     const handleCreateSubmit = async () => {
         try {
@@ -241,19 +216,19 @@ const VehicleEntry = () => {
         }
     };
 
-    const handleArchiveVehicle = (vehicle) => {
-        setSelectedVehicleId(vehicle.vehicle_id);
+    const handleArchiveVehicle = (vehicleIds) => {
+        setSelectedVehicles(Array.isArray(vehicleIds) ? vehicleIds : [vehicleIds]);
         setShowConfirmDelete(true);
     };
 
     const confirmDelete = async () => {
-        if (selectedVehicleId) {
+        if (selectedVehicles.length > 0) {
             try {
                 const response = await axios.post(`${encryptedUrl}/delete_master.php`, 
                     JSON.stringify({
                         operation: "archiveResource",
                         resourceType: "vehicle",
-                        resourceId: selectedVehicleId
+                        resourceId: selectedVehicles
                     }), {
                         headers: {
                             'Content-Type': 'application/json'
@@ -262,65 +237,16 @@ const VehicleEntry = () => {
                 );
                 
                 if (response.data.status === 'success') {
-                    toast.success("Vehicle successfully archived!");
+                    toast.success(selectedVehicles.length > 1 ? "Vehicles successfully archived!" : "Vehicle successfully archived!");
                     fetchVehicles();
                     setShowConfirmDelete(false);
+                    setSelectedVehicles([]);
                 } else {
                     toast.error(response.data.message);
                 }
             } catch (error) {
                 toast.error(error.message);
             }
-        }
-    };
-
-    const handleMakeChange = async (selectedMakeId) => {
-        setMakeId(selectedMakeId);
-        setCategory(''); // Reset category when make changes
-        setVehicleModelId(''); // Reset model when make changes
-        if (selectedMakeId) {
-            await fetchCategoriesAndModels(selectedMakeId);
-        } else {
-            setCategories([]);
-            setModelsByCategory({});
-        }
-    };
-
-    const handleCategoryChange = (selectedCategoryId) => {
-        setCategory(selectedCategoryId);
-        setVehicleModelId(''); // Reset model when category changes
-    };
-
-    const fetchCategoriesAndModels = async (makeId) => {
-        if (!makeId) return;
-        try {
-            const response = await axios.post(BASE_URL, new URLSearchParams({ 
-                operation: "fetchCategoriesAndModels",
-                make_id: makeId
-            }));
-            if (response.data.status === 'success') {
-                setCategories(response.data.data.categories);
-                setModelsByCategory(response.data.data.modelsByCategory);
-            } else {
-                toast.error(response.data.message);
-            }
-        } catch (error) {
-            toast.error(error.message);
-        }
-    };
-
-    const fetchStatusAvailability = async () => {
-        try {
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
-                new URLSearchParams({ operation: "fetchStatusAvailability" })
-            );
-            if (response.data.status === 'success') {
-                setStatusAvailability(response.data.data);
-            } else {
-                toast.error(response.data.message);
-            }
-        } catch (error) {
-            toast.error(error.message);
         }
     };
 
@@ -341,12 +267,7 @@ const VehicleEntry = () => {
         }
     };
 
-    const handleCloseModal = () => {
-        resetForm();
-        setShowAddModal(false);
-        setShowEditModal(false);
-        setEditingVehicle(null);
-    };
+
 
     const getImageUrl = (vehiclePic) => {
         if (!vehiclePic) return null;
@@ -419,6 +340,17 @@ const VehicleEntry = () => {
         },
     ];
 
+    // Add tableStyle object before the return statement
+    const tableStyle = {
+        width: '100%',
+        borderCollapse: 'separate',
+        borderSpacing: 0,
+        boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
+        borderRadius: '0.5rem',
+        overflow: 'hidden',
+        border: '1px solid #e5e7eb'
+    };
+
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
@@ -459,6 +391,16 @@ const VehicleEntry = () => {
                                 </div>
                             </div>
                             <div className="flex gap-2">
+                                {selectedVehicles.length > 0 && (
+                                    <Button
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => handleArchiveVehicle(selectedVehicles)}
+                                        size="large"
+                                    >
+                                        Archive Selected ({selectedVehicles.length})
+                                    </Button>
+                                )}
                                 <Tooltip title="Refresh data">
                                     <Button
                                         icon={<ReloadOutlined />}
@@ -495,9 +437,25 @@ const VehicleEntry = () => {
                             </div>
                         ) : (
                             <>
-                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400" style={tableStyle}>
                                     <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
                                         <tr>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedVehicles(filteredVehicles.map(vehicle => vehicle.vehicle_id));
+                                                            } else {
+                                                                setSelectedVehicles([]);
+                                                            }
+                                                        }}
+                                                        checked={selectedVehicles.length === filteredVehicles.length}
+                                                    />
+                                                </div>
+                                            </th>
                                             <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_id')}>
                                                 <div className="flex items-center cursor-pointer hover:text-gray-900">
                                                     ID
@@ -584,6 +542,20 @@ const VehicleEntry = () => {
                                                         key={vehicle.vehicle_id}
                                                         className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
                                                     >
+                                                        <td className="px-6 py-4">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                                checked={selectedVehicles.includes(vehicle.vehicle_id)}
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedVehicles([...selectedVehicles, vehicle.vehicle_id]);
+                                                                    } else {
+                                                                        setSelectedVehicles(selectedVehicles.filter(id => id !== vehicle.vehicle_id));
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </td>
                                                         <td className="px-6 py-4">{vehicle.vehicle_id}</td>
                                                         <td className="px-6 py-4">
                                                             {vehicle.vehicle_pic ? (
@@ -636,7 +608,7 @@ const VehicleEntry = () => {
                                                                 <Button
                                                                     danger
                                                                     icon={<DeleteOutlined />}
-                                                                    onClick={() => handleArchiveVehicle(vehicle)}
+                                                                    onClick={() => handleArchiveVehicle(vehicle.vehicle_id)}
                                                                     size="middle"
                                                                 />
                                                             </div>
@@ -684,7 +656,7 @@ const VehicleEntry = () => {
             </div>
 
             {/* Create Modal */}
-            <Create_Modal
+            <CreateModal
                 open={showAddModal}
                 onCancel={() => setShowAddModal(false)}
                 onSubmit={handleCreateSubmit}
@@ -692,7 +664,7 @@ const VehicleEntry = () => {
             />
 
             {/* Update Modal */}
-            <Update_Modal
+            <UpdateModal
                 open={showEditModal}
                 onCancel={() => {
                     setShowEditModal(false);
@@ -710,7 +682,7 @@ const VehicleEntry = () => {
 
             {/* Confirm Delete Modal */}
             <Modal
-                title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
+                title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Archive</div>}
                 open={showConfirmDelete}
                 onCancel={() => setShowConfirmDelete(false)}
                 footer={[
@@ -725,13 +697,13 @@ const VehicleEntry = () => {
                         onClick={confirmDelete}
                         icon={<DeleteOutlined />}
                     >
-                        Delete
+                        Archive
                     </Button>,
                 ]}
             >
                 <Alert
                     message="Warning"
-                    description={`Are you sure you want to archive this vehicle? This action cannot be undone.`}
+                    description={`Are you sure you want to archive ${selectedVehicles.length} vehicle(s)? This action cannot be undone.`}
                     type="warning"
                     showIcon
                     icon={<ExclamationCircleOutlined />}
@@ -757,7 +729,7 @@ const VehicleEntry = () => {
             </Modal>
 
             {/* Add View Utilization Modal */}
-            <View_Utilization
+            <ViewUtilization
                 open={showUtilizationModal}
                 onCancel={() => {
                     setShowUtilizationModal(false);

@@ -1,4 +1,4 @@
-import React, { useState, useEffect} from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../pages/Sidebar';
 import axios from 'axios';
@@ -88,6 +88,7 @@ const AddReservation = () => {
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [selectedVenueEquipment, setSelectedVenueEquipment] = useState({});
   const [equipmentQuantities, setEquipmentQuantities] = useState({});
+  const [localEquipmentQuantities, setLocalEquipmentQuantities] = useState({ ...equipmentQuantities });
 
   // Add new state for calendar data
   const [calendarData, setCalendarData] = useState({
@@ -420,7 +421,10 @@ const renderBasicInformation = () => {
       handleInputChange={handleInputChange}
       isMobile={isMobile}
       showEquipmentModal={showEquipmentModal}
-      setShowEquipmentModal={setShowEquipmentModal}
+      setShowEquipmentModal={(show) => {
+        if (show) setLocalEquipmentQuantities({ ...equipmentQuantities });
+        setShowEquipmentModal(show);
+      }}
       selectedVenueEquipment={selectedVenueEquipment}
       equipment={equipment}
       showPassengerModal={showPassengerModal}
@@ -1018,7 +1022,7 @@ const [showPassengerModal, setShowPassengerModal] = useState(false);
 const [newPassenger, setNewPassenger] = useState('');
 
 // Add fetchDrivers function
-const fetchDrivers = async (startDate, endDate) => {
+const fetchDrivers = useCallback(async (startDate, endDate) => {
   setIsLoadingDrivers(true);
 
   try {
@@ -1047,14 +1051,14 @@ const fetchDrivers = async (startDate, endDate) => {
   } finally {
     setIsLoadingDrivers(false);
   }
-};
+}, [encryptedUrl]);
 
 // Add useEffect to fetch drivers
 useEffect(() => {
   if (formData.startDate && formData.endDate && formData.resourceType === 'vehicle') {
     fetchDrivers(formData.startDate, formData.endDate);
   }
-}, [formData.startDate, formData.endDate, formData.resourceType]); // Add selectedDriverDept
+}, [formData.startDate, formData.endDate, formData.resourceType, fetchDrivers]);
 
 // Add PassengerModal component
 const PassengerModal = ({ visible, onHide }) => {
@@ -1148,22 +1152,9 @@ const PassengerModal = ({ visible, onHide }) => {
 };
 
 // Enhanced Equipment Selection Modal with search, filtering and better UI
-const EquipmentSelectionModal = () => {
-  const [localEquipmentQuantities, setLocalEquipmentQuantities] = useState({...equipmentQuantities});
+const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQuantities }) => {
   const [equipmentSearch, setEquipmentSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 375);
-  
-  useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth <= 375);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-  
-  // Reset local state when modal opens
-  useEffect(() => {
-    setLocalEquipmentQuantities({...equipmentQuantities});
-  }, [showEquipmentModal, equipmentQuantities]);
   
   const handleLocalQuantityChange = (equipId, value) => {
     // Convert value to number and handle empty/undefined cases
@@ -1531,7 +1522,7 @@ const GuidelineTooltip = ({ title, content }) => (
 );
 
 // Add fetch functions for resources
-const fetchVenues = async () => {
+const fetchVenues = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
@@ -1550,9 +1541,9 @@ const fetchVenues = async () => {
     console.error('Error fetching venues:', error);
     toast.error('Failed to fetch venues');
   }
-};
+}, [encryptedUrl]);
 
-const fetchVehicles = async () => {
+const fetchVehicles = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
@@ -1571,9 +1562,9 @@ const fetchVehicles = async () => {
     console.error('Error fetching vehicles:', error);
     toast.error('Failed to fetch vehicles');
   }
-};
+}, [encryptedUrl]);
 
-const fetchEquipment = async () => {
+const fetchEquipment = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
@@ -1592,14 +1583,14 @@ const fetchEquipment = async () => {
     console.error('Error fetching equipment:', error);
     toast.error('Failed to fetch equipment');
   }
-};
+}, [encryptedUrl]);
 
 // Add useEffect to fetch resources when component mounts
 useEffect(() => {
   fetchVenues();
   fetchVehicles();
   fetchEquipment();
-}, []);
+}, [fetchVenues, fetchVehicles, fetchEquipment]);
 
 // Add useEffect to handle calendar data fetching
 useEffect(() => {
@@ -1790,7 +1781,10 @@ return (
         setNewPassenger('');
       }}
     />
-    <EquipmentSelectionModal />
+    <EquipmentSelectionModal 
+      localEquipmentQuantities={localEquipmentQuantities}
+      setLocalEquipmentQuantities={setLocalEquipmentQuantities}
+    />
     
 
   </div>

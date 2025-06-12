@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Select, Button, message as toast, AutoComplete, Space } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Form, Select, Button, message as toast, AutoComplete, Space } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { FaTools } from 'react-icons/fa';
 import axios from 'axios';
@@ -31,16 +31,7 @@ const UpdateEquipmentModal = ({
         'Non-Consumable'
     ];
 
-    useEffect(() => {
-        if (isOpen) {
-            fetchCategories();
-            if (equipmentId) {
-                getEquipmentDetails(equipmentId);
-            }
-        }
-    }, [isOpen, equipmentId]);
-
-    const fetchCategories = async () => {
+    const fetchCategories = useCallback(async () => {
         const url = `${baseUrl}/user.php`;
         const jsonData = { operation: "fetchCategories" };
 
@@ -55,17 +46,9 @@ const UpdateEquipmentModal = ({
             console.error("Error fetching categories:", error);
             toast.error("An error occurred while fetching categories.");
         }
-    };
+    }, [baseUrl]);
 
-    const handleCategoryManagement = () => {
-        setIsCategoryModalVisible(true);
-    };
-
-    const handleCategoryModalClose = () => {
-        setIsCategoryModalVisible(false);
-    };
-
-    const getEquipmentDetails = async (equip_id) => {
+    const getEquipmentDetails = useCallback(async (equip_id) => {
         const url = `${baseUrl}/fetchMaster.php`;
         const jsonData = { operation: "fetchEquipmentById", id: equip_id };
 
@@ -109,6 +92,23 @@ const UpdateEquipmentModal = ({
             toast.error("An error occurred while fetching equipment details.");
             console.error("Error fetching equipment details:", error);
         }
+    }, [baseUrl, categories, fetchCategories, form]);
+
+    useEffect(() => {
+        if (isOpen) {
+            fetchCategories();
+            if (equipmentId) {
+                getEquipmentDetails(equipmentId);
+            }
+        }
+    }, [isOpen, equipmentId, fetchCategories, getEquipmentDetails]);
+
+    const handleCategoryManagement = () => {
+        setIsCategoryModalVisible(true);
+    };
+
+    const handleCategoryModalClose = () => {
+        setIsCategoryModalVisible(false);
     };
 
     const handleEquipmentNameSearch = (value) => {

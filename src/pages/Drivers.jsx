@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
 import { FaArrowLeft, FaUser, FaUserTie } from 'react-icons/fa';
@@ -37,7 +37,6 @@ const Drivers = () => {
     const [selectedDriverId, setSelectedDriverId] = useState(null);
     const [editMode, setEditMode] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const suffixOptions = ['', 'Jr', 'Sr', 'I', 'II', 'III', 'IV', 'V'];
 
     useEffect(() => {
         const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
@@ -48,11 +47,7 @@ const Drivers = () => {
         }
     }, [navigate]);
 
-    useEffect(() => {
-        fetchDrivers();
-    }, []);
-
-    const fetchDrivers = async () => {
+    const fetchDrivers = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios.post(`${baseUrl}fetchMaster.php`, 
@@ -69,7 +64,9 @@ const Drivers = () => {
         } finally {
             setLoading(false);
         }
-    };    const fetchDriverById = async (id) => {
+    }, [baseUrl]);
+
+    const fetchDriverById = async (id) => {
         setLoading(true);
         console.log('Fetching driver with ID:', id);
         // Reset form first
@@ -122,7 +119,9 @@ const Drivers = () => {
         } finally {
             setLoading(false);
         }
-    };    const handleEdit = (driver) => {
+    };
+
+    const handleEdit = (driver) => {
         console.log('Edit clicked for driver:', driver);
         fetchDriverById(driver.driver_id);
     };
@@ -155,7 +154,9 @@ const Drivers = () => {
         } finally {
             setShowConfirmDelete(false);
         }
-    };    const handleCreate = () => {
+    };
+
+    const handleCreate = () => {
         // Reset form instance first
         form.resetFields();
         setFormData({
@@ -230,7 +231,9 @@ const Drivers = () => {
         } finally {
             setIsSubmitting(false);
         }
-    };    const closeModal = () => {
+    };
+
+    const closeModal = () => {
         setShowModal(false);
         setEditMode(false);
         form.resetFields(); // Reset the form instance
@@ -631,3 +634,4 @@ const Drivers = () => {
 };
 
 export default Drivers;
+

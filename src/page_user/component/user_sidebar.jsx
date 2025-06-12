@@ -20,13 +20,72 @@ const Sidebar = () => {
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const [notifications, setNotifications] = useState(5);
+  const [notifications, setNotifications] = useState([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
 
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    try {
+      const baseUrl = SecureStorage.getLocalItem("url");
+      console.log('Fetching notifications from:', `${baseUrl}/faculty&Staff.php`);
+      
+      const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'fetchNotification',
+          userId: SecureStorage.getSessionItem('user_id')
+        })
+      });
+      const data = await response.json();
+      console.log('Notification fetch response:', data);
+      
+      if (data.status === 'success') {
+        console.log('Successfully fetched notifications:', data.data);
+        setNotifications(data.data);
+      } else {
+        console.warn('Notification fetch returned non-success status:', data);
+      }
+    } catch (error) {
+      console.error('Error fetching notifications:', error);
+    }
+  };
 
-  
+  // Mark notifications as read
+  const markNotificationsAsRead = async (notificationIds) => {
+    try {
+      const baseUrl = SecureStorage.getLocalItem("url");
+      const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'updateReadNotification',
+          notificationIds: notificationIds
+        })
+      });
+      const data = await response.json();
+      if (data.status === 'success') {
+        // Refresh notifications after marking as read
+        fetchNotifications();
+      }
+    } catch (error) {
+      console.error('Error marking notifications as read:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    // Set up polling to refresh notifications every minute
+    const interval = setInterval(fetchNotifications, 60000);
+    return () => clearInterval(interval);
+  }, []);
+
   useEffect(() => {
     setActiveItem(location.pathname);
     const handleResize = () => {
@@ -38,8 +97,6 @@ const Sidebar = () => {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [location]);
-
-
 
   const toggleDesktopSidebar = () => {
     const newState = !isDesktopSidebarOpen;
@@ -63,8 +120,6 @@ const Sidebar = () => {
     window.dispatchEvent(event);
   };
 
-  
-
   const handleLogout = () => {
     // Save loginAttempts
     const loginAttempts = localStorage.getItem('loginAttempts');
@@ -85,6 +140,83 @@ const Sidebar = () => {
 
   const contextValue = useMemo(() => ({ isDesktopSidebarOpen }), [isDesktopSidebarOpen]);
 
+  // Update the notifications Popover content
+  const renderNotifications = () => {
+    const unreadCount = notifications.filter(n => n.is_read === "0").length;
+    
+    return (
+      <Popover className="relative">
+        {({ open }) => (
+          <>
+            <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
+              <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                  {unreadCount}
+                </span>
+              )}
+            </Popover.Button>
+            <Transition
+              show={open}
+              as={React.Fragment}
+              enter="transition ease-out duration-200"
+              enterFrom="opacity-0 translate-y-1"
+              enterTo="opacity-100 translate-y-0"
+              leave="transition ease-in duration-150"
+              leaveFrom="opacity-100 translate-y-0"
+              leaveTo="opacity-0 translate-y-1"
+            >
+              <Popover.Panel className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
+                <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                  <h3 className="font-medium">Notifications</h3>
+                  {unreadCount > 0 && (
+                    <button 
+                      onClick={() => {
+                        const unreadIds = notifications
+                          .filter(n => n.is_read === "0")
+                          .map(n => n.notification_reservation_id);
+                        markNotificationsAsRead(unreadIds);
+                      }}
+                      className="text-xs text-green-600 dark:text-green-400 hover:underline"
+                    >
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <div className="p-3 text-center text-gray-500 dark:text-gray-400">
+                      No notifications
+                    </div>
+                  ) : (
+                    notifications.map((notification) => (
+                      <div 
+                        key={notification.notification_reservation_id}
+                        className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                          notification.is_read === "0" ? 'bg-green-50 dark:bg-green-900/20' : ''
+                        }`}
+                      >
+                        <p className="text-sm font-medium">{notification.notification_message}</p>
+                        <p className="text-xs text-gray-400 mt-1">
+                          {new Date(notification.notification_created_at).toLocaleString()}
+                        </p>
+                      </div>
+                    ))
+                  )}
+                </div>
+                <div className="p-2 text-center">
+                  <Link to="/Faculty/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                    View all notifications
+                  </Link>
+                </div>
+              </Popover.Panel>
+            </Transition>
+          </>
+        )}
+      </Popover>
+    );
+  };
+
   return (
     <SidebarContext.Provider value={contextValue}>
       <div className={`flex flex-col h-screen `}>
@@ -96,57 +228,7 @@ const Sidebar = () => {
               <p className="text-green-600 dark:text-green-400 font-medium">Welcome! <span className="font-bold">{name}</span></p>
             </div>
             
-            {/* Notifications */}
-            <Popover className="relative">
-              {({ open }) => (
-                <>
-                  <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
-                    <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
-                    {notifications > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                        {notifications}
-                      </span>
-                    )}
-                  </Popover.Button>
-                  <Transition
-                    show={open}
-                    as={React.Fragment}
-                    enter="transition ease-out duration-200"
-                    enterFrom="opacity-0 translate-y-1"
-                    enterTo="opacity-100 translate-y-0"
-                    leave="transition ease-in duration-150"
-                    leaveFrom="opacity-100 translate-y-0"
-                    leaveTo="opacity-0 translate-y-1"
-                  >
-                    <Popover.Panel className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
-                      <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <h3 className="font-medium">Notifications</h3>
-                        <button className="text-xs text-green-600 dark:text-green-400 hover:underline">
-                          Mark all as read
-                        </button>
-                      </div>
-                      <div className="max-h-80 overflow-y-auto">
-                        <div className="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <p className="text-sm font-medium">New reservation request</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A new venue request needs your approval</p>
-                          <p className="text-xs text-gray-400 mt-1">3 mins ago</p>
-                        </div>
-                        <div className="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <p className="text-sm font-medium">System Update</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">GSD Portal has been updated to version 2.4.0</p>
-                          <p className="text-xs text-gray-400 mt-1">1 hour ago</p>
-                        </div>
-                      </div>
-                      <div className="p-2 text-center">
-                        <Link to="/notifications" className="text-xs text-green-600 dark:text-green-400 hover:underline">
-                          View all notifications
-                        </Link>
-                      </div>
-                    </Popover.Panel>
-                  </Transition>
-                </>
-              )}
-            </Popover>
+            {renderNotifications()}
             
             {/* Profile Menu */}
             <Popover className="relative">
@@ -212,47 +294,7 @@ const Sidebar = () => {
           </div>
 
           <div className="flex items-center space-x-3">
-            {/* Notifications */}
-            <Popover className="relative">
-              {({ open }) => (
-                <>
-                  <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
-                    <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
-                    {notifications > 0 && (
-                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                        {notifications}
-                      </span>
-                    )}
-                  </Popover.Button>
-                  <Transition
-                    show={open}
-                    as={React.Fragment}
-                    enter="transition ease-out duration-200"
-                    enterFrom="opacity-0 translate-y-1"
-                    enterTo="opacity-100 translate-y-0"
-                    leave="transition ease-in duration-150"
-                    leaveFrom="opacity-100 translate-y-0"
-                    leaveTo="opacity-0 translate-y-1"
-                  >
-                    <Popover.Panel className="absolute right-0 z-10 mt-2 w-72 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
-                      <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                        <h3 className="font-medium">Notifications</h3>
-                        <button className="text-xs text-green-600 dark:text-green-400 hover:underline">
-                          Mark all as read
-                        </button>
-                      </div>
-                      <div className="max-h-60 overflow-y-auto">
-                        <div className="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <p className="text-sm font-medium">New reservation request</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A new venue request needs your approval</p>
-                          <p className="text-xs text-gray-400 mt-1">3 mins ago</p>
-                        </div>
-                      </div>
-                    </Popover.Panel>
-                  </Transition>
-                </>
-              )}
-            </Popover>
+            {renderNotifications()}
             
             {/* User Menu */}
             <Popover className="relative">
@@ -366,7 +408,6 @@ const Sidebar = () => {
                 text="Chat" 
                 link="/Faculty/Chat" 
                 active={activeItem === '/Faculty/Chat'}
-                badge={notifications.length}
                 isExpanded={isDesktopSidebarOpen}
               />
               {isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
@@ -424,7 +465,6 @@ const Sidebar = () => {
                 text="Chat" 
                 link="/Faculty/Chat" 
                 active={activeItem === '/Faculty/Chat'}
-                badge={notifications.length}
                 isExpanded={isDesktopSidebarOpen}
               />
               {isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
@@ -490,33 +530,6 @@ const SectionLabel = ({ text }) => (
 );
 
 // Simplified SidebarItem
-const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
-  return (
-    <Link 
-      to={link} 
-      className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
-        active 
-          ? 'bg-[#145414] text-white font-medium' 
-          : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-      }`}
-    >
-      <div className="flex items-center space-x-3">
-        <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
-        <span className="text-sm">{text}</span>
-      </div>
-      
-      {badge && (
-        <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
-          {badge}
-        </span>
-      )}
-      
-      {active && (
-        <div className="absolute left-0 w-1 h-7 bg-[#145414] rounded-r-full" />
-      )}
-    </Link>
-  );
-});
 
 
 

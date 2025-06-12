@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton } from 'antd';
-import { UndoOutlined, FileSearchOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, CaretRightOutlined, DeleteOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton, Input } from 'antd';
+import { UndoOutlined, FileSearchOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, CaretRightOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
 import Sidebar from './Sidebar';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -19,6 +19,8 @@ const Archive = () => {
   const [pageSize, setPageSize] = useState(10);
   const navigate = useNavigate();
   const encryptedUrl = SecureStorage.getLocalItem("url");
+  const [selectedRowKeys, setSelectedRowKeys] = useState([]);
+  const [searchText, setSearchText] = useState('');
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
@@ -175,76 +177,82 @@ const Archive = () => {
       default:
         break;
     }
-  }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment]);
+  }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment, fetchDrivers]);
 
-  const handleRestoreUser = async (record) => {
+  const handleRestoreUsers = async () => {
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
         operation: "unarchiveUser",
         userType: "user",
-        userId: record.users_id
+        userId: selectedRowKeys
       });
 
       if (response.data.status === 'success') {
-        message.success(`User restored successfully`);
+        message.success(`${selectedRowKeys.length} users restored successfully`);
+        setSelectedRowKeys([]);
         fetchUsers();
       } else {
-        message.error(`Failed to restore user`);
+        message.error(`Failed to restore users`);
       }
     } catch (error) {
-      console.error('Error restoring user:', error);
-      message.error(`An error occurred while restoring user`);
+      console.error('Error restoring users:', error);
+      message.error(`An error occurred while restoring users`);
     }
   };
 
-  const handleRestoreVehicle = async (record) => {
+  const handleRestoreVehicles = async () => {
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
         operation: "unarchiveResource",
         resourceType: "vehicle",
-        resourceId: record.vehicle_id
+        resourceId: selectedRowKeys
       });
 
       if (response.data.status === 'success') {
-        message.success(`Vehicle restored successfully`);
+        message.success(`${selectedRowKeys.length} vehicles restored successfully`);
+        setSelectedRowKeys([]);
         fetchVehicles();
       } else {
-        message.error(`Failed to restore vehicle`);
+        message.error(`Failed to restore vehicles`);
       }
     } catch (error) {
-      console.error('Error restoring vehicle:', error);
-      message.error(`An error occurred while restoring vehicle`);
+      console.error('Error restoring vehicles:', error);
+      message.error(`An error occurred while restoring vehicles`);
     }
   };
 
-  const handleRestoreVenue = async (record) => {
+  const handleRestoreVenues = async () => {
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
         operation: "unarchiveResource",
         resourceType: "venue",
-        resourceId: record.ven_id
+        resourceId: selectedRowKeys
       });
 
       if (response.data.status === 'success') {
-        message.success(`Venue restored successfully`);
+        message.success(`${selectedRowKeys.length} venues restored successfully`);
+        setSelectedRowKeys([]);
         fetchVenues();
       } else {
-        message.error(`Failed to restore venue`);
+        message.error(`Failed to restore venues`);
       }
-    } catch (error) { 
-      console.error('Error restoring venue:', error);
-      message.error(`An error occurred while restoring venue`);
+    } catch (error) {
+      console.error('Error restoring venues:', error);
+      message.error(`An error occurred while restoring venues`);
     }
-  };  const handleRestoreEquipment = async (record) => {
+  };
+
+  const handleRestoreEquipment = async () => {
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
         operation: "unarchiveResource",
         resourceType: "equipment",
-        resourceId: record.unit_id
+        resourceId: selectedRowKeys
       });
 
       if (response.data.status === 'success') {
-        message.success(`Equipment restored successfully`);
+        message.success(`${selectedRowKeys.length} equipment items restored successfully`);
+        setSelectedRowKeys([]);
         fetchEquipment();
       } else {
         message.error(`Failed to restore equipment`);
@@ -255,23 +263,24 @@ const Archive = () => {
     }
   };
 
-  const handleRestoreDriver = async (record) => {
+  const handleRestoreDrivers = async () => {
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
         operation: "unarchiveUser",
         userType: "driver",
-        userId: record.driver_id
+        userId: selectedRowKeys
       });
 
       if (response.data.status === 'success') {
-        message.success(`Driver restored successfully`);
+        message.success(`${selectedRowKeys.length} drivers restored successfully`);
+        setSelectedRowKeys([]);
         fetchDrivers();
       } else {
-        message.error(`Failed to restore driver`);
+        message.error(`Failed to restore drivers`);
       }
     } catch (error) {
-      console.error('Error restoring driver:', error);
-      message.error(`An error occurred while restoring driver`);
+      console.error('Error restoring drivers:', error);
+      message.error(`An error occurred while restoring drivers`);
     }
   };
 
@@ -370,6 +379,22 @@ const Archive = () => {
     }
   };
 
+  // Add global search function
+  const handleSearch = (value) => {
+    setSearchText(value);
+  };
+
+  // Filter data based on search text
+  const getFilteredData = (data) => {
+    if (!searchText) return data;
+    
+    return data.filter(item => {
+      return Object.values(item).some(val => 
+        val && val.toString().toLowerCase().includes(searchText.toLowerCase())
+      );
+    });
+  };
+
   const userColumns = [
     { 
       title: 'School ID', 
@@ -433,7 +458,7 @@ const Archive = () => {
           <Popconfirm
             title="Restore this user?"
             description="This will move the user back to active status."
-            onConfirm={() => handleRestoreUser(record)}
+            onConfirm={() => handleRestoreUsers(record)}
             okText="Yes"
             cancelText="No"
             placement="left"
@@ -506,7 +531,7 @@ const Archive = () => {
           <Popconfirm
             title="Restore this vehicle?"
             description="This will move the vehicle back to active status."
-            onConfirm={() => handleRestoreVehicle(record)}
+            onConfirm={() => handleRestoreVehicles(record)}
             okText="Yes"
             cancelText="No"
             placement="left"
@@ -556,7 +581,7 @@ const Archive = () => {
           <Popconfirm
             title="Restore this venue?"
             description="This will move the venue back to active status."
-            onConfirm={() => handleRestoreVenue(record)}
+            onConfirm={() => handleRestoreVenues(record)}
             okText="Yes"
             cancelText="No"
             placement="left"
@@ -664,7 +689,7 @@ const Archive = () => {
           <Popconfirm
             title="Restore this driver?"
             description="This will move the driver back to active status."
-            onConfirm={() => handleRestoreDriver(record)}
+            onConfirm={() => handleRestoreDrivers(record)}
             okText="Yes"
             cancelText="No"
             placement="left"
@@ -715,6 +740,52 @@ const Archive = () => {
     { key: 4, label: 'Drivers', icon: <CaretRightOutlined /> }
   ];
 
+  const rowSelection = {
+    selectedRowKeys,
+    onChange: (newSelectedRowKeys) => {
+      setSelectedRowKeys(newSelectedRowKeys);
+    },
+  };
+
+  const renderBulkActions = () => {
+    if (selectedRowKeys.length === 0) return null;
+
+    const handleRestore = () => {
+      switch (value) {
+        case 0:
+          handleRestoreUsers();
+          break;
+        case 1:
+          handleRestoreVehicles();
+          break;
+        case 2:
+          handleRestoreVenues();
+          break;
+        case 3:
+          handleRestoreEquipment();
+          break;
+        case 4:
+          handleRestoreDrivers();
+          break;
+        default:
+          break;
+      }
+    };
+
+    return (
+      <div className="mb-4">
+        <Button
+          type="primary"
+          icon={<UndoOutlined />}
+          onClick={handleRestore}
+          className="bg-green-500 hover:bg-green-600"
+        >
+          Restore Selected ({selectedRowKeys.length})
+        </Button>
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col lg:flex-row bg-gradient-to-br from-white to-green-100 min-h-screen">
       <div className="flex-none">
@@ -755,17 +826,30 @@ const Archive = () => {
               </nav>
             </div>
 
+            {/* Global Search Bar */}
+            <div className="mb-4">
+              <Input
+                placeholder="Search across all fields..."
+                prefix={<SearchOutlined className="text-gray-400" />}
+                onChange={(e) => handleSearch(e.target.value)}
+                style={{ width: '100%', maxWidth: '500px' }}
+                allowClear
+              />
+            </div>
+
             {/* Tab Content */}
             <div className="mt-6">
               {loading ? (
                 renderSkeletonLoader()
               ) : (
                 <div>
+                  {renderBulkActions()}
                   {/* Users Tab */}
                   {value === 0 && (
                     <Table 
+                      rowSelection={rowSelection}
                       columns={userColumns} 
-                      dataSource={users}
+                      dataSource={getFilteredData(users)}
                       rowKey="users_id"
                       pagination={{
                         pageSize: pageSize,
@@ -787,8 +871,9 @@ const Archive = () => {
                   {/* Vehicles Tab */}
                   {value === 1 && (
                     <Table 
+                      rowSelection={rowSelection}
                       columns={vehicleColumns} 
-                      dataSource={vehicles}
+                      dataSource={getFilteredData(vehicles)}
                       rowKey="vehicle_id"
                       pagination={{
                         pageSize: pageSize,
@@ -807,8 +892,9 @@ const Archive = () => {
                   {/* Venues Tab */}
                   {value === 2 && (
                     <Table 
+                      rowSelection={rowSelection}
                       columns={venueColumns} 
-                      dataSource={venues}
+                      dataSource={getFilteredData(venues)}
                       rowKey="ven_id"
                       pagination={{
                         pageSize: pageSize,
@@ -827,8 +913,9 @@ const Archive = () => {
                   {/* Equipment Tab */}
                   {value === 3 && (
                     <Table 
+                      rowSelection={rowSelection}
                       columns={equipmentColumns} 
-                      dataSource={equipment}
+                      dataSource={getFilteredData(equipment)}
                       rowKey="equip_id"
                       pagination={{
                         pageSize: pageSize,
@@ -847,8 +934,9 @@ const Archive = () => {
                   {/* Drivers Tab */}
                   {value === 4 && (
                     <Table 
+                      rowSelection={rowSelection}
                       columns={driverColumns} 
-                      dataSource={drivers}
+                      dataSource={getFilteredData(drivers)}
                       rowKey="driver_id"
                       pagination={{
                         pageSize: pageSize,

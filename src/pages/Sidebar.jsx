@@ -1,10 +1,10 @@
-import React, { useState, useEffect, createContext, useContext, useMemo } from 'react';
+import React, { useState, useEffect, createContext, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaTachometerAlt, FaFileAlt, 
   FaBars,  FaUserCircle, FaFolder,
  FaChartBar, FaArchive, FaTimes,
-  FaComments, FaCogs, FaBell, 
+  FaComments, FaBell, 
   FaAngleRight, FaAngleLeft, FaCalendarAlt
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
@@ -596,34 +596,6 @@ const SectionLabel = ({ text }) => (
   </div>
 );
 
-// Simplified SidebarItem
-const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
-  return (
-    <Link 
-      to={link} 
-      className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
-        active 
-          ? 'bg-[#145414] text-white font-medium' 
-          : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
-      }`}
-    >
-      <div className="flex items-center space-x-3">
-        <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
-        <span className="text-sm">{text}</span>
-      </div>
-      
-      {badge && (
-        <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
-          {badge}
-        </span>
-      )}
-      
-      {active && (
-        <div className="absolute left-0 w-1 h-7 bg-[#145414] rounded-r-full" />
-      )}
-    </Link>
-  );
-});
 
 
 

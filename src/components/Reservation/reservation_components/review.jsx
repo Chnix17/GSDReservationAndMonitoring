@@ -1,7 +1,7 @@
 import React from 'react';
 import { motion } from 'framer-motion';
-import { Alert, Card, Typography, Row, Col, Divider, Button, Tag, Image, Spin, Space } from 'antd';
-import { PrinterOutlined, BankOutlined, CarOutlined, UserOutlined, TeamOutlined, CalendarOutlined, EnvironmentOutlined } from '@ant-design/icons';
+import { Alert, Card, Typography,  Divider,  Tag,  Space } from 'antd';
+import { PrinterOutlined, BankOutlined, CarOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { FaTools, FaTimes, FaCheckCircle } from 'react-icons/fa';
 import { format } from 'date-fns';
 import { Button as AntButton } from 'antd';
@@ -52,9 +52,9 @@ const ReviewSection = ({
   });
 
   // Helper function to get equipment details
-  const getEquipmentDetails = (equipId) => {
-    return equipment?.find(e => e.equipment_id?.toString() === equipId?.toString()) || null;
-  };
+  // const getEquipmentDetails = (equipId) => {
+  //   return equipment?.find(e => e.equipment_id?.toString() === equipId?.toString()) || null;
+  // };
 
   // Helper function for formatting date ranges
   const formatDateRange = (startDate, endDate) => {

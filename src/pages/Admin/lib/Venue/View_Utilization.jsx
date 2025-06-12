@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
 import { HomeOutlined, ToolOutlined, ClockCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
-import { SecureStorage } from '../../../../utils/encryption';
 import axios from 'axios';
 import {
     Chart as ChartJS,
@@ -32,35 +31,7 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
     const [venueDetails, setVenueDetails] = useState(null);
     const COLORS = ['#548e54', '#83b383'];
 
-    useEffect(() => {
-        const fetchUtilizationData = async () => {
-            if (open && venue?.ven_id) {
-                setLoading(true);
-                try {
-                    const response = await axios.post(
-                        `${encryptedUrl}/user.php`,
-                        new URLSearchParams({
-                            operation: "getVenueUsage",
-                            venueId: venue.ven_id
-                        })
-                    );
-
-                    if (response.data.status === 'success') {
-                        setVenueDetails(response.data.data.venue_details);
-                        processUtilizationData(response.data.data);
-                    }
-                } catch (error) {
-                    console.error('Error fetching utilization data:', error);
-                } finally {
-                    setLoading(false);
-                }
-            }
-        };
-
-        fetchUtilizationData();
-    }, [open, venue, encryptedUrl]);
-
-    const calculateAverageUsageTime = (reservations) => {
+    const calculateAverageUsageTime = useCallback((reservations) => {
         if (!reservations || reservations.length === 0) return 0;
 
         const totalHours = reservations.reduce((acc, reservation) => {
@@ -71,9 +42,9 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
         }, 0);
 
         return (totalHours / reservations.length).toFixed(1);
-    };
+    }, []);
 
-    const processUtilizationData = (data) => {
+    const processUtilizationData = useCallback((data) => {
         const { usage_statistics, reservations } = data;
         
         // Initialize all months of the year
@@ -122,7 +93,7 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
                 issues: monthlyData[month].issues
             }))
         });
-    };
+    }, [calculateAverageUsageTime]);
 
     const renderMonthlyUtilizationChart = () => {
         if (!utilizationData?.monthlyUtilization) return null;
@@ -239,6 +210,34 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
             ),
         }
     ];
+
+    useEffect(() => {
+        const fetchUtilizationData = async () => {
+            if (open && venue?.ven_id) {
+                setLoading(true);
+                try {
+                    const response = await axios.post(
+                        `${encryptedUrl}/user.php`,
+                        new URLSearchParams({
+                            operation: "getVenueUsage",
+                            venueId: venue.ven_id
+                        })
+                    );
+
+                    if (response.data.status === 'success') {
+                        setVenueDetails(response.data.data.venue_details);
+                        processUtilizationData(response.data.data);
+                    }
+                } catch (error) {
+                    console.error('Error fetching utilization data:', error);
+                } finally {
+                    setLoading(false);
+                }
+            }
+        };
+
+        fetchUtilizationData();
+    }, [open, venue, encryptedUrl, processUtilizationData]);
 
     return (
         <Modal

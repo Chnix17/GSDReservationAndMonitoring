@@ -7,7 +7,7 @@ import {FaCar, FaBuilding, FaTools} from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import 'react-datepicker/dist/react-datepicker.css';
 import { useNavigate } from 'react-router-dom';
-import { Modal,  Tag, Button, Alert, Table, Tooltip, Input, Radio, Space, Empty, Pagination, Segmented } from 'antd';
+import { Modal,  Tag, Button, Alert, Table, Tooltip, Input, Radio, Space, Empty, Pagination } from 'antd';
 import { 
     CarOutlined, 
     BuildOutlined, 
@@ -21,8 +21,7 @@ import {
     InfoCircleOutlined,
     ReloadOutlined,
     SearchOutlined,
-    ClockCircleOutlined,
-    HistoryOutlined
+    ClockCircleOutlined
 } from '@ant-design/icons';
 import { SecureStorage } from '../../utils/encryption';
 import AssignModal from './core/Assign_Modal';
@@ -644,6 +643,8 @@ const ReservationRequests = () => {
                             onClick={() => onView(record.reservation_id)}
                             icon={<EyeOutlined />}
                             className="bg-green-900 hover:bg-lime-900"
+                            disabled={isExpired}
+                            title={isExpired ? "This reservation has expired" : "View details"}
                         >
                             View
                         </Button>

@@ -1374,8 +1374,8 @@ function Logins() {
                                             ) : (
                                                 <button
                                                     onClick={handleResendLoginOTP}
-                                                    disabled={isResendingLoginOtp}
-                                                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center justify-center mx-auto"
+                                                    disabled={isResendingLoginOtp || !canResendLoginOtp}
+                                                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
                                                 >
                                                     {isResendingLoginOtp ? (
                                                         <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

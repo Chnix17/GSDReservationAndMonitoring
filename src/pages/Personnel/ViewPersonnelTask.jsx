@@ -1,14 +1,13 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import Sidebar from './component/sidebar';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { SecureStorage } from '../../utils/encryption';
 import ChecklistModal from './core/checklist_modal';
-import { Input, Button, Table, Tag, Empty, Pagination, Tooltip } from 'antd';
-import { SearchOutlined, ReloadOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import { FaEye, FaChartBar } from 'react-icons/fa';
+import { Input, Button, Tag, Empty, Pagination, Tooltip } from 'antd';
+import { SearchOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons';
+import { FaEye } from 'react-icons/fa';
 import { useLocation } from 'react-router-dom';
 
 // Add custom styles for animations
@@ -48,30 +47,12 @@ const ViewPersonnelTask = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filter, setFilter] = useState('ongoing'); // 'ongoing' or 'completed'
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortField, setSortField] = useState('reservation_id');
   const [sortOrder, setSortOrder] = useState('desc');
   const [highlightedId, setHighlightedId] = useState(null);
 
   const baseUrl = SecureStorage.getLocalItem("url");
-
-  const idMapping = {
-    venue: 'reservation_checklist_venue_id',
-    vehicle: 'reservation_checklist_vehicle_id',
-    equipment: 'reservation_checklist_equipment_id'  // Ensure this matches the backend field
-  };
-
-  const lookupField = {
-    venue: 'checklist_venue_id',
-    vehicle: 'checklist_vehicle_id',
-    equipment: 'checklist_equipment_id'
-  };
-
-  const needsDefectQuantity = (conditionId) => {
-    return ['3', '4'].includes(conditionId);
-  };
-
 
   const formatDateTime = (dateString) => {
     const date = new Date(dateString);
@@ -87,10 +68,7 @@ const ViewPersonnelTask = () => {
     return `${month} ${day}, ${year} at ${formattedHours}:${minutes} ${ampm}`;
   };
 
-
-
-
-  const fetchPersonnelTasks = async () => {
+  const fetchPersonnelTasks = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.post(`${baseUrl}personnel.php`, {
@@ -104,185 +82,24 @@ const ViewPersonnelTask = () => {
 
       if (response.data.status === 'success') {
         const tasksWithFormattedDates = response.data.data
-          .filter(task => task.reservation_status === 'Reserved') // Changed from 'Reserve' to 'Reserved'
+          .filter(task => task.reservation_status === 'Reserved')
           .map(task => ({
             ...task,
             formattedStartDate: formatDateTime(task.reservation_start_date),
             formattedEndDate: formatDateTime(task.reservation_end_date)
           }));
         setTasks(tasksWithFormattedDates);
+        setError(null);
       }
     } catch (err) {
-      setError('Failed to fetch tasks');
+      const errorMessage = 'Failed to fetch tasks';
+      setError(errorMessage);
+      toast.error(errorMessage);
       console.error('Error:', err);
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleChecklistUpdate = async (type, checklistId, value) => {
-    try {
-      // Find the checklist item in the appropriate array (venues, vehicles, or equipments)
-      let checklist = null;
-      let reservationItemId = null;
-
-      switch(type) {
-        case 'venue':
-          // Search through all venues
-          for (const venue of selectedTask.venues || []) {
-            const found = venue.checklists?.find(item => item[lookupField[type]] === checklistId);
-            if (found) {
-              checklist = found;
-              reservationItemId = venue.reservation_venue_id;
-              break;
-            }
-          }
-          break;
-        case 'vehicle':
-          // Search through all vehicles
-          for (const vehicle of selectedTask.vehicles || []) {
-            const found = vehicle.checklists?.find(item => item[lookupField[type]] === checklistId);
-            if (found) {
-              checklist = found;
-              reservationItemId = vehicle.reservation_vehicle_id;
-              break;
-            }
-          }
-          break;
-        case 'equipment':
-          // Search through all equipment
-          for (const equipment of selectedTask.equipments || []) {
-            const found = equipment.checklists?.find(item => item[lookupField[type]] === checklistId);
-            if (found) {
-              checklist = found;
-              // Use the correct reservation checklist ID field for equipment
-              reservationItemId = checklist.reservation_checklist_equipment_id;
-              break;
-            }
-          }
-          break;
-
-        default:
-          console.error('Invalid checklist type:', type);
-          return;
-      }
-
-      if (!checklist || !reservationItemId) {
-        console.error('Checklist item not found:', { type, checklistId, checklist, reservationItemId });
-        toast.error('Checklist item not found');
-        return;
-      }
-
-      // For equipment, use the reservation_checklist_equipment_id directly
-      const reservationChecklistId = type === 'equipment' ? reservationItemId : checklist[idMapping[type]];
-
-      console.log('Updating checklist:', { 
-        type, 
-        checklistId, 
-        reservationChecklistId, 
-        value 
-      });
-
-      // Update the task status
-      await updateTaskStatus(type, reservationChecklistId, value === "1" ? 1 : 0);
-
-      // Update the local state to reflect the change
-      setSelectedTask(prevData => {
-        if (!prevData) return prevData;
-        const updatedData = { ...prevData };
-
-        // Helper function to update checklist items
-        const updateChecklistItems = (items) => {
-          if (!items) return [];
-          return items.map(item => ({
-            ...item,
-            checklists: item.checklists?.map(cl => 
-              cl[lookupField[type]] === checklistId 
-                ? { ...cl, isChecked: value }
-                : cl
-            )
-          }));
-        };
-
-        // Update the appropriate array based on type
-        switch(type) {
-          case 'venue':
-            updatedData.venues = updateChecklistItems(updatedData.venues);
-            break;
-          case 'vehicle':
-            updatedData.vehicles = updateChecklistItems(updatedData.vehicles);
-            break;
-          case 'equipment':
-            updatedData.equipments = updateChecklistItems(updatedData.equipments);
-            break;
-        }
-
-        return updatedData;
-      });
-
-      
-    } catch (err) {
-      console.error('Error updating task:', err);
-      toast.error('Error updating task');
-
-      // Revert the checkbox state in case of error
-      setSelectedTask(prevData => {
-        if (!prevData) return prevData;
-        const updatedData = { ...prevData };
-
-        const revertChecklistItems = (items) => {
-          if (!items) return [];
-          return items.map(item => ({
-            ...item,
-            checklists: item.checklists?.map(cl => 
-              cl[lookupField[type]] === checklistId 
-                ? { ...cl, isChecked: "0" }
-                : cl
-            )
-          }));
-        };
-
-        switch(type) {
-          case 'venue':
-            updatedData.venues = revertChecklistItems(updatedData.venues);
-            break;
-          case 'vehicle':
-            updatedData.vehicles = revertChecklistItems(updatedData.vehicles);
-            break;
-          case 'equipment':
-            updatedData.equipments = revertChecklistItems(updatedData.equipments);
-            break;
-        }
-
-        return updatedData;
-      });
-    }
-};
-
-  const updateTaskStatus = async (type, id, isActive) => {
-    try {
-      const response = await axios.post(`${baseUrl}personnel.php`, {
-        operation: 'updateTask',
-        type: type,
-        id: id,
-        isActive: isActive
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.data.status === 'success') {
-       
-      } else {
-        toast.error('Failed to update task');
-        throw new Error('Update failed');
-      }
-    } catch (err) {
-      console.error('Error updating task:', err);
-      throw err;
-    }
-  };
+  }, [baseUrl]);
 
   const handleModalOpen = (task) => {
     console.log('Opening modal with task:', task);
@@ -316,7 +133,7 @@ const ViewPersonnelTask = () => {
     toast.info('Refreshing tasks...');
   };
 
-  const fetchCompletedTasks = async () => {
+  const fetchCompletedTasks = useCallback(async () => {
     try {
       setLoading(true);
       const response = await axios.post(`${baseUrl}personnel.php`, {
@@ -337,18 +154,21 @@ const ViewPersonnelTask = () => {
             formattedEndDate: formatDateTime(task.reservation_end_date)
           }));
         setTasks(completedTasks);
+        setError(null);
       } else {
         setTasks([]);
         toast.info('No completed tasks found');
       }
     } catch (err) {
-      setError('Failed to fetch completed tasks');
+      const errorMessage = 'Failed to fetch completed tasks';
+      setError(errorMessage);
+      toast.error(errorMessage);
       console.error('Error:', err);
       setTasks([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [baseUrl]);
 
   useEffect(() => {
     if (filter === 'ongoing') {
@@ -356,13 +176,11 @@ const ViewPersonnelTask = () => {
     } else if (filter === 'completed') {
       fetchCompletedTasks();
     }
-  }, [filter]);
-
+  }, [filter, fetchPersonnelTasks, fetchCompletedTasks]);
 
   useEffect(() => {
     fetchPersonnelTasks();
-
-  }, []); 
+  }, [fetchPersonnelTasks]);
 
   // Set highlightedId from navigation state
   useEffect(() => {
@@ -386,13 +204,6 @@ const ViewPersonnelTask = () => {
       }
     }
   }, [highlightedId, tasks, pageSize]);
-
-
-
- 
-
-
-
 
   const calculateProgress = (items) => {
     if (!items) return 0;
@@ -473,6 +284,11 @@ const ViewPersonnelTask = () => {
                 </div>
               </div>
             </div>
+            {error && (
+              <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-red-600 text-sm">{error}</p>
+              </div>
+            )}
           </div>
 
           <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">

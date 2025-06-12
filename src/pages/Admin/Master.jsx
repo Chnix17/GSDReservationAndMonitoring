@@ -1,10 +1,8 @@
 import {
   FaCar,
-  FaCogs,
   FaEye,
   FaListAlt,
   FaPlus,
-  FaTools,
   FaUserTie,
   FaBuilding,
   FaUsers,
@@ -14,7 +12,7 @@ import { sanitizeInput, validateInput } from "../../utils/sanitize";
 import MasterEquipmentModal from "./lib/Equipment/Master_Modal";
 import CreateVehicleModal from "./lib/Vehicle/Create_Modal";
 import CreateVenueModal from "./lib/Venue/Create_Modal";
-import Create_Modal from "./lib/Faculty/Create_Modal";
+import CreateModal from "./lib/Faculty/Create_Modal";
 
 import { SecureStorage } from "../../utils/encryption";
 import Sidebar from "../Sidebar";
@@ -43,7 +41,6 @@ const Master = () => {
   const [categoryName, setCategoryName] = useState("");
   const [makeName, setMakeName] = useState("");
   const [modelName, setModelName] = useState("");
-  const [equipmentName, setEquipmentName] = useState("");
   const [userLevelName, setUserLevelName] = useState("");
   const [userLevelDesc, setUserLevelDesc] = useState("");
   const [departmentName, setDepartmentName] = useState("");
@@ -68,12 +65,11 @@ const Master = () => {
   const [loading, setLoading] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
   const encryptedUrl = SecureStorage.getLocalItem("url");
-  const [equipmentNameOptions, setEquipmentNameOptions] = useState([]);
+
   const [statusOptions, setStatusOptions] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [userLevels, setUserLevels] = useState([]);
 
-  const user_level_id = localStorage.getItem("user_level_id");
 
   const fetchCategoriesAndMakes = useCallback(async () => {
     setLoading(true);
@@ -96,20 +92,9 @@ const Master = () => {
     } finally {
       setLoading(false);
     }
-  }, [setLoading, setIsSuccess]);
+  }, [setLoading, setIsSuccess, encryptedUrl]);
 
-  const fetchEquipmentOptions = useCallback(async () => {
-    try {
-      const response = await axios.post(`${encryptedUrl}vehicle_master.php`, {
-        operation: "fetchEquipmentOptions",
-      });
-      if (response.data.status === "success") {
-        setEquipmentNameOptions(response.data.options);
-      }
-    } catch (error) {
-      console.error("Error fetching equipment options:", error);
-    }
-  }, [encryptedUrl]);
+
 
   const fetchStatusOptions = useCallback(async () => {
     try {
@@ -152,11 +137,10 @@ const Master = () => {
 
   useEffect(() => {
     fetchCategoriesAndMakes();
-    fetchEquipmentOptions();
     fetchStatusOptions();
     fetchDepartments();
     fetchUserLevels();
-  }, [fetchCategoriesAndMakes, fetchEquipmentOptions, fetchStatusOptions, fetchDepartments, fetchUserLevels]);
+  }, [fetchCategoriesAndMakes, fetchStatusOptions, fetchDepartments, fetchUserLevels]);
 
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
@@ -327,7 +311,6 @@ const Master = () => {
     setCategoryName("");
     setMakeName("");
     setModelName("");
-    setEquipmentName("");
     setUserLevelName("");
     setUserLevelDesc("");
     setDepartmentName("");
@@ -352,7 +335,6 @@ const Master = () => {
     setIsAddCategoryModalOpen(false);
     setIsAddMakeModalOpen(false);
     setIsAddModelModalOpen(false);
-    setIsAddEquipmentModalOpen(false);
     setIsAddUserLevelModalOpen(false);
     setIsAddDepartmentModalOpen(false);
     setIsAddConditionModalOpen(false);
@@ -387,12 +369,7 @@ const Master = () => {
     });
   };
 
-  const handleSaveEquipmentData = (e) => {
-    e.preventDefault();
-    handleSaveData("saveEquipmentCategory", {
-      equipments_category_name: equipmentName,
-    });
-  };
+
 
   const handleSaveUserLevelData = (e) => {
     e.preventDefault();
@@ -503,15 +480,17 @@ const Master = () => {
                       card.action();
                       setMessage("");
                     }}
-                    className="w-10 h-10 flex items-center justify-center bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300"
+                    disabled={loading}
+                    className={`w-10 h-10 flex items-center justify-center bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <FaPlus className="text-sm" />
+                    {loading ? <span className="animate-spin">⌛</span> : <FaPlus className="text-sm" />}
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => navigate(card.viewPath)}
-                    className="w-10 h-10 flex items-center justify-center bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300"
+                    disabled={loading}
+                    className={`w-10 h-10 flex items-center justify-center bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300 ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <FaEye className="text-sm" />
                   </motion.button>
@@ -536,15 +515,17 @@ const Master = () => {
                       card.action();
                       setMessage("");
                     }}
-                    className="flex-1 py-2 bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300 text-sm"
+                    disabled={loading}
+                    className={`flex-1 py-2 bg-lime-900 text-white rounded-full hover:bg-green-600 transition duration-300 text-sm ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
-                    <FaPlus className="mx-auto" />
+                    {loading ? <span className="animate-spin">⌛</span> : <FaPlus className="mx-auto" />}
                   </motion.button>
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     onClick={() => navigate(card.viewPath)}
-                    className="flex-1 py-2 bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300 text-sm"
+                    disabled={loading}
+                    className={`flex-1 py-2 bg-green-900 text-white rounded-full hover:bg-lime-900 transition duration-300 text-sm ${loading ? 'opacity-50 cursor-not-allowed' : ''}`}
                   >
                     <FaEye className="mx-auto" />
                   </motion.button>
@@ -688,7 +669,7 @@ const Master = () => {
           isOpen={isAddEquipmentModalOpen}
           onClose={() => setIsAddEquipmentModalOpen(false)}
           onSuccess={() => {
-            fetchEquipmentOptions();
+
             setPopupMessage("Equipment added successfully!");
             setTimeout(() => {
               setPopupMessage("");
@@ -1065,7 +1046,7 @@ const Master = () => {
         />
 
         {/* Modal for Adding User */}
-        <Create_Modal
+        <CreateModal
           show={isAddUserModalOpen}
           onHide={() => setIsAddUserModalOpen(false)}
           departments={departments}
@@ -1095,7 +1076,7 @@ const Master = () => {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-4 right-4 bg-green-500 text-white p-4 rounded-lg shadow-lg"
+            className={`fixed bottom-4 right-4 text-white p-4 rounded-lg shadow-lg ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}
           >
             {popupMessage}
           </motion.div>
@@ -1106,7 +1087,7 @@ const Master = () => {
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 50 }}
-            className="fixed bottom-4 right-4 bg-red-500 text-white p-4 rounded-lg shadow-lg"
+            className={`fixed bottom-4 right-4 text-white p-4 rounded-lg shadow-lg ${isSuccess ? 'bg-green-500' : 'bg-red-500'}`}
           >
             {message}
           </motion.div>

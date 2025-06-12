@@ -1,30 +1,68 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Sidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faEdit, faArchive, faSearch, faPlus, faUser } from '@fortawesome/free-solid-svg-icons';
-import { FaArrowLeft } from 'react-icons/fa';
+import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Modal, Button, Form } from 'react-bootstrap';
+import { Modal, Button } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { motion } from 'framer-motion';
-import { DataTable } from 'primereact/datatable';
-import { Column } from 'primereact/column';
+
 import { InputText } from 'primereact/inputtext';
 import { FilterMatchMode } from 'primereact/api';
 import "primereact/resources/themes/lara-light-indigo/theme.css";  // theme
 import "primereact/resources/primereact.css";     // core css
 import "primeicons/primeicons.css";               // icons
 import { Chip } from 'primereact/chip';
-import { Tooltip } from 'primereact/tooltip';
-import { sanitizeInput, validateInput } from '../../utils/sanitize';
 import { SecureStorage } from '../../utils/encryption';
-import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
-import Create_Modal from './lib/Faculty/Create_Modal';
-import Update_Modal from './lib/Faculty/Update_Modal';
-import { Alert } from 'antd';
+import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import CreateModal from './lib/Faculty/Create_Modal';
+import UpdateModal from './lib/Faculty/Update_Modal';
+import { Alert, Empty, Pagination, Select } from 'antd';
 import { Button as AntButton } from 'antd';
+
+// Add custom styles for checkboxes
+const customStyles = `
+    .p-datatable .p-datatable-tbody > tr > td .p-checkbox {
+        width: 1.5rem;
+        height: 1.5rem;
+        margin-right: 0.5rem;
+    }
+    .p-datatable .p-datatable-tbody > tr > td .p-checkbox .p-checkbox-box {
+        border: 2px solid #4CAF50;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .p-datatable .p-datatable-tbody > tr > td .p-checkbox .p-checkbox-box.p-highlight {
+        background: #4CAF50;
+        border-color: #4CAF50;
+    }
+    .p-datatable .p-datatable-thead > tr > th .p-checkbox {
+        width: 1.5rem;
+        height: 1.5rem;
+        margin-right: 0.5rem;
+    }
+    .p-datatable .p-datatable-thead > tr > th .p-checkbox .p-checkbox-box {
+        border: 2px solid #4CAF50;
+        border-radius: 4px;
+        transition: all 0.2s;
+    }
+    .p-datatable .p-datatable-thead > tr > th .p-checkbox .p-checkbox-box.p-highlight {
+        background: #4CAF50;
+        border-color: #4CAF50;
+    }
+    .faculty-name-cell {
+        display: flex;
+        align-items: center;
+    }
+    .faculty-name-text {
+        flex: 1;
+    }
+    .p-checkbox-box.p-highlight .p-checkbox-icon {
+        color: white;
+    }
+`;
 
 const generateAvatarColor = (str) => {
     let hash = 0;
@@ -50,16 +88,15 @@ const Faculty = () => {
     const [userLevels, setUserLevels] = useState([]);
     const [filters, setFilters] = useState({
         global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        'users_fname': { value: null, matchMode: FilterMatchMode.STARTS_WITH },
-        'users_lname': { value: null, matchMode: FilterMatchMode.STARTS_WITH },
         'departments_name': { value: null, matchMode: FilterMatchMode.CONTAINS },
-        'users_school_id': { value: null, matchMode: FilterMatchMode.CONTAINS },
     });
     const [selectedRole, setSelectedRole] = useState('');
     const [viewImageModal, setViewImageModal] = useState(false);
-    const [currentImage, setCurrentImage] = useState(null);
+
     const [showConfirmArchive, setShowConfirmArchive] = useState(false);
-    const [userToArchive, setUserToArchive] = useState(null);
+    const [selectedUsers, setSelectedUsers] = useState([]);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [pageSize, setPageSize] = useState(10);
 
     const navigate = useNavigate();
 
@@ -71,7 +108,7 @@ const Faculty = () => {
         }
     }, [user_level_id, navigate]);
 
-    const fetchUsers = async () => {
+    const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios.post(`${encryptedUrl}user.php`, 
@@ -95,7 +132,7 @@ const Faculty = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [encryptedUrl]);
 
     const getUserDetails = async (userId) => {
         try {
@@ -128,6 +165,7 @@ const Faculty = () => {
                     users_pic: userData.users_pic,
                     users_suffix: userData.users_suffix,
                     users_birthdate: userData.users_birthdate,
+                    title_abbreviation: userData.title_abbreviation,
                 };
             }
             throw new Error('User not found');
@@ -138,7 +176,7 @@ const Faculty = () => {
         }
     };
 
-    const fetchDepartments = async () => {
+    const fetchDepartments = useCallback(async () => {
         try {
             const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
                 { operation: "fetchDepartments" },
@@ -154,9 +192,9 @@ const Faculty = () => {
             console.error('Error fetching departments:', error);
             toast.error("An error occurred while fetching departments.");
         }
-    };
+    }, [encryptedUrl]);
 
-    const fetchUserLevels = async () => {
+    const fetchUserLevels = useCallback(async () => {
         try {
             const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
                 { operation: "fetchUserLevels" },
@@ -172,7 +210,7 @@ const Faculty = () => {
             console.error('Error fetching user levels:', error);
             toast.error("An error occurred while fetching user levels.");
         }
-    };
+    }, [encryptedUrl]);
 
     // Add to useEffect
     useEffect(() => {
@@ -184,42 +222,22 @@ const Faculty = () => {
             ]);
         };
         initializePage();
-    }, []);
+    }, [fetchUsers, fetchDepartments, fetchUserLevels]);
 
-    const handleSubmit = async (jsonData) => {
-        const operation = jsonData.data.users_id ? "updateUser" : "saveUser";
-        setLoading(true);
-        try {
-            const response = await axios.post(`${encryptedUrl}insert_master.php`, jsonData, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            console.log('Server Response:', response.data);
-
-            if (response.data.status === 'success') {
-                toast.success(`Faculty successfully ${operation === 'updateUser' ? 'updated' : 'added'}!`);
-                fetchUsers();
-                setModalState({ isOpen: false, type: '', user: null });
-            } else {
-                throw new Error(response.data.message || "Unknown error");
-            }
-        } catch (error) {
-            console.error('Error details:', error);
-            toast.error(`Failed to ${operation === 'updateUser' ? 'update' : 'add'} faculty: ${error.message}`);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleArchiveClick = (user) => {
-        setUserToArchive(user);
+    const handleArchiveClick = (userIds) => {
+        setSelectedUsers(Array.isArray(userIds) ? userIds : [userIds]);
         setShowConfirmArchive(true);
     };
 
+    const handleEditClick = async (user) => {
+        const userDetails = await getUserDetails(user.users_id);
+        if (userDetails) {
+            setModalState({ isOpen: true, type: 'edit', user: userDetails });
+        }
+    };
+
     const confirmArchive = async () => {
-        if (!userToArchive) return;
+        if (!selectedUsers.length) return;
         
         try {
             const response = await axios.post(
@@ -227,7 +245,7 @@ const Faculty = () => {
                 {
                     operation: 'archiveUser',
                     userType: 'user',
-                    userId: userToArchive.users_id.toString()
+                    userId: selectedUsers
                 },
                 { 
                     headers: { 'Content-Type': 'application/json' } 
@@ -235,91 +253,18 @@ const Faculty = () => {
             );
 
             if (response.data.status === 'success') {
-                toast.success('Faculty member archived successfully');
+                toast.success(selectedUsers.length > 1 ? 'Faculty members archived successfully' : 'Faculty member archived successfully');
                 fetchUsers(); // Refresh the users list
             } else {
-                throw new Error(response.data.message || "Failed to archive user");
+                throw new Error(response.data.message || "Failed to archive user(s)");
             }
         } catch (error) {
             console.error('Archive Error:', error);
-            toast.error("An error occurred while archiving the faculty member: " + error.message);
+            toast.error("An error occurred while archiving the faculty member(s): " + error.message);
         } finally {
             setShowConfirmArchive(false);
-            setUserToArchive(null);
+            setSelectedUsers([]);
         }
-    };
-
-    const handleViewImage = (imageUrl) => {
-        setCurrentImage(imageUrl);
-        setViewImageModal(true);
-    };
-
-    const imageBodyTemplate = (rowData) => {
-        const imageUrl = rowData.users_pic ? `${encryptedUrl}${rowData.users_pic}` : null;
-        const initials = `${rowData.users_fname?.[0] || ''}${rowData.users_lname?.[0] || ''}`.toUpperCase();
-        const bgColor = generateAvatarColor(initials);
-        
-        return (
-            <div className="flex justify-center">
-                {imageUrl ? (
-                    <div 
-                        className="cursor-pointer w-12 h-12 overflow-hidden rounded-full shadow-sm hover:opacity-80 transition-opacity"
-                        onClick={() => handleViewImage(imageUrl)}
-                    >
-                        <img 
-                            src={imageUrl} 
-                            alt={`${rowData.users_fname} ${rowData.users_lname}`}
-                            className="w-full h-full object-cover"
-                            onError={(e) => {
-                                e.target.style.display = 'none';
-                                e.target.parentElement.innerHTML = `
-                                    <div
-                                        class="w-full h-full rounded-full flex items-center justify-center text-white font-bold text-lg"
-                                        style="background-color: ${bgColor}"
-                                    >
-                                        ${initials}
-                                    </div>
-                                `;
-                            }}
-                        />
-                    </div>
-                ) : (
-                    <div
-                        className="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-lg"
-                        style={{ backgroundColor: bgColor }}
-                    >
-                        {initials}
-                    </div>
-                )}
-            </div>
-        );
-    };
-
-    const actionsBodyTemplate = (rowData) => {
-        const handleEditClick = async () => {
-            const userDetails = await getUserDetails(rowData.users_id);
-            if (userDetails) {
-                setModalState({ isOpen: true, type: 'edit', user: userDetails });
-            }
-        };
-
-        return (
-            <div className="flex space-x-2">
-                <AntButton
-                    type="primary"
-                    icon={<EditOutlined />}
-                    onClick={handleEditClick}
-                    size="middle"
-                    className="bg-green-900 hover:bg-lime-900"
-                />
-                <AntButton
-                    danger
-                    icon={<DeleteOutlined />}
-                    onClick={() => handleArchiveClick(rowData)}
-                    size="middle"
-                />
-            </div>
-        );
     };
 
     const userLevelTemplate = (rowData) => {
@@ -358,18 +303,10 @@ const Faculty = () => {
         : users;
         
     // Add custom styling to match Venue.jsx table
-    const tableStyle = {
-        width: '100%',
-        borderCollapse: 'separate',
-        borderSpacing: 0,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
-        borderRadius: '0.5rem',
-        overflow: 'hidden',
-        border: '1px solid #e5e7eb'
-    };
-
+   
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+            <style>{customStyles}</style>
             <div className="flex-shrink-0">
                 <Sidebar />
             </div>
@@ -382,14 +319,13 @@ const Faculty = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-
                            
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Manage Users
+                                Faculty
                             </h2>
-
                         </div>
                     </motion.div>
+
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div className="flex flex-col md:flex-row gap-4 flex-1">
@@ -407,127 +343,218 @@ const Faculty = () => {
                                     />
                                     <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-400" />
                                 </div>
-                                <div className="flex items-center gap-4">
-                                    <select
-                                        className="p-2 border rounded-lg"
+                                <div className="w-full md:w-48">
+                                    <Select
+                                        placeholder="Filter by role"
+                                        allowClear
                                         value={selectedRole}
-                                        onChange={(e) => setSelectedRole(e.target.value)}
-                                    >
-                                        <option value="">All Roles</option>
-                                        <option value="Admin">Admin</option>
-                                        <option value="Faculty">Faculty</option>
-                                        <option value="Staff">Staff</option>
-                                    </select>
-                                    <motion.button 
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
-                                        onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
-                                        className="bg-lime-900 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300 ease-in-out flex items-center justify-center shadow-md"
-                                    >
-                                        <FontAwesomeIcon icon={faPlus} className="mr-2" /> Add Faculty
-                                    </motion.button>
+                                        onChange={setSelectedRole}
+                                        className="w-full"
+                                        options={[
+                                            { value: '', label: 'All Roles' },
+                                            { value: 'Admin', label: 'Admin' },
+                                            { value: 'Dean', label: 'Dean' },
+                                            { value: 'Secretary', label: 'Secretary' },
+                                            { value: 'Personnel', label: 'Personnel' },
+                                            { value: 'user', label: 'User' }
+                                        ]}
+                                    />
                                 </div>
+                            </div>
+                            <div className="flex gap-2">
+                                {selectedUsers.length > 0 && (
+                                    <AntButton
+                                        danger
+                                        icon={<DeleteOutlined />}
+                                        onClick={() => handleArchiveClick(selectedUsers)}
+                                        size="large"
+                                    >
+                                        Archive Selected ({selectedUsers.length})
+                                    </AntButton>
+                                )}
+                                <AntButton
+                                    icon={<ReloadOutlined />}
+                                    onClick={fetchUsers}
+                                    size="large"
+                                />
+                                <AntButton
+                                    type="primary"
+                                    icon={<FontAwesomeIcon icon={faPlus} />}
+                                    size="large"
+                                    onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
+                                    className="bg-lime-900 hover:bg-green-600"
+                                >
+                                    Add Faculty
+                                </AntButton>
                             </div>
                         </div>
                     </div>
 
-                    {loading ? (
-                        <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            className="flex justify-center items-center h-64"
-                        >
-                            <div className="loader"></div>
-                        </motion.div>
-                    ) : (
-                        <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
-                            <DataTable
-                                value={filteredData}
-                                paginator
-                                rows={10}
-                                rowsPerPageOptions={[10, 20, 50]}
-                                dataKey="users_id"
-                                filters={filters}
-                                filterDisplay="row"
-                                loading={loading}
-                                emptyMessage={
-                                    <div className="text-center py-8">
-                                        <i className="pi pi-search text-6xl text-gray-300 mb-4"></i>
-                                        <p className="text-xl text-gray-500">No faculty members found</p>
-                                    </div>
-                                }
-                                className="p-datatable-users"
-                                responsiveLayout="scroll"
-                                showGridlines
-                                stripedRows
-                                size="small"
-                                tableStyle={tableStyle}
-                                rowClassName="hover:bg-gray-50 transition-colors duration-200"
-                            >
-                                <Column 
-                                    header="Photo" 
-                                    body={imageBodyTemplate} 
-                                    style={{ width: '100px' }}
-                                    className="text-center"
-                                />
-                                <Column 
-                                    field="users_school_id" 
-                                    header="School ID" 
-                                    filter 
-                                    filterPlaceholder="Search ID"
-                                    sortable 
-                                    className="font-semibold"
-                                />
-                                <Column 
-                                    field="users_name" 
-                                    header="Full Name" 
-                                    body={(rowData) => `${rowData.users_fname} ${rowData.users_mname ? rowData.users_mname + ' ' : ''}${rowData.users_lname}`}
-                                    filter
-                                    filterField="global"
-                                    filterPlaceholder="Search name"
-                                    sortable
-                                />
-                                <Column 
-                                    field="departments_name" 
-                                    header="Department" 
-                                    body={departmentTemplate}
-                                    filter 
-                                    filterPlaceholder="Search department"
-                                    sortable 
-                                />
-                                <Column 
-                                    field="user_level_name" 
-                                    header="Role" 
-                                    body={userLevelTemplate}
-                                    sortable 
-                                    style={{ width: '150px' }}
-                                />
-                                <Column 
-                                    field="users_contact_number" 
-                                    header="Contact" 
-                                    sortable 
-                                    body={(rowData) => (
-                                        <div className="flex items-center gap-2">
-                                            <i className="pi pi-phone text-green-500" />
-                                            {rowData.users_contact_number}
-                                        </div>
-                                    )}
-                                />
-                                <Column 
-                                    header="Actions" 
-                                    body={actionsBodyTemplate} 
-                                    style={{ width: '150px' }}
-                                    className="text-center"
-                                />
-                            </DataTable>
-                        </div>
-                    )}
+                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+                        {loading ? (
+                            <div className="flex justify-center items-center h-64">
+                                <div className="loader"></div>
+                            </div>
+                        ) : (
+                            <>
+                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
+                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                        <tr>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                        onChange={(e) => {
+                                                            if (e.target.checked) {
+                                                                setSelectedUsers(filteredData.map(user => user.users_id));
+                                                            } else {
+                                                                setSelectedUsers([]);
+                                                            }
+                                                        }}
+                                                        checked={selectedUsers.length === filteredData.length}
+                                                    />
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    School ID
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Full Name
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Department
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Role
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Contact
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-6 py-3">
+                                                <div className="flex items-center">
+                                                    Actions
+                                                </div>
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {filteredData && filteredData.length > 0 ? (
+                                            filteredData.map((user) => (
+                                                <tr
+                                                    key={user.users_id}
+                                                    className={`bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
+                                                        selectedUsers.includes(user.users_id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                                    }`}
+                                                >
+                                                    <td className="px-6 py-4">
+                                                        <input
+                                                            type="checkbox"
+                                                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                            checked={selectedUsers.includes(user.users_id)}
+                                                            onChange={(e) => {
+                                                                if (e.target.checked) {
+                                                                    setSelectedUsers([...selectedUsers, user.users_id]);
+                                                                } else {
+                                                                    setSelectedUsers(selectedUsers.filter(id => id !== user.users_id));
+                                                                }
+                                                            }}
+                                                        />
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center">
+                                                            <span className="font-medium">{user.users_school_id}</span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center">
+                                                            <span className="font-medium">
+                                                                {`${user.title_abbreviation ? user.title_abbreviation + ' ' : ''}${user.users_fname} ${user.users_mname ? user.users_mname + ' ' : ''}${user.users_lname}`}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {departmentTemplate(user)}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        {userLevelTemplate(user)}
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex items-center gap-2">
+                                                            <i className="pi pi-phone text-green-500" />
+                                                            {user.users_contact_number}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-6 py-4">
+                                                        <div className="flex space-x-2">
+                                                            <AntButton
+                                                                type="primary"
+                                                                icon={<EditOutlined />}
+                                                                onClick={() => handleEditClick(user)}
+                                                                size="middle"
+                                                                className="bg-green-900 hover:bg-lime-900"
+                                                            />
+                                                            <AntButton
+                                                                danger
+                                                                icon={<DeleteOutlined />}
+                                                                onClick={() => handleArchiveClick(user.users_id)}
+                                                                size="middle"
+                                                            />
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        ) : (
+                                            <tr>
+                                                <td colSpan={7} className="px-6 py-24 text-center">
+                                                    <Empty
+                                                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                                        description={
+                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                                No faculty members found
+                                                            </span>
+                                                        }
+                                                    />
+                                                </td>
+                                            </tr>
+                                        )}
+                                    </tbody>
+                                </table>
+
+                                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                    <Pagination
+                                        current={currentPage}
+                                        pageSize={pageSize}
+                                        total={filteredData ? filteredData.length : 0}
+                                        onChange={(page, size) => {
+                                            setCurrentPage(page);
+                                            setPageSize(size);
+                                        }}
+                                        showSizeChanger={true}
+                                        showTotal={(total, range) =>
+                                            `${range[0]}-${range[1]} of ${total} items`
+                                        }
+                                        className="flex justify-end"
+                                    />
+                                </div>
+                            </>
+                        )}
+                    </div>
                 </div>
             </div>
 
             {modalState.type === 'add' && (
-                <Create_Modal
+                <CreateModal
                     show={modalState.isOpen}
                     onHide={() => setModalState({ isOpen: false, type: '', user: null })}
                     generateAvatarColor={generateAvatarColor}
@@ -536,7 +563,7 @@ const Faculty = () => {
             )}
 
             {modalState.type === 'edit' && (
-                <Update_Modal
+                <UpdateModal
                     show={modalState.isOpen}
                     onHide={() => setModalState({ isOpen: false, type: '', user: null })}
                     user={modalState.user}
@@ -558,15 +585,7 @@ const Faculty = () => {
                 <Modal.Header closeButton>
                     <Modal.Title>Profile Image</Modal.Title>
                 </Modal.Header>
-                <Modal.Body className="text-center">
-                    {currentImage && (
-                        <img
-                            src={currentImage}
-                            alt="Faculty"
-                            className="max-w-full max-h-[70vh] object-contain"
-                        />
-                    )}
-                </Modal.Body>
+                
                 <Modal.Footer>
                     <Button variant="secondary" onClick={() => setViewImageModal(false)}>
                         Close
@@ -579,7 +598,7 @@ const Faculty = () => {
                 show={showConfirmArchive}
                 onHide={() => {
                     setShowConfirmArchive(false);
-                    setUserToArchive(null);
+                    setSelectedUsers([]);
                 }}
                 centered
             >
@@ -591,7 +610,7 @@ const Faculty = () => {
                 <Modal.Body>
                     <Alert
                         message="Warning"
-                        description={`Are you sure you want to archive ${userToArchive?.users_fname} ${userToArchive?.users_lname}? This action cannot be undone.`}
+                        description={`Are you sure you want to archive ${selectedUsers.length} faculty member(s)? This action cannot be undone.`}
                         type="warning"
                         showIcon
                         icon={<ExclamationCircleOutlined />}
@@ -602,7 +621,7 @@ const Faculty = () => {
                         variant="secondary" 
                         onClick={() => {
                             setShowConfirmArchive(false);
-                            setUserToArchive(null);
+                            setSelectedUsers([]);
                         }}
                     >
                         Cancel

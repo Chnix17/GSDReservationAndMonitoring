@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Tag, Table, Tabs, Button, Tooltip } from 'antd';
+import { Modal, Tag, Table, Tabs, Button } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -8,7 +8,6 @@ import {
     ToolOutlined,
     InfoCircleOutlined,
     HistoryOutlined,
-    CloseCircleOutlined
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
@@ -16,29 +15,7 @@ import { SecureStorage } from '../../utils/encryption';
 
 const { TabPane } = Tabs;
 
-const formatDateRange = (startDate, endDate) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
 
-    const isSameDay = start.toDateString() === end.toDateString();
-    const monthNames = ["January", "February", "March", "April", "May", "June",
-        "July", "August", "September", "October", "November", "December"
-    ];
-
-    const formatTime = (date) => {
-        return date.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    };
-
-    if (isSameDay) {
-        return `${monthNames[start.getMonth()]} ${start.getDate()} ${formatTime(start)} to ${formatTime(end)}`;
-    } else {
-        return `${monthNames[start.getMonth()]} ${start.getDate()}-${end.getDate()}\n${formatTime(start)} to ${formatTime(end)}`;
-    }
-};
 
 const ReservationDetails = ({ 
     visible, 

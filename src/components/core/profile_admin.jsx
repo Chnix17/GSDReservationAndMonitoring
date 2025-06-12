@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { FaUser, FaLock, FaShieldAlt, FaEdit, FaTimes, FaCheck, FaToggleOn, FaToggleOff, FaIdCard, FaBuilding, FaEnvelope, FaPhone, FaChevronDown, FaEye, FaEyeSlash, FaInfoCircle, FaClock } from 'react-icons/fa';
+import React, { useState, useEffect, useCallback } from 'react';
+import { FaUser, FaLock, FaShieldAlt, FaEdit, FaTimes, FaCheck, FaToggleOn, FaIdCard, FaBuilding, FaEnvelope, FaPhone, FaChevronDown, FaEye, FaEyeSlash, FaInfoCircle, FaClock } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SecureStorage } from '../../utils/encryption';
 import { toast, ToastContainer } from 'react-toastify';
@@ -33,19 +33,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   const [isDisabling2FA, setIsDisabling2FA] = useState(false);
 
   // Fetch user data from API
-  useEffect(() => {
-    if (isOpen) {
-      fetchUserData();
-      fetchDepartments();
-      fetch2FAStatus();
-      
-      // Check if user is admin
-      const userLevelId = SecureStorage.getSessionItem('user_level_id');
-      setIsAdmin(userLevelId === '1');
-    }
-  }, [isOpen]);
-
-  const fetchUserData = async () => {
+  const fetchUserData = useCallback(async () => {
     try {
       setIsLoading(true);
       const userId = SecureStorage.getSessionItem('user_id') || '42'; // Use the stored user ID or default to 42
@@ -88,10 +76,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [baseUrl]);
 
   // Function to fetch departments from API
-  const fetchDepartments = async () => {
+  const fetchDepartments = useCallback(async () => {
     try {
       const response = await fetch(`${baseUrl}/fetchMaster.php`, {
         method: 'POST',
@@ -115,10 +103,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     } catch (error) {
       console.error("Error fetching departments:", error);
     }
-  };
+  }, [baseUrl]);
 
   // Function to fetch 2FA status
-  const fetch2FAStatus = async () => {
+  const fetch2FAStatus = useCallback(async () => {
     try {
       setIs2FALoading(true);
       const userId = SecureStorage.getSessionItem('user_id') || '42';
@@ -150,7 +138,21 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     } finally {
       setIs2FALoading(false);
     }
-  };
+  }, [baseUrl]);
+
+  // Fetch user data, departments, and 2FA status when modal opens
+  useEffect(() => {
+    if (isOpen) {
+      fetchUserData();
+      fetchDepartments();
+      fetch2FAStatus();
+      
+      // Check if user is admin
+      const userLevelId = SecureStorage.getSessionItem('user_level_id');
+      setIsAdmin(userLevelId === '1');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, fetchUserData, fetchDepartments, fetch2FAStatus]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({...userData});

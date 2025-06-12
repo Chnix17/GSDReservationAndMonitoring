@@ -92,7 +92,7 @@ function Checklist() {
     };
 
     fetchChecklists();
-  }, []);
+  }, [storedUrl]);
 
   const fetchChecklistById = async (type, id) => {
     try {

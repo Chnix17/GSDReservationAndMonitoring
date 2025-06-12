@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Modal, Form, Input, Upload, Select, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { FaEye } from 'react-icons/fa';
@@ -20,17 +20,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
 
     const baseUrl = SecureStorage.getLocalItem("url");
 
-    useEffect(() => {
-        fetchStatusAvailability();
-    }, []);
-
-    useEffect(() => {
-        if (visible && venueId) {
-            getVenueDetails();
-        }
-    }, [visible, venueId]);
-
-    const fetchStatusAvailability = async () => {
+    const fetchStatusAvailability = useCallback(async () => {
         try {
             const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
                 new URLSearchParams({
@@ -46,9 +36,13 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
         } catch (error) {
             console.error("Error fetching status availability:", error);
         }
-    };
+    }, [baseUrl]);
 
-    const getVenueDetails = async () => {
+    useEffect(() => {
+        fetchStatusAvailability();
+    }, [fetchStatusAvailability]);
+
+    const getVenueDetails = useCallback(async () => {
         try {
             const formData = new URLSearchParams();
             formData.append('operation', 'fetchVenueById');
@@ -95,7 +89,13 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             console.error("Error fetching venue details:", error);
             toast.error("An error occurred while fetching venue details");
         }
-    };
+    }, [venueId, baseUrl, form]);
+
+    useEffect(() => {
+        if (visible && venueId) {
+            getVenueDetails();
+        }
+    }, [visible, venueId, getVenueDetails]);
 
     const handleVenueNameChange = (e) => {
         const sanitizedValue = sanitizeInput(e.target.value);

@@ -2,12 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { 
-  FiCheck,
-  FiInfo,
   FiClock,
-  FiClipboard,
-  FiFilter,
-  FiMapPin,
   FiCalendar
 } from 'react-icons/fi';
 import ReservationCalendar from '../../components/ReservationCalendar';
@@ -18,7 +13,6 @@ import { SecureStorage } from '../../utils/encryption'; // Ensure this path is c
 const Dashboard = () => {
   const navigate = useNavigate();
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
-  const [baseUrl, setBaseUrl] = useState('');
   const [recentActivities, setRecentActivities] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -30,9 +24,6 @@ const Dashboard = () => {
       localStorage.clear();
       navigate('/gsd');
     }
-    // Set the base URL from SecureStorage
-    const url = SecureStorage.getLocalItem("url");
-    setBaseUrl(url);
   }, [navigate]);
 
   const formatTimeAgo = (date) => {

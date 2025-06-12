@@ -63,7 +63,6 @@
         const [setPersonnel] = useState([]);
         const [ongoingReservations, setOngoingReservations] = useState([]);
         const [completedReservations, setCompletedReservations] = useState([]);
-        const [inUseFacilities, setInUseFacilities] = useState([]);
         const [setReturnFacilities] = useState([]);
         const [recentReservationsPage, setRecentReservationsPage] = useState(1);
 
@@ -71,21 +70,6 @@
 
         // Function to check if current time is within reservation period
 
-        const fetchInUseFacilities = useCallback(async () => {
-            try {
-                const response = await axios.post(`${encryptedUrl}/user.php`, {
-                    operation: 'getInUse'
-                });
-
-                if (response.data && response.data.status === 'success') {
-                    setInUseFacilities(response.data.data);
-                } else {
-                    console.error('Failed to fetch in-use facilities');
-                }
-            } catch (error) {
-                console.error('Error fetching in-use facilities:', error);
-            }
-        }, [encryptedUrl]);
 
 
 
@@ -309,10 +293,9 @@
                 fetchReturnFacilities();
                 fetchTotals();
 
-                fetchInUseFacilities(); // Add this line
             }
         }, [loading, fetchReservations, 
-            fetchReleaseFacilities, fetchReturnFacilities, fetchPersonnel, fetchInUseFacilities, encryptedUrl, fetchTotals]);
+            fetchReleaseFacilities, fetchReturnFacilities, fetchPersonnel, encryptedUrl, fetchTotals]);
 
 
 

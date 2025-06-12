@@ -1,23 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message as toast, Modal, Button, Input, Space, Empty,  Alert,  Select, Pagination, Image, Tooltip } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, ExclamationCircleOutlined, EyeOutlined } from '@ant-design/icons';
+import { message as toast, Modal, Button, Input, Space, Empty, Pagination, Tooltip } from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { SecureStorage } from '../../utils/encryption';
 import UpdateEquipmentModal from './lib/Equipment/Update_Modal';
 import MasterEquipmentModal from './lib/Equipment/Master_Modal';
 import Sidebar from '../Sidebar';
 import axios from 'axios';
-import { FaArrowLeft } from 'react-icons/fa';
 import TrackingModal from './lib/Equipment/core/view';
 
 // Helper functions
 
 
-const getImageUrl = (path) => {
-    const encryptedUrl = SecureStorage.getLocalItem("url");
-    return `${encryptedUrl}/gsd/${path}`;
-};
 
 const EquipmentEntry = () => {
     const [equipments, setEquipments] = useState([]);
@@ -25,21 +20,15 @@ const EquipmentEntry = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     const [currentPage, setCurrentPage] = useState(1);
-    const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-    const [isUpdateUnitModalOpen, setIsUpdateUnitModalOpen] = useState(false);
     const [isAddUnitModalOpen, setIsAddUnitModalOpen] = useState(false);
     const [editingEquipmentId, setEditingEquipmentId] = useState(null);
-    const [currentUnit, setCurrentUnit] = useState(null);
-    const [unitDetails, setUnitDetails] = useState(null);
-    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  
     const [sortField, setSortField] = useState('equip_id');
     const [sortOrder, setSortOrder] = useState('desc');
-    const [selectedUnitId, setSelectedUnitId] = useState(null);
     const [newUnitSerialNumbers, setNewUnitSerialNumbers] = useState(['']);
-    const [viewImageModal, setViewImageModal] = useState(false);
-    const [currentImage, setCurrentImage] = useState(null);
-    const [statusAvailability, setStatusAvailability] = useState([]);
+
     const [isMasterModalOpen, setIsMasterModalOpen] = useState(false);
     const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
     const [selectedEquipment, setSelectedEquipment] = useState(null);
@@ -56,66 +45,11 @@ const EquipmentEntry = () => {
 
     useEffect(() => {
         fetchEquipments();
-        fetchStatusAvailability();
+  
     }, []);
 
-    const fetchStatusAvailability = async () => {
-        const encryptedUrl = SecureStorage.getLocalItem("url");
-        const url = `${encryptedUrl}/fetchMaster.php`;
-        const jsonData = { operation: "fetchStatusAvailability" };
 
-        try {
-            const response = await axios.post(url, new URLSearchParams(jsonData));
-            if (response.data.status === 'success') {
-                setStatusAvailability(response.data.data);
-            } else {
-                toast.error("Failed to fetch status availability");
-            }
-        } catch (error) {
-            console.error("Error fetching status availability:", error);
-            toast.error("An error occurred while fetching status availability.");
-        }
-    };
 
-    const handleUpdateUnit = async () => {
-        if (!currentUnit || !unitDetails) {
-            toast.error("No unit selected for update");
-            return;
-        }
-
-        setLoading(true);
-        const encryptedUrl = SecureStorage.getLocalItem("url");
-        const url = `${encryptedUrl}/update_master1.php`;
-        const requestData = {
-            operation: "updateEquipmentUnit",
-            unit_id: currentUnit.unit_id,
-            serial_number: unitDetails.serial_number,
-            status_availability_id: unitDetails.status_availability_id
-        };
-
-        console.log("Request Data:", requestData);
-
-        try {
-            const response = await axios.post(url, JSON.stringify(requestData), {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.data.status === 'success') {
-                toast.success("Unit successfully updated!");
-                setIsUpdateUnitModalOpen(false);
-                fetchEquipments(); // Refresh the equipment list
-            } else {
-                toast.error("Failed to update unit: " + response.data.message);
-            }
-        } catch (error) {
-            console.error("Error updating unit:", error);
-            toast.error("An error occurred while updating the unit.");
-        } finally {
-            setLoading(false);
-        }
-    };
 
     const fetchEquipments = async () => {
         setLoading(true);
@@ -139,59 +73,58 @@ const EquipmentEntry = () => {
         }
     };
 
-
     const handleEditClick = (equipment) => {
         setEditingEquipmentId(equipment.equip_id);
         setIsEditModalOpen(true);
     };
 
-    const handleArchiveEquipment = (unit_ids) => {
-        console.log('Archive clicked with unit_ids:', unit_ids);
-        // Convert single unit_id to array if it's not already an array
-        const unitIdsArray = Array.isArray(unit_ids) ? unit_ids : [unit_ids];
-        setSelectedUnitId(unitIdsArray);
-        setShowConfirmDelete(true);
-    };
+    // const handleArchiveEquipment = (unit_ids) => {
+    //     console.log('Archive clicked with unit_ids:', unit_ids);
+    //     // Convert single unit_id to array if it's not already an array
+    //     const unitIdsArray = Array.isArray(unit_ids) ? unit_ids : [unit_ids];
+    //     setSelectedUnitId(unitIdsArray);
+    //     setShowConfirmDelete(true);
+    // };
 
-    const confirmDelete = async () => {
-        setLoading(true);
-        try {
-            const encryptedUrl = SecureStorage.getLocalItem("url");
-            const url = `${encryptedUrl}/delete_master.php`;
-            const jsonData = {
-                operation: "archiveResource",
-                resourceType: "equipment",
-                resourceId: selectedUnitId,
-                is_serialize: true
-            };
+    // const confirmDelete = async () => {
+    //     setLoading(true);
+    //     try {
+    //         const encryptedUrl = SecureStorage.getLocalItem("url");
+    //         const url = `${encryptedUrl}/delete_master.php`;
+    //         const jsonData = {
+    //             operation: "archiveResource",
+    //             resourceType: "equipment",
+    //             resourceId: selectedUnitId,
+    //             is_serialize: true
+    //         };
 
-            console.log('Sending archive request with data:', jsonData);
+    //         console.log('Sending archive request with data:', jsonData);
 
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify(jsonData)
-            });
+    //         const response = await fetch(url, {
+    //             method: 'POST',
+    //             headers: {
+    //                 'Content-Type': 'application/json',
+    //             },
+    //             body: JSON.stringify(jsonData)
+    //         });
 
-            const data = await response.json();
-            console.log('Archive response:', data);
+    //         const data = await response.json();
+    //         console.log('Archive response:', data);
             
-            if (data.status === 'success') {
-                toast.success(selectedUnitId.length > 1 ? "Equipment units archived successfully" : "Equipment unit archived successfully");
-                setShowConfirmDelete(false);
-                fetchEquipments();
-            } else {
-                toast.error(data.message || "Failed to archive equipment unit(s)");
-            }
-        } catch (error) {
-            console.error('Archive error:', error);
-            toast.error("An error occurred while archiving equipment unit(s): " + error.message);
-        } finally {
-            setLoading(false);
-        }
-    };
+    //         if (data.status === 'success') {
+    //             toast.success(selectedUnitId.length > 1 ? "Equipment units archived successfully" : "Equipment unit archived successfully");
+    //             setShowConfirmDelete(false);
+    //             fetchEquipments();
+    //         } else {
+    //             toast.error(data.message || "Failed to archive equipment unit(s)");
+    //         }
+    //     } catch (error) {
+    //         console.error('Archive error:', error);
+    //         toast.error("An error occurred while archiving equipment unit(s): " + error.message);
+    //     } finally {
+    //         setLoading(false);
+    //     }
+    // };
 
     const handleRefresh = () => {
         fetchEquipments();
@@ -233,19 +166,6 @@ const EquipmentEntry = () => {
         equipment.equip_name && equipment.equip_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
 
-    const handleViewImage = (url) => {
-        setCurrentImage(url);
-        setViewImageModal(true);
-    };
-
-    // Add this new function to handle multiple unit selection
-    const handleMultipleArchive = (equipment) => {
-        if (equipment.units && equipment.units.length > 0) {
-            const unitIds = equipment.units.map(unit => unit.unit_id);
-            handleArchiveEquipment(unitIds);
-        }
-    };
-
     const handleTrackingClick = (equipment) => {
         console.log('View button clicked for equipment:', equipment);
         setSelectedEquipment(equipment);
@@ -269,9 +189,7 @@ const EquipmentEntry = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                                <FaArrowLeft className="mr-2" /> Back to Master
-                            </Button>
+
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
                                 Equipment 
                             </h2>
@@ -326,11 +244,6 @@ const EquipmentEntry = () => {
                                 <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
                                     <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3">
-                                                <div className="flex items-center">
-                                                    Image
-                                                </div>
-                                            </th>
                                             <th scope="col" className="px-6 py-3" onClick={() => handleSort('equip_name')}>
                                                 <div className="flex items-center cursor-pointer hover:text-gray-900">
                                                     Equipment Name
@@ -341,10 +254,10 @@ const EquipmentEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('equip_quantity')}>
+                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('total_quantity')}>
                                                 <div className="flex items-center cursor-pointer hover:text-gray-900">
                                                     Quantity
-                                                    {sortField === 'equip_quantity' && (
+                                                    {sortField === 'total_quantity' && (
                                                         <span className="ml-1">
                                                             {sortOrder === "asc" ? "↑" : "↓"}
                                                         </span>
@@ -375,27 +288,12 @@ const EquipmentEntry = () => {
                                                 .map((equipment) => (
                                                     <tr key={equipment.equip_id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600">
                                                         <td className="px-6 py-4">
-                                                            {equipment.equip_pic ? (
-                                                                <div className="cursor-pointer" onClick={() => handleViewImage(getImageUrl(equipment.equip_pic))}>
-                                                                    <img 
-                                                                        src={getImageUrl(equipment.equip_pic)} 
-                                                                        alt={equipment.equip_name} 
-                                                                        className="w-12 h-12 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
-                                                                    />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
-                                                                    <i className="pi pi-box text-xl"></i>
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-6 py-4">
                                                             <div className="flex items-center">
                                                                 <span className="font-medium">{equipment.equip_name}</span>
                                                             </div>
                                                         </td>
                                                         <td className="px-6 py-4">
-                                                            {equipment.equip_quantity || 0}
+                                                            {equipment.total_quantity || 0}
                                                         </td>
                                                         <td className="px-6 py-4">{equipment.category_name || 'Not specified'}</td>
                                                         <td className="px-6 py-4">{equipment.equip_type || 'Not specified'}</td>
@@ -460,14 +358,14 @@ const EquipmentEntry = () => {
             </div>
 
             {/* Update Unit Modal */}
-            <Modal
+            {/* <Modal
                 title={<div className="flex items-center">
                     <EditOutlined className="mr-2 text-green-900" />
                     Update Equipment Unit
                 </div>}
                 open={isUpdateUnitModalOpen}
                 onCancel={() => setIsUpdateUnitModalOpen(false)}
-                onOk={handleUpdateUnit}
+ 
                 confirmLoading={loading}
                 destroyOnClose
             >
@@ -514,7 +412,7 @@ const EquipmentEntry = () => {
                         </div>
                     </div>
                 )}
-            </Modal>
+            </Modal> */}
 
             {/* Add/Edit Equipment Modal */}
 
@@ -529,26 +427,8 @@ const EquipmentEntry = () => {
                 equipmentId={editingEquipmentId}
             />
             
-            {/* Image Preview Modal */}
-            <Modal
-                open={viewImageModal}
-                footer={null}
-                onCancel={() => setViewImageModal(false)}
-                width={700}
-                centered
-            >
-                {currentImage && (
-                    <Image
-                        src={currentImage}
-                        alt="Equipment"
-                        className="w-full object-contain max-h-[70vh]"
-                        preview={false}
-                    />
-                )}
-            </Modal>
-            
             {/* Confirm Delete Modal */}
-            <Modal
+            {/* <Modal
                 title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
                 open={showConfirmDelete}
                 onCancel={() => setShowConfirmDelete(false)}
@@ -575,7 +455,7 @@ const EquipmentEntry = () => {
                     showIcon
                     icon={<ExclamationCircleOutlined />}
                 />
-            </Modal>
+            </Modal> */}
 
             {/* Add Unit Modal */}
             <Modal

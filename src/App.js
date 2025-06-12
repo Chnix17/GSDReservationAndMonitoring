@@ -20,7 +20,7 @@ import Vehiclem from './pages/vehiclemake';
 import Departments from './pages/departments';
 import Vehiclec from './pages/vehiclecategory';
 import Equipmentc from './pages/equipmentCategory';
-import Userlevel from './pages/condition';
+
 import VehicleModel from './pages/vehiclemodel';
 import ViewReserve from './page_user/viewReserve';
 import Calendar from './pages/calendar';    
@@ -123,7 +123,7 @@ const App = () => {
                         <Route path="/vehiclemake" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclem /></ProtectedRoute>} />
                         <Route path="/vehiclecategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclec /></ProtectedRoute>} />
                         <Route path="/equipmentCategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
-                        <Route path="/condition" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Userlevel /></ProtectedRoute>} />
+          
                         <Route path="/vehiclemodel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><VehicleModel /></ProtectedRoute>} />
                         <Route path="/AssignPersonnel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AssignPersonnel /></ProtectedRoute>} />
                         <Route path="/LandCalendar" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><LandCalendar /></ProtectedRoute>} />

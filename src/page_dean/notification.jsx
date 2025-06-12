@@ -58,7 +58,9 @@ const NotificationPage = () => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            operation: "fetchApprovalNotification"
+            operation: "fetchApprovalNotification",
+            department_id: SecureStorage.getSessionItem('department_id'),
+            user_level_id: SecureStorage.getSessionItem('user_level_id')
           })
         });        const regularData = await regularResponse.json();
         const approvalData = await approvalResponse.json();
@@ -112,20 +114,6 @@ const NotificationPage = () => {
 
     fetchNotifications();
   }, []);
-  const getStatusColor = (type) => {
-    switch (type) {
-      case 'accepted':
-        return 'bg-green-50 border-green-500 text-green-700';
-      case 'pending':
-        return 'bg-yellow-50 border-yellow-500 text-yellow-700';
-      case 'declined':
-        return 'bg-red-50 border-red-500 text-red-700';
-      case 'approval':
-        return 'bg-blue-50 border-blue-500 text-blue-700';
-      default:
-        return 'bg-gray-50 border-gray-500 text-gray-700';
-    }
-  };
 
   const getPriorityBadge = (priority) => {
     switch (priority) {

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import DeanSidebar from './component/dean_sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -60,7 +60,7 @@ const ViewApproval = () => {
     }
   }, []);
 
-  const fetchApprovalRequests = async () => {
+  const fetchApprovalRequests = useCallback(async () => {
     if (!departmentId) {
       console.error("Department ID is not available");
       return;
@@ -82,7 +82,7 @@ const ViewApproval = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [departmentId]);
 
   const handleApproval = async (reservationId, isAccepted) => {
     if (!selectedRequest) {
@@ -177,7 +177,7 @@ const ViewApproval = () => {
     if (departmentId) {
       fetchApprovalRequests();
     }
-  }, [departmentId]);
+  }, [departmentId, fetchApprovalRequests]);
 
   const filteredRequests = requests.filter(request => {
     const matchesSearch = (

@@ -1,28 +1,23 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Modal, Form, Input, Select, Button, Upload } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { Modal, Form, Input, Select, Button } from 'antd';
 import { FaUser } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import { SecureStorage } from '../../../../utils/encryption';
 
 const Create_Modal = ({ 
     show, 
     onHide, 
-    onSubmit, 
-    generateAvatarColor,
+
     fetchUsers
 }) => {
     const [form] = Form.useForm();
     const timeoutRef = useRef(null);
     const [userLevels, setUserLevels] = useState([]);
     const [departments, setDepartments] = useState([]);
+    const [titles, setTitles] = useState([]);
     const [loading, setLoading] = useState(false);
-    const [duplicateFields, setDuplicateFields] = useState({
-        email: false,
-        schoolId: false
-    });
+
 
     // Get base URL from SecureStorage
     const baseUrl = SecureStorage.getLocalItem("url");
@@ -31,136 +26,67 @@ const Create_Modal = ({
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]*$/;
     const passwordSingleSpecialCharRegex = /[!@#$%^&*]/g;
 
-    const validateField = (name, value) => {
-        switch (name) {
-            case 'users_firstname':
-            case 'users_middlename':
-            case 'users_lastname':
-                if (!value.trim()) {
-                    return 'This field is required';
-                }
-                if (/\d/.test(value)) {
-                    return 'Name cannot contain numbers';
-                }
-                if (!/^[a-zA-Z\s]+$/.test(value.trim())) {
-                    return 'Name can only contain letters and spaces';
-                }
-                return '';
-            case 'users_suffix':
-                if (value && !/^[a-zA-Z\s.]+$/.test(value.trim())) {
-                    return 'Suffix can only contain letters, spaces, and periods';
-                }
-                return '';
-            case 'users_birthday':
-                if (!value) {
-                    return 'Birthday is required';
-                }
-                const birthDate = new Date(value);
-                const today = new Date();
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-                if (age < 18) {
-                    return 'Must be at least 18 years old';
-                }
-                if (age > 100) {
-                    return 'Invalid birth date';
-                }
-                return '';
-            case 'users_email':
-                return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Invalid email address';
-            case 'users_school_id':
-                if (!value.trim()) {
-                    return 'School ID is required';
-                }
-                if (!/^[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+$/.test(value)) {
-                    return 'School ID must be in the format x1-x1-x1 (e.g., abc-123-xyz)';
-                }
-                return '';
-            case 'users_contact_number':
-                return /^\d{11}$/.test(value) ? '' : 'Contact number must be 11 digits';
-            case 'users_password':
-                if (!passwordRegex.test(value)) {
-                    return 'Password must contain at least 8 characters, including 1 uppercase, 1 lowercase, and 1 number';
-                }
-                const specialCharCount = (value.match(passwordSingleSpecialCharRegex) || []).length;
-                if (specialCharCount !== 1) {
-                    return 'Password must contain exactly 1 special character (!@#$%^&*)';
-                }
-                if (value.length < 8) {
-                    return 'Password must be at least 8 characters long';
-                }
-                return '';
-            case 'users_role':
-                return value ? '' : 'Please select a role';
-            case 'departments_name':
-                return value ? '' : 'Please select a department';
-            default:
-                return '';
-        }
-    };
 
-    const checkDuplicates = async (field, value) => {
-        if (!value) {
-            setDuplicateFields(prev => ({
-                ...prev,
-                [field]: false
-            }));
-            return;
-        }
 
-        try {
-            const response = await axios.post(
-                `${baseUrl}/user.php`,
-                {
-                    operation: 'checkUniqueEmailAndSchoolId',
-                    email: field === 'email' ? value : '',
-                    schoolId: field === 'schoolId' ? value : ''
-                },
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+    // const checkDuplicates = async (field, value) => {
+    //     if (!value) {
+    //         setDuplicateFields(prev => ({
+    //             ...prev,
+    //             [field]: false
+    //         }));
+    //         return;
+    //     }
 
-            if (response.data) {
-                const { status, exists, duplicates } = response.data;
+    //     try {
+    //         const response = await axios.post(
+    //             `${baseUrl}/user.php`,
+    //             {
+    //                 operation: 'checkUniqueEmailAndSchoolId',
+    //                 email: field === 'email' ? value : '',
+    //                 schoolId: field === 'schoolId' ? value : ''
+    //             },
+    //             {
+    //                 headers: {
+    //                     'Content-Type': 'application/json'
+    //                 }
+    //             }
+    //         );
+
+    //         if (response.data) {
+    //             const { status, exists, duplicates } = response.data;
                 
-                if (status === 'success' && exists && Array.isArray(duplicates)) {
-                    const duplicate = duplicates.find(d => 
-                        (field === 'email' && d.field === 'email') || 
-                        (field === 'schoolId' && d.field === 'school_id')
-                    );
+    //             if (status === 'success' && exists && Array.isArray(duplicates)) {
+    //                 const duplicate = duplicates.find(d => 
+    //                     (field === 'email' && d.field === 'email') || 
+    //                     (field === 'schoolId' && d.field === 'school_id')
+    //                 );
 
-                    if (duplicate) {
-                        setDuplicateFields(prev => ({
-                            ...prev,
-                            [field]: true
-                        }));
-                        form.setFields([{
-                            name: field === 'email' ? 'users_email' : 'users_school_id',
-                            errors: [duplicate.message]
-                        }]);
-                    } else {
-                        setDuplicateFields(prev => ({
-                            ...prev,
-                            [field]: false
-                        }));
-                        form.setFields([{
-                            name: field === 'email' ? 'users_email' : 'users_school_id',
-                            errors: []
-                        }]);
-                    }
-                }
-            }
-        } catch (error) {
-            console.error('Error checking duplicates:', error);
-            toast.error('Error checking for duplicates');
-        }
-    };
+    //                 if (duplicate) {
+    //                     setDuplicateFields(prev => ({
+    //                         ...prev,
+    //                         [field]: true
+    //                     }));
+    //                     form.setFields([{
+    //                         name: field === 'email' ? 'users_email' : 'users_school_id',
+    //                         errors: [duplicate.message]
+    //                     }]);
+    //                 } else {
+    //                     setDuplicateFields(prev => ({
+    //                         ...prev,
+    //                         [field]: false
+    //                     }));
+    //                     form.setFields([{
+    //                         name: field === 'email' ? 'users_email' : 'users_school_id',
+    //                         errors: []
+    //                     }]);
+    //                 }
+    //             }
+    //         }
+    //     } catch (error) {
+    //         console.error('Error checking duplicates:', error);
+    //         toast.error('Error checking for duplicates');
+    //     }
+    // };
 
     const handleSubmit = async (values) => {
         setLoading(true);
@@ -190,7 +116,8 @@ const Create_Modal = ({
                         departmentId: selectedDepartment.departments_id,
                         pic: "",
                         suffix: values.users_suffix || "",
-                        birthdate: values.users_birthday || ""
+                        birthdate: values.users_birthday || "",
+                        title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
                     }
                 };
             } else {
@@ -207,7 +134,8 @@ const Create_Modal = ({
                         password: values.users_password,
                         departmentId: selectedDepartment.departments_id,
                         suffix: values.users_suffix || "",
-                        birthdate: values.users_birthday || ""
+                        birthdate: values.users_birthday || "",
+                        title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
                     }
                 };
             }
@@ -234,7 +162,7 @@ const Create_Modal = ({
         }
     };
 
-    const fetchUserLevels = async () => {
+    const fetchUserLevels = useCallback(async () => {
         try {
             const response = await axios({
                 method: 'post',
@@ -257,9 +185,9 @@ const Create_Modal = ({
             console.error('User level fetch error:', error);
             toast.error("Failed to fetch user levels");
         }
-    };
+    }, [baseUrl]);
 
-    const fetchDepartments = async () => {
+    const fetchDepartments = useCallback(async () => {
         setLoading(true);
         try {
             const response = await axios({
@@ -285,22 +213,49 @@ const Create_Modal = ({
         } finally {
             setLoading(false);
         }
-    };
+    }, [baseUrl]);
+
+    const fetchTitles = useCallback(async () => {
+        try {
+            const response = await axios({
+                method: 'post',
+                url: `${baseUrl}/user.php`,
+                data: new URLSearchParams({
+                    operation: 'fetchTitle'
+                }).toString(),
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded'
+                }
+            });
+
+            if (response.data && response.data.status === 'success' && Array.isArray(response.data.data)) {
+                setTitles(response.data.data);
+            } else {
+                console.error('Invalid title data:', response.data);
+                toast.error("Invalid title data format");
+            }
+        } catch (error) {
+            console.error('Title fetch error:', error);
+            toast.error("Failed to fetch titles");
+        }
+    }, [baseUrl]);
 
     useEffect(() => {
         const initializeData = async () => {
             await Promise.all([
                 fetchUserLevels(),
-                fetchDepartments()
+                fetchDepartments(),
+                fetchTitles()
             ]);
         };
         initializeData();
-    }, []);
+    }, [fetchUserLevels, fetchDepartments, fetchTitles]);
 
     React.useEffect(() => {
+        const currentTimeout = timeoutRef.current;
         return () => {
-            if (timeoutRef.current) {
-                clearTimeout(timeoutRef.current);
+            if (currentTimeout) {
+                clearTimeout(currentTimeout);
             }
         };
     }, []);
@@ -458,6 +413,22 @@ const Create_Modal = ({
                     </Form.Item>
 
                     <Form.Item
+                        label="Title"
+                        name="users_title"
+                    >
+                        <Select placeholder="Select title">
+                            <Select.Option value="">None</Select.Option>
+                            {titles.map((title) => (
+                                <Select.Option key={title.id} value={title.abbreviation}>
+                                    {title.abbreviation}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Form.Item
                         label="Birthday"
                         name="users_birthday"
                         rules={[
@@ -488,7 +459,7 @@ const Create_Modal = ({
                         htmlType="submit"
                         loading={loading}
                         className="bg-green-900 hover:bg-lime-900"
-                        disabled={duplicateFields && (duplicateFields.email || duplicateFields.schoolId)}
+                      
                     >
                         Add Faculty
                     </Button>
