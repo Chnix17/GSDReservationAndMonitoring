@@ -292,17 +292,31 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
   const areAllResourcesDone = (task) => {
     if (!task) return false;
 
-    // Check venues
-    const venuesDone = task.venues?.every(venue => venue.active === -1) ?? true;
-    
-    // Check vehicles
-    const vehiclesDone = task.vehicles?.every(vehicle => vehicle.active === -1) ?? true;
-    
-    // Check equipment units
-    const equipmentsDone = task.equipments?.every(equipment => 
-      equipment.units?.every(unit => unit.active === -1) ?? true
-    ) ?? true;
+    // Check if there are any resources at all
+    const hasVenues = task.venues && task.venues.length > 0;
+    const hasVehicles = task.vehicles && task.vehicles.length > 0;
+    const hasEquipments = task.equipments && task.equipments.length > 0;
 
+    // If no resources at all, return false
+    if (!hasVenues && !hasVehicles && !hasEquipments) return false;
+
+    // Check venues if they exist
+    const venuesDone = !hasVenues || task.venues.every(venue => venue.active === -1);
+    
+    // Check vehicles if they exist
+    const vehiclesDone = !hasVehicles || task.vehicles.every(vehicle => vehicle.active === -1);
+    
+    // Check equipment units if they exist
+    const equipmentsDone = !hasEquipments || task.equipments.every(equipment => {
+      // For consumable equipment (no units)
+      if (!equipment.units || equipment.units.length === 0) {
+        return equipment.active === -1;
+      }
+      // For equipment with units, check each unit
+      return equipment.units.every(unit => unit.active === -1);
+    });
+
+    // Return true if all existing resource types are done
     return venuesDone && vehiclesDone && equipmentsDone;
   };
 
@@ -746,26 +760,31 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
   const canBeReturned = (item, type) => {
     if (!item) return false;
     
-    // If active is -1, prevent any return
-    if (item.active === -1) return false;
-    
+    // If already returned, don't show return button
     if (item.is_returned === 1 || item.is_returned === "1") return false;
     
+    // Check if the item is active
+    const isActive = item.active === 1 || item.active === "1";
+    
+    // Get the end time and current time in Manila timezone (GMT+8)
     const endTime = new Date(selectedTask?.reservation_end_date);
     const currentTime = new Date();
+    
+    // Convert to Manila timezone
+    const manilaEndTime = new Date(endTime.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    const manilaCurrentTime = new Date(currentTime.toLocaleString('en-US', { timeZone: 'Asia/Manila' }));
+    
+    // For debugging
+    console.log('Return conditions:', {
+      item,
+      isActive,
+      manilaEndTime,
+      manilaCurrentTime,
+      isPastEndTime: manilaCurrentTime >= manilaEndTime
+    });
 
-    // If the end date has passed, allow return regardless of release status
-    if (currentTime >= endTime) {
-      return true;
-    }
-    
-    // For equipment units, check if they are released
-    if (type === 'equipment') {
-      return item.is_released === 1 || item.is_released === "1";
-    }
-    
-    // For venues and vehicles, check if they are released
-    return item.is_released === 1 || item.is_released === "1";
+    // Show return button only if item is active AND reservation has ended in Manila time
+    return isActive && manilaCurrentTime >= manilaEndTime;
   };
 
   const isOverdue = (item) => {

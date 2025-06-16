@@ -1,21 +1,70 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useMemo, useState } from 'react';
 import * as Chart from 'chart.js';
 import { FaChartArea } from 'react-icons/fa';
+import axios from 'axios';
+import {SecureStorage} from '../../../utils/encryption';
 
 const SimpleAreaChart = () => {
   const chartRef = useRef(null);
   const chartInstance = useRef(null);
+  const [reservationData, setReservationData] = useState([]);
 
   const currentMonth = new Date().getMonth();
   
   const months = useMemo(() => ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'], []);
+
+  useEffect(() => {
+    const fetchReservationData = async () => {
+      try {
+        const encryptedUrl = SecureStorage.getLocalItem("url");
+        const response = await axios.post(`${encryptedUrl}/user.php`, {
+          operation: "countCompletedAndCancelledReservations"
+        });
+
+        if (response.data.status === "success") {
+          const data = response.data.data.reservations || [];
+          setReservationData(data);
+        } else {
+          console.warn('API response was not successful:', response.data);
+          setReservationData([]);
+        }
+      } catch (error) {
+        console.error("Error fetching reservation data:", error);
+        setReservationData([]);
+      }
+    };
+
+    fetchReservationData();
+  }, []);
+
+  const processReservationData = useMemo(() => {
+    const completedData = new Array(12).fill(0);
+    const cancelledData = new Array(12).fill(0);
+
+    if (Array.isArray(reservationData)) {
+      reservationData.forEach(reservation => {
+        const date = new Date(reservation.reservation_created_at);
+        const month = date.getMonth();
+        
+        if (reservation.status_id === "4") {
+          completedData[month]++;
+        } else if (reservation.status_id === "5") {
+          cancelledData[month]++;
+        }
+      });
+    } else {
+      console.warn('reservationData is not an array:', reservationData);
+    }
+
+    return { completedData, cancelledData };
+  }, [reservationData]);
 
   const data = useMemo(() => ({
     labels: months,
     datasets: [
       {
         label: 'Completed',
-        data: [120, 150, 180, 200, 240, 320, 350, 300, 280, 260, 220, 190],
+        data: processReservationData.completedData,
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -32,7 +81,7 @@ const SimpleAreaChart = () => {
       },
       {
         label: 'Cancelled',
-        data: [30, 45, 35, 50, 40, 55, 80, 65, 55, 45, 50, 40],
+        data: processReservationData.cancelledData,
         backgroundColor: (context) => {
           const ctx = context.chart.ctx;
           const gradient = ctx.createLinearGradient(0, 0, 0, 300);
@@ -48,7 +97,7 @@ const SimpleAreaChart = () => {
         pointHoverRadius: 0,
       }
     ]
-  }), [months]);
+  }), [months, processReservationData]);
 
   const options = useMemo(() => ({
     responsive: true,

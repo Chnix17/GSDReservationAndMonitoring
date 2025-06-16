@@ -209,7 +209,7 @@ const ReservationRequests = () => {
                 if (hasAnyConflict && conflictingUsers.length > 0) {
                     const userPriorities = {
                         'COO': 4,
-                        'School Head': 3,
+                        'Department Head': 3,
                         'Dean': 2,
                         'Faculty&Staff': 1
                     };
@@ -1643,7 +1643,7 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                     onClick={handleCancelAndReserve}
                     icon={<CloseCircleOutlined />}
                 >
-                    Cancel Existing & Create New
+                    Cancel Existing & And Approve This
                 </Button>,
             ]}
         >
@@ -1655,77 +1655,7 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                 className="mb-4"
             />
             
-            <div className="space-y-4">
-                {conflictingReservations.map((reservation, index) => (
-                    <div key={index} className="border rounded-lg p-4 bg-[#fafff4]">
-                        <div className="grid gap-4">
-                            {/* Header with Priority Level */}
-                            <div className="flex justify-between items-center border-b border-gray-200 pb-3">
-                                <div>
-                                    <h3 className="font-semibold text-lg text-gray-800">
-                                        {reservation.reservation_title || 'Untitled Reservation'}
-                                    </h3>
-                                    <p className="text-sm text-gray-500">Created by {reservation.full_name}</p>
-                                </div>
-                                <Tag color="blue" className="text-sm">
-                                    Priority: {reservation.user_level_name}
-                                </Tag>
-                            </div>
-
-                            {/* Department Info */}
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <p className="text-sm text-gray-500">Department</p>
-                                    <p className="font-medium">{reservation.department_name}</p>
-                                </div>
-                                <div>
-                                    <p className="text-sm text-gray-500">Status</p>
-                                    <Tag color="green">Active</Tag>
-                                </div>
-                            </div>
-
-                            {/* Schedule Information */}
-                            <div className="bg-white p-3 rounded border border-gray-200">
-                                <h4 className="font-medium text-gray-700 mb-2">Schedule Details</h4>
-                                <div className="space-y-2">
-                                    <div className="flex items-center gap-2">
-                                        <CalendarOutlined className="text-blue-500" />
-                                        <div>
-                                            <p className="text-sm text-gray-500">Start</p>
-                                            <p className="font-medium">
-                                                {new Date(reservation.reservation_start_date).toLocaleString('en-US', {
-                                                    dateStyle: 'medium',
-                                                    timeStyle: 'short'
-                                                })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="flex items-center gap-2">
-                                        <CalendarOutlined className="text-blue-500" />
-                                        <div>
-                                            <p className="text-sm text-gray-500">End</p>
-                                            <p className="font-medium">
-                                                {new Date(reservation.reservation_end_date).toLocaleString('en-US', {
-                                                    dateStyle: 'medium',
-                                                    timeStyle: 'short'
-                                                })}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Description */}
-                            {reservation.reservation_description && (
-                                <div className="bg-white p-3 rounded border border-gray-200">
-                                    <h4 className="font-medium text-gray-700 mb-2">Description</h4>
-                                    <p className="text-sm text-gray-600">{reservation.reservation_description}</p>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                ))}
-            </div>
+           
         </Modal>
     );
 };

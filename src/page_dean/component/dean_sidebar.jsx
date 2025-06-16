@@ -4,7 +4,8 @@ import {
   FaTachometerAlt, FaFileAlt, 
   FaBars,  FaUserCircle, FaCar, FaTimes,
   FaComments,  FaBell, 
-  FaAngleRight, FaAngleLeft
+  FaAngleRight, FaAngleLeft,
+  FaCalendarAlt
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -539,6 +540,16 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
+              {isDesktopSidebarOpen && <SectionLabel text="Venue Management" />}
+
+              <MiniSidebarItem 
+                icon={FaCalendarAlt} 
+                text="Venue Schedule" 
+                link="/Department/VenueSchedule" 
+                active={activeItem === '/Department/VenueSchedule'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
             </nav>
 
             {/* User Profile - Show only icon when collapsed */}
@@ -580,7 +591,7 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-          {isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
+              {isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
 
               <MiniSidebarItem 
                 icon={FaCar} 
@@ -606,6 +617,15 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
+              {isDesktopSidebarOpen && <SectionLabel text="Venue Management" />}
+
+              <MiniSidebarItem 
+                icon={FaCalendarAlt} 
+                text="Venue Schedule" 
+                link="/Department/VenueSchedule" 
+                active={activeItem === '/Department/VenueSchedule'}
+                isExpanded={isDesktopSidebarOpen}
+              />
 
             </nav>
           </div>

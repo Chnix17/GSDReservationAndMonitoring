@@ -1,21 +1,52 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Bar } from 'react-chartjs-2';
 import { FaChartBar } from 'react-icons/fa';
+import axios from 'axios';
+import { SecureStorage } from '../../../utils/encryption';
 
 const ReservationChart = () => {
+    const [monthlyData, setMonthlyData] = useState(Array(12).fill(0));
     const currentMonth = new Date().getMonth();
     const months = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
 
-    // Sample monthly data
+    useEffect(() => {
+        const fetchReservationData = async () => {
+            try {
+                const encryptedUrl = SecureStorage.getLocalItem("url");
+                const response = await axios.post(`${encryptedUrl}/user.php`, {
+                    operation: 'countTrendReservations'
+                });
+
+                if (response.data.status === 'success') {
+                    // Initialize array with zeros
+                    const monthlyCounts = Array(12).fill(0);
+                    
+                    // Process reservations and count by month
+                    response.data.data.reservations.forEach(reservation => {
+                        const date = new Date(reservation.reservation_created_at);
+                        const month = date.getMonth();
+                        monthlyCounts[month]++;
+                    });
+
+                    setMonthlyData(monthlyCounts);
+                }
+            } catch (error) {
+                console.error('Error fetching reservation data:', error);
+            }
+        };
+
+        fetchReservationData();
+    }, []);
+
     const data = {
         labels: months,
         datasets: [
             {
                 label: 'Total Reservations',
-                data: [45, 52, 38, 60, 42, 50, 48, 55, 42, 47, 40, 35],
+                data: monthlyData,
                 backgroundColor: months.map((_, index) => 
                     index === currentMonth 
                         ? 'rgba(34, 197, 94, 0.8)' // Current month (brighter)

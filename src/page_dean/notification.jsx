@@ -16,20 +16,8 @@ import { SecureStorage } from '../utils/encryption';
 const NotificationPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [isMobile, setIsMobile] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
-
-  // Add responsive design handling
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Fetch notifications from API
   useEffect(() => {

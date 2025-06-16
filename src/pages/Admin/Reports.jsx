@@ -15,7 +15,6 @@ import {
 import axios from 'axios';
 import { toast } from 'sonner';
 import Sidebar from '../Sidebar';
-import { Line } from '@ant-design/plots';
 import {SecureStorage} from '../../utils/encryption';
 
 const Reports = () => {
@@ -31,7 +30,7 @@ const Reports = () => {
     equipments_in_use: 0
   });
   const [timeRange, setTimeRange] = useState('week');
-  const [usageHistory, setUsageHistory] = useState([]);
+ 
   const [searchTerm, setSearchTerm] = useState('');
 
   const baseUrl = SecureStorage.getLocalItem("url");
@@ -53,20 +52,6 @@ const Reports = () => {
     }
   }, [baseUrl]);
 
-  const fetchUsageStats = useCallback(async () => {
-    try {
-      const response = await axios.post(`${baseUrl}/get_totals.php`, {
-        operation: 'fetchUsageHistory',
-        timeRange
-      });
-
-      if (response.data.status === 'success') {
-        setUsageHistory(response.data.data);
-      }
-    } catch (error) {
-      toast.error('Error fetching usage statistics');
-    }
-  }, [baseUrl, timeRange]);
 
   const fetchMaintenanceResources = useCallback(async () => {
     try {
@@ -146,26 +131,9 @@ const Reports = () => {
     </motion.div>
   );
 
-  // Usage History Chart
-  const UsageChart = ({ data }) => {
-    const config = {
-      data,
-      xField: 'date',
-      yField: 'usage',
-      seriesField: 'type',
-      smooth: true,
-      animation: {
-        appear: {
-          animation: 'wave-in',
-          duration: 1500
-        }
-      }
-    };
 
-    return <Line {...config} />;
-  };
 
-  // Condition Distribution Chart
+
 
   // Update the filter function to handle two statuses
   const filterResourcesByStatus = (resources, status) => {
@@ -252,7 +220,6 @@ const Reports = () => {
 
   const handleRefresh = () => {
     fetchAvailabilityStats();
-    fetchUsageStats();
     fetchMaintenanceResources();
     fetchMaintenanceResourcesWithStatus();
     setSearchTerm('');
@@ -264,10 +231,9 @@ const Reports = () => {
 
   useEffect(() => {
     fetchAvailabilityStats();
-    fetchUsageStats();
     fetchMaintenanceResources();
     fetchMaintenanceResourcesWithStatus();
-  }, [timeRange, fetchAvailabilityStats, fetchUsageStats, fetchMaintenanceResources, fetchMaintenanceResourcesWithStatus]);
+  }, [timeRange, fetchAvailabilityStats, fetchMaintenanceResources, fetchMaintenanceResourcesWithStatus]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
@@ -327,18 +293,7 @@ const Reports = () => {
             </Col>
           </Row>
 
-          <Card 
-            title={
-              <div className="flex items-center text-xl font-bold text-green-900">
-                <BarChartOutlined className="mr-2" />
-                Resource Usage History
-              </div>
-            }
-            className="shadow-lg bg-[#fafff4] border-0 mb-8"
-            bodyStyle={{ padding: '1.5rem' }}
-          >
-            <UsageChart data={usageHistory} />
-          </Card>
+          
 
           <Card 
             className="shadow-lg bg-[#fafff4] border-0 mb-8"

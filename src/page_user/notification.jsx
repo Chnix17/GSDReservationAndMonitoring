@@ -16,20 +16,10 @@ import { SecureStorage } from '../utils/encryption';
 const NotificationPage = () => {
   const [notifications, setNotifications] = useState([]);
   const [filter, setFilter] = useState('all');
-  const [isMobile, setIsMobile] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedNotification, setSelectedNotification] = useState(null);
 
   // Add responsive design handling
-  useEffect(() => {
-    const handleResize = () => {
-      setIsMobile(window.innerWidth < 768);
-    };
-    
-    handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
 
   // Fetch notifications from API
   useEffect(() => {
@@ -70,18 +60,7 @@ const NotificationPage = () => {
     fetchNotifications();
   }, []);
 
-  const getStatusColor = (type) => {
-    switch (type) {
-      case 'accepted':
-        return 'bg-green-50 border-green-500 text-green-700';
-      case 'pending':
-        return 'bg-yellow-50 border-yellow-500 text-yellow-700';
-      case 'declined':
-        return 'bg-red-50 border-red-500 text-red-700';
-      default:
-        return 'bg-gray-50 border-gray-500 text-gray-700';
-    }
-  };
+
 
   const getPriorityBadge = (priority) => {
     switch (priority) {

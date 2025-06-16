@@ -300,8 +300,22 @@ const VenueEntry = () => {
                                                         <td className="px-6 py-4">{venue.ven_occupancy} people</td>
                                                         <td className="px-6 py-4">
                                                             <Tag 
-                                                                value={venue.status_availability_id === '1' ? 'Available' : 'Not Available'} 
-                                                                severity={venue.status_availability_id === '1' ? 'success' : 'danger'}
+                                                                value={
+                                                                    venue.status_availability_id === '1' ? 'Available' :
+                                                                    venue.status_availability_id === '5' ? 'In Use' :
+                                                                    venue.status_availability_id === '6' ? 'For Inspection' :
+                                                                    venue.status_availability_id === '7' ? 'Missing' :
+                                                                    venue.status_availability_id === '8' ? 'Damaged' :
+                                                                    'Not Available'
+                                                                }
+                                                                severity={
+                                                                    venue.status_availability_id === '1' ? 'success' :
+                                                                    venue.status_availability_id === '5' ? 'info' :
+                                                                    venue.status_availability_id === '6' ? 'warning' :
+                                                                    venue.status_availability_id === '7' ? 'danger' :
+                                                                    venue.status_availability_id === '8' ? 'danger' :
+                                                                    'danger'
+                                                                }
                                                                 className="px-2 py-1 text-xs font-semibold"
                                                             />
                                                         </td>

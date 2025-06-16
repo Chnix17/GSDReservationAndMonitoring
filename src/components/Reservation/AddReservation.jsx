@@ -1155,6 +1155,12 @@ const PassengerModal = ({ visible, onHide }) => {
 const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQuantities }) => {
   const [equipmentSearch, setEquipmentSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
+  const [localState, setLocalState] = useState(localEquipmentQuantities);
+  
+  // Update local state when props change
+  useEffect(() => {
+    setLocalState(localEquipmentQuantities);
+  }, [localEquipmentQuantities]);
   
   const handleLocalQuantityChange = (equipId, value) => {
     // Convert value to number and handle empty/undefined cases
@@ -1175,7 +1181,7 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
     const constrainedValue = Math.max(0, Math.min(numericValue, maxAvailable));
     
     // Update the local state with the new quantity
-    setLocalEquipmentQuantities(prev => ({
+    setLocalState(prev => ({
       ...prev,
       [equipId]: constrainedValue
     }));
@@ -1183,8 +1189,8 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
   
   const handleConfirm = () => {
     // Update both states to ensure consistency
-    setEquipmentQuantities(localEquipmentQuantities);
-    setSelectedVenueEquipment(localEquipmentQuantities);
+    setEquipmentQuantities(localState);
+    setSelectedVenueEquipment(localState);
     setShowEquipmentModal(false);
   };
   
@@ -1221,7 +1227,7 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
       key={item.equip_id}
       className={`
         overflow-hidden rounded-lg shadow-sm transition-all duration-200
-        ${localEquipmentQuantities[item.equip_id] > 0 ? 'border-blue-200 shadow-blue-50' : 'border-gray-100'}
+        ${localState[item.equip_id] > 0 ? 'border-blue-200 shadow-blue-50' : 'border-gray-100'}
       `}
       hoverable
     >
@@ -1233,9 +1239,9 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
             className="w-full h-32"
           />
           
-          {localEquipmentQuantities[item.equip_id] > 0 && (
+          {localState[item.equip_id] > 0 && (
             <div className="absolute top-2 right-2">
-              <Badge count={localEquipmentQuantities[item.equip_id]} color="blue" />
+              <Badge count={localState[item.equip_id]} color="blue" />
             </div>
           )}
           
@@ -1266,9 +1272,8 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
               <InputNumber
                 min={0}
                 max={getAvailableQuantity(item)}
-                value={localEquipmentQuantities[item.equip_id] || 0}
+                value={localState[item.equip_id] || 0}
                 onChange={(value) => {
-                  console.log('InputNumber onChange:', { value, type: typeof value });
                   handleLocalQuantityChange(item.equip_id, value);
                 }}
                 disabled={getAvailableQuantity(item) === 0}
@@ -1278,7 +1283,7 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
                 precision={0}
               />
               
-              {localEquipmentQuantities[item.equip_id] > 0 ? (
+              {localState[item.equip_id] > 0 ? (
                 <Button
                   type="text"
                   danger
@@ -1397,12 +1402,12 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
         <div className="mt-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg">
           <div className="text-sm font-medium">
             Selected Items: <span className="text-blue-500">
-              {Object.values(localEquipmentQuantities).filter(qty => qty > 0).length}
+              {Object.values(localState).filter(qty => qty > 0).length}
             </span>
           </div>
           <div className="text-sm font-medium">
             Total Quantity: <span className="text-blue-500">
-              {Object.values(localEquipmentQuantities).reduce((sum, qty) => sum + qty, 0)}
+              {Object.values(localState).reduce((sum, qty) => sum + qty, 0)}
             </span>
           </div>
         </div>
