@@ -9,6 +9,8 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import dayjs from 'dayjs';
 import VenueScheduleCalendar from './component/Venue_ScheduleCalendar';
 
+import Sidebar from './component/dean_sidebar';
+
 
 
 const VenueSchedule = () => {
@@ -329,6 +331,7 @@ const VenueSchedule = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+      <Sidebar />
       <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
         <div className="p-[2.5rem] lg:p-12 min-h-screen">
           <motion.div 
