@@ -661,7 +661,7 @@ function Checklist() {
           >
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <h2 className="text-2xl font-custom-font font-bold text-green-900 mt-5">
-                Checklist Management
+                Checklist 
               </h2>
             </div>
           </motion.div>

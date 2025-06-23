@@ -475,7 +475,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="Master" 
+                text="Master File" 
                 link="/Master" 
                 active={activeItem === '/Master'}
                 isExpanded={isDesktopSidebarOpen}

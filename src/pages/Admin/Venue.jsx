@@ -3,7 +3,7 @@ import Sidebar from '../Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
-import {  FaEye, FaChartBar } from 'react-icons/fa';
+import {  FaChartBar, FaBuilding } from 'react-icons/fa';
 import { Modal, Input,  Button, Tooltip, Alert, Empty, Pagination } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -293,11 +293,13 @@ const VenueEntry = () => {
                                                         </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center">
-                                                                <FaEye className="mr-2 text-green-900" />
+                                                                <FaBuilding className="mr-2 text-green-900" />
                                                                 <span className="font-medium">{venue.ven_name}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-4">{venue.ven_occupancy} people</td>
+                                                        <td className="px-6 py-4">
+                                                            {venue.ven_occupancy && venue.ven_occupancy !== '0' ? venue.ven_occupancy : 'Not Specified'}
+                                                        </td>
                                                         <td className="px-6 py-4">
                                                             <Tag 
                                                                 value={
@@ -405,45 +407,44 @@ const VenueEntry = () => {
             
             {/* Confirm Delete Modal */}
             <Modal
-                show={showConfirmDelete}
-                onHide={() => {
+                open={showConfirmDelete}
+                onCancel={() => {
                     setShowConfirmDelete(false);
                     setSelectedVenues([]);
                 }}
                 centered
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title className="text-red-600 flex items-center">
+                title={
+                    <span className="text-red-600 flex items-center">
                         <ExclamationCircleOutlined className="mr-2" /> Confirm Archive
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Alert
-                        message="Warning"
-                        description={`Are you sure you want to archive ${selectedVenues.length} venue(s)? This action cannot be undone.`}
-                        type="warning"
-                        showIcon
-                        icon={<ExclamationCircleOutlined />}
-                    />
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button 
-                        variant="secondary" 
+                    </span>
+                }
+                footer={[
+                    <Button
+                        key="cancel"
                         onClick={() => {
                             setShowConfirmDelete(false);
                             setSelectedVenues([]);
                         }}
                     >
                         Cancel
-                    </Button>
-                    <Button 
-                        variant="danger" 
+                    </Button>,
+                    <Button
+                        key="archive"
+                        danger
                         onClick={confirmDelete}
                         className="bg-red-600 hover:bg-red-700"
                     >
                         Archive
                     </Button>
-                </Modal.Footer>
+                ]}
+            >
+                <Alert
+                    message="Warning"
+                    description={`Are you sure you want to archive ${selectedVenues.length} venue(s)? This action cannot be undone.`}
+                    type="warning"
+                    showIcon
+                    icon={<ExclamationCircleOutlined />}
+                />
             </Modal>
 
             {/* Utilization Modal */}

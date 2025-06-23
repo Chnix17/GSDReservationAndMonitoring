@@ -11,7 +11,7 @@ import 'primereact/resources/themes/lara-light-green/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { Modal, Input,  Button, Space, Tooltip, Image,  Empty, Pagination, Alert, Dropdown } from 'antd';
+import { Modal, Input,  Button, Space, Tooltip,   Empty, Pagination, Alert, Dropdown } from 'antd';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DownOutlined, BarChartOutlined } from '@ant-design/icons';
 
 import {SecureStorage} from '../../utils/encryption'; // Adjust the import path as necessary
@@ -40,15 +40,14 @@ const VehicleEntry = () => {
 
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
-    const [viewImageModal, setViewImageModal] = useState(false);
-    const [currentImage, setCurrentImage] = useState(null);
+    
     const navigate = useNavigate();
     const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
 
     const IMAGE_BASE_URL = encryptedUrl;
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
     const [currentPage, setCurrentPage] = useState(1);
-    const [sortField, setSortField] = useState('vehicle_id');
+    const [sortField, setSortField] = useState('vehicle_license');
     const [sortOrder, setSortOrder] = useState('desc');
     const [showUtilizationModal, setShowUtilizationModal] = useState(false);
     const [selectedVehicleForUtilization, setSelectedVehicleForUtilization] = useState(null);
@@ -269,15 +268,7 @@ const VehicleEntry = () => {
 
 
 
-    const getImageUrl = (vehiclePic) => {
-        if (!vehiclePic) return null;
-        return `${IMAGE_BASE_URL}${vehiclePic}`;
-    };
 
-    const handleViewImage = (imageUrl) => {
-        setCurrentImage(imageUrl);
-        setViewImageModal(true);
-    };
 
     const handleRefresh = () => {
         fetchVehicles();
@@ -456,21 +447,6 @@ const VehicleEntry = () => {
                                                     />
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_id')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    ID
-                                                    {sortField === 'vehicle_id' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-6 py-3">
-                                                <div className="flex items-center">
-                                                    Image
-                                                </div>
-                                            </th>
                                             <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_license')}>
                                                 <div className="flex items-center cursor-pointer hover:text-gray-900">
                                                     License
@@ -556,22 +532,6 @@ const VehicleEntry = () => {
                                                                 }}
                                                             />
                                                         </td>
-                                                        <td className="px-6 py-4">{vehicle.vehicle_id}</td>
-                                                        <td className="px-6 py-4">
-                                                            {vehicle.vehicle_pic ? (
-                                                                <div className="cursor-pointer" onClick={() => handleViewImage(getImageUrl(vehicle.vehicle_pic))}>
-                                                                    <img 
-                                                                        src={getImageUrl(vehicle.vehicle_pic)} 
-                                                                        alt={vehicle.vehicle_model_name} 
-                                                                        className="w-12 h-12 object-cover rounded-md shadow-sm hover:opacity-80 transition-opacity"
-                                                                    />
-                                                                </div>
-                                                            ) : (
-                                                                <div className="w-12 h-12 bg-gray-200 rounded-md flex items-center justify-center text-gray-400">
-                                                                    <i className="pi pi-car text-xl"></i>
-                                                                </div>
-                                                            )}
-                                                        </td>
                                                         <td className="px-6 py-4">
                                                             <div className="flex items-center">
                                                   
@@ -593,13 +553,6 @@ const VehicleEntry = () => {
                                                             <div className="flex space-x-2">
                                                                 <Button
                                                                     type="primary"
-                                                                    icon={<BarChartOutlined />}
-                                                                    onClick={() => handleViewUtilization(vehicle)}
-                                                                    size="middle"
-                                                                    className="bg-blue-600 hover:bg-blue-700"
-                                                                />
-                                                                <Button
-                                                                    type="primary"
                                                                     icon={<EditOutlined />}
                                                                     onClick={() => handleEditVehicle(vehicle)}
                                                                     size="middle"
@@ -611,13 +564,20 @@ const VehicleEntry = () => {
                                                                     onClick={() => handleArchiveVehicle(vehicle.vehicle_id)}
                                                                     size="middle"
                                                                 />
+                                                                <Button
+                                                                    type="default"
+                                                                    icon={<BarChartOutlined />}
+                                                                    onClick={() => handleViewUtilization(vehicle)}
+                                                                    size="middle"
+                                                                    className="bg-green-50 hover:bg-green-100"
+                                                                />
                                                             </div>
                                                         </td>
                                                     </tr>
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={9} className="px-6 py-24 text-center">
+                                                <td colSpan={8} className="px-6 py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={
@@ -711,22 +671,7 @@ const VehicleEntry = () => {
             </Modal>
 
             {/* Image Preview Modal */}
-            <Modal
-                open={viewImageModal}
-                footer={null}
-                onCancel={() => setViewImageModal(false)}
-                width={700}
-                centered
-            >
-                {currentImage && (
-                    <Image
-                        src={currentImage}
-                        alt="Vehicle"
-                        className="w-full object-contain max-h-[70vh]"
-                        preview={false}
-                    />
-                )}
-            </Modal>
+
 
             {/* Add View Utilization Modal */}
             <ViewUtilization

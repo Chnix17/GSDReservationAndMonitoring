@@ -25,7 +25,7 @@ const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
       <Card
         className={`
           overflow-hidden border-0 shadow-sm hover:shadow-md transition-all
-          ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}
+          ${isSelected ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
           ${effectiveViewMode === 'list' ? 'flex' : ''}
           ${isMobile ? 'py-2 px-3' : 'p-4'}
         `}
@@ -37,13 +37,13 @@ const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
         `}>
           {/* Venue Icon/Placeholder */}
           <div className={`
-            flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-100 to-blue-50
+            flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50
             ${effectiveViewMode === 'list' 
               ? (isMobile ? 'w-12 h-12' : 'w-16 h-16') 
               : 'w-full h-24'}
             flex-shrink-0
           `}>
-            <BsBuilding className={`text-blue-400 ${isMobile ? 'text-xl' : 'text-3xl'}`} />
+            <BsBuilding className={`text-green-500 ${isMobile ? 'text-xl' : 'text-3xl'}`} />
           </div>
 
           {/* Content */}
@@ -57,7 +57,7 @@ const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
               </h3>
               {isSelected && (
                 <Tag 
-                  color="blue"
+                  color="green"
                   className={`
                     flex items-center font-medium whitespace-nowrap
                     ${isMobile ? 'text-[10px] px-1.5 py-0' : 'text-xs px-2 py-0.5'}
@@ -73,13 +73,13 @@ const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
               ${isMobile ? 'gap-2' : 'gap-3'}
             `}>
               <div className="flex items-center gap-1 text-gray-600">
-                <MdPeople className={`text-blue-400 ${isMobile ? 'text-sm' : 'text-base'}`} />
+                <MdPeople className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
                 <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
                   {venue.ven_occupancy}
                 </span>
               </div>
               <div className="flex items-center gap-1 text-gray-600">
-                <MdAccessTime className={`text-blue-400 ${isMobile ? 'text-sm' : 'text-base'}`} />
+                <MdAccessTime className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
                 <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
                   8:00 - 5:00
                 </span>
@@ -203,7 +203,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                   className={`
                     p-2 rounded-md transition-all
                     ${viewMode === 'grid' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
+                      ? 'bg-white text-green-600 shadow-sm' 
                       : 'text-gray-600 hover:bg-gray-200'}
                   `}
                 >
@@ -214,7 +214,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                   className={`
                     p-2 rounded-md transition-all
                     ${viewMode === 'list' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
+                      ? 'bg-white text-green-600 shadow-sm' 
                       : 'text-gray-600 hover:bg-gray-200'}
                   `}
                 >

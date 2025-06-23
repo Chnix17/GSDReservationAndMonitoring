@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../../../utils/encryption';
+import { FaList, FaMapMarkerAlt, FaCar, FaTools } from 'react-icons/fa';
 
 const BASE_URL = SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/";
 
@@ -74,14 +75,14 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
         initial={{ scale: 0.95, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.95, opacity: 0 }}
-        className="bg-white rounded-xl shadow-xl w-full max-w-sm"
+        className="bg-[#fafff4] border border-gray-100 rounded-xl shadow-sm w-full max-w-sm"
       >
         <div className="p-6">
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-medium text-gray-900">Return Condition</h3>
             <button
               onClick={onClose}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              className="p-1 hover:bg-lime-100 rounded-lg transition-colors"
             >
               <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -103,13 +104,13 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
                   onClick={() => setSelectedCondition(condition.value)}
                   className={`flex items-center gap-3 p-4 rounded-lg border-2 transition-all ${
                     selectedCondition === condition.value
-                      ? 'border-blue-500 bg-blue-50'
-                      : 'border-gray-200 hover:border-blue-200 hover:bg-gray-50'
+                      ? 'border-lime-500 bg-lime-50'
+                      : 'border-gray-200 hover:border-lime-200 hover:bg-gray-50'
                   }`}
                 >
                   <div className={`p-2 rounded-lg ${
                     selectedCondition === condition.value
-                      ? 'bg-blue-100 text-blue-600'
+                      ? 'bg-lime-100 text-lime-600'
                       : 'bg-gray-100 text-gray-600'
                   }`}>
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,7 +119,7 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
                   </div>
                   <span className={`font-medium ${
                     selectedCondition === condition.value
-                      ? 'text-blue-700'
+                      ? 'text-lime-700'
                       : 'text-gray-700'
                   }`}>
                     {condition.label}
@@ -140,7 +141,7 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
                       value={badQuantity}
                       onChange={handleBadQuantityChange}
                       placeholder="Enter quantity"
-                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      className="flex-1 text-sm border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-lime-500 focus:border-lime-500"
                     />
                     <span className="text-sm text-gray-500">
                       of {totalQuantity} total
@@ -148,8 +149,8 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
                   </div>
                 </div>
                 {badQuantity && (
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <p className="text-sm text-blue-700">
+                  <div className="bg-lime-50 p-3 rounded-lg">
+                    <p className="text-sm text-lime-700">
                       Good quantity: {totalQuantity - parseInt(badQuantity || 0)} items
                     </p>
                   </div>
@@ -170,7 +171,7 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
               disabled={isSubmitting || !selectedCondition || (isEquipmentConsumable && selectedCondition !== 'good' && !badQuantity)}
               className={`px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 ${
                 selectedCondition && (!isEquipmentConsumable || selectedCondition === 'good' || badQuantity)
-                  ? 'bg-blue-600 hover:bg-blue-700'
+                  ? 'bg-lime-600 hover:bg-lime-700'
                   : 'bg-gray-300 cursor-not-allowed'
               }`}
             >
@@ -959,7 +960,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     return (
       <button
         onClick={() => handleReturnClick(type, item)}
-        className="px-3 py-1.5 text-xs font-medium text-white bg-blue-500 rounded-lg hover:bg-blue-600 transition-colors flex items-center gap-1.5"
+        className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 transition-colors flex items-center gap-1.5"
       >
         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -975,7 +976,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     return (
       <motion.div
         key={item[`checklist_${type}_id`]}
-        className="group relative bg-white/40 backdrop-blur-sm p-2.5 rounded-lg border border-gray-100/50 hover:border-blue-400/50 hover:shadow-sm transition-all duration-200"
+        className="group relative bg-white/40 backdrop-blur-sm p-2.5 rounded-lg border border-gray-100/50 hover:border-lime-400/50 hover:shadow-sm transition-all duration-200"
         whileHover={{ scale: 1.002 }}
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -986,8 +987,8 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
             onClick={() => handleChecklistUpdate(type, item[`checklist_${type}_id`])}
             className={`flex-shrink-0 w-4 h-4 rounded transition-all duration-200 ${
               isChecked 
-                ? 'bg-blue-500 text-white' 
-                : 'bg-white border-2 border-gray-300 hover:border-blue-400'
+                ? 'bg-lime-500 text-white' 
+                : 'bg-white border-2 border-gray-300 hover:border-lime-400'
             }`}
           >
             <AnimatePresence mode="wait">
@@ -1032,12 +1033,18 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
       >
         <button
           onClick={() => toggleSection(sectionKey)}
-          className="w-full px-4 py-2.5 flex items-center justify-between hover:bg-gray-50/50 transition-colors"
+          className="w-full px-4 py-2.5 flex items-center justify-between bg-gradient-to-r from-lime-900 to-green-900 rounded-t-lg transition-colors group"
         >
-          <h3 className="text-sm font-medium text-gray-600">{title}</h3>
+          <span className="flex items-center gap-2">
+            {title === 'Event Information' && <FaList className="text-white text-base" />}
+            {title === 'Venues' && <FaMapMarkerAlt className="text-white text-base" />}
+            {title === 'Vehicles' && <FaCar className="text-white text-base" />}
+            {title === 'Equipment' && <FaTools className="text-white text-base" />}
+            <h3 className="text-sm font-semibold text-white">{title}</h3>
+          </span>
           <motion.svg
             animate={{ rotate: expandedSections[sectionKey] ? 180 : 0 }}
-            className="w-3.5 h-3.5 text-gray-400"
+            className="w-3.5 h-3.5 text-white group-hover:text-lime-200"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -1105,7 +1112,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                             <button
                               onClick={() => handleRelease('venue', venue)}
                               disabled={isSubmitting}
-                              className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
                             >
                               {isSubmitting ? 'Releasing...' : 'Release'}
                             </button>
@@ -1149,7 +1156,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                             <button
                               onClick={() => handleRelease('vehicle', vehicle)}
                               disabled={isSubmitting}
-                              className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                              className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
                             >
                               {isSubmitting ? 'Releasing...' : 'Release'}
                             </button>
@@ -1206,7 +1213,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                     });
                                   }}
                                   disabled={isSubmitting}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
                                 >
                                   {isSubmitting ? 'Releasing...' : 'Release'}
                                 </button>
@@ -1226,7 +1233,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                 value={equipmentDefectQty}
                                 onChange={handleEquipmentDefectQtyChange}
                                 placeholder="Qty"
-                                className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 flex-1 min-w-[150px]"
+                                className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-lime-400 focus:border-lime-400 flex-1 min-w-[150px]"
                               />
                             )}
                           </>
@@ -1254,8 +1261,8 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                             if (allUnitsInUse && equipment.checklists?.length > 0) {
                               return (
                                 <div className="space-y-3">
-                                  <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
-                                    <h4 className="text-xs font-medium text-blue-600 mb-2">Equipment Checklist Items (All Units In Use)</h4>
+                                  <div className="bg-lime-50/50 p-3 rounded-lg border border-lime-100">
+                                    <h4 className="text-xs font-medium text-lime-600 mb-2">Equipment Checklist Items (All Units In Use)</h4>
                                     <div className="space-y-2">
                                       {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
                                     </div>
@@ -1265,7 +1272,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                       <div className="flex items-center justify-between">
                                         <div className="flex items-center gap-3">
                                           <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
-                                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                          <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-lime-100 text-lime-700">
                                             In Use
                                           </span>
                                         </div>
@@ -1287,7 +1294,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                     <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
                                     <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
                                       unit.availability_status === "In Use" && unit.active === 1
-                                        ? 'bg-green-100 text-green-700'
+                                        ? 'bg-lime-100 text-lime-700'
                                         : 'bg-gray-100 text-gray-600'
                                     }`}>
                                       {unit.availability_status === "In Use" && unit.active === 1 ? 'In Use' : 'Not In Use'}
@@ -1312,7 +1319,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                         <button
                                           onClick={() => handleRelease('equipment', unit)}
                                           disabled={isSubmitting}
-                                          className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                          className="px-3 py-1 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50 transition-colors"
                                         >
                                           {isSubmitting ? 'Releasing...' : 'Release'}
                                         </button>
@@ -1381,26 +1388,28 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-gray-50/90 backdrop-blur-xl rounded-xl shadow-xl w-full max-w-3xl max-h-[95vh] overflow-hidden"
+          className="bg-[#fafff4] border border-gray-100 rounded-xl shadow-sm w-full max-w-3xl max-h-[95vh] overflow-hidden"
         >
           {isReleasing ? (
             <div className="flex flex-col items-center justify-center p-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-500 border-t-transparent"></div>
-              <p className="mt-4 text-gray-600">Releasing items...</p>
+              <div className="animate-spin rounded-full h-12 w-12 border-4 border-lime-600 border-t-transparent"></div>
+              <p className="mt-4 text-gray-700">Releasing items...</p>
             </div>
           ) : (
             <>
-              <div className="sticky top-0 bg-white/70 backdrop-blur-sm px-4 py-3 border-b border-gray-100/80 z-10">
+              <div className="sticky top-0 bg-gradient-to-r from-lime-900 to-green-900 px-4 py-3 border-b border-gray-100 z-10 rounded-t-xl">
                 <div className="flex justify-between items-center">
                   <div className="flex items-center gap-3">
-                    <h2 className="text-base font-medium text-gray-700">Task Details</h2>
-
+                    <h2 className="text-base font-semibold text-white flex items-center">
+                      <svg className="w-5 h-5 mr-2 text-lime-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2a4 4 0 014-4h2a4 4 0 014 4v2" /></svg>
+                      Task Details
+                    </h2>
                   </div>
                   <button
                     onClick={onClose}
-                    className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+                    className="p-1 hover:bg-lime-100 rounded-lg transition-colors"
                   >
-                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -1460,7 +1469,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                 <button
                                   onClick={() => handleRelease('venue', venue)}
                                   disabled={isSubmitting}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
                                 >
                                   {isSubmitting ? 'Releasing...' : 'Release'}
                                 </button>
@@ -1499,7 +1508,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                 <button
                                   onClick={() => handleRelease('vehicle', vehicle)}
                                   disabled={isSubmitting}
-                                  className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                  className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
                                 >
                                   {isSubmitting ? 'Releasing...' : 'Release'}
                                 </button>
@@ -1553,7 +1562,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                         });
                                       }}
                                       disabled={isSubmitting}
-                                      className="px-3 py-1.5 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50"
+                                      className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
                                     >
                                       {isSubmitting ? 'Releasing...' : 'Release'}
                                     </button>
@@ -1573,7 +1582,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                     value={equipmentDefectQty}
                                     onChange={handleEquipmentDefectQtyChange}
                                     placeholder="Qty"
-                                    className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-blue-400 focus:border-blue-400 flex-1 min-w-[150px]"
+                                    className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-lime-400 focus:border-lime-400 flex-1 min-w-[150px]"
                                   />
                                 )}
                               </>
@@ -1601,8 +1610,8 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                 if (allUnitsInUse && equipment.checklists?.length > 0) {
                                   return (
                                     <div className="space-y-3">
-                                      <div className="bg-blue-50/50 p-3 rounded-lg border border-blue-100">
-                                        <h4 className="text-xs font-medium text-blue-600 mb-2">Equipment Checklist Items (All Units In Use)</h4>
+                                      <div className="bg-lime-50/50 p-3 rounded-lg border border-lime-100">
+                                        <h4 className="text-xs font-medium text-lime-600 mb-2">Equipment Checklist Items (All Units In Use)</h4>
                                         <div className="space-y-2">
                                           {equipment.checklists.map((item) => renderChecklistItem(item, 'equipment'))}
                                         </div>
@@ -1612,7 +1621,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                           <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
                                               <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
-                                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-green-100 text-green-700">
+                                              <span className="inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full bg-lime-100 text-lime-700">
                                                 In Use
                                               </span>
                                             </div>
@@ -1634,7 +1643,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                         <span className="text-sm text-gray-600">SN: {unit.unit_serial_number}</span>
                                         <span className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
                                           unit.availability_status === "In Use" && unit.active === 1
-                                            ? 'bg-green-100 text-green-700'
+                                            ? 'bg-lime-100 text-lime-700'
                                             : 'bg-gray-100 text-gray-600'
                                         }`}>
                                           {unit.availability_status === "In Use" && unit.active === 1 ? 'In Use' : 'Not In Use'}
@@ -1659,7 +1668,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                                             <button
                                               onClick={() => handleRelease('equipment', unit)}
                                               disabled={isSubmitting}
-                                              className="px-3 py-1 text-xs font-medium text-white bg-green-500 rounded-lg hover:bg-green-600 disabled:opacity-50 transition-colors"
+                                              className="px-3 py-1 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50 transition-colors"
                                             >
                                               {isSubmitting ? 'Releasing...' : 'Release'}
                                             </button>
@@ -1702,7 +1711,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                     disabled={isSubmitting || !isTaskInProgress(selectedTask) || !isAllChecklistsCompleted(selectedTask) || !areAllResourcesDone(selectedTask)}
                     className={`px-3 py-1.5 text-xs sm:text-sm font-medium text-white rounded-lg flex items-center gap-2 transition-colors
                       ${isTaskInProgress(selectedTask) && isAllChecklistsCompleted(selectedTask) && areAllResourcesDone(selectedTask)
-                        ? 'bg-blue-500 hover:bg-blue-600'
+                        ? 'bg-lime-500 hover:bg-lime-600'
                         : 'bg-gray-300 cursor-not-allowed'}
                       disabled:opacity-50`}
                   >

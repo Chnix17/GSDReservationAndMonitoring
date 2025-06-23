@@ -223,64 +223,65 @@ const ViewPersonnelTask = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gray-50/50">
+    <div className="flex min-h-screen bg-gradient-to-br from-green-50 to-white">
       <style>{styles}</style>
       <Sidebar />
-      <div className="flex-1 p-3 sm:p-6 overflow-x-hidden">
+      <div className="flex-1 p-3 sm:p-8 overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-6 sticky top-0 z-10 bg-gray-50/80 backdrop-blur-sm pt-2 pb-4 mt-20">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-                <h1 className="text-2xl font-bold text-gray-900">My Tasks</h1>
-                <div className="flex p-1 bg-white rounded-lg shadow-sm border border-gray-200">
+          {/* Header Section */}
+          <div className="mb-8 mt-20 sticky top-0 z-10 backdrop-blur-md pt-8 pb-6 rounded-xl shadow-md rounded-xl">
+            <div className="flex flex-col gap-4 sm:gap-6">
+              <h1 className="text-3xl font-extrabold text-green-900 tracking-tight">My Tasks</h1>
+              <div className="flex justify-start">
+                <div className="flex p-1 bg-green-50 rounded-lg shadow border border-green-100">
                   <button
                     onClick={() => setFilter('ongoing')}
-                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`flex-1 px-5 py-2 rounded-md text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-green-400/50 ${
                       filter === 'ongoing'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-50'
+                        ? 'bg-green-600 text-white shadow'
+                        : 'text-green-700 hover:bg-green-100'
                     }`}
                   >
                     Ongoing
                   </button>
                   <button
                     onClick={() => setFilter('completed')}
-                    className={`flex-1 px-4 py-2 rounded-md text-sm font-medium transition-all ${
+                    className={`flex-1 px-5 py-2 rounded-md text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-green-400/50 ${
                       filter === 'completed'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-gray-600 hover:bg-gray-50'
+                        ? 'bg-green-600 text-white shadow'
+                        : 'text-green-700 hover:bg-green-100'
                     }`}
                   >
                     Completed
                   </button>
                 </div>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Tooltip title="Refresh data">
-                  <Button
-                    icon={<ReloadOutlined />}
-                    onClick={handleRefresh}
-                    size="large"
-                  />
-                </Tooltip>
-              </div>
             </div>
+            <div className="mt-4 border-t border-green-100" />
           </div>
 
-          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+          {/* Search Bar Section */}
+          <div className="bg-white p-6 rounded-xl shadow border border-green-100 mb-8">
             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
               <div className="flex flex-col md:flex-row gap-4 flex-1">
-                <div className="flex-1">
+                <div className="flex-1 flex items-center gap-2">
                   <Input
                     placeholder="Search tasks by title"
                     allowClear
-                    prefix={<SearchOutlined />}
+                    prefix={<SearchOutlined className="text-green-700" />}
                     size="large"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full"
+                    className="w-full !bg-green-50 !border-green-200 !rounded-lg focus:!border-green-400"
                   />
+                  <Tooltip title="Refresh data">
+                    <Button
+                      icon={<ReloadOutlined />}
+                      onClick={handleRefresh}
+                      size="large"
+                      className="!bg-green-100 !border-green-200 hover:!bg-green-200"
+                    />
+                  </Tooltip>
                 </div>
               </div>
             </div>
@@ -291,18 +292,19 @@ const ViewPersonnelTask = () => {
             )}
           </div>
 
-          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+          {/* Table Section */}
+          <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
             {loading ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
               </div>
             ) : (
               <>
-                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                  <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                <table className="w-full text-sm text-left rtl:text-right text-green-900">
+                  <thead className="text-xs text-green-800 uppercase bg-green-100/60">
                     <tr>
-                      <th scope="col" className="px-6 py-3" onClick={() => handleSort('reservation_id')}>
-                        <div className="flex items-center cursor-pointer hover:text-gray-900">
+                      <th scope="col" className="px-6 py-4" onClick={() => handleSort('reservation_id')}>
+                        <div className="flex items-center cursor-pointer hover:text-green-900">
                           ID
                           {sortField === 'reservation_id' && (
                             <span className="ml-1">
@@ -311,32 +313,32 @@ const ViewPersonnelTask = () => {
                           )}
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-6 py-4">
                         <div className="flex items-center">
                           Title
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-6 py-4">
                         <div className="flex items-center">
                           Start Date
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-6 py-4">
                         <div className="flex items-center">
                           End Date
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-6 py-4">
                         <div className="flex items-center">
                           Status
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-6 py-4">
                         <div className="flex items-center">
                           Progress
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-6 py-4">
                         <div className="flex items-center">
                           Actions
                         </div>
@@ -350,22 +352,22 @@ const ViewPersonnelTask = () => {
                         .map((task) => (
                           <tr
                             key={task.reservation_id}
-                            className={`bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
+                            className={`bg-white border-b border-green-50 hover:bg-green-50/60 transition-colors duration-150 ${
                               String(task.reservation_id) === String(highlightedId) 
-                                ? 'bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/40 border-l-4 border-l-blue-500 animate-pulse-subtle relative' 
+                                ? 'bg-green-100/80 hover:bg-green-200/80 border-l-4 border-l-green-500 animate-pulse-subtle relative' 
                                 : ''
                             }`}
                           >
-                            <td className="px-6 py-4">
+                            <td className="px-6 py-4 relative">
                               {String(task.reservation_id) === String(highlightedId) && (
-                                <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-blue-500 rounded-full animate-ping"></div>
+                                <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
                               )}
                               {task.reservation_id}
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center">
-                                <FaEye className="mr-2 text-green-900" />
-                                <span className="font-medium">{task.reservation_title}</span>
+                                <FaEye className="mr-2 text-green-700" />
+                                <span className="font-semibold">{task.reservation_title}</span>
                               </div>
                             </td>
                             <td className="px-6 py-4">{task.formattedStartDate}</td>
@@ -388,9 +390,9 @@ const ViewPersonnelTask = () => {
                                       <span>Venue</span>
                                       <span>{Math.round(calculateProgress(task.venues))}%</span>
                                     </div>
-                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-1.5 bg-green-50 rounded-full overflow-hidden">
                                       <div 
-                                        className="h-full bg-blue-500 rounded-full"
+                                        className="h-full bg-green-500 rounded-full"
                                         style={{ width: `${calculateProgress(task.venues)}%` }}
                                       />
                                     </div>
@@ -402,9 +404,9 @@ const ViewPersonnelTask = () => {
                                       <span>Vehicle</span>
                                       <span>{Math.round(calculateProgress(task.vehicles))}%</span>
                                     </div>
-                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-1.5 bg-green-50 rounded-full overflow-hidden">
                                       <div 
-                                        className="h-full bg-green-500 rounded-full"
+                                        className="h-full bg-green-400 rounded-full"
                                         style={{ width: `${calculateProgress(task.vehicles)}%` }}
                                       />
                                     </div>
@@ -416,9 +418,9 @@ const ViewPersonnelTask = () => {
                                       <span>Equipment</span>
                                       <span>{Math.round(calculateProgress(task.equipments))}%</span>
                                     </div>
-                                    <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                    <div className="h-1.5 bg-green-50 rounded-full overflow-hidden">
                                       <div 
-                                        className="h-full bg-purple-500 rounded-full"
+                                        className="h-full bg-green-300 rounded-full"
                                         style={{ width: `${calculateProgress(task.equipments)}%` }}
                                       />
                                     </div>
@@ -433,7 +435,7 @@ const ViewPersonnelTask = () => {
                                   icon={<EditOutlined />}
                                   onClick={() => handleModalOpen(task)}
                                   size="middle"
-                                  className="bg-green-900 hover:bg-lime-900"
+                                  className="bg-green-700 hover:bg-green-800 border-none"
                                 />
                               </div>
                             </td>
@@ -445,7 +447,7 @@ const ViewPersonnelTask = () => {
                           <Empty
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                             description={
-                              <span className="text-gray-500 dark:text-gray-400">
+                              <span className="text-green-500">
                                 No tasks found
                               </span>
                             }
@@ -456,7 +458,7 @@ const ViewPersonnelTask = () => {
                   </tbody>
                 </table>
 
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="p-6 border-t border-green-100">
                   <Pagination
                     current={currentPage}
                     pageSize={pageSize}

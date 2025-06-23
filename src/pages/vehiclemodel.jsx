@@ -1,16 +1,16 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty, Alert } from 'antd';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import Sidebar from './Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { FaArrowLeft, FaEye  } from 'react-icons/fa';
+import { FaEye  } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import { Tag as PrimeTag } from 'primereact/tag';
+
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
@@ -28,7 +28,6 @@ const VehicleModels = () => {
   const [selectedModelId, setSelectedModelId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [setEditingModel] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -64,10 +63,12 @@ const VehicleModels = () => {
       if (data.status === 'success') {
         setMakes(data.data);
       } else {
+        toast.dismiss();
         toast.error(`Error fetching makes: ${data.message}`);
       }
     } catch (error) {
       console.error('Error fetching makes:', error);
+      toast.dismiss();
       toast.error('Error fetching makes.');
     }
   }, [encryptedUrl ]);
@@ -86,10 +87,12 @@ const VehicleModels = () => {
       if (data.status === 'success') {
         setCategories(data.data);
       } else {
+        toast.dismiss();
         toast.error(`Error fetching categories: ${data.message}`);
       }
     } catch (error) {
       console.error('Error fetching categories:', error);
+      toast.dismiss();
       toast.error('Error fetching categories.');
     }
   },[encryptedUrl]);
@@ -104,10 +107,10 @@ const VehicleModels = () => {
         setModels(response.data.data);
         setFilteredModels(response.data.data);
       } else {
-        toast.error(`Error fetching models: ${response.data.message}`);
+        // toast.error(`Error fetching models: ${response.data.message}`); // Removed to prevent double toast
       }
     } catch (error) {
-      toast.error('Error fetching vehicle models.');
+      // toast.error('Error fetching vehicle models.'); // Removed to prevent double toast
     } finally {
       setLoading(false);
     }
@@ -135,18 +138,20 @@ const VehicleModels = () => {
         
         setFormData({
           id: modelData.vehicle_model_id,
-          name: modelData.vehicle_model_name,
-          makeId: makes.find(make => make.vehicle_make_name === modelData.vehicle_make_name)?.vehicle_make_id || '',
-          categoryId: categories.find(category => category.vehicle_category_name === modelData.vehicle_category_name)?.vehicle_category_id || ''
+          name: modelData.vehicle_model_name?.trim() || "",
+          makeId: makes.find(make => make.vehicle_make_name?.trim() === modelData.vehicle_make_name?.trim())?.vehicle_make_id || '',
+          categoryId: categories.find(category => category.vehicle_category_name?.trim() === modelData.vehicle_category_name?.trim())?.vehicle_category_id || ''
         });
                 
         setEditMode(true);
         setShowModal(true);
       } else {
+        toast.dismiss();
         toast.error('Failed to fetch vehicle model details.');
       }
     } catch (error) {
       console.error('Error fetching vehicle model details:', error);
+      toast.dismiss();
       toast.error('Error fetching vehicle model details.');
     }
   };
@@ -176,11 +181,14 @@ const VehicleModels = () => {
       if (response.data.status === 'success') {
         setModels(models.filter(model => model.vehicle_model_id !== selectedModelId));
         setFilteredModels(filteredModels.filter(model => model.vehicle_model_id !== selectedModelId));
+        toast.dismiss();
         toast.success('Vehicle model deleted successfully!');
       } else {
+        toast.dismiss();
         toast.error(response.data.message || 'Failed to delete vehicle model.');
       }
     } catch (error) {
+      toast.dismiss();
       toast.error('Error deleting vehicle model.');
     } finally {
       setShowConfirmDelete(false);
@@ -191,11 +199,13 @@ const VehicleModels = () => {
     const sanitizedName = sanitizeInput(formData.name);
     
     if (!sanitizedName.trim() || !formData.makeId || !formData.categoryId) {
+      toast.dismiss();
       toast.error("Please fill in all fields.");
       return;
     }
 
     if (!validateInput(sanitizedName)) {
+      toast.dismiss();
       toast.error("Input contains invalid characters.");
       return;
     }
@@ -240,6 +250,7 @@ const VehicleModels = () => {
         );
       }
 
+      toast.dismiss();
       if (response.data.status === 'success') {
         toast.success(response.data.message);
         fetchModels();
@@ -258,16 +269,15 @@ const VehicleModels = () => {
     setShowModal(false);
     setEditMode(false);
     setFormData({ id: '', name: '', makeId: '', categoryId: '' });
-    setEditingModel(null);
   };
 
   const handleSearchChange = (e) => {
     const searchTerm = sanitizeInput(e.target.value.toLowerCase());
     setSearchTerm(searchTerm);
     const results = models.filter(model =>
-      model.vehicle_model_name.toLowerCase().includes(searchTerm) ||
-      model.vehicle_make_name.toLowerCase().includes(searchTerm) ||
-      model.vehicle_category_name.toLowerCase().includes(searchTerm)
+      model.vehicle_model_name?.toLowerCase().includes(searchTerm) ||
+      (model.vehicle_make_name?.toLowerCase().trim().includes(searchTerm) || "") ||
+      (model.vehicle_category_name?.toLowerCase().trim().includes(searchTerm) || "")
     );
     setFilteredModels(results);
   };
@@ -309,9 +319,9 @@ const VehicleModels = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
+              {/* <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
                 <FaArrowLeft className="mr-2" /> Back
-              </Button>
+              </Button> */}
               <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Vehicle Models 
               </h2>
@@ -398,15 +408,9 @@ const VehicleModels = () => {
                       filteredModels
                         .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                         .map((model) => (
-                                                    <tr                            key={model.vehicle_model_id}                            className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"                          >                            <td className="px-6 py-4">                              <div className="flex items-center">                                <FaEye className="mr-2 text-green-900" />                                <span className="font-medium">{model.vehicle_model_name}</span>                              </div>                            </td>
-                            <td className="px-6 py-4">{model.vehicle_make_name}</td>
-                            <td className="px-6 py-4">
-                              <PrimeTag
-                                value={model.vehicle_category_name}
-                                severity="info"
-                                className="px-2 py-1 text-xs font-semibold"
-                              />
-                            </td>
+                                                    <tr                            key={model.vehicle_model_id}                            className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"                          >                            <td className="px-6 py-4">                              <div className="flex items-center">                                                        <span className="font-medium">{model.vehicle_model_name}</span>                              </div>                            </td>
+                            <td className="px-6 py-4">{(model.vehicle_make_name?.trim() || "")}</td>
+                            <td className="px-6 py-4">{(model.vehicle_category_name?.trim() || "")}</td>
                             <td className="px-6 py-4">
                               <div className="flex space-x-2">
                                 <Button
@@ -547,7 +551,6 @@ const VehicleModels = () => {
         />
       </Modal>
 
-      <Toaster />
     </div>
   );
 };

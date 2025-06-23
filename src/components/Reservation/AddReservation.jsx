@@ -1,9 +1,8 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../pages/Sidebar';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
-import {  FaTools, FaTimes,  FaQuestion } from 'react-icons/fa';
 import 'react-datepicker/dist/react-datepicker.css';
 import { motion } from 'framer-motion';
 import { Button } from 'primereact/button';
@@ -12,8 +11,11 @@ import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
 import { UserOutlined, TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import {  Form, Input, InputNumber, Select, Card,  Radio, Result, Alert, Modal, Empty, Spin, Tooltip, Badge, Image } from 'antd';
+import {  Form, Input,  Select, Card,  Radio, Result, Alert, Modal, Empty, Spin, Tooltip,  Pagination } from 'antd';
 import { format } from 'date-fns';
+import { BsTools,  } from 'react-icons/bs';
+import { MdInventory } from 'react-icons/md';
+import { SearchOutlined } from '@ant-design/icons';
 
 import ReservationCalendar from './reservation_components/reservation_calendar';
 import { Button as AntButton } from 'antd';
@@ -33,8 +35,6 @@ import ResourceEquipment from './reservation_components/resource/resource_equipm
 import BasicInformationForm from './reservation_components/form';
 import ReviewSection from './reservation_components/review';
 
-
-
 const fadeInAnimation = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0 },
@@ -43,34 +43,6 @@ const fadeInAnimation = {
 };
 
 
-// New color scheme for a more professional look
-
-
-// Add common image handling function to be used across the component
-const ImageWithFallback = ({ src, alt, className }) => {
-  const [hasError, setHasError] = useState(false);
-  const fallbackSrc = "/no-image-placeholder.png";
-  
-  return (
-    <div className={`relative overflow-hidden ${className}`}>
-      {hasError ? (
-        <div className="flex flex-col items-center justify-center w-full h-full bg-gray-100 rounded-lg">
-          <FaQuestion className="text-gray-400 text-2xl mb-2" />
-          <span className="text-xs text-gray-500">Image not available</span>
-        </div>
-      ) : (
-        <Image
-          src={src}
-          alt={alt}
-          className="w-full h-full object-cover rounded-lg"
-          onError={() => setHasError(true)}
-          preview={!hasError}
-          fallback={fallbackSrc}
-        />
-      )}
-    </div>
-  );
-};
 
 const AddReservation = () => {
   // Add encryptedUrl at the top of the component
@@ -369,7 +341,56 @@ const validateCurrentStep = () => {
 
 const handleBack = () => {
   if (currentStep > 0) {
-    setCurrentStep(prev => prev - 1);
+    const newStep = currentStep - 1;
+    setCurrentStep(newStep);
+    
+    // If going back to step 0 (select resource type), clear all form data
+    if (newStep === 0) {
+      // Reset all form-related state
+      setFormData({
+        resourceType: '',
+        startDate: null,
+        endDate: null,
+        selectedTime: null,
+        eventTitle: '',
+        description: '',
+        participants: '',
+        venues: [],
+        purpose: '',
+        destination: '',
+        passengers: [],
+        driverType: 'default',
+        driverName: '',
+        tripTicketDriver: null,
+      });
+      
+      // Reset resource selection state
+      setSelectedModels([]);
+      setResourceType('');
+      setSelectedCategory('all');
+      setSelectedVenueEquipment({});
+      setEquipmentQuantities({});
+      setLocalEquipmentQuantities({});
+      
+      // Reset modal states
+      setShowEquipmentModal(false);
+      setShowPassengerModal(false);
+      setNewPassenger('');
+      
+      // Reset calendar data
+      setCalendarData({
+        reservations: [],
+        holidays: [],
+        equipmentAvailability: []
+      });
+      
+      // Reset driver-related state
+      setAvailableDrivers([]);
+      setIsLoadingDrivers(false);
+      
+      // Show confirmation toast
+      toast.success('Form data cleared. You can start a new reservation.');
+    }
   }
 };
 
@@ -609,6 +630,7 @@ const handleAddReservation = async () => {
 
 
 const resetForm = () => {
+  // Reset all form-related state
   setFormData({
     resourceType: '',
     startDate: null,
@@ -621,14 +643,40 @@ const resetForm = () => {
     purpose: '',
     destination: '',
     passengers: [],
-    driverName: '',
     driverType: 'default',
+    driverName: '',
     tripTicketDriver: null,
   });
+  
+  // Reset resource selection state
   setSelectedModels([]);
-  setCurrentStep(0);
+  setResourceType('');
+  setSelectedCategory('all');
   setSelectedVenueEquipment({});
   setEquipmentQuantities({});
+  setLocalEquipmentQuantities({});
+  
+  // Reset modal states
+  setShowEquipmentModal(false);
+  setShowPassengerModal(false);
+  setNewPassenger('');
+  
+  // Reset calendar data
+  setCalendarData({
+    reservations: [],
+    holidays: [],
+    equipmentAvailability: []
+  });
+  
+  // Reset driver-related state
+  setAvailableDrivers([]);
+  setIsLoadingDrivers(false);
+  
+  // Reset step
+  setCurrentStep(0);
+  
+  // Show confirmation toast
+  toast.success('Form reset successfully. You can start a new reservation.');
 };
 
 
@@ -691,7 +739,7 @@ const renderSuccessState = () => (
           key="dashboard"
           onClick={() => navigate('/dean/reservation')}
           icon={<DashboardOutlined />}
-          className="bg-blue-500"
+          className="bg-green-500 hover:bg-green-600 border-green-500"
         >
           View All Reservations
         </AntButton>,
@@ -732,13 +780,7 @@ const renderStepContent = () => {
     },
     2: () => (
       <div className="space-y-4">
-        <Alert
-          message="Resource Selection"
-          description={`Select one or more ${formData.resourceType}s for your reservation. You can select multiple items.`}
-          type="info"
-          showIcon
-          className="mb-4"
-        />
+      
         
         <ReservationCalendar
           onDateSelect={(startDate, endDate) => {
@@ -747,6 +789,10 @@ const renderStepContent = () => {
               startDate: startDate,
               endDate: endDate,
             }));
+            // Automatically advance to step 3 (details step) when date is selected successfully
+            setCurrentStep(3);
+            // Show success message
+            toast.success('Date and time selected successfully! Please fill in the required details.');
           }}
           selectedResource={{
             type: formData.resourceType,
@@ -899,9 +945,9 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
             {/* Gradient Definition */}
             <defs>
               <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" stopColor="#3B82F6" />
-                <stop offset="50%" stopColor="#8B5CF6" />
-                <stop offset="100%" stopColor="#10B981" />
+                <stop offset="0%" stopColor="#548e54" />
+                <stop offset="50%" stopColor="#83b383" />
+                <stop offset="100%" stopColor="#538c4c" />
               </linearGradient>
             </defs>
           </svg>
@@ -943,7 +989,7 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
             <span className={`
               flex items-center justify-center
               ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}
-              rounded-full bg-blue-100 text-blue-600
+              rounded-full bg-green-100 text-green-600
             `}>
               {steps[currentStep].icon}
             </span>
@@ -964,7 +1010,7 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
                 className={`
                   rounded-full transition-all duration-300
                   ${index === currentStep
-                    ? 'w-6 h-2 bg-blue-500'
+                    ? 'w-6 h-2 bg-green-500'
                     : index < currentStep
                     ? 'w-2 h-2 bg-green-500'
                     : 'w-2 h-2 bg-gray-200'
@@ -1155,22 +1201,57 @@ const PassengerModal = ({ visible, onHide }) => {
 const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQuantities }) => {
   const [equipmentSearch, setEquipmentSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [localState, setLocalState] = useState(localEquipmentQuantities);
+  const [localState, setLocalState] = useState({});
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 12;
   
-  // Update local state when props change
+  // Reset local state when modal opens - use a ref to track if modal was just opened
+  const modalJustOpenedRef = useRef(false);
+  const modalOpenRef = useRef(false);
+  
+  // Update ref when modal state changes
   useEffect(() => {
-    setLocalState(localEquipmentQuantities);
+    modalOpenRef.current = showEquipmentModal;
+  });
+  
+  useEffect(() => {
+    if (modalOpenRef.current && !modalJustOpenedRef.current) {
+      console.log('Modal opened, resetting local state. Previous state:', localEquipmentQuantities);
+      setLocalState({});
+      setEquipmentSearch('');
+      setSelectedCategory('all');
+      setCurrentPage(1);
+      modalJustOpenedRef.current = true;
+    } else if (!modalOpenRef.current) {
+      modalJustOpenedRef.current = false;
+    }
+  }, [localEquipmentQuantities]);
+  
+  // Update local state when props change (but only if modal is open and props have data)
+  useEffect(() => {
+    if (modalOpenRef.current && localEquipmentQuantities && Object.keys(localEquipmentQuantities).length > 0) {
+      console.log('Updating local state from props:', localEquipmentQuantities);
+      setLocalState({...localEquipmentQuantities});
+    }
   }, [localEquipmentQuantities]);
   
   const handleLocalQuantityChange = (equipId, value) => {
     // Convert value to number and handle empty/undefined cases
     const numericValue = value === '' || value === null || value === undefined ? 0 : Number(value);
     
+    // Ensure equipId is consistently handled as a string for state keys
+    const equipmentKey = String(equipId);
+    
+    console.log('=== handleLocalQuantityChange called ===');
+    console.log('equipId:', equipId, 'equipmentKey:', equipmentKey);
+    console.log('value:', value, 'numericValue:', numericValue);
+    console.log('Current localState before update:', localState);
+    
     // Find the equipment
-    const equip = equipment.find(e => String(e.equip_id) === String(equipId));
+    const equip = equipment.find(e => String(e.equip_id) === equipmentKey);
     
     if (!equip) {
-      console.log('Equipment not found:', equipId);
+      console.log('Equipment not found:', equipId, 'Available equipment:', equipment.map(e => e.equip_id));
       return;
     }
     
@@ -1180,11 +1261,37 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
     // Ensure quantity doesn't exceed available amount and is not negative
     const constrainedValue = Math.max(0, Math.min(numericValue, maxAvailable));
     
-    // Update the local state with the new quantity
-    setLocalState(prev => ({
-      ...prev,
-      [equipId]: constrainedValue
-    }));
+    console.log('Updating equipment quantity:', {
+      equipmentId: equipmentKey,
+      equipmentName: equip.equipment_name,
+      currentValue: value,
+      constrainedValue: constrainedValue,
+      maxAvailable: maxAvailable,
+      currentState: localState
+    });
+    
+    // Update the local state with the new quantity for this specific equipment only
+    setLocalState(prev => {
+      let newState;
+      
+      if (constrainedValue === 0) {
+        // Remove the equipment from state if quantity is 0
+        const { [equipmentKey]: removed, ...rest } = prev;
+        newState = rest;
+        console.log('Removing equipment from state:', equipmentKey);
+      } else {
+        // Add or update the equipment quantity
+        newState = {
+          ...prev,
+          [equipmentKey]: constrainedValue
+        };
+        console.log('Adding/updating equipment in state:', equipmentKey, 'quantity:', constrainedValue);
+      }
+      
+      console.log('New state after update:', newState);
+      console.log('=== handleLocalQuantityChange completed ===');
+      return newState;
+    });
   };
   
   const handleConfirm = () => {
@@ -1194,8 +1301,133 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
     setShowEquipmentModal(false);
   };
   
-  const getAvailableQuantity = (item) => {
-    return parseInt(item.available_quantity);
+  const handleCancel = () => {
+    // Reset local state when cancelling
+    setLocalState({});
+    setShowEquipmentModal(false);
+  };
+  
+
+
+  // Equipment Card Component for list view only
+  const EquipmentCard = ({ item, isSelected, onClick, currentQuantity, onQuantityChange }) => {
+    const availableQuantity = parseInt(item.available_quantity) || 0;
+    const isAvailable = availableQuantity > 0;
+
+    // Debug logging to check equipment data structure
+    console.log('Equipment item:', item);
+
+    return (
+      <Card
+        className={`
+          overflow-hidden border-0 shadow-sm hover:shadow-md transition-all
+          ${currentQuantity > 0 ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
+          flex h-full p-4
+        `}
+        onClick={onClick}
+      >
+        <div className="flex flex-row items-center gap-3 w-full">
+          {/* Equipment Icon/Placeholder */}
+          <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50 w-16 h-16 flex-shrink-0">
+            <BsTools className="text-green-500 text-3xl" />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <h3 className="font-medium text-gray-800 truncate text-base">
+                  {item.equipment_name || item.equip_name || item.name || 'Equipment Name Not Available'}
+                </h3>
+                {currentQuantity > 0 && (
+                  <Tag 
+                    color="green"
+                    className="flex items-center font-medium whitespace-nowrap text-xs px-2 py-0.5"
+                  >
+                    {currentQuantity} selected
+                  </Tag>
+                )}
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <div className="flex items-center gap-1 text-gray-600">
+                  <MdInventory className="text-green-500 text-base" />
+                  <span className="text-sm">
+                    qty: {availableQuantity}
+                  </span>
+                </div>
+                {/* Add equipment category if available */}
+                {item.equipment_category_name && (
+                  <div className="flex items-center gap-1 text-gray-600">
+                    <span className="text-sm">
+                      Category: {item.equipment_category_name}
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Quantity Controls */}
+            {isAvailable && (
+              <div className="flex items-center justify-center gap-2 mt-auto pt-2">
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newQty = Math.max(0, currentQuantity - 1);
+                    console.log('Decreasing quantity for equipment:', item.equip_id, 'from', currentQuantity, 'to', newQty);
+                    onQuantityChange(item.equip_id, newQty);
+                  }}
+                  disabled={currentQuantity === 0}
+                  className={`
+                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    ${currentQuantity > 0 
+                      ? 'bg-green-500 text-white hover:bg-green-600' 
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                    transition-colors
+                  `}
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  max={availableQuantity}
+                  value={currentQuantity}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const value = parseInt(e.target.value) || 0;
+                    const clampedValue = Math.min(Math.max(0, value), availableQuantity);
+                    console.log('Input change for equipment:', item.equip_id, 'value:', value, 'clamped:', clampedValue);
+                    onQuantityChange(item.equip_id, clampedValue);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="w-12 h-6 text-center border border-gray-300 rounded text-xs font-medium
+                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const newQty = currentQuantity + 1;
+                    console.log('Increasing quantity for equipment:', item.equip_id, 'from', currentQuantity, 'to', newQty);
+                    onQuantityChange(item.equip_id, newQty);
+                  }}
+                  disabled={currentQuantity >= availableQuantity}
+                  className={`
+                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    ${currentQuantity < availableQuantity 
+                      ? 'bg-green-500 text-white hover:bg-green-600' 
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                    transition-colors
+                  `}
+                >
+                  +
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    );
   };
   
   // Filter equipment by search term and category
@@ -1211,202 +1443,178 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
     
     return matchesSearch && matchesCategory;
   });
-  
-  // Group equipment by category for better organization
-  const groupedEquipment = filteredEquipment.reduce((acc, item) => {
-    const category = item.equipment_category;
-    if (!acc[category]) {
-      acc[category] = [];
-    }
-    acc[category].push(item);
-    return acc;
-  }, {});
-  
-  const renderEquipmentCard = (item) => (
-    <Card 
-      key={item.equip_id}
-      className={`
-        overflow-hidden rounded-lg shadow-sm transition-all duration-200
-        ${localState[item.equip_id] > 0 ? 'border-blue-200 shadow-blue-50' : 'border-gray-100'}
-      `}
-      hoverable
-    >
-      <div className="flex flex-col h-full">
-        <div className="relative">
-          <ImageWithFallback
-            src={`${encryptedUrl}/${item.equip_pic}`}
-            alt={item.equip_name}
-            className="w-full h-32"
-          />
-          
-          {localState[item.equip_id] > 0 && (
-            <div className="absolute top-2 right-2">
-              <Badge count={localState[item.equip_id]} color="blue" />
-            </div>
-          )}
-          
-          {getAvailableQuantity(item) === 0 && (
-            <div className="absolute inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center">
-              <Tag color="red" className="text-sm">Not Available</Tag>
-            </div>
-          )}
-        </div>
-        
-        <div className="p-3 flex-1 flex flex-col">
-          <div className="mb-1 text-base font-medium text-gray-800">{item.equip_name}</div>
-          <div className="flex flex-col text-xs text-gray-500 mb-3">
-            <div className="flex justify-between">
-              <span>Total Quantity:</span>
-              <span className="font-medium">{item.equip_quantity}</span>
-            </div>
-            <div className="flex justify-between">
-              <span>Available:</span>
-              <span className={`font-medium ${getAvailableQuantity(item) === 0 ? 'text-red-500' : 'text-green-500'}`}>
-                {getAvailableQuantity(item)}
-              </span>
-            </div>
-          </div>
-          
-          <div className="mt-auto">
-            <div className="flex items-center justify-between">
-              <InputNumber
-                min={0}
-                max={getAvailableQuantity(item)}
-                value={localState[item.equip_id] || 0}
-                onChange={(value) => {
-                  handleLocalQuantityChange(item.equip_id, value);
-                }}
-                disabled={getAvailableQuantity(item) === 0}
-                className="w-20"
-                size="small"
-                controls={true}
-                precision={0}
-              />
-              
-              {localState[item.equip_id] > 0 ? (
-                <Button
-                  type="text"
-                  danger
-                  icon={<FaTimes />}
-                  onClick={() => handleLocalQuantityChange(item.equip_id, 0)}
-                  size="small"
-                />
-              ) : (
-                <Button
-                  type="text"
-                  icon={<PlusOutlined />}
-                  onClick={() => handleLocalQuantityChange(item.equip_id, 1)}
-                  disabled={getAvailableQuantity(item) === 0}
-                  size="small"
-                  className="text-blue-500"
-                />
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
-    </Card>
-  );
+
+  // Calculate pagination
+  const totalItems = filteredEquipment.length;
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentEquipment = filteredEquipment.slice(startIndex, endIndex);
+
+  const handlePageChange = (page) => {
+    setCurrentPage(page);
+  };
+
+  // Handle search
+  const handleSearch = (value) => {
+    setEquipmentSearch(value);
+    setCurrentPage(1); // Reset to first page when searching
+  };
   
   return (
     <Modal
       title={
         <div className="flex items-center gap-2">
-          <FaTools />
+          <BsTools />
           <span>Select Equipment</span>
         </div>
       }
       open={showEquipmentModal}
-      onCancel={() => setShowEquipmentModal(false)}
-      width={900}
+      onCancel={handleCancel}
+      width={1000}
       footer={[
-        <AntButton key="cancel" onClick={() => setShowEquipmentModal(false)}>
+        <AntButton key="cancel" onClick={handleCancel}>
           Cancel
         </AntButton>,
         <AntButton
           key="confirm"
           type="primary"
           onClick={handleConfirm}
-          className="bg-blue-500"
+          className="bg-green-500 hover:bg-green-600 border-green-500"
         >
           Confirm Selection
         </AntButton>
       ]}
     >
       <div className="space-y-4">
-        <Alert
-          message="Equipment Selection Guidelines"
-          description="Select the equipment you need for your event. Only available items can be reserved, and quantities are limited."
-          type="info"
-          showIcon
-          className="mb-4"
-        />
+
         
-        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <Input.Search
-            placeholder="Search equipment..."
-            value={equipmentSearch}
-            onChange={e => setEquipmentSearch(e.target.value)}
-            className="sm:w-60"
-            allowClear
-          />
-          
-          <Select
-            placeholder="Filter by category"
-            value={selectedCategory}
-            onChange={setSelectedCategory}
-            className="w-full sm:w-60"
-            options={[
-              { value: 'all', label: 'All Categories' },
-              ...equipmentCategories.map(cat => ({
-                value: cat.equipment_category_id.toString(),
-                label: cat.equipment_category_name
-              }))
-            ]}
-          />
-        </div>
-        
-        <div className="mt-4 max-h-[400px] overflow-y-auto p-1">
-          {filteredEquipment.length === 0 ? (
-            <Empty
-              description={
-                <span className="text-gray-500">
-                  {equipmentSearch
-                    ? `No equipment matching "${equipmentSearch}"`
-                    : "No equipment available"}
-                </span>
-              }
+        {/* Header with Search and Controls */}
+        <div className="bg-white rounded-lg shadow-sm p-4">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+            <div className="flex-1">
+              <h2 className="font-semibold text-gray-800 text-lg">
+                {Object.values(localState).filter(qty => qty > 0).length > 0
+                  ? `Selected Equipment (${Object.values(localState).filter(qty => qty > 0).length})`
+                  : 'Available Equipment'}
+              </h2>
+              <p className="text-gray-500 mt-0.5 text-sm">
+                {Object.values(localState).filter(qty => qty > 0).length > 0
+                  ? 'Equipment availability is calculated based on existing reservations'
+                  : 'Select equipment to proceed'}
+              </p>
+            </div>
+          </div>
+
+          {/* Search and Filter Controls */}
+          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4">
+            <Input.Search
+              placeholder="Search equipment by name..."
+              prefix={<SearchOutlined className="text-gray-400" />}
+              onChange={(e) => handleSearch(e.target.value)}
+              value={equipmentSearch}
+              className="w-full max-w-md"
+              size="large"
             />
-          ) : (
-            <div>
-              {selectedCategory === 'all' ? (
-                // Group by category when showing all
-                Object.entries(groupedEquipment).map(([category, items]) => (
-                  <div key={category} className="mb-6">
-                    <h3 className="text-sm font-medium mb-3 text-gray-700">{category}</h3>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {items.map(renderEquipmentCard)}
-                    </div>
+            
+            <Select
+              placeholder="Filter by category"
+              value={selectedCategory}
+              onChange={setSelectedCategory}
+              className="w-full sm:w-60"
+              options={[
+                { value: 'all', label: 'All Categories' },
+                ...equipmentCategories.map(cat => ({
+                  value: cat.equipment_category_id.toString(),
+                  label: cat.equipment_category_name
+                }))
+              ]}
+            />
+          </div>
+        </div>
+
+        {/* Equipment List */}
+        <div className="max-h-[500px] overflow-y-auto">
+          <div className="flex flex-col gap-2">
+            {currentEquipment.map((item) => {
+              const equipmentKey = String(item.equip_id);
+              const currentQty = localState[equipmentKey] || 0;
+              
+              console.log('Rendering equipment card:', {
+                equipmentId: equipmentKey,
+                equipmentName: item.equipment_name,
+                currentQty: currentQty,
+                localState: localState
+              });
+              
+              return (
+                <EquipmentCard
+                  key={equipmentKey}
+                  item={item}
+                  isSelected={currentQty > 0}
+                  onClick={() => {
+                    const availableQty = parseInt(item.available_quantity) || 0;
+                    if (currentQty === 0 && availableQty > 0) {
+                      console.log('Clicking to add equipment:', equipmentKey);
+                      handleLocalQuantityChange(equipmentKey, 1);
+                    } else if (currentQty > 0) {
+                      console.log('Clicking to remove equipment:', equipmentKey);
+                      handleLocalQuantityChange(equipmentKey, 0);
+                    }
+                  }}
+                  currentQuantity={currentQty}
+                  onQuantityChange={handleLocalQuantityChange}
+                />
+              );
+            })}
+          </div>
+
+          {filteredEquipment.length === 0 && (
+            <div className="text-center p-8">
+              <Empty
+                description={
+                  <div className="text-center">
+                    <h3 className="font-medium text-gray-800 mb-1 text-base">
+                      {equipmentSearch 
+                        ? 'No equipment matches your search'
+                        : 'No Equipment Available'}
+                    </h3>
+                    <p className="text-gray-500 text-sm">
+                      {equipmentSearch 
+                        ? 'Try different keywords or clear the search'
+                        : 'Check back later for available equipment'}
+                    </p>
                   </div>
-                ))
-              ) : (
-                // Simple grid when filtered by category
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredEquipment.map(renderEquipmentCard)}
-                </div>
-              )}
+                }
+                className="bg-white rounded-lg shadow-sm p-8"
+              />
+            </div>
+          )}
+
+          {/* Pagination */}
+          {filteredEquipment.length > 0 && (
+            <div className="flex justify-center mt-4 bg-white rounded-lg shadow-sm p-4">
+              <Pagination
+                current={currentPage}
+                total={totalItems}
+                pageSize={itemsPerPage}
+                onChange={handlePageChange}
+                size="default"
+                showSizeChanger={false}
+                showQuickJumper={true}
+              />
             </div>
           )}
         </div>
         
-        <div className="mt-4 flex items-center justify-between bg-gray-50 p-3 rounded-lg">
+        {/* Summary Footer */}
+        <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
           <div className="text-sm font-medium">
-            Selected Items: <span className="text-blue-500">
+            Selected Items: <span className="text-green-500">
               {Object.values(localState).filter(qty => qty > 0).length}
             </span>
           </div>
           <div className="text-sm font-medium">
-            Total Quantity: <span className="text-blue-500">
+            Total Quantity: <span className="text-green-500">
               {Object.values(localState).reduce((sum, qty) => sum + qty, 0)}
             </span>
           </div>
@@ -1476,16 +1684,16 @@ const renderDriverDropdown = () => {
               </Select>
 
               {formData.driverName && (
-                <Card className="bg-blue-50 border-blue-200">
+                <Card className="bg-green-50 border-green-200">
                   <div className="flex items-center gap-4">
-                    <div className="p-2 bg-blue-100 rounded-full">
-                      <UserOutlined className="text-xl text-blue-500" />
+                    <div className="p-2 bg-green-100 rounded-full">
+                      <UserOutlined className="text-xl text-green-500" />
                     </div>
                     <div>
-                      <div className="font-medium text-blue-700">
+                      <div className="font-medium text-green-700">
                         {availableDrivers.find(d => d.driver_id === formData.driverName)?.driver_full_name}
                       </div>
-                      <div className="text-sm text-blue-600">
+                      <div className="text-sm text-green-600">
                         {availableDrivers.find(d => d.driver_id === formData.driverName)?.departments_name || 'Driver'}
                       </div>
                     </div>
@@ -1680,10 +1888,10 @@ return (
           <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center'}`}>
             <Button
               onClick={() => navigate(-1)}
-              className="p-button-text flex items-center gap-2 hover:bg-blue-50 transition-colors"
-              icon={<i className="pi pi-arrow-left text-blue-500" />}
+              className="p-button-text flex items-center gap-2 hover:bg-green-50 transition-colors"
+              icon={<i className="pi pi-arrow-left text-green-500" />}
             >
-              <span className="font-medium text-blue-600">Back to Dashboard</span>
+              <span className="font-medium text-green-600">Back to Dashboard</span>
             </Button>
           </div>
           <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-xl mt-2' : 'text-3xl'}`}>
@@ -1704,10 +1912,10 @@ return (
         </div>
 
         <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className={`px-4 py-3 bg-gray-50 border-b border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
-            <h2 className={`font-semibold text-gray-800 ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <div className={`px-4 py-3 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
+            <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>
               {currentStep === 0 && "Select Resource Type"}
-              {currentStep === 1 && `Select ${formData.resourceType === 'venue' ? 'Venue' : 'Vehicle'}`}
+              {currentStep === 1 && `Select ${formData.resourceType === 'venue' ? 'Venue' : formData.resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
               {currentStep === 2 && "Choose Date & Time"}
               {currentStep === 3 && "Enter Details"}
               {currentStep === 4 && "Review Reservation"}
@@ -1741,7 +1949,7 @@ return (
                       icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
                       onClick={handleAddReservation}
                       size={isMobile ? "middle" : "large"}
-                      className={`${isMobile ? 'w-full' : ''} p-button-success`}
+                      className={`${isMobile ? 'w-full' : ''} p-button-success bg-green-500 hover:bg-green-600 border-green-500`}
                       disabled={loading}
                     >
                       {loading ? 'Submitting...' : 'Submit'}
@@ -1752,7 +1960,7 @@ return (
                       icon={<i className="pi pi-arrow-right" />}
                       onClick={handleNext}
                       size={isMobile ? "middle" : "large"}
-                      className={`${isMobile ? 'w-full' : ''} p-button-primary`}
+                      className={`${isMobile ? 'w-full' : ''} p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white`}
                     >
                       Next
                     </AntButton>

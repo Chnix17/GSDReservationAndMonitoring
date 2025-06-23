@@ -7,11 +7,13 @@ import {
     CarOutlined,
     ToolOutlined,
     InfoCircleOutlined,
-    HistoryOutlined
+    HistoryOutlined,
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../../utils/encryption';
+import { generateGatePassPdf } from '../../components/Reservation/Gate_Pass';
+import GatePass from '../../components/Reservation/Gate_Pass';
 
 const { TabPane } = Tabs;
 
@@ -27,6 +29,7 @@ const ReservationDetails = ({
 }) => {
     const [showCancelModal, setShowCancelModal] = useState(false);
     const baseUrl = SecureStorage.getLocalItem("url");
+    const gatePassRef = React.useRef(); // Ref for hidden GatePass
 
     useEffect(() => {
         console.log("ReservationDetails mounted with props:", {
@@ -93,6 +96,9 @@ const ReservationDetails = ({
             return (completedById || completedByName) && isActiveStatus;
         }
     ) || (reservationDetails.reservation_status?.toLowerCase() === "completed");
+
+    // Helper: Check if both vehicle and equipment are present
+    const hasVehicleAndEquipment = reservationDetails.vehicles?.length > 0 && reservationDetails.equipment?.length > 0;
 
     // Resource table columns definitions
     const columns = {
@@ -319,6 +325,19 @@ const ReservationDetails = ({
                                             pagination={false}
                                             size="small"
                                         />
+                                    )}
+
+                                    {/* Gate Pass Download Button (if both vehicle and equipment) */}
+                                    {hasVehicleAndEquipment && (
+                                        <>
+                                            <Button type="primary" onClick={() => generateGatePassPdf(gatePassRef.current)} style={{ marginTop: 16 }}>
+                                                Download Gate Pass (PDF)
+                                            </Button>
+                                            {/* Hidden GatePass for PDF generation */}
+                                            <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+                                                <GatePass ref={gatePassRef} />
+                                            </div>
+                                        </>
                                     )}
                                 </div>
                             </div>

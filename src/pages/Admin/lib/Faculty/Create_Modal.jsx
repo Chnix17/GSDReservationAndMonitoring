@@ -100,47 +100,42 @@ const Create_Modal = ({
                 return;
             }
 
-            let operation = 'saveUser';
             let jsonData;
 
             if (values.users_role === '13') {
                 jsonData = {
-                    operation: operation,
-                    data: {
-                        fullName: `${values.users_firstname} ${values.users_middlename} ${values.users_lastname}`.trim(),
-                        email: values.users_email,
-                        schoolId: values.users_school_id,
-                        contact: values.users_contact_number,
-                        userLevelId: values.users_role,
-                        password: values.users_password,
-                        departmentId: selectedDepartment.departments_id,
-                        pic: "",
-                        suffix: values.users_suffix || "",
-                        birthdate: values.users_birthday || "",
-                        title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
-                    }
+                    operation: 'saveUser',
+                    fullName: `${values.users_firstname} ${values.users_middlename} ${values.users_lastname}`.trim(),
+                    email: values.users_email,
+                    schoolId: values.users_school_id,
+                    contact: values.users_contact_number,
+                    userLevelId: values.users_role,
+                    password: values.users_password,
+                    departmentId: selectedDepartment.departments_id,
+                    pic: "",
+                    suffix: values.users_suffix || "",
+                    birthdate: values.users_birthday || "",
+                    title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
                 };
             } else {
                 jsonData = {
-                    operation: operation,
-                    data: {
-                        fname: values.users_firstname,
-                        mname: values.users_middlename,
-                        lname: values.users_lastname,
-                        email: values.users_email,
-                        schoolId: values.users_school_id,
-                        contact: values.users_contact_number,
-                        userLevelId: values.users_role,
-                        password: values.users_password,
-                        departmentId: selectedDepartment.departments_id,
-                        suffix: values.users_suffix || "",
-                        birthdate: values.users_birthday || "",
-                        title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
-                    }
+                    operation: 'saveUser',
+                    fname: values.users_firstname,
+                    mname: values.users_middlename,
+                    lname: values.users_lastname,
+                    email: values.users_email,
+                    schoolId: values.users_school_id,
+                    contact: values.users_contact_number,
+                    userLevelId: values.users_role,
+                    password: values.users_password,
+                    departmentId: selectedDepartment.departments_id,
+                    suffix: values.users_suffix || "",
+                    birthdate: values.users_birthday || "",
+                    title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
                 };
             }
 
-            const response = await axios.post(`${baseUrl}/insert_master.php`, jsonData, {
+            const response = await axios.post(`${baseUrl}/user.php`, jsonData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }

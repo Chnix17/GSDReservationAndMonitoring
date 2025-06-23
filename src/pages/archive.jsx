@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton, Input } from 'antd';
-import { UndoOutlined, FileSearchOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, CaretRightOutlined, DeleteOutlined, SearchOutlined } from '@ant-design/icons';
+import { UndoOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, DeleteOutlined, SearchOutlined, IdcardOutlined } from '@ant-design/icons';
 import Sidebar from './Sidebar';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -463,7 +463,7 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-500 hover:bg-green-600">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
               Restore
             </Button>
           </Popconfirm>
@@ -536,7 +536,7 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-500 hover:bg-green-600">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
               Restore
             </Button>
           </Popconfirm>
@@ -586,7 +586,7 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-500 hover:bg-green-600">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
               Restore
             </Button>
           </Popconfirm>
@@ -634,7 +634,7 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-500 hover:bg-green-600">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
               Restore
             </Button>
           </Popconfirm>
@@ -694,7 +694,7 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-500 hover:bg-green-600">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
               Restore
             </Button>
           </Popconfirm>
@@ -737,7 +737,7 @@ const Archive = () => {
     { key: 1, label: 'Vehicles', icon: <CarOutlined /> },
     { key: 2, label: 'Venues', icon: <HomeOutlined /> },
     { key: 3, label: 'Equipment', icon: <ToolOutlined /> },
-    { key: 4, label: 'Drivers', icon: <CaretRightOutlined /> }
+    { key: 4, label: 'Drivers', icon: <IdcardOutlined /> }
   ];
 
   const rowSelection = {
@@ -778,7 +778,7 @@ const Archive = () => {
           type="primary"
           icon={<UndoOutlined />}
           onClick={handleRestore}
-          className="bg-green-500 hover:bg-green-600"
+          className="bg-green-900 hover:bg-lime-900"
         >
           Restore Selected ({selectedRowKeys.length})
         </Button>
@@ -787,25 +787,45 @@ const Archive = () => {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row bg-gradient-to-br from-white to-green-100 min-h-screen">
-      <div className="flex-none">
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
-      <div className="flex-1 overflow-y-auto mt-20 p-8 lg:p-12">
-        <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
-          <h2 className="text-4xl font-bold mb-6 text-green-800 drop-shadow-sm flex items-center">
-            <FileSearchOutlined className="mr-4 text-3xl text-green-600" /> 
-            Archive Management
-          </h2>
-          <p className="mb-6 text-gray-600 max-w-3xl">
-            View and restore archived items across the system. All items can be restored back to active status.
-          </p>
+      
+      <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
+        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+          <motion.div 
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-8"
+          >
+            <div className="mb-4 mt-20">
+              <h2 className="text-2xl font-bold text-green-900 mt-5">
+                Archive   
+              </h2>
+            </div>
+          </motion.div>
 
-          <div className="bg-white rounded-lg shadow-md p-6 mb-6 border border-gray-100">
+          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row gap-4 flex-1">
+                <div className="flex-1">
+                  <Input
+                    placeholder="Search across all fields..."
+                    allowClear
+                    prefix={<SearchOutlined />}
+                    size="large"
+                    value={searchText}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="w-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
             {/* Tabs Navigation */}
             <div className="border-b border-gray-200 mb-4">
               <nav className="flex -mb-px space-x-8">
@@ -815,7 +835,7 @@ const Archive = () => {
                     onClick={() => handleChange(item.key)}
                     className={`py-4 px-1 flex items-center space-x-2 font-medium text-sm border-b-2 transition-colors duration-200 ${
                       value === item.key 
-                        ? 'border-green-500 text-green-600' 
+                        ? 'border-green-900 text-green-900' 
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
@@ -824,17 +844,6 @@ const Archive = () => {
                   </button>
                 ))}
               </nav>
-            </div>
-
-            {/* Global Search Bar */}
-            <div className="mb-4">
-              <Input
-                placeholder="Search across all fields..."
-                prefix={<SearchOutlined className="text-gray-400" />}
-                onChange={(e) => handleSearch(e.target.value)}
-                style={{ width: '100%', maxWidth: '500px' }}
-                allowClear
-              />
             </div>
 
             {/* Tab Content */}
@@ -955,7 +964,7 @@ const Archive = () => {
               )}
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
   );

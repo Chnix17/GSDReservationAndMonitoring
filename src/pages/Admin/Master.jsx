@@ -211,8 +211,12 @@ const Master = () => {
     }
   };
 
-  const handleSaveHolidayData = async (e) => {
-    e.preventDefault();
+  const handleSaveHolidayData = async (values) => {
+    // Check if values is an event object (from regular form) or form values (from Ant Design Form)
+    if (values && values.preventDefault) {
+      values.preventDefault();
+    }
+    
     if (!holidayName.trim() || !holidayDate) {
       setMessage('Holiday name and date are required.');
       setIsSuccess(false);
@@ -229,12 +233,10 @@ const Master = () => {
     const sanitizedHolidayName = sanitizeInput(holidayName);
 
     try {
-      const response = await axios.post(`${encryptedUrl}insert_master.php`, {
+      const response = await axios.post(`${encryptedUrl}user.php`, {
         operation: 'saveHoliday',
-        data: {
-          holiday_name: sanitizedHolidayName,
-          holiday_date: holidayDate
-        }
+        holiday_name: sanitizedHolidayName,
+        holiday_date: holidayDate
       });
 
       if (response.data.status === 'success') {
@@ -256,8 +258,12 @@ const Master = () => {
     }
   };
 
-  const handleSaveDriverData = async (e) => {
-    e.preventDefault();
+  const handleSaveDriverData = async (values) => {
+    // Check if values is an event object (from regular form) or form values (from Ant Design Form)
+    if (values && values.preventDefault) {
+      values.preventDefault();
+    }
+    
     if (!driverFirstName.trim() || !driverLastName.trim() || !driverContactNumber.trim() || !driverAddress.trim() || !driverEmployeeId.trim() || !driverBirthdate) {
       setMessage('Required fields cannot be empty');
       setIsSuccess(false);
@@ -273,19 +279,17 @@ const Master = () => {
     }
 
     try {
-      const response = await axios.post(`${encryptedUrl}insert_master.php`, {
+      const response = await axios.post(`${encryptedUrl}user.php`, {
         operation: 'saveDriver',
-        data: {
-          driver_first_name: sanitizeInput(driverFirstName),
-          driver_middle_name: sanitizeInput(driverMiddleName),
-          driver_last_name: sanitizeInput(driverLastName),
-          driver_suffix: driverSuffix,
-          driver_contact_number: sanitizeInput(driverContactNumber),
-          driver_address: sanitizeInput(driverAddress),
-          employee_id: sanitizeInput(driverEmployeeId),
-          driver_birthdate: driverBirthdate,
-          user_admin_id: SecureStorage.getSessionItem('user_id')
-        }
+        driver_first_name: sanitizeInput(driverFirstName),
+        driver_middle_name: sanitizeInput(driverMiddleName),
+        driver_last_name: sanitizeInput(driverLastName),
+        driver_suffix: driverSuffix,
+        driver_contact_number: sanitizeInput(driverContactNumber),
+        driver_address: sanitizeInput(driverAddress),
+        employee_id: sanitizeInput(driverEmployeeId),
+        driver_birthdate: driverBirthdate,
+        user_admin_id: SecureStorage.getSessionItem('user_id')
       });
 
       if (response.data.status === 'success') {
@@ -346,17 +350,23 @@ const Master = () => {
   };
 
   const handleSaveCategoryData = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     handleSaveData("saveCategoryData", { vehicle_category_name: categoryName });
   };
 
   const handleSaveMakeData = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     handleSaveData("saveMakeData", { vehicle_make_name: makeName });
   };
 
   const handleSaveModelData = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     if (!selectedCategory || !selectedMake) {
       setMessage("Please select both a category and a make.");
       setIsSuccess(false);
@@ -372,7 +382,9 @@ const Master = () => {
 
 
   const handleSaveUserLevelData = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     handleSaveData("saveUserLevelData", {
       user_level_name: userLevelName,
       user_level_desc: userLevelDesc,
@@ -380,12 +392,16 @@ const Master = () => {
   };
 
   const handleSaveDepartmentData = async (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     handleSaveData("saveDepartmentData", { departments_name: departmentName });
   };
 
   const handleSaveConditionData = (e) => {
-    e.preventDefault();
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     if (!conditionName.trim()) {
       setMessage("Condition name is required.");
       setIsSuccess(false);
@@ -415,7 +431,7 @@ const Master = () => {
             transition={{ duration: 0.5 }}
             className="text-2xl font-custom-font font-bold text-green-900"
           >
-            Masters
+            Master File
           </motion.h1>
         </div>
         {/* Responsive Grid for Cards */}

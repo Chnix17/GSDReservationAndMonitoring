@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from '../Sidebar';
-import { FaArrowLeft, FaCalendarAlt } from 'react-icons/fa';
+import { FaCalendarAlt } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -9,7 +9,7 @@ import { motion } from 'framer-motion';
 import { sanitizeInput } from '../../utils/sanitize';
 import { SecureStorage } from '../../utils/encryption';
 import { Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert, DatePicker } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, QuestionCircleOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 
 const Holiday = () => {
@@ -123,7 +123,7 @@ const Holiday = () => {
         try {
             const endpoint = editMode 
                 ? `${baseUrl}user.php`
-                : `${baseUrl}insert_master.php`;
+                : `${baseUrl}user.php`;
             
             const payload = editMode ? {
                 operation: 'updateHoliday',
@@ -132,13 +132,10 @@ const Holiday = () => {
                 holiday_date: formData.date
             } : {
                 operation: 'saveHoliday',
-                data: {
-                    holiday_name: formData.name,
-                    holiday_date: formData.date,
-                    user_admin_id: SecureStorage.getSessionItem("user_id")
-                }
+                holiday_name: formData.name,
+                holiday_date: formData.date
+         
             };
-
 
             console.log(payload);
 
@@ -197,11 +194,12 @@ const Holiday = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                                <FaArrowLeft className="mr-2" /> Back to Master
-                            </Button>
-                            <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Holiday Management
+                           
+                            <h2 className="text-2xl font-bold text-green-900 mt-5 flex items-center">
+                                Holiday
+                                <Tooltip title="Holidays added here will be reflected on the calendar when users make a reservation.">
+                                    <QuestionCircleOutlined className="ml-2 text-gray-500" />
+                                </Tooltip>
                             </h2>
                         </div>
                     </motion.div>

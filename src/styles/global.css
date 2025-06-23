@@ -1,7 +1,5 @@
-*{
-  background-color:  --light-cream #d4f4dc;
-}
-
+/* Remove or fix the invalid universal background-color rule */
+/* *{ background-color:  --light-cream #d4f4dc; } */
 
 /* Color Palette */
 :root {
@@ -50,4 +48,100 @@
 .hover-card-effect:hover {
   transform: translateY(-2px);
   box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+/* Green theme utility classes */
+.bg-primary-green {
+  background-color: var(--primary-green);
+}
+
+.bg-light-cream {
+  background-color: var(--light-cream);
+}
+
+.bg-accent-green {
+  background-color: var(--accent-green);
+}
+
+.text-primary-green {
+  color: var(--primary-green);
+}
+
+.text-accent-green {
+  color: var(--accent-green);
+}
+
+.border-primary-green {
+  border-color: var(--primary-green);
+}
+
+.border-accent-green {
+  border-color: var(--accent-green);
+}
+
+/* Green button styles */
+.btn-green {
+  background-color: var(--primary-green);
+  border-color: var(--primary-green);
+  color: white;
+}
+
+.btn-green:hover {
+  background-color: var(--primary-green-dark);
+  border-color: var(--primary-green-dark);
+}
+
+.btn-green-outline {
+  background-color: transparent;
+  border-color: var(--primary-green);
+  color: var(--primary-green);
+}
+
+.btn-green-outline:hover {
+  background-color: var(--primary-green);
+  color: white;
+}
+
+/* Green progress indicators */
+.progress-green {
+  background-color: var(--accent-green);
+}
+
+.progress-green-light {
+  background-color: var(--light-cream);
+}
+
+/* Green form elements */
+.form-green .ant-input:focus,
+.form-green .ant-input-focused {
+  border-color: var(--primary-green);
+  box-shadow: 0 0 0 2px rgba(84, 142, 84, 0.2);
+}
+
+.form-green .ant-select:not(.ant-select-disabled):hover .ant-select-selector {
+  border-color: var(--primary-green);
+}
+
+.form-green .ant-select-focused .ant-select-selector {
+  border-color: var(--primary-green);
+  box-shadow: 0 0 0 2px rgba(84, 142, 84, 0.2);
+}
+
+/* Green alert styles */
+.alert-green {
+  background-color: var(--light-cream);
+  border-color: var(--accent-green);
+  color: var(--primary-green-dark);
+}
+
+/* Green badge styles */
+.badge-green {
+  background-color: var(--primary-green);
+  color: white;
+}
+
+.badge-green-light {
+  background-color: var(--light-cream);
+  color: var(--primary-green-dark);
+  border: 1px solid var(--accent-green);
 }

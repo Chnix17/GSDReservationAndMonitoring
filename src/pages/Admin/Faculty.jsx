@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Sidebar';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faPlus } from '@fortawesome/free-solid-svg-icons';
+import {  faPlus } from '@fortawesome/free-solid-svg-icons';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -9,8 +9,7 @@ import { Modal, Button } from 'react-bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { motion } from 'framer-motion';
 
-import { InputText } from 'primereact/inputtext';
-import { FilterMatchMode } from 'primereact/api';
+
 import "primereact/resources/themes/lara-light-indigo/theme.css";  // theme
 import "primereact/resources/primereact.css";     // core css
 import "primeicons/primeicons.css";               // icons
@@ -19,8 +18,9 @@ import { SecureStorage } from '../../utils/encryption';
 import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import CreateModal from './lib/Faculty/Create_Modal';
 import UpdateModal from './lib/Faculty/Update_Modal';
-import { Alert, Empty, Pagination, Select } from 'antd';
+import { Alert, Empty, Pagination, Select, Input, Tooltip } from 'antd';
 import { Button as AntButton } from 'antd';
+import { SearchOutlined } from '@ant-design/icons';
 
 // Add custom styles for checkboxes
 const customStyles = `
@@ -86,10 +86,6 @@ const Faculty = () => {
     const [modalState, setModalState] = useState({ isOpen: false, type: '', user: null });
     const [departments, setDepartments] = useState([]);
     const [userLevels, setUserLevels] = useState([]);
-    const [filters, setFilters] = useState({
-        global: { value: null, matchMode: FilterMatchMode.CONTAINS },
-        'departments_name': { value: null, matchMode: FilterMatchMode.CONTAINS },
-    });
     const [selectedRole, setSelectedRole] = useState('');
     const [viewImageModal, setViewImageModal] = useState(false);
 
@@ -97,6 +93,7 @@ const Faculty = () => {
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
+    const [searchTerm, setSearchTerm] = useState('');
 
     const navigate = useNavigate();
 
@@ -297,13 +294,22 @@ const Faculty = () => {
         );
     };
 
-    // Modify the DataTable value prop to include role filtering
-    const filteredData = selectedRole 
-        ? users.filter(user => user.user_level_name === selectedRole)
-        : users;
-        
-    // Add custom styling to match Venue.jsx table
-   
+    // Modify the DataTable value prop to include role and search filtering
+    const filteredData = users.filter(user => {
+        const matchesRole = selectedRole ? user.user_level_name === selectedRole : true;
+        const matchesSearch = searchTerm
+            ? (
+                (user.users_fname && user.users_fname.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (user.users_mname && user.users_mname.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (user.users_lname && user.users_lname.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (user.users_school_id && user.users_school_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
+                (user.departments_name && user.departments_name.toLowerCase().includes(searchTerm.toLowerCase()))
+            ) : true;
+        return matchesRole && matchesSearch;
+    });
+    // Pagination logic: slice filteredData for current page
+    const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
             <style>{customStyles}</style>
@@ -330,25 +336,28 @@ const Faculty = () => {
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                             <div className="flex flex-col md:flex-row gap-4 flex-1">
                                 <div className="flex-1">
-                                    <InputText
-                                        value={filters.global.value || ''}
-                                        onChange={(e) => {
-                                            const value = e.target.value;
-                                            let _filters = { ...filters };
-                                            _filters['global'].value = value;
-                                            setFilters(_filters);
-                                        }}
+                                    <Input
                                         placeholder="Search faculty..."
-                                        className="w-full pl-10 pr-4 py-2 rounded-full border border-green-300 focus:outline-none focus:ring-2 focus:ring-green-500 transition-all duration-300"
+                                        allowClear
+                                        prefix={<SearchOutlined className="text-gray-400" />}
+                                        size="large"
+                                        value={searchTerm}
+                                        onChange={e => {
+                                            setSearchTerm(e.target.value);
+                                            setCurrentPage(1); // Reset to first page on search
+                                        }}
+                                        className="w-full"
                                     />
-                                    <FontAwesomeIcon icon={faSearch} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-green-400" />
                                 </div>
                                 <div className="w-full md:w-48">
                                     <Select
                                         placeholder="Filter by role"
                                         allowClear
                                         value={selectedRole}
-                                        onChange={setSelectedRole}
+                                        onChange={value => {
+                                            setSelectedRole(value);
+                                            setCurrentPage(1); // Reset to first page on filter
+                                        }}
                                         className="w-full"
                                         options={[
                                             { value: '', label: 'All Roles' },
@@ -358,6 +367,7 @@ const Faculty = () => {
                                             { value: 'Personnel', label: 'Personnel' },
                                             { value: 'user', label: 'User' }
                                         ]}
+                                        size="large"
                                     />
                                 </div>
                             </div>
@@ -372,11 +382,14 @@ const Faculty = () => {
                                         Archive Selected ({selectedUsers.length})
                                     </AntButton>
                                 )}
-                                <AntButton
-                                    icon={<ReloadOutlined />}
-                                    onClick={fetchUsers}
-                                    size="large"
-                                />
+                                <Tooltip title="Refresh data">
+                                    <AntButton
+                                        icon={<ReloadOutlined />}
+                                        onClick={fetchUsers}
+                                        size="large"
+                                        className="hover:scale-105 transition-transform"
+                                    />
+                                </Tooltip>
                                 <AntButton
                                     type="primary"
                                     icon={<FontAwesomeIcon icon={faPlus} />}
@@ -407,12 +420,12 @@ const Faculty = () => {
                                                         className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
                                                         onChange={(e) => {
                                                             if (e.target.checked) {
-                                                                setSelectedUsers(filteredData.map(user => user.users_id));
+                                                                setSelectedUsers(paginatedData.map(user => user.users_id));
                                                             } else {
                                                                 setSelectedUsers([]);
                                                             }
                                                         }}
-                                                        checked={selectedUsers.length === filteredData.length}
+                                                        checked={paginatedData.length > 0 && paginatedData.every(user => selectedUsers.includes(user.users_id))}
                                                     />
                                                 </div>
                                             </th>
@@ -449,8 +462,8 @@ const Faculty = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {filteredData && filteredData.length > 0 ? (
-                                            filteredData.map((user) => (
+                                        {paginatedData && paginatedData.length > 0 ? (
+                                            paginatedData.map((user) => (
                                                 <tr
                                                     key={user.users_id}
                                                     className={`bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${

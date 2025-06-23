@@ -63,20 +63,9 @@
         const [setPersonnel] = useState([]);
         const [ongoingReservations, setOngoingReservations] = useState([]);
         const [completedReservations, setCompletedReservations] = useState([]);
-        const [setReturnFacilities] = useState([]);
         const [recentReservationsPage, setRecentReservationsPage] = useState(1);
-
         const encryptedUrl = SecureStorage.getLocalItem("url");
 
-        // Function to check if current time is within reservation period
-
-
-
-
-
-
-
-        // Read dark mode preference from localStorage
         useEffect(() => {
             const savedMode = localStorage.getItem('darkMode') === 'true';
             setDarkMode(savedMode);
@@ -88,7 +77,7 @@
             const decryptedUserLevel = parseInt(encryptedUserLevel); 
             console.log('Decrypted User Level:', decryptedUserLevel);
 
-            if (decryptedUserLevel !== 1 && decryptedUserLevel !== 4) { // Check for Super Admin (1) or specific role (4)
+            if (decryptedUserLevel !== 1 && decryptedUserLevel !== 4) { 
                 localStorage.clear(); 
                 navigate('/');
             } else {
@@ -131,19 +120,14 @@
             fetchReservationStats();
         }, [setReservationStats, encryptedUrl]);
 
-        // Fix dark mode implementation after useEffect
         useEffect(() => {
-            // Save dark mode preference to localStorage
             localStorage.setItem('darkMode', darkMode);
-            // Apply dark mode class to body
             if (darkMode) {
                 document.body.classList.add('dark');
             } else {
                 document.body.classList.remove('dark');
             }
         }, [darkMode]);
-
-
 
         const fetchReservations = useCallback(async () => {
             try {
@@ -163,7 +147,6 @@
                 toast.error('Error fetching reservations');
             }
         }, [encryptedUrl]);
-
 
         const fetchReleaseFacilities = useCallback(async () => {
             try {
@@ -196,23 +179,6 @@
             }
         }, [setPersonnel, encryptedUrl]);
 
-        const fetchReturnFacilities = useCallback(async () => {
-            try {
-                const response = await axios.post(`${encryptedUrl}/fetch_reserve.php`, {
-                    operation: 'fetchReturnFacilities'
-                });
-
-                if (response.data && response.data.status === 'success') {
-                    console.log('Return Facilities Data:', response.data.data);
-                    setReturnFacilities(response.data.data);
-                } else {
-                }
-            } catch (error) {
-                toast.error('An error occurred while fetching return facilities.');
-                console.error('Fetch return facilities error:', error);
-            }
-        }, [setReturnFacilities, encryptedUrl]);
-
         const fetchTotals = useCallback(async () => {
             try {
                 const response = await axios.post(`${encryptedUrl}/get_totals.php`, {
@@ -240,11 +206,11 @@
                 fetchReservations();
                 fetchReleaseFacilities();
                 fetchPersonnel(); // Add this line
-                fetchReturnFacilities();
+      
                 fetchTotals();
 
             }
-        }, [loading, fetchReservations, fetchReleaseFacilities, fetchReturnFacilities,  fetchPersonnel, encryptedUrl, fetchTotals]);
+        }, [loading, fetchReservations, fetchReleaseFacilities,  fetchPersonnel, encryptedUrl, fetchTotals]);
 
         // Handle back navigation behavior
         useEffect(() => {
@@ -290,12 +256,12 @@
                 fetchReservations();
                 fetchReleaseFacilities();
                 fetchPersonnel();
-                fetchReturnFacilities();
+      
                 fetchTotals();
 
             }
         }, [loading, fetchReservations, 
-            fetchReleaseFacilities, fetchReturnFacilities, fetchPersonnel, encryptedUrl, fetchTotals]);
+            fetchReleaseFacilities, fetchPersonnel, encryptedUrl, fetchTotals]);
 
 
 
@@ -333,15 +299,17 @@
 
         return (
             <motion.div 
-                className={`dashboard-container flex min-h-screen bg-gradient-to-br from-green-100 to-white ${fadeIn ? 'fade-in' : ''} ${darkMode ? 'dark' : ''}`}
+                className={`flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white ${fadeIn ? 'fade-in' : ''} ${darkMode ? 'dark' : ''}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}
             >
-                <Sidebar />
-                <div className="flex-1 mt-16 md:mt-20 px-4 md:px-6 lg:px-8">
-                    <div className="h-full flex flex-col max-w-[1600px] mx-auto">
-                        <div className="flex-1 py-6 space-y-6">
+                <div className="flex-shrink-0">
+                    <Sidebar />
+                </div>
+                <div className="flex-1 overflow-auto">
+                    <div className="h-full flex flex-col max-w-[1600px] mx-auto mt-20">
+                        <div className="flex-1 py-6 space-y-6 px-4 md:px-6 lg:px-8">
                             {/* Stats Grid - Improved responsiveness */}
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
                                 <StatCard

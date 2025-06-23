@@ -1,15 +1,152 @@
 import React, { useState, useEffect } from 'react';
-import { Empty, Alert, Button, Input, Pagination } from 'antd';
-import { motion } from 'framer-motion';
-import { MinusOutlined, PlusOutlined } from '@ant-design/icons';
+import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
+import { motion, AnimatePresence } from 'framer-motion';
+import { BsFillGridFill, BsList, BsTools } from 'react-icons/bs';
+import { MdInventory } from 'react-icons/md';
+import { SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
 
-const fadeInAnimation = {
-  initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
-  transition: { duration: 0.3 }
+const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, currentQuantity, onQuantityChange }) => {
+  // Force list view on mobile
+  const effectiveViewMode = isMobile ? 'list' : viewMode;
+  const availableQuantity = parseInt(equipment.available_quantity) || 0;
+  const isAvailable = availableQuantity > 0;
+
+  return (
+    <motion.div
+      layout
+      initial={{ opacity: 0, scale: 0.95 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.95 }}
+      whileHover={{ scale: 1.02 }}
+      whileTap={{ scale: 0.98 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Card
+        className={`
+          overflow-hidden border-0 shadow-sm hover:shadow-md transition-all
+          ${currentQuantity > 0 ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
+          ${effectiveViewMode === 'list' ? 'flex' : 'h-full'}
+          ${isMobile ? 'py-2 px-3' : 'p-4'}
+        `}
+        onClick={onClick}
+      >
+        <div className={`
+          flex ${effectiveViewMode === 'list' ? 'flex-row items-center' : 'flex-col h-full'}
+          ${isMobile ? 'gap-2' : 'gap-3'} w-full
+        `}>
+          {/* Equipment Icon/Placeholder */}
+          <div className={`
+            flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50
+            ${effectiveViewMode === 'list' 
+              ? (isMobile ? 'w-12 h-12' : 'w-16 h-16') 
+              : 'w-full h-24'}
+            flex-shrink-0
+          `}>
+            <BsTools className={`text-green-500 ${isMobile ? 'text-xl' : 'text-3xl'}`} />
+          </div>
+
+          {/* Content */}
+          <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
+            <div>
+              <div className="flex items-start justify-between gap-2 mb-1">
+                <h3 className={`
+                  font-medium text-gray-800 truncate
+                  ${isMobile ? 'text-sm' : 'text-base'}
+                `}>
+                  {equipment.equipment_name}
+                </h3>
+                {currentQuantity > 0 && (
+                  <Tag 
+                    color="green"
+                    className={`
+                      flex items-center font-medium whitespace-nowrap
+                      ${isMobile ? 'text-[10px] px-1.5 py-0' : 'text-xs px-2 py-0.5'}
+                    `}
+                  >
+                    {currentQuantity} selected
+                  </Tag>
+                )}
+              </div>
+
+              <div className={`
+                flex flex-wrap
+                ${isMobile ? 'gap-2' : 'gap-3'}
+              `}>
+                <div className="flex items-center gap-1 text-gray-600">
+                  <MdInventory className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
+                  <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
+                    qty: {availableQuantity}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Quantity Controls */}
+            {isAvailable && (
+              <div className={`
+                flex items-center justify-center gap-2 mt-auto pt-2
+                ${isMobile ? 'mt-1' : 'mt-3'}
+              `}>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQuantityChange(equipment.equipment_id, Math.max(0, currentQuantity - 1));
+                  }}
+                  disabled={currentQuantity === 0}
+                  className={`
+                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    ${currentQuantity > 0 
+                      ? 'bg-green-500 text-white hover:bg-green-600' 
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                    transition-colors
+                  `}
+                >
+                  -
+                </button>
+                <input
+                  type="number"
+                  min="0"
+                  max={availableQuantity}
+                  value={currentQuantity}
+                  onChange={(e) => {
+                    e.stopPropagation();
+                    const value = parseInt(e.target.value) || 0;
+                    const clampedValue = Math.min(Math.max(0, value), availableQuantity);
+                    onQuantityChange(equipment.equipment_id, clampedValue);
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                  className={`
+                    w-12 h-6 text-center border border-gray-300 rounded text-xs font-medium
+                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent
+                    ${isMobile ? 'text-xs' : 'text-sm'}
+                  `}
+                />
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onQuantityChange(equipment.equipment_id, currentQuantity + 1);
+                  }}
+                  disabled={currentQuantity >= availableQuantity}
+                  className={`
+                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    ${currentQuantity < availableQuantity 
+                      ? 'bg-green-500 text-white hover:bg-green-600' 
+                      : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                    transition-colors
+                  `}
+                >
+                  +
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </Card>
+    </motion.div>
+  );
 };
 
 const ResourceEquipment = ({ 
@@ -19,9 +156,10 @@ const ResourceEquipment = ({
   startDate,
   endDate
 }) => {
-  const [equipmentSearch, setEquipmentSearch] = useState('');
+  const [viewMode, setViewMode] = useState('grid');
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
@@ -141,8 +279,8 @@ const ResourceEquipment = ({
 
   // Filter equipment by search term only
   const filteredEquipment = equipment.filter(item => 
-    equipmentSearch === '' || 
-    item.equipment_name.toLowerCase().includes(equipmentSearch.toLowerCase())
+    searchQuery === '' || 
+    item.equipment_name.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   // Calculate pagination
@@ -154,145 +292,203 @@ const ResourceEquipment = ({
   const handlePageChange = (page) => {
     setCurrentPage(page);
     // Scroll to top of equipment section
-    document.getElementById('equipment-section')?.scrollIntoView({ behavior: 'smooth' });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const renderEquipmentCard = (item) => {
-    const availableQuantity = parseInt(item.available_quantity) || 0;
-    const isAvailable = availableQuantity > 0;
-    const currentQuantity = equipmentQuantities[item.equipment_id] || 0;
-    
-    return (
-      <motion.div
-        key={item.equipment_id}
-        whileHover={{ scale: 1.02 }}
-        className={`
-          bg-white rounded-lg shadow-sm border transition-all duration-200
-          ${currentQuantity > 0 ? 'border-blue-400 shadow-md' : 'border-gray-100'}
-        `}
-      >
-        <div className="p-4">
-          <div className="flex justify-between items-start mb-3">
-            <div>
-              <h3 className="text-lg font-medium text-gray-800">{item.equipment_name}</h3>
-              <p className="text-sm text-gray-500">Available: {availableQuantity}</p>
-            </div>
-            <div className="flex items-center space-x-1">
-              <Button
-                type="text"
-                icon={<MinusOutlined />}
-                onClick={() => handleEquipmentQuantityChange(item.equipment_id, Math.max(0, currentQuantity - 1))}
-                disabled={!isAvailable || currentQuantity === 0}
-                className={`h-8 w-8 flex items-center justify-center ${
-                  currentQuantity > 0 ? 'text-blue-500 hover:text-blue-600' : 'text-gray-400'
-                }`}
-              />
-              <span className="w-10 text-center font-medium text-gray-700">
-                {currentQuantity}
-              </span>
-              <Button
-                type="text"
-                icon={<PlusOutlined />}
-                onClick={() => handleEquipmentQuantityChange(item.equipment_id, currentQuantity + 1)}
-                disabled={!isAvailable || currentQuantity >= availableQuantity}
-                className={`h-8 w-8 flex items-center justify-center ${
-                  isAvailable ? 'text-blue-500 hover:text-blue-600' : 'text-gray-400'
-                }`}
-              />
-            </div>
-          </div>
-          
-          {!isAvailable && (
-            <div className="text-xs text-red-500 mt-2">
-              Currently unavailable
-            </div>
-          )}
-        </div>
-      </motion.div>
-    );
+  // Handle search
+  const handleSearch = (value) => {
+    setSearchQuery(value);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
   return (
     <motion.div 
-      {...fadeInAnimation}
-      className="space-y-6 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className={`space-y-3 ${isMobile ? 'p-2' : 'p-4'}`}
     >
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 bg-white p-4 rounded-lg shadow-sm">
-        <h3 className="text-xl font-semibold text-gray-800">Equipment Selection</h3>
-        
-        <div className="w-full sm:w-80">
-          <Input.Search
+      {/* Header with Search */}
+      <div className={`
+        flex flex-col gap-3
+        bg-white rounded-lg shadow-sm
+        ${isMobile ? 'p-3' : 'p-4'}
+      `}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex-1">
+            <h2 className={`
+              font-semibold text-gray-800
+              ${isMobile ? 'text-base' : 'text-lg'}
+            `}>
+              {Object.values(equipmentQuantities).filter(qty => qty > 0).length > 0
+                ? `Selected Equipment (${Object.values(equipmentQuantities).filter(qty => qty > 0).length})`
+                : 'Available Equipment'}
+            </h2>
+            <p className={`
+              text-gray-500 mt-0.5
+              ${isMobile ? 'text-xs' : 'text-sm'}
+            `}>
+              {Object.values(equipmentQuantities).filter(qty => qty > 0).length > 0
+                ? 'Equipment availability is calculated based on existing reservations'
+                : 'Select equipment to proceed'}
+            </p>
+          </div>
+          
+          {/* View mode toggle for non-mobile */}
+          {!isMobile && (
+            <div className="flex items-center gap-2">
+              <div className="bg-gray-100 p-1 rounded-lg flex gap-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`
+                    p-2 rounded-md transition-all
+                    ${viewMode === 'grid' 
+                      ? 'bg-white text-green-600 shadow-sm' 
+                      : 'text-gray-600 hover:bg-gray-200'}
+                  `}
+                >
+                  <BsFillGridFill size={16} />
+                </button>
+                <button
+                  onClick={() => setViewMode('list')}
+                  className={`
+                    p-2 rounded-md transition-all
+                    ${viewMode === 'list' 
+                      ? 'bg-white text-green-600 shadow-sm' 
+                      : 'text-gray-600 hover:bg-gray-200'}
+                  `}
+                >
+                  <BsList size={16} />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Search Input */}
+        <div className={`${isMobile ? 'mt-1' : 'mt-2'}`}>
+          <Input
             placeholder="Search equipment by name..."
-            value={equipmentSearch}
-            onChange={e => {
-              setEquipmentSearch(e.target.value);
-              setCurrentPage(1); // Reset to first page on search
-            }}
-            className="w-full"
-            allowClear
+            prefix={<SearchOutlined className="text-gray-400" />}
+            onChange={(e) => handleSearch(e.target.value)}
+            value={searchQuery}
+            className="w-full max-w-md"
+            size={isMobile ? 'middle' : 'large'}
           />
         </div>
       </div>
 
-      <Alert
-        message="Equipment Availability"
-        description="Equipment availability is calculated based on existing reservations. The available quantity shown is what you can reserve for your selected time period."
-        type="info"
-        showIcon
-        className="shadow-sm"
-      />
-      
-      <div id="equipment-section" className="mt-6">
-        {loading ? (
-          <div className="flex justify-center items-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+      {loading ? (
+        <div className="flex justify-center items-center py-8">
+          <Spin size={isMobile ? "default" : "large"} />
+        </div>
+      ) : (
+        <AnimatePresence>
+          <div className={`
+            ${!isMobile && viewMode === 'grid'
+              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
+              : 'flex flex-col gap-2'}
+          `}>
+            {currentEquipment.map((item) => (
+              <EquipmentCard
+                key={item.equipment_id}
+                equipment={item}
+                isSelected={equipmentQuantities[item.equipment_id] > 0}
+                onClick={() => {
+                  const currentQty = equipmentQuantities[item.equipment_id] || 0;
+                  const availableQty = parseInt(item.available_quantity) || 0;
+                  if (currentQty === 0 && availableQty > 0) {
+                    handleEquipmentQuantityChange(item.equipment_id, 1);
+                  } else if (currentQty > 0) {
+                    handleEquipmentQuantityChange(item.equipment_id, 0);
+                  }
+                }}
+                viewMode={viewMode}
+                isMobile={isMobile}
+                currentQuantity={equipmentQuantities[item.equipment_id] || 0}
+                onQuantityChange={handleEquipmentQuantityChange}
+              />
+            ))}
           </div>
-        ) : filteredEquipment.length === 0 ? (
-          <Empty
-            description={
-              <span className="text-gray-500">
-                {equipmentSearch
-                  ? `No equipment matching "${equipmentSearch}"`
-                  : "No equipment available"}
-              </span>
-            }
-          />
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-              {currentEquipment.map(renderEquipmentCard)}
-            </div>
-            
-            <div className="flex justify-center my-6">
+
+          {filteredEquipment.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <Empty
+                description={
+                  <div className="text-center">
+                    <h3 className={`
+                      font-medium text-gray-800 mb-1
+                      ${isMobile ? 'text-sm' : 'text-base'}
+                    `}>
+                      {searchQuery 
+                        ? 'No equipment matches your search'
+                        : 'No Equipment Available'}
+                    </h3>
+                    <p className={`
+                      text-gray-500
+                      ${isMobile ? 'text-xs' : 'text-sm'}
+                    `}>
+                      {searchQuery 
+                        ? 'Try different keywords or clear the search'
+                        : 'Check back later for available equipment'}
+                    </p>
+                  </div>
+                }
+                className={`bg-white rounded-lg shadow-sm ${isMobile ? 'p-6' : 'p-8'}`}
+              />
+            </motion.div>
+          )}
+
+          {/* Pagination */}
+          {filteredEquipment.length > 0 && (
+            <div className={`
+              flex justify-center mt-4 bg-white rounded-lg shadow-sm
+              ${isMobile ? 'p-2' : 'p-4'}
+            `}>
               <Pagination
                 current={currentPage}
                 total={totalItems}
                 pageSize={itemsPerPage}
                 onChange={handlePageChange}
+                size={isMobile ? 'small' : 'default'}
                 showSizeChanger={false}
-                showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} items`}
+                showQuickJumper={!isMobile}
               />
             </div>
-          </>
-        )}
-      </div>
-      
-      <div className="sticky bottom-0 bg-white border-t shadow-lg p-4 mt-8">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="text-sm font-medium text-gray-600">
-              Selected Items: <span className="text-blue-500 font-semibold">
-                {Object.values(equipmentQuantities).filter(qty => qty > 0).length}
-              </span>
-            </div>
-            <div className="text-sm font-medium text-gray-600">
-              Total Quantity: <span className="text-blue-500 font-semibold">
-                {Object.values(equipmentQuantities).reduce((sum, qty) => sum + qty, 0)}
-              </span>
+          )}
+        </AnimatePresence>
+      )}
+
+      {/* Summary Footer */}
+      {Object.values(equipmentQuantities).filter(qty => qty > 0).length > 0 && (
+        <div className={`
+          sticky bottom-0 bg-white border-t shadow-lg
+          ${isMobile ? 'p-3' : 'p-4'}
+        `}>
+          <div className="max-w-7xl mx-auto flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <div className={`
+                font-medium text-gray-600
+                ${isMobile ? 'text-sm' : 'text-base'}
+              `}>
+                Selected Items: <span className="text-green-500 font-semibold">
+                  {Object.values(equipmentQuantities).filter(qty => qty > 0).length}
+                </span>
+              </div>
+              <div className={`
+                font-medium text-gray-600
+                ${isMobile ? 'text-sm' : 'text-base'}
+              `}>
+                Total Quantity: <span className="text-green-500 font-semibold">
+                  {Object.values(equipmentQuantities).reduce((sum, qty) => sum + qty, 0)}
+                </span>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      )}
     </motion.div>
   );
 };

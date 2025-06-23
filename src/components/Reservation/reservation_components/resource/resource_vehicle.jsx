@@ -26,7 +26,7 @@ const VehicleCard = ({ vehicle, isSelected, onClick, viewMode, isMobile }) => {
       <Card
         className={`
           overflow-hidden border-0 shadow-sm hover:shadow-md transition-all
-          ${isSelected ? 'ring-2 ring-blue-500 bg-blue-50' : 'hover:bg-gray-50'}
+          ${isSelected ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
           ${effectiveViewMode === 'list' ? 'flex' : ''}
           ${isMobile ? 'py-2 px-3' : 'p-4'}
         `}
@@ -38,13 +38,13 @@ const VehicleCard = ({ vehicle, isSelected, onClick, viewMode, isMobile }) => {
         `}>
           {/* Vehicle Icon/Placeholder */}
           <div className={`
-            flex items-center justify-center rounded-lg bg-gradient-to-br from-blue-100 to-blue-50
+            flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50
             ${effectiveViewMode === 'list' 
               ? (isMobile ? 'w-12 h-12' : 'w-16 h-16') 
               : 'w-full h-24'}
             flex-shrink-0
           `}>
-            <CarOutlined className={`text-blue-400 ${isMobile ? 'text-xl' : 'text-3xl'}`} />
+            <CarOutlined className={`text-green-500 ${isMobile ? 'text-xl' : 'text-3xl'}`} />
           </div>
 
           {/* Content */}
@@ -58,7 +58,7 @@ const VehicleCard = ({ vehicle, isSelected, onClick, viewMode, isMobile }) => {
               </h3>
               {isSelected && (
                 <Tag 
-                  color="blue"
+                  color="green"
                   className={`
                     flex items-center font-medium whitespace-nowrap
                     ${isMobile ? 'text-[10px] px-1.5 py-0' : 'text-xs px-2 py-0.5'}
@@ -74,26 +74,17 @@ const VehicleCard = ({ vehicle, isSelected, onClick, viewMode, isMobile }) => {
               ${isMobile ? 'gap-2' : 'gap-3'}
             `}>
               <div className="flex items-center gap-1 text-gray-600">
-                <CarOutlined className={`text-blue-400 ${isMobile ? 'text-sm' : 'text-base'}`} />
+                <CarOutlined className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
                 <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
                   {vehicle.vehicle_license}
                 </span>
               </div>
               <div className="flex items-center gap-1 text-gray-600">
-                <MdPeople className={`text-blue-400 ${isMobile ? 'text-sm' : 'text-base'}`} />
+                <MdPeople className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
                 <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
                   {vehicle.vehicle_capacity || 'N/A'}
                 </span>
               </div>
-              <Tag
-                color={vehicle.status_availability_name === 'available' ? 'success' : 'error'}
-                className={`
-                  flex items-center whitespace-nowrap
-                  ${isMobile ? 'text-[10px] px-1.5 py-0' : 'text-xs px-2 py-0.5'}
-                `}
-              >
-                {vehicle.status_availability_name}
-              </Tag>
             </div>
           </div>
         </div>
@@ -214,7 +205,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
                   className={`
                     p-2 rounded-md transition-all
                     ${viewMode === 'grid' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
+                      ? 'bg-white text-green-600 shadow-sm' 
                       : 'text-gray-600 hover:bg-gray-200'}
                   `}
                 >
@@ -225,7 +216,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
                   className={`
                     p-2 rounded-md transition-all
                     ${viewMode === 'list' 
-                      ? 'bg-white text-blue-600 shadow-sm' 
+                      ? 'bg-white text-green-600 shadow-sm' 
                       : 'text-gray-600 hover:bg-gray-200'}
                   `}
                 >
@@ -251,7 +242,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
             onChange={(e) => onCategoryChange(e.target.value)}
             className={`
               border rounded-md px-3 py-2 bg-white
-              focus:outline-none focus:ring-2 focus:ring-blue-500
+              focus:outline-none focus:ring-2 focus:ring-green-500
               ${isMobile ? 'text-sm' : 'text-base'}
             `}
           >

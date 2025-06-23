@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaCar,  FaEye } from 'react-icons/fa';
+import { FaCar } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -203,9 +203,9 @@ const VehicleCategories = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
+              {/* <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
                 <FaArrowLeft className="mr-2" /> Back
-              </Button>
+              </Button> */}
               <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Vehicle Category
               </h2>
@@ -288,7 +288,7 @@ const VehicleCategories = () => {
                           >
                             <td className="px-6 py-4">
                               <div className="flex items-center">
-                                <FaEye className="mr-2 text-green-900" />
+                     
                                 <span className="font-medium">{category.vehicle_category_name}</span>
                               </div>
                             </td>

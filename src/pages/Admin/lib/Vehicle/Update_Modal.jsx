@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, Select, Upload, Button } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Form, Input, Select, Button } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { Calendar } from 'primereact/calendar';
 import { FaEye } from 'react-icons/fa';
@@ -17,18 +17,14 @@ const Update_Modal = ({
     onCancel, 
     onSubmit, 
     isSubmitting,
-    editingVehicle,
-    IMAGE_BASE_URL
+    editingVehicle
 }) => {
     const [form] = Form.useForm();
-    const fileUploadRef = useRef(null);
     const [makeId, setMakeId] = useState('');
     const [category, setCategory] = useState('');
     const [vehicleModelId, setVehicleModelId] = useState('');
     const [vehicleLicensed, setVehicleLicensed] = useState('');
     const [year, setYear] = useState(new Date());
-    const [vehicleImage, setVehicleImage] = useState(null);
-    const [fileList, setFileList] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('');
     const [makes, setMakes] = useState([]);
     const [categories, setCategories] = useState([]);
@@ -181,19 +177,8 @@ const Update_Modal = ({
                 setSelectedStatus(selectedStatusObj.status_availability_id);
                 form.setFieldsValue({ status: selectedStatusObj.status_availability_id });
             }
-
-            if (editingVehicle.vehicle_pic) {
-                const imageUrl = `${IMAGE_BASE_URL}${editingVehicle.vehicle_pic}`;
-                setVehicleImage(imageUrl);
-                setFileList([{
-                    uid: '-1',
-                    name: 'vehicle-image',
-                    status: 'done',
-                    url: imageUrl
-                }]);
-            }
         }
-    }, [open, editingVehicle, statusAvailability, form, IMAGE_BASE_URL]);
+    }, [open, editingVehicle, statusAvailability, form]);
 
     const handleMakeChange = async (selectedMakeId) => {
         setMakeId(selectedMakeId);
@@ -255,25 +240,6 @@ const Update_Modal = ({
         setVehicleLicensed(sanitizeAndValidateLicense(value));
     };
 
-    const handleImageUpload = ({ fileList: newFileList }) => {
-        setFileList(newFileList);
-        
-        if (newFileList.length > 0) {
-            const file = newFileList[0].originFileObj;
-            if (file) {
-                const reader = new FileReader();
-                reader.readAsDataURL(file);
-                reader.onload = () => {
-                    setVehicleImage(reader.result);
-                };
-            } else if (newFileList[0].url) {
-                setVehicleImage(newFileList[0].url);
-            }
-        } else {
-            setVehicleImage(null);
-        }
-    };
-
     const handleSubmit = async () => {
         try {
             const values = await form.validateFields();
@@ -297,16 +263,6 @@ const Update_Modal = ({
             };
             console.log('Form data:', formData);
 
-            // Only include vehicle_pic if it's a new image (base64) or if it's a URL
-            if (vehicleImage) {
-                if (vehicleImage.startsWith('data:')) {
-                    formData.vehicleData.vehicle_pic = vehicleImage;
-                } else if (vehicleImage.startsWith('http')) {
-                    // If it's a URL, we don't need to send it as it's already stored
-                    delete formData.vehicleData.vehicle_pic;
-                }
-            }
-
             const response = await axios.post(`${encryptedUrl}/update_master1.php`, formData);
             
             if (response.data.status === 'success') {
@@ -329,12 +285,6 @@ const Update_Modal = ({
         setVehicleModelId('');
         setVehicleLicensed('');
         setYear(new Date());
-        setVehicleImage(null);
-        setFileList([]);
-        setSelectedStatus('');
-        if (fileUploadRef.current) {
-            fileUploadRef.current.clear();
-        }
     };
 
     const handleClose = () => {
@@ -358,168 +308,136 @@ const Update_Modal = ({
                 className="vehicle-modal"
             >
                 <Form form={form} layout="vertical" className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="space-y-4">
-                            <div className="flex items-end gap-2">
-                                <Form.Item
-                                    name="make"
-                                    label="Make"
-                                    required
-                                    tooltip="Select the vehicle make"
-                                    className="flex-1 mb-0"
-                                >
-                                    <Select
-                                        value={makeId}
-                                        options={makes.map(make => ({
-                                            label: make.vehicle_make_name,
-                                            value: make.vehicle_make_id
-                                        }))}
-                                        onChange={handleMakeChange}
-                                        placeholder="Select Make"
-                                        className="w-full"
-                                    />
-                                </Form.Item>
-                                <Button 
-                                    type="primary" 
-                                    icon={<PlusOutlined />} 
-                                    onClick={handleAddMake}
-                                />
-                            </div>
-
-                            <div className="flex items-end gap-2">
-                                <Form.Item
-                                    name="category"
-                                    label="Category"
-                                    required
-                                    tooltip="Select the vehicle category"
-                                    className="flex-1 mb-0"
-                                >
-                                    <Select
-                                        value={category}
-                                        options={categories.map(cat => ({
-                                            label: cat.vehicle_category_name,
-                                            value: cat.vehicle_category_id
-                                        }))}
-                                        onChange={handleCategoryChange}
-                                        placeholder="Select Category"
-                                        className="w-full"
-                                        disabled={!makeId}
-                                    />
-                                </Form.Item>
-                                <Button 
-                                    type="primary" 
-                                    icon={<PlusOutlined />} 
-                                    onClick={handleAddCategory}
-                                    disabled={!makeId}
-                                />
-                            </div>
-
-                            <div className="flex items-end gap-2">
-                                <Form.Item
-                                    name="model"
-                                    label="Model"
-                                    required
-                                    tooltip="Select the vehicle model"
-                                    className="flex-1 mb-0"
-                                >
-                                    <Select
-                                        value={vehicleModelId}
-                                        options={modelsByCategory[category]?.map(model => ({
-                                            label: model.vehicle_model_name,
-                                            value: model.vehicle_model_id
-                                        }))}
-                                        onChange={(value) => setVehicleModelId(value)}
-                                        placeholder="Select Model"
-                                        className="w-full"
-                                        disabled={!category}
-                                    />
-                                </Form.Item>
-                                <Button 
-                                    type="primary" 
-                                    icon={<PlusOutlined />} 
-                                    onClick={handleAddModel}
-                                    disabled={!category}
-                                />
-                            </div>
-
+                    <div className="space-y-4">
+                        <div className="flex items-end gap-2">
                             <Form.Item
-                                name="license"
-                                label="License Number"
+                                name="make"
+                                label="Make"
                                 required
-                                tooltip="Enter the vehicle license number"
-                            >
-                                <Input
-                                    value={vehicleLicensed}
-                                    onChange={handleLicenseChange}
-                                    placeholder="Enter license number"
-                                    maxLength={50}
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                name="year"
-                                label="Year"
-                                required
-                                tooltip="Select the vehicle year"
-                            >
-                                <Calendar
-                                    value={year}
-                                    onChange={(e) => setYear(e.value)}
-                                    view="year"
-                                    dateFormat="yy"
-                                    placeholder="Select Year"
-                                    className="w-full"
-                                />
-                            </Form.Item>
-
-                            <Form.Item
-                                name="status"
-                                label="Availability Status"
-                                required
-                                tooltip="Select the vehicle availability status"
+                                tooltip="Select the vehicle make"
+                                className="flex-1 mb-0"
                             >
                                 <Select
-                                    value={selectedStatus}
-                                    options={statusAvailability.map(status => ({
-                                        label: status.status_availability_name,
-                                        value: status.status_availability_id
+                                    value={makeId}
+                                    options={makes.map(make => ({
+                                        label: make.vehicle_make_name,
+                                        value: make.vehicle_make_id
                                     }))}
-                                    onChange={(value) => setSelectedStatus(value)}
-                                    placeholder="Select Status"
+                                    onChange={handleMakeChange}
+                                    placeholder="Select Make"
                                     className="w-full"
                                 />
                             </Form.Item>
+                            <Button 
+                                type="primary" 
+                                icon={<PlusOutlined />} 
+                                onClick={handleAddMake}
+                            />
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="flex items-end gap-2">
                             <Form.Item
-                                name="image"
-                                label="Vehicle Image"
-                                tooltip="Upload vehicle image (max 5MB)"
+                                name="category"
+                                label="Category"
+                                required
+                                tooltip="Select the vehicle category"
+                                className="flex-1 mb-0"
                             >
-                                <Upload
-                                    listType="picture-card"
-                                    fileList={fileList}
-                                    onChange={handleImageUpload}
-                                    beforeUpload={() => false}
-                                    maxCount={1}
-                                >
-                                    {fileList.length < 1 && (
-                                        <Button icon={<PlusOutlined />}>
-                                            Upload
-                                        </Button>
-                                    )}
-                                </Upload>
-                                {vehicleImage && typeof vehicleImage === 'string' && vehicleImage.startsWith('http') && (
-                                    <div className="mt-4">
-                                        <img src={vehicleImage} 
-                                            alt="Vehicle Preview" 
-                                            className="max-w-full h-auto rounded-lg shadow-lg" 
-                                        />
-                                    </div>
-                                )}
+                                <Select
+                                    value={category}
+                                    options={categories.map(cat => ({
+                                        label: cat.vehicle_category_name,
+                                        value: cat.vehicle_category_id
+                                    }))}
+                                    onChange={handleCategoryChange}
+                                    placeholder="Select Category"
+                                    className="w-full"
+                                    disabled={!makeId}
+                                />
                             </Form.Item>
+                            <Button 
+                                type="primary" 
+                                icon={<PlusOutlined />} 
+                                onClick={handleAddCategory}
+                                disabled={!makeId}
+                            />
                         </div>
+
+                        <div className="flex items-end gap-2">
+                            <Form.Item
+                                name="model"
+                                label="Model"
+                                required
+                                tooltip="Select the vehicle model"
+                                className="flex-1 mb-0"
+                            >
+                                <Select
+                                    value={vehicleModelId}
+                                    options={modelsByCategory[category]?.map(model => ({
+                                        label: model.vehicle_model_name,
+                                        value: model.vehicle_model_id
+                                    }))}
+                                    onChange={(value) => setVehicleModelId(value)}
+                                    placeholder="Select Model"
+                                    className="w-full"
+                                    disabled={!category}
+                                />
+                            </Form.Item>
+                            <Button 
+                                type="primary" 
+                                icon={<PlusOutlined />} 
+                                onClick={handleAddModel}
+                                disabled={!category}
+                            />
+                        </div>
+
+                        <Form.Item
+                            name="license"
+                            label="License Number"
+                            required
+                            tooltip="Enter the vehicle license number"
+                        >
+                            <Input
+                                value={vehicleLicensed}
+                                onChange={handleLicenseChange}
+                                placeholder="Enter license number"
+                                maxLength={50}
+                            />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="year"
+                            label="Year"
+                            required
+                            tooltip="Select the vehicle year"
+                        >
+                            <Calendar
+                                value={year}
+                                onChange={(e) => setYear(e.value)}
+                                view="year"
+                                dateFormat="yy"
+                                placeholder="Select Year"
+                                className="w-full"
+                            />
+                        </Form.Item>
+
+                        <Form.Item
+                            name="status"
+                            label="Availability Status"
+                            required
+                            tooltip="Select the vehicle availability status"
+                        >
+                            <Select
+                                value={selectedStatus}
+                                options={statusAvailability.map(status => ({
+                                    label: status.status_availability_name,
+                                    value: status.status_availability_id
+                                }))}
+                                onChange={(value) => setSelectedStatus(value)}
+                                placeholder="Select Status"
+                                className="w-full"
+                            />
+                        </Form.Item>
                     </div>
                     <div className="flex justify-end gap-2 mt-4">
                         <Button onClick={handleClose}>

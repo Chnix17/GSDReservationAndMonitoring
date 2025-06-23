@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Modal, Form, Select, Button, message as toast, AutoComplete, Space } from 'antd';
 import { PlusOutlined } from '@ant-design/icons';
 import { FaTools } from 'react-icons/fa';
@@ -14,7 +14,7 @@ const UpdateEquipmentModal = ({
     onClose, 
     onSuccess, 
     equipmentId,
-    equipmentNameOptions 
+    equipmentNameOptions = []
 }) => {
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
@@ -23,7 +23,9 @@ const UpdateEquipmentModal = ({
     const [equipmentType, setEquipmentType] = useState('');
     const [categories, setCategories] = useState([]);
     const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
+    const [equipmentData, setEquipmentData] = useState(null);
     const baseUrl = SecureStorage.getLocalItem("url");
+    const hasLoadedData = useRef(false);
 
     // Equipment types
     const equipmentTypes = [
@@ -56,34 +58,21 @@ const UpdateEquipmentModal = ({
             const response = await axios.post(url, new URLSearchParams(jsonData));
             if (response.data.status === 'success') {
                 const equipment = response.data.data;
+                
+                // Store equipment data
+                setEquipmentData(equipment);
+                
+                // Set equipment name
                 setEquipmentName(equipment.equip_name);
                 
-                // Find the category ID that matches the category name
-                const matchingCategory = categories.find(cat => 
-                    cat.equipments_category_name.toLowerCase() === equipment.category_name.toLowerCase()
-                );
+                // Set equipment type
+                const equipType = equipment.equip_type || 'Non-Consumable';
+                setEquipmentType(equipType);
                 
-                if (matchingCategory) {
-                    setSelectedCategory(matchingCategory.equipments_category_id);
-                } else {
-                    // If category not found, try to fetch categories again and then set
-                    await fetchCategories();
-                    const updatedMatchingCategory = categories.find(cat => 
-                        cat.equipments_category_name.toLowerCase() === equipment.category_name.toLowerCase()
-                    );
-                    if (updatedMatchingCategory) {
-                        setSelectedCategory(updatedMatchingCategory.equipments_category_id);
-                    } else {
-                       
-                    }
-                }
-                
-                setEquipmentType(equipment.equip_type || 'Non-Consumable');
-                
+                // Set form values first
                 form.setFieldsValue({
                     equipmentName: equipment.equip_name,
-                    category: matchingCategory?.equipments_category_id,
-                    equipmentType: equipment.equip_type || 'Non-Consumable'
+                    equipmentType: equipType
                 });
             } else {
                 toast.error("Error fetching equipment details: " + response.data.message);
@@ -92,16 +81,39 @@ const UpdateEquipmentModal = ({
             toast.error("An error occurred while fetching equipment details.");
             console.error("Error fetching equipment details:", error);
         }
-    }, [baseUrl, categories, fetchCategories, form]);
+    }, [baseUrl, form]);
 
+    // Handle category matching after categories are loaded
     useEffect(() => {
-        if (isOpen) {
-            fetchCategories();
-            if (equipmentId) {
-                getEquipmentDetails(equipmentId);
+        if (equipmentData && categories.length > 0) {
+            const matchingCategory = categories.find(cat => 
+                cat.equipments_category_name.toLowerCase() === equipmentData.category_name.toLowerCase()
+            );
+            
+            if (matchingCategory) {
+                setSelectedCategory(matchingCategory.equipments_category_id);
+                form.setFieldsValue({ category: matchingCategory.equipments_category_id });
             }
         }
+    }, [categories, equipmentData, form]);
+
+    useEffect(() => {
+        if (isOpen && !hasLoadedData.current) {
+            hasLoadedData.current = true;
+            fetchCategories().then(() => {
+                if (equipmentId) {
+                    getEquipmentDetails(equipmentId);
+                }
+            });
+        }
     }, [isOpen, equipmentId, fetchCategories, getEquipmentDetails]);
+
+    // Reset the ref when modal closes
+    useEffect(() => {
+        if (!isOpen) {
+            hasLoadedData.current = false;
+        }
+    }, [isOpen]);
 
     const handleCategoryManagement = () => {
         setIsCategoryModalVisible(true);
@@ -111,20 +123,32 @@ const UpdateEquipmentModal = ({
         setIsCategoryModalVisible(false);
     };
 
-    const handleEquipmentNameSearch = (value) => {
-        const sanitized = sanitizeInput(value);
-        if (!validateInput(sanitized)) {
-            toast.error('Invalid input detected. Please avoid special characters and scripts.');
-            return;
+
+
+    const handleEquipmentNameChange = (value) => {
+        setEquipmentName(value);
+        form.setFieldsValue({ equipmentName: value });
+    };
+
+    const handleEquipmentNameBlur = () => {
+        if (equipmentName) {
+            const sanitized = sanitizeInput(equipmentName);
+            if (!validateInput(sanitized)) {
+                toast.error('Invalid input detected. Please avoid special characters and scripts.');
+                setEquipmentName('');
+                form.setFieldsValue({ equipmentName: '' });
+                return;
+            }
+            setEquipmentName(sanitized);
+            form.setFieldsValue({ equipmentName: sanitized });
         }
-        setEquipmentName(sanitized);
-        form.setFieldsValue({ equipmentName: sanitized });
     };
 
     const resetForm = () => {
         setEquipmentName('');
         setSelectedCategory('');
         setEquipmentType('');
+        setEquipmentData(null);
         form.resetFields();
     };
 
@@ -142,14 +166,11 @@ const UpdateEquipmentModal = ({
         const user_admin_id = SecureStorage.getSessionItem('user_id');
         const requestData = {
             operation: "updateEquipment",
-            equipmentData: {
-                name: equipmentName,
-                category_id: selectedCategory,
-                is_active: true,
-                user_admin_id: user_admin_id,
-                equip_type: equipmentType,
-                equipmentId: equipmentId
-            }
+            equip_id: equipmentId,
+            equip_name: equipmentName,
+            equip_type: equipmentType,
+            equipments_category_id: selectedCategory,
+            user_admin_id: user_admin_id
         };
 
         console.log("Request Data being sent:", requestData);   
@@ -157,7 +178,7 @@ const UpdateEquipmentModal = ({
         setLoading(true);
         try {
             const response = await axios.post(
-                `${baseUrl}/update_master1.php`,
+                `${baseUrl}/user.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {
@@ -211,7 +232,8 @@ const UpdateEquipmentModal = ({
                     >
                         <AutoComplete
                             value={equipmentName}
-                            onChange={(value) => handleEquipmentNameSearch(value)}
+                            onChange={(value) => handleEquipmentNameChange(value)}
+                            onBlur={handleEquipmentNameBlur}
                             placeholder="Enter equipment name"
                             options={equipmentNameOptions}
                             filterOption={(inputValue, option) =>
@@ -228,7 +250,10 @@ const UpdateEquipmentModal = ({
                         <Space.Compact style={{ width: '100%' }}>
                             <Select
                                 value={selectedCategory}
-                                onChange={(value) => setSelectedCategory(value)}
+                                onChange={(value) => {
+                                    setSelectedCategory(value);
+                                    form.setFieldsValue({ category: value });
+                                }}
                                 placeholder="Select category"
                                 style={{ width: 'calc(100% - 40px)' }}
                             >
@@ -254,7 +279,10 @@ const UpdateEquipmentModal = ({
                     >
                         <Select
                             value={equipmentType}
-                            onChange={(value) => setEquipmentType(value)}
+                            onChange={(value) => {
+                                setEquipmentType(value);
+                                form.setFieldsValue({ equipmentType: value });
+                            }}
                             placeholder="Select equipment type"
                         >
                             {equipmentTypes.map(type => (

@@ -357,13 +357,6 @@ const AssignPersonnel = () => {
                     icon: <CheckCircleOutlined />,
                     count: reservations.filter(r => r.status === 'Assigned').length,
                     color: 'amber'
-                  },
-                  {
-                    key: 'Completed',
-                    label: 'Completed',
-                    icon: <CheckCircleOutlined />,
-                    count: reservations.filter(r => r.status === 'Completed').length,
-                    color: 'green'
                   }
                 ].map((tab) => (
                   <button

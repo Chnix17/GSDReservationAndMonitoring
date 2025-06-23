@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaUser, FaUserTie } from 'react-icons/fa';
+import { FaUser, FaUserTie } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -38,14 +38,7 @@ const Drivers = () => {
     const [editMode, setEditMode] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
-    useEffect(() => {
-        const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
-        const decryptedUserLevel = parseInt(encryptedUserLevel);
-            if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
-            localStorage.clear();
-            navigate('/gsd');
-        }
-    }, [navigate]);
+    
 
     const fetchDrivers = useCallback(async () => {
         setLoading(true);
@@ -65,6 +58,16 @@ const Drivers = () => {
             setLoading(false);
         }
     }, [baseUrl]);
+
+    useEffect(() => {
+        const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
+        const decryptedUserLevel = parseInt(encryptedUserLevel);
+        if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
+            localStorage.clear();
+            navigate('/gsd');
+        }
+        fetchDrivers(); // Fetch drivers on mount
+    }, [navigate, fetchDrivers]);
 
     const fetchDriverById = async (id) => {
         setLoading(true);
@@ -184,32 +187,27 @@ const Drivers = () => {
             
             const payload = editMode ? {
                 operation: 'updateDriver',
-                driverData: {
-                    driver_id: formData.id,
-                    first_name: formData.firstName,
-                    middle_name: formData.middleName,
-                    last_name: formData.lastName,
-                    suffix: formData.suffix,
-                    employee_id: formData.employeeId,
-                    birthdate: formData.birthdate,
-                    contact_number: formData.contactNumber,
-                    address: formData.address,
-                    is_active: formData.isActive
-                }
+                driver_id: formData.id,
+                driver_first_name: formData.firstName,
+                driver_middle_name: formData.middleName,
+                driver_last_name: formData.lastName,
+                driver_suffix: formData.suffix,
+                employee_id: formData.employeeId,
+                driver_birthdate: formData.birthdate,
+                driver_contact_number: formData.contactNumber,
+                driver_address: formData.address,
+                is_active: formData.isActive ? 1 : 0
             } : {
                 operation: 'saveDriver',
-                data: {
-                    driver_first_name: formData.firstName,
-                    driver_middle_name: formData.middleName,
-                    driver_last_name: formData.lastName,
-                    driver_suffix: formData.suffix,
-                    driver_birthdate: formData.birthdate,
-                    driver_contact_number: formData.contactNumber,
-                    driver_address: formData.address,
-                    employee_id: formData.employeeId,
-                    user_admin_id: SecureStorage.getSessionItem("user_id"), 
-                    is_active: 1
-                }
+                driver_first_name: formData.firstName,
+                driver_middle_name: formData.middleName,
+                driver_last_name: formData.lastName,
+                driver_suffix: formData.suffix,
+                driver_birthdate: formData.birthdate,
+                driver_contact_number: formData.contactNumber,
+                driver_address: formData.address,
+                employee_id: formData.employeeId,
+                user_admin_id: SecureStorage.getSessionItem("user_id")
             };
 
             const response = await axios.post(endpoint, payload, {
@@ -272,11 +270,9 @@ const Drivers = () => {
                         className="mb-8"
                     >
                         <div className="mb-4 mt-20">
-                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
-                                <FaArrowLeft className="mr-2" /> Back to Master
-                            </Button>
+
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Drivers Management
+                                Drivers 
                             </h2>
                         </div>
                     </motion.div>

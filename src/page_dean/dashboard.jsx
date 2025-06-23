@@ -5,7 +5,7 @@ import { FiCalendar,
   FiClock,
   FiEye
  } from 'react-icons/fi';
-import { Modal, Tabs, Button, Empty  } from 'antd';
+import { Modal, Tabs, Button, Empty, Pagination } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import ReservationCalendar from '../components/ReservationCalendar';
@@ -30,6 +30,12 @@ const Dashboard = () => {
   const [declineModalVisible, setDeclineModalVisible] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [customReason, setCustomReason] = useState('');
+
+  // Pagination states
+  const [activePage, setActivePage] = useState(1);
+  const [completedPage, setCompletedPage] = useState(1);
+  const [approvalPage, setApprovalPage] = useState(1);
+  const pageSize = 3;
 
   const calculateDuration = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -534,6 +540,11 @@ const Dashboard = () => {
     );
   };
 
+  // Calculate paginated data
+  const paginatedActive = activeReservations.slice((activePage - 1) * pageSize, activePage * pageSize);
+  const paginatedCompleted = completedReservations.slice((completedPage - 1) * pageSize, completedPage * pageSize);
+  const paginatedApproval = approvalRequests.slice((approvalPage - 1) * pageSize, approvalPage * pageSize);
+
   return (
     <div className={`flex h-screen bg-gradient-to-br from-white to-green-100 overflow-hidden transition-all duration-300`}>
       <Sidebar />
@@ -580,8 +591,8 @@ const Dashboard = () => {
                         </tr>
                       </thead>
                       <tbody className="bg-white/50 divide-y divide-gray-200">
-                        {approvalRequests.length > 0 ? (
-                          approvalRequests.map((request) => (
+                        {paginatedApproval.length > 0 ? (
+                          paginatedApproval.map((request) => (
                             <tr key={request.reservation_id} className="hover:bg-gray-50/50 transition-colors duration-150">
                               <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
                                 <div className="font-medium">{request.reservation_title}</div>
@@ -631,6 +642,15 @@ const Dashboard = () => {
                         )}
                       </tbody>
                     </table>
+                    <div className="flex justify-center mt-4">
+                      <Pagination
+                        current={approvalPage}
+                        pageSize={pageSize}
+                        total={approvalRequests.length}
+                        onChange={setApprovalPage}
+                        showSizeChanger={false}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>
@@ -656,14 +676,22 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="p-3 md:p-4">
-                <div className="space-y-4">
-                  {activeReservations.length > 0 ? (
-                    activeReservations.map((reservation) => (
+                <div
+                  className="space-y-4"
+                  style={{
+                    maxHeight: '420px', // 3 cards * 120px + padding
+                    minHeight: '420px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  {paginatedActive.length > 0 ? (
+                    paginatedActive.map((reservation) => (
                       <motion.div
                         key={reservation.id}
                         className="p-4 bg-white/50 border border-gray-100 rounded-xl hover:border-green-200 transition-colors"
                         whileHover={{ scale: 1.02 }}
                         onClick={() => handleViewReservation(reservation)}
+                        style={{ minHeight: '120px' }}
                       >
                         <div className="flex justify-between items-start">
                           <div>
@@ -708,6 +736,15 @@ const Dashboard = () => {
                     </div>
                   )}
                 </div>
+                <div className="flex justify-center mt-4">
+                  <Pagination
+                    current={activePage}
+                    pageSize={pageSize}
+                    total={activeReservations.length}
+                    onChange={setActivePage}
+                    showSizeChanger={false}
+                  />
+                </div>
               </div>
             </motion.div>
 
@@ -726,34 +763,58 @@ const Dashboard = () => {
                 </div>
               </div>
               <div className="p-3 md:p-4">
-                <div className="space-y-4">
-                  {completedReservations.map((reservation) => (
-                    <motion.div
-                      key={reservation.id}
-                      className="p-4 bg-white/50 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors"
-                      whileHover={{ scale: 1.02 }}
-                    >
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
-                          <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
+                <div
+                  className="space-y-4"
+                  style={{
+                    maxHeight: '420px',
+                    minHeight: '420px',
+                    overflowY: 'auto',
+                  }}
+                >
+                  {paginatedCompleted.length > 0 ? (
+                    paginatedCompleted.map((reservation) => (
+                      <motion.div
+                        key={reservation.id}
+                        className="p-4 bg-white/50 border border-gray-100 rounded-xl hover:border-blue-200 transition-colors"
+                        whileHover={{ scale: 1.02 }}
+                        style={{ minHeight: '120px' }}
+                      >
+                        <div className="flex justify-between items-start">
+                          <div>
+                            <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
+                            <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
+                          </div>
+                          <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                            {reservation.feedback}
+                          </span>
                         </div>
-                        <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
-                          {reservation.feedback}
-                        </span>
-                      </div>
-                      <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
-                        <div className="flex items-center">
-                          <FiCalendar className="w-4 h-4 mr-2" />
-                          {reservation.date}
+                        <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
+                          <div className="flex items-center">
+                            <FiCalendar className="w-4 h-4 mr-2" />
+                            {reservation.date}
+                          </div>
+                          <div className="flex items-center">
+                            <FiClock className="w-4 h-4 mr-2" />
+                            {reservation.time}
+                          </div>
                         </div>
-                        <div className="flex items-center">
-                          <FiClock className="w-4 h-4 mr-2" />
-                          {reservation.time}
-                        </div>
-                      </div>
-                    </motion.div>
-                  ))}
+                      </motion.div>
+                    ))
+                  ) : (
+                    <div className="text-center py-8 text-gray-500 bg-white/50 rounded-xl">
+                      <FiCalendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
+                      <p>No completed reservations found</p>
+                    </div>
+                  )}
+                </div>
+                <div className="flex justify-center mt-4">
+                  <Pagination
+                    current={completedPage}
+                    pageSize={pageSize}
+                    total={completedReservations.length}
+                    onChange={setCompletedPage}
+                    showSizeChanger={false}
+                  />
                 </div>
               </div>
             </motion.div>

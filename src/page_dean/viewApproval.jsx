@@ -8,6 +8,7 @@ import { FiEye,  } from 'react-icons/fi';
 import { Button, Tooltip, Empty, Input, Select, Pagination } from 'antd';
 import { Box, Typography, RadioGroup, FormControlLabel, Radio as MuiRadio, TextField, Modal as MuiModal, Button as MuiButton } from '@mui/material';
 import ReservationDetails from './component/Reservation_Details';
+import ReservationDetailsApproval from './component/Reservation_Details Approval';
 import { format } from 'date-fns';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 
@@ -25,6 +26,7 @@ const ViewApproval = () => {
   const [declineModalVisible, setDeclineModalVisible] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [customReason, setCustomReason] = useState('');
+  const [approvalModalRequest, setApprovalModalRequest] = useState(null);
 
   const filterOptions = [
     { value: 'all', label: 'All Requests' },
@@ -68,7 +70,8 @@ const ViewApproval = () => {
 
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
+      // First, try fetchApprovalByDept
+      const response1 = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
         operation: 'fetchApprovalByDept',
         json: {
           department_id: departmentId,
@@ -76,9 +79,55 @@ const ViewApproval = () => {
           current_user_id: SecureStorage.getSessionItem("user_id")
         }
       });
-      setRequests(response.data.data || []);
+      let data1 = response1.data && response1.data.data ? response1.data.data.map(item => ({ ...item, fromApprovalByDept: true })) : [];
+
+      // Next, try fetchRequestReservation
+      const response2 = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+        operation: 'fetchRequestReservation'
+      });
+      let data2 = response2.data && response2.data.data ? response2.data.data.map(item => ({
+        reservation_id: item.reservation_id,
+        requester_name: item.requester_name,
+        user_level_name: item.user_level_name || '',
+        department_name: item.departments_name || item.department_name || '',
+        reservation_created_at: item.reservation_created_at,
+        reservation_start_date: item.reservation_start_date,
+        reservation_end_date: item.reservation_end_date,
+        reservation_title: item.reservation_title,
+        reservation_description: item.reservation_description,
+        venues: item.venues || [],
+        vehicles: item.vehicles || [],
+        equipment: item.equipment || [],
+        passengers: item.passengers || [],
+        drivers: item.drivers || [],
+        user_id: item.reservation_user_id || item.requester_id,
+        active: item.active || "1",
+        status: item.status || item.reservation_status || '',
+        fromApprovalByDept: false
+      })) : [];
+
+      // Merge logic
+      let merged = [];
+      if (data1.length && data2.length) {
+        // Merge and deduplicate by reservation_id
+        const all = [...data1, ...data2];
+        const seen = new Set();
+        merged = all.filter(item => {
+          if (seen.has(item.reservation_id)) return false;
+          seen.add(item.reservation_id);
+          return true;
+        });
+      } else if (data1.length) {
+        merged = data1;
+      } else if (data2.length) {
+        merged = data2;
+      } else {
+        merged = [];
+      }
+      setRequests(merged);
     } catch (error) {
       console.error('Error fetching approval requests:', error);
+      setRequests([]);
     } finally {
       setLoading(false);
     }
@@ -136,7 +185,7 @@ const ViewApproval = () => {
     handleApproval(selectedRequest?.reservation_id, false);
   };
 
-  const handleViewDetails = async (request) => {
+  const handleViewDetails = (request) => {
     const formattedRequest = {
       reservation_id: request.reservation_id,
       requester_name: request.requester_name,
@@ -153,10 +202,49 @@ const ViewApproval = () => {
       passengers: request.passengers || [],
       drivers: request.drivers || [],
       user_id: request.reservation_user_id,
-      active: request.active || "1"
+      active: request.active || "1",
+      fromApprovalByDept: request.fromApprovalByDept
     };
-
     setSelectedRequest(formattedRequest);
+  };
+
+  const fetchAvailability = async () => {
+    try {
+      const response = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+        operation: 'fetchVenueScheduledCheck'
+      });
+      if (response.data && response.data.status === 'success') {
+        return response.data.data;
+      }
+      return [];
+    } catch (error) {
+      console.error('Error fetching venue schedule:', error);
+      return [];
+    }
+  };
+
+  const handleViewApprovalDetails = async (request) => {
+    setLoading(true);
+    try {
+      const response = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+        operation: 'fetchRequestById',
+        reservation_id: request.reservation_id
+      });
+      // Fetch venue class schedule/class schedule data
+      const scheduleData = await fetchAvailability();
+      if (response.data && response.data.status === 'success' && response.data.data) {
+        setApprovalModalRequest({
+          ...response.data.data,
+          availabilityData: scheduleData
+        });
+      } else {
+        alert('Failed to fetch reservation details');
+      }
+    } catch (error) {
+      alert('Network error while fetching reservation details');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSort = (field) => {
@@ -206,6 +294,11 @@ const ViewApproval = () => {
     }
     return 0;
   });
+
+  const handleModalActionComplete = () => {
+    fetchApprovalRequests();
+    setApprovalModalRequest(null);
+  };
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
@@ -348,7 +441,7 @@ const ViewApproval = () => {
                                 <Button
                                   type="primary"
                                   icon={<FiEye />}
-                                  onClick={() => handleViewDetails(request)}
+                                  onClick={() => request.fromApprovalByDept ? handleViewDetails(request) : handleViewApprovalDetails(request)}
                                   size="middle"
                                   className="bg-blue-600 hover:bg-blue-700"
                                 />
@@ -397,7 +490,7 @@ const ViewApproval = () => {
 
       {/* Reservation Details Modal */}
       <AnimatePresence>
-        {selectedRequest && (
+        {selectedRequest && selectedRequest.fromApprovalByDept && (
           <ReservationDetails
             visible={!!selectedRequest}
             onClose={() => {
@@ -408,6 +501,17 @@ const ViewApproval = () => {
             onApprove={() => handleApproval(selectedRequest.reservation_id, true)}
             onDecline={() => setDeclineModalVisible(true)}
             isApprovalView={true}
+          />
+        )}
+        {approvalModalRequest && (!selectedRequest || !selectedRequest.fromApprovalByDept) && (
+          <ReservationDetailsApproval
+            visible={!!approvalModalRequest}
+            onClose={() => setApprovalModalRequest(null)}
+            reservationDetails={approvalModalRequest}
+            onApprove={() => handleApproval(approvalModalRequest.reservation_id, true)}
+            onDecline={() => setDeclineModalVisible(true)}
+            isApprovalView={true}
+            onActionComplete={handleModalActionComplete}
           />
         )}
       </AnimatePresence>

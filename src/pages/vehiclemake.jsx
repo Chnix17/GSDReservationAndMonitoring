@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button, Modal, Form, Input, Tooltip, Empty, Pagination } from 'antd';
-import { toast, Toaster } from 'sonner';
+import { toast } from 'sonner';
 import Sidebar from './Sidebar';
 
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { FaArrowLeft,  FaEye } from 'react-icons/fa';
+import {  FaEye } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
@@ -221,11 +221,11 @@ const VehicleMakes = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
+              {/* <Button variant="link" onClick={() => navigate(-1)} className="text-green-800">
                 <FaArrowLeft className="mr-2" /> Back
-              </Button>
+              </Button> */}
               <h2 className="text-2xl font-bold text-green-900 mt-5">
-                Vehicle Makes Management
+                Vehicle Makes
               </h2>
             </div>
           </motion.div>
@@ -282,7 +282,7 @@ const VehicleMakes = () => {
                       filteredMakes
                         .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                         .map((make) => (
-                                                    <tr                            key={make.vehicle_make_id}                            className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"                          >                            <td className="px-6 py-4">                              <div className="flex items-center">                                <FaEye className="mr-2 text-green-900" />                                <span className="font-medium">{make.vehicle_make_name}</span>                              </div>                            </td>                            <td className="px-6 py-4">                              <div className="flex space-x-2">                                <Button                                  type="primary"                                  icon={<EditOutlined />}                                  onClick={() => handleEdit(make.vehicle_make_id)}                                  size="middle"                                  className="bg-green-900 hover:bg-lime-900"                                />                                <Button                                  danger                                  icon={<DeleteOutlined />}                                  onClick={() => handleDelete(make.vehicle_make_id)}                                  size="middle"                                />                              </div>                            </td>                          </tr>
+                                                    <tr                            key={make.vehicle_make_id}                            className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"                          >                            <td className="px-6 py-4">                              <div className="flex items-center">                                                          <span className="font-medium">{make.vehicle_make_name}</span>                              </div>                            </td>                            <td className="px-6 py-4">                              <div className="flex space-x-2">                                <Button                                  type="primary"                                  icon={<EditOutlined />}                                  onClick={() => handleEdit(make.vehicle_make_id)}                                  size="middle"                                  className="bg-green-900 hover:bg-lime-900"                                />                                <Button                                  danger                                  icon={<DeleteOutlined />}                                  onClick={() => handleDelete(make.vehicle_make_id)}                                  size="middle"                                />                              </div>                            </td>                          </tr>
                         ))
                     ) : (
                                             <tr>                        <td colSpan={2} className="px-6 py-24 text-center">                          <Empty                            image={Empty.PRESENTED_IMAGE_SIMPLE}                            description={                              <span className="text-gray-500 dark:text-gray-400">                                No makes found                              </span>                            }                          />                        </td>                      </tr>
@@ -371,7 +371,7 @@ const VehicleMakes = () => {
         <p className="text-gray-500 text-sm mt-2">This action cannot be undone.</p>
       </Modal>
 
-      <Toaster position="top-right" />
+    
     </div>
   );
 };

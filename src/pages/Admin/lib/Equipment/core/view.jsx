@@ -82,16 +82,14 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             }
 
             try {
-                const stockData = {
+                const params = new URLSearchParams({
                     operation: "saveStock",
-                    data: {
-                        equip_id: equipmentId,
-                        quantity: parseInt(quickAdjustment.quantity),
-                        user_admin_id: SecureStorage.getSessionItem('user_id')
-                    }
-                };
+                    equip_id: equipmentId,
+                    quantity: parseInt(quickAdjustment.quantity),
+                    user_admin_id: SecureStorage.getSessionItem('user_id')
+                });
 
-                const response = await axios.post(`${baseUrl}/insert_master.php`, stockData);
+                const response = await axios.post(`${baseUrl}/user.php`, params);
 
                 if (response.data.status === 'success') {
                     message.success(`Stock updated to ${quickAdjustment.quantity} items`);
@@ -119,20 +117,20 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             }
 
             try {
-                const unitData = {
+                const params = new URLSearchParams({
                     operation: "saveUnit",
-                    data: {
-                        equip_id: equipmentId,
-                        serial_number: quickAdjustment.tagNumber,
-                        brand: quickAdjustment.brand || null,
-                        size: quickAdjustment.size || null,
-                        color: quickAdjustment.color || null,
-                        status_availability_id: 1, // Default to available
-                        user_admin_id: SecureStorage.getSessionItem('user_id')
-                    }
-                };
+                    equip_id: equipmentId,
+                    serial_number: quickAdjustment.tagNumber,
+                    brand: quickAdjustment.brand || '',
+                    size: quickAdjustment.size || '',
+                    color: quickAdjustment.color || '',
+                    status_availability_id: 1, // Default to available
+                    user_admin_id: SecureStorage.getSessionItem('user_id')
+                });
 
-                const response = await axios.post(`${baseUrl}/insert_master.php`, unitData);
+                console.log('Unit Data:', params.toString());
+
+                const response = await axios.post(`${baseUrl}/user.php`, params);
                 
                 if (response.data.status !== 'success') {
                     throw new Error(response.data.message || 'Failed to save unit');

@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, Upload, Select, Button } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Modal, Form, Input, Select, Button } from 'antd';
 import { FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
@@ -12,9 +11,6 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     const [loading, setLoading] = useState(false);
     const [venueName, setVenueName] = useState('');
     const [maxOccupancy, setMaxOccupancy] = useState('');
-    const [venuePic, setVenuePic] = useState(null);
-    const [previewUrl, setPreviewUrl] = useState(null);
-    const [fileList, setFileList] = useState([]);
     const [selectedStatus, setSelectedStatus] = useState('1');
     const [statusOptions, setStatusOptions] = useState([]);
 
@@ -43,6 +39,8 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     }, [fetchStatusAvailability]);
 
     const getVenueDetails = useCallback(async () => {
+        console.log('venueId:', venueId);
+        
         try {
             const formData = new URLSearchParams();
             formData.append('operation', 'fetchVenueById');
@@ -57,31 +55,20 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 }
             );
     
+            console.log('fetchVenueById response:', response.data);
+    
             if (response.data.status === 'success' && response.data.data && response.data.data.length > 0) {
                 const venue = response.data.data[0];
                 setVenueName(venue.ven_name);
                 setMaxOccupancy(venue.ven_occupancy);
                 setSelectedStatus(venue.status_availability_id);
                 
-                if (venue.ven_pic) {
-                    const imageUrl = `${baseUrl}/${venue.ven_pic}`;
-                    setPreviewUrl(imageUrl);
-                    setFileList([{
-                        uid: '-1',
-                        name: 'venue-image.png',
-                        status: 'done',
-                        url: imageUrl,
-                    }]);
-                } else {
-                    setPreviewUrl(null);
-                    setFileList([]);
-                }
-                
                 form.setFieldsValue({
                     name: venue.ven_name,
                     occupancy: venue.ven_occupancy,
                     status: venue.status_availability_id
                 });
+                
             } else {
                 toast.error("Failed to fetch venue details");
             }
@@ -106,22 +93,6 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
         const sanitizedValue = sanitizeInput(e.target.value);
         if (/^\d*$/.test(sanitizedValue)) {
             setMaxOccupancy(sanitizedValue);
-        }
-    };
-
-    const handleImageUpload = ({ fileList: newFileList }) => {
-        setFileList(newFileList);
-        if (newFileList.length > 0) {
-            const file = newFileList[0].originFileObj;
-            setVenuePic(file);
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setPreviewUrl(reader.result);
-            };
-            reader.readAsDataURL(file);
-        } else {
-            setVenuePic(null);
-            setPreviewUrl(null);
         }
     };
 
@@ -156,27 +127,16 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
 
         setLoading(true);
         try {
-            let requestData = {
+            const requestData = {
                 operation: 'updateVenue',
-                venueData: {
-                    venue_id: venueId,
-                    venue_name: validatedData.name,
-                    max_occupancy: validatedData.occupancy,
-                    status_availability_id: parseInt(selectedStatus)
-                }
+                venue_id: venueId,
+                venue_name: validatedData.name,
+                max_occupancy: validatedData.occupancy,
+                status_availability_id: parseInt(selectedStatus)
             };
 
-            if (venuePic instanceof File) {
-                const reader = new FileReader();
-                const base64Image = await new Promise((resolve) => {
-                    reader.onload = (e) => resolve(e.target.result);
-                    reader.readAsDataURL(venuePic);
-                });
-                requestData.venueData.ven_pic = base64Image;
-            }
-
             const response = await axios.post(
-                `${baseUrl}/update_master1.php`,
+                `${baseUrl}/user.php`,
                 requestData,
                 {
                     headers: {
@@ -191,9 +151,6 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 form.resetFields();
                 setVenueName('');
                 setMaxOccupancy('');
-                setVenuePic(null);
-                setPreviewUrl(null);
-                setFileList([]);
                 onCancel();
             } else {
                 toast.error(response.data.message || "Failed to update venue");
@@ -249,33 +206,6 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                         placeholder="Enter maximum occupancy"
                         min="1"
                     />
-                </Form.Item>
-                <Form.Item 
-                    label="Venue Picture" 
-                    tooltip="Upload venue image (max 5MB, formats: jpg, png)"
-                >
-                    <Upload
-                        listType="picture-card"
-                        fileList={fileList}
-                        onChange={handleImageUpload}
-                        beforeUpload={() => false}
-                        maxCount={1}
-                    >
-                        {fileList.length < 1 && (
-                            <Button icon={<PlusOutlined />}>
-                                Upload
-                            </Button>
-                        )}
-                    </Upload>
-                    {previewUrl && typeof previewUrl === 'string' && previewUrl.startsWith('http') && (
-                        <div className="mt-4">
-                            <img
-                                src={previewUrl}
-                                alt="Preview"
-                                className="w-32 h-32 object-cover rounded shadow-md"
-                            />
-                        </div>
-                    )}
                 </Form.Item>
                 <Form.Item 
                     label="Status" 

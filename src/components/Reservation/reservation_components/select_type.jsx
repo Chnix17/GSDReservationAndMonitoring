@@ -21,24 +21,24 @@ const resourceTypes = [
     title: 'Venue', 
     icon: <BankOutlined className="text-3xl sm:text-4xl mb-2 sm:mb-3" />,
     description: 'Conference rooms, halls, or other spaces for events and meetings',
-    color: '#1890ff',
-    gradient: 'from-blue-50 to-blue-100'
+    color: '#548e54',
+    gradient: 'from-lightcream to-accent-light'
   },
   { 
     value: 'vehicle', 
     title: 'Vehicle', 
     icon: <CarOutlined className="text-3xl sm:text-4xl mb-2 sm:mb-3" />,
     description: 'Cars, vans, or other transportation for official travel',
-    color: '#722ed1',
-    gradient: 'from-purple-50 to-purple-100'
+    color: '#548e54',
+    gradient: 'from-lightcream to-accent-light'
   },
   { 
     value: 'equipment', 
     title: 'Equipment', 
     icon: <FaTools className="text-3xl sm:text-4xl mb-2 sm:mb-3" />,
     description: 'Projectors, laptops, audio systems, and other equipment',
-    color: '#13c2c2',
-    gradient: 'from-cyan-50 to-cyan-100'
+    color: '#548e54',
+    gradient: 'from-lightcream to-accent-light'
   }
 ];
 
@@ -50,7 +50,7 @@ const SelectType = ({ resourceType, onResourceTypeSelect }) => {
     >
       <Card className="shadow-lg rounded-2xl border-0 bg-white/80 backdrop-blur-sm">
         <div className="text-center mb-8">
-          <Title level={4} className="mb-3 text-2xl sm:text-3xl font-bold bg-gradient-to-r from-gray-800 to-gray-600 bg-clip-text text-transparent">
+          <Title level={4} className="mb-3 text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary to-primary-dark bg-clip-text text-transparent">
             What would you like to reserve?
           </Title>
           <p className="text-gray-500 text-sm sm:text-base">Select the type of resource you need for your reservation</p>
@@ -68,8 +68,8 @@ const SelectType = ({ resourceType, onResourceTypeSelect }) => {
                   h-full transition-all duration-300 cursor-pointer
                   hover:shadow-xl rounded-xl overflow-hidden
                   ${resourceType === option.value 
-                    ? 'ring-2 ring-offset-2 ring-blue-500 shadow-lg bg-gradient-to-br ' + option.gradient
-                    : 'border border-gray-100 hover:border-blue-200 bg-white'}
+                    ? 'ring-2 ring-offset-2 ring-primary shadow-lg bg-gradient-to-br ' + option.gradient
+                    : 'border border-gray-100 hover:border-primary-light bg-white'}
                 `}
                 onClick={() => onResourceTypeSelect(option.value)}
                 bodyStyle={{ padding: '1.5rem' }}
@@ -100,9 +100,9 @@ const SelectType = ({ resourceType, onResourceTypeSelect }) => {
                       animate={{ scale: 1 }}
                       transition={{ type: "spring", stiffness: 500, damping: 25 }}
                     >
-                      <Tag severity="info" className="mt-4 px-3 py-2 rounded-full">
+                      <Tag severity="success" className="mt-4 px-3 py-2 rounded-full">
                         <div className="flex items-center gap-2">
-                          <FaCheckCircle className="text-blue-500" />
+                          <FaCheckCircle className="text-primary" />
                           <span className="font-medium">Selected</span>
                         </div>
                       </Tag>

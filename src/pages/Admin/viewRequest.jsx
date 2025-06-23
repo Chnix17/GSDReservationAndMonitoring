@@ -14,7 +14,6 @@ import {
     ToolOutlined,
     UserOutlined,
     CalendarOutlined,
-    TeamOutlined,
     CheckCircleOutlined,
     CloseCircleOutlined,
     EyeOutlined,
@@ -80,13 +79,38 @@ const ReservationRequests = () => {
     const updateStats = useCallback((data) => {
         const computed = {
           total:    data.length,
-          pending:  data.filter(item => item.active === "1").length,
+          pending:  data.filter(item => item.active === "0" || item.active == null).length,
           approved: data.filter(item => item.reservation_status === "Approved").length,
           declined: data.filter(item => item.reservation_status === "Declined").length
         };
         setStats(computed);
       }, [setStats]);
     
+
+    // const autoDeclineExpired = async (reservationsList) => {
+    //     const now = new Date();
+    //     for (const reservation of reservationsList) {
+    //         const isExpired = new Date(reservation.reservation_end_date) < now;
+    //         const isWaiting = reservation.active === "0" || reservation.active == null;
+    //         const isPending = reservation.reservation_status === "Pending";
+    //         if (isExpired && isWaiting && isPending) {
+    //             try {
+    //                 await axios.post(`${encryptedUrl}/process_reservation.php`, {
+    //                     operation: 'handleRequest',
+    //                     reservation_id: reservation.reservation_id,
+    //                     is_accepted: false,
+    //                     user_id: SecureStorage.getSessionItem('user_id'),
+    //                     notification_message: 'Your reservation request has been automatically declined because it has expired.',
+    //                     notification_user_id: reservation.user_id
+    //                 }, {
+    //                     headers: { 'Content-Type': 'application/json' }
+    //                 });
+    //             } catch (error) {
+    //                 // Optionally log error
+    //             }
+    //         }
+    //     }
+    // };
 
     const fetchReservations = useCallback(async () => {
         try {
@@ -99,6 +123,7 @@ const ReservationRequests = () => {
             });
     
             if (response.data?.status === 'success') {
+                // await autoDeclineExpired(response.data.data);
                 setReservations(response.data.data);
                 updateStats(response.data.data);
             } else {
@@ -108,7 +133,24 @@ const ReservationRequests = () => {
         }
     }, [updateStats, encryptedUrl]); 
 
-   
+    const fetchVenueSchedules = async () => {
+        try {
+            const response = await axios.post(`${encryptedUrl}/user.php`, {
+                operation: 'fetchVenueScheduled'
+            }, {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            if (response.data?.status === 'success') {
+                return response.data.data || [];
+            }
+            return [];
+        } catch (error) {
+            console.error('Error fetching venue schedules:', error);
+            return [];
+        }
+    };
 
     const fetchReservationDetails = async (reservationId) => {
         try {
@@ -135,16 +177,30 @@ const ReservationRequests = () => {
                     end_datetime: details.reservation_end_date
                 });
 
-                // Combine the details with availability data
+                // Fetch venue schedules for class schedule check
+                const scheduledVenues = await fetchVenueSchedules();
+
+                // Mark venues that have a class schedule
+                const venuesWithClassSchedule = details.venues?.map(venue => ({
+                    ...venue,
+                    hasClassSchedule: scheduledVenues.some(sv => sv.ven_id === venue.venue_id)
+                })) || [];
+
+                // If active === "1" and any venue has a class schedule, set a flag for registrar approval required
+                const registrarApprovalRequired = details.active === "1" && venuesWithClassSchedule.some(v => v.hasClassSchedule);
+
+                // Combine the details with availability data and class schedule info
                 const detailsWithAvailability = {
                     ...details,
-                    availabilityData: availabilityResponse.data?.status === 'success' ? availabilityResponse.data.data : null
+                    venues: venuesWithClassSchedule,
+                    availabilityData: availabilityResponse.data?.status === 'success' ? availabilityResponse.data.data : null,
+                    registrarApprovalRequired
                 };
 
                 setReservationDetails(detailsWithAvailability);
                 setCurrentRequest({
                     reservation_id: details.reservation_id,
-                    isUnderReview: details.active === "0"
+                    isUnderReview: details.active === "0" || details.active === "1"
                 });
                 setIsDetailModalOpen(true);
             }
@@ -482,7 +538,8 @@ const ReservationRequests = () => {
             });
     
             if (response.data?.status === 'success') {
-                const pendingRequests = response.data.data.filter(request => request.active === "1");
+                // await autoDeclineExpired(response.data.data);
+                const pendingRequests = response.data.data.filter(request => request.active === "0" || request.active == null);
                 setReservations(pendingRequests);
                 updateStats(response.data.data);
             }
@@ -499,8 +556,8 @@ const ReservationRequests = () => {
             });
 
             if (response.data?.status === 'success') {
-                // Filter for active === "0"
-                const reviewRequests = response.data.data.filter(request => request.active === "0");
+                // Filter for active === "1"
+                const reviewRequests = response.data.data.filter(request => request.active === "1");
                 setReservations(reviewRequests);
                 updateStats(response.data.data);
             }
@@ -619,7 +676,7 @@ const ReservationRequests = () => {
                     return (
                         <Tag color={
                             isExpired ? 'red' :
-                            record.active === "0" ? 'gold' :
+                            (record.active === "1") ? 'gold' :
                             status === 'Pending' ? 'blue' :
                             status === 'Approved' ? 'green' :
                             status === 'Declined' ? 'red' : 'default'
@@ -627,7 +684,7 @@ const ReservationRequests = () => {
                         className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
                         >
                         {isExpired ? "Expired" :
-                         record.active === "0" ? "Final Confirmation" : "Waiting for Approval"}
+                         (record.active === "1") ? "Final Confirmation" : "Waiting for Approval"}
                         </Tag>
                     );
                 },
@@ -643,7 +700,6 @@ const ReservationRequests = () => {
                             onClick={() => onView(record.reservation_id)}
                             icon={<EyeOutlined />}
                             className="bg-green-900 hover:bg-lime-900"
-                            disabled={isExpired}
                             title={isExpired ? "This reservation has expired" : "View details"}
                         >
                             View
@@ -762,14 +818,14 @@ const ReservationRequests = () => {
                                         key: '1',
                                         label: 'Waiting',
                                         icon: <ClockCircleOutlined />,
-                                        count: reservations.filter(r => r.active === "1").length,
+                                        count: reservations.filter(r => r.active === "0" || r.active == null).length,
                                         color: 'blue'
                                     },
                                     {
                                         key: '2',
                                         label: 'Final',
                                         icon: <CheckCircleOutlined />,
-                                        count: reservations.filter(r => r.active === "0").length,
+                                        count: reservations.filter(r => r.active === "1").length,
                                         color: 'amber'
                                     }
                                 ].map((tab) => (
@@ -965,6 +1021,7 @@ const formatDateRange = (startDate, endDate) => {
 
 const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetails, onAccept, onDecline, isAccepting, isDeclining, setIsDeclineReasonModalOpen }) => {
     const [tripTicketApproved, setTripTicketApproved] = useState(false);
+    const [isCheckingRegistrar, setIsCheckingRegistrar] = useState(false);
     const encryptedUrl = SecureStorage.getLocalItem("url");
     
     const fetchReservationDetails = async (reservationId) => {
@@ -1178,28 +1235,49 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         }
     };
 
-    const getModalFooter = () => {
-        if (reservationDetails.active === "0") {
-            const priorityCheck = checkPriority();
-            const isDisabled = needsTripTicketApproval() ? !tripTicketApproved : hasPendingTripTicket();
-            const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
-            
-            if (isExpired) {
-                return [
-                    <Button key="decline" danger loading={isDeclining} onClick={(e) => {
-                        e.stopPropagation();
-                        setIsDeclineReasonModalOpen(true);
-                    }} size="large" icon={<CloseCircleOutlined />}>
-                        Decline
-                    </Button>
-                ];
+    // Handler for checking registrar availability
+    const handleCheckRegistrarAvailability = async () => {
+        setIsCheckingRegistrar(true);
+        try {
+            const response = await axios.post(`${encryptedUrl}/user.php`, {
+                operation: 'handleReview',
+                reservationId: reservationDetails.reservation_id,
+                userId: SecureStorage.getSessionItem('user_id')
+            });
+
+            if (response.data?.status === 'success') {
+                // Fetch updated details
+                const updatedDetails = await fetchReservationDetails(reservationDetails.reservation_id);
+                if (updatedDetails) {
+                    setReservationDetails(updatedDetails);
+                }
+                toast.success('Registrar has approved the reservation!');
+            } else {
+                toast.error(response.data?.message || 'Registrar did not approve the reservation.');
             }
-            
+        } catch (error) {
+            toast.error('Failed to check registrar availability.');
+        } finally {
+            setIsCheckingRegistrar(false);
+        }
+    };
+
+    const getModalFooter = () => {
+        // If status is Registrar Approval, show waiting message and disable actions
+        if (reservationDetails.status_name === "Registrar Approval") {
+            return [
+                <Button key="waiting" disabled>
+                    Waiting For Venue Availability and response to registrar
+                </Button>
+            ];
+        }
+        // Custom logic for Venue Approved/Declined
+        if (reservationDetails.status_name === "Venue Approved") {
             return [
                 <Button key="decline" danger loading={isDeclining} onClick={(e) => {
                     e.stopPropagation();
                     setIsDeclineReasonModalOpen(true);
-                }} size="large" icon={<CloseCircleOutlined />}>
+                }} size="large" icon={<CloseCircleOutlined />}> 
                     Decline
                 </Button>,
                 <Button 
@@ -1208,8 +1286,78 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     loading={isAccepting} 
                     onClick={onAccept} 
                     size="large" 
-                    icon={<CheckCircleOutlined />}
-                    disabled={!priorityCheck.hasPriority || isDisabled}
+                    icon={<CheckCircleOutlined />} 
+                    className="bg-green-900 hover:bg-lime-900"
+                >
+                    Accept
+                </Button>,
+            ];
+        }
+        if (reservationDetails.status_name === "Venue Declined") {
+            return [
+                <Button key="decline" danger loading={isDeclining} onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDeclineReasonModalOpen(true);
+                }} size="large" icon={<CloseCircleOutlined />}> 
+                    Decline
+                </Button>
+            ];
+        }
+        if (reservationDetails.active === "0" || reservationDetails.active === "1") {
+            const priorityCheck = checkPriority();
+            const isDisabled = needsTripTicketApproval() ? !tripTicketApproved : hasPendingTripTicket();
+            const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+            // Disable Accept if registrar approval is required and not yet confirmed
+            const registrarApprovalRequired = reservationDetails.registrarApprovalRequired;
+            // Placeholder: registrar approval confirmation logic (e.g., reservationDetails.registrarApproved)
+            const registrarApproved = reservationDetails.registrarApproved || false;
+            if (isExpired) {
+                return [
+                    <Button key="decline" danger loading={isDeclining} onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDeclineReasonModalOpen(true);
+                    }} size="large" icon={<CloseCircleOutlined />}> 
+                        Decline
+                    </Button>
+                ];
+            }
+            // If registrar approval required and not yet approved, show Check Availability button
+            if (registrarApprovalRequired && !registrarApproved) {
+                return [
+                    <Button key="decline" danger loading={isDeclining} onClick={(e) => {
+                        e.stopPropagation();
+                        setIsDeclineReasonModalOpen(true);
+                    }} size="large" icon={<CloseCircleOutlined />}> 
+                        Decline
+                    </Button>,
+                    <Button 
+                        key="check-registrar" 
+                        type="primary" 
+                        loading={isCheckingRegistrar} 
+                        onClick={handleCheckRegistrarAvailability} 
+                        size="large" 
+                        icon={<InfoCircleOutlined />} 
+                        className="bg-yellow-600 hover:bg-yellow-700"
+                    >
+                        Check Availability
+                    </Button>,
+                ];
+            }
+            return [
+                <Button key="decline" danger loading={isDeclining} onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDeclineReasonModalOpen(true);
+                }} size="large" icon={<CloseCircleOutlined />}> 
+                    Decline
+                </Button>,
+                <Button 
+                    key="accept" 
+                    type="primary" 
+                    loading={isAccepting} 
+                    onClick={onAccept} 
+                    size="large" 
+                    icon={<CheckCircleOutlined />} 
+                    disabled={!priorityCheck.hasPriority || isDisabled || (registrarApprovalRequired && !registrarApproved)}
                     className="bg-green-900 hover:bg-lime-900"
                 >
                     Accept
@@ -1236,9 +1384,14 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             <BuildOutlined className="mr-2 text-purple-500" />
                             <span className="font-medium">{text}</span>
                         </div>
-                        <Tag color={checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                            {checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                        </Tag>
+                        <div className="flex flex-col items-end">
+                            <Tag color={checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
+                                {checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
+                            </Tag>
+                            {record.hasClassSchedule && (
+                                <Tag color="orange" className="mt-1">Class Schedule: Registrar Approval Needed</Tag>
+                            )}
+                        </div>
                     </div>
                 )
             }
@@ -1314,9 +1467,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     <div className="flex justify-between items-center">
                         <div>
                             <div className="flex items-center gap-2">
-                                <Tag color={reservationDetails.active === "0" ? "gold" : "blue"} className="text-sm px-3 py-1">
-                                    {reservationDetails.active === "0" ? "Final Confirmation" : "Waiting for Approval"}
-                                </Tag>
+                              
                             </div>
                         </div>
                         <div className="text-white text-right">
@@ -1328,135 +1479,191 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
                 {/* Main Content */}
                 <div className="p-6">
-                    {/* Trip Ticket Approval Section - Only show if there are drivers */}
-                    {reservationDetails.drivers && reservationDetails.drivers.length > 0 && (
+                    {/* Expired reservation: Only show blocked status in red */}
+                    {new Date(reservationDetails.reservation_end_date) < new Date() ? (
+                        <Alert
+                            message={<span className="font-semibold">Priority Status: Blocked</span>}
+                            description={"This reservation has expired and cannot be approved."}
+                            type="error"
+                            showIcon
+                            className="mb-6 border border-red-400 shadow-sm"
+                        />
+                    ) : (
                         <>
-                            {needsTripTicketApproval() && (
-                                <div className="mb-6">
-                                    <Alert
-                                        message="Trip Ticket Approval Required"
-                                        description="This reservation requires trip ticket approval before it can be accepted."
-                                        type="info"
-                                        showIcon
-                                        className="mb-4"
-                                    />
-                                    <Radio.Group 
-                                        onChange={(e) => {
-                                            if (e.target.value) {
-                                                handleTripTicketApproval();
-                                            }
-                                        }} 
-                                        value={tripTicketApproved}
-                                    >
-                                        <Space direction="vertical">
-                                            <Radio value={true}>Approve Trip Ticket</Radio>
-                                        </Space>
-                                    </Radio.Group>
-                                </div>
+                            {/* Custom messages for Venue Approved/Declined */}
+                            {reservationDetails.status_name === "Venue Approved" && (
+                                <Alert
+                                    message={<span className="font-semibold">Venue Approved</span>}
+                                    description="The venue for this reservation has been approved. You may now proceed to approve or decline the reservation."
+                                    type="success"
+                                    showIcon
+                                    className="mb-6 border border-green-200 shadow-sm"
+                                />
+                            )}
+                            {reservationDetails.status_name === "Venue Declined" && (
+                                <Alert
+                                    message={<span className="font-semibold">Venue Declined</span>}
+                                    description="The venue for this reservation has been declined. You may only decline this reservation."
+                                    type="error"
+                                    showIcon
+                                    className="mb-6 border border-red-200 shadow-sm"
+                                />
+                            )}
+                            {/* Show processing message if status is Registrar Approval */}
+                            {reservationDetails.status_name === "Registrar Approval" && (
+                                <Alert
+                                    message={<span className="font-semibold">Processing Venue Availability</span>}
+                                    description="This request is currently being processed for venue availability by the registrar. Please wait for the response."
+                                    type="info"
+                                    showIcon
+                                    className="mb-6 border border-blue-200 shadow-sm"
+                                />
                             )}
 
-                            {isTripApproved() && (
-                                <div className="mb-6">
+                            {/* Trip Ticket Approval Section - Only show if there are drivers */}
+                            {reservationDetails.drivers && reservationDetails.drivers.length > 0 && (
+                                <>
+                                    {needsTripTicketApproval() && (
+                                        <div className="mb-6">
+                                            <Alert
+                                                message="Trip Ticket Approval Required"
+                                                description="This reservation requires trip ticket approval before it can be accepted."
+                                                type="info"
+                                                showIcon
+                                                className="mb-4"
+                                            />
+                                            <Radio.Group 
+                                                onChange={(e) => {
+                                                    if (e.target.value) {
+                                                        handleTripTicketApproval();
+                                                    }
+                                                }} 
+                                                value={tripTicketApproved}
+                                            >
+                                                <Space direction="vertical">
+                                                    <Radio value={true}>Approve Trip Ticket</Radio>
+                                                </Space>
+                                            </Radio.Group>
+                                        </div>
+                                    )}
+
+                                    {isTripApproved() && (
+                                        <div className="mb-6">
+                                            <Alert
+                                                message="Trip Ticket Status"
+                                                description="Trip ticket has been approved."
+                                                type="success"
+                                                showIcon
+                                            />
+                                        </div>
+                                    )}
+                                </>
+                            )}
+
+                            {/* Priority and Existing Reservations Section - Moved to Top */}
+                            {(reservationDetails.active === "0" || reservationDetails.active === "1") && (
+                                <div className="mb-6 space-y-4">
+                                    {/* Registrar approval warning - only show if not expired */}
+                                    {!(new Date(reservationDetails.reservation_end_date) < new Date()) && reservationDetails.registrarApprovalRequired &&
+                                        !reservationDetails.registrarApproved &&
+                                        reservationDetails.status_name !== "Registrar Approval" &&
+                                        reservationDetails.status_name !== "Venue Approved" &&
+                                        reservationDetails.status_name !== "Venue Declined" && (
+                                        <Alert
+                                            message={<span className="font-semibold">Registrar Approval Required</span>}
+                                            description={"This reservation includes a venue with a class schedule. Please process with the registrar to check availability before approval."}
+                                            type="warning"
+                                            showIcon
+                                            className="border border-orange-200 shadow-sm"
+                                        />
+                                    )}
+                                    {/* Priority Status Alert */}
                                     <Alert
-                                        message="Trip Ticket Status"
-                                        description="Trip ticket has been approved."
-                                        type="success"
+                                        message={
+                                            <span className="font-semibold">
+                                                {priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked"}
+                                            </span>
+                                        }
+                                        description={priorityCheck.message}
+                                        type={priorityCheck.hasPriority ? "success" : "warning"}
                                         showIcon
+                                        className="border border-gray-200 shadow-sm"
                                     />
+                                    {/* Existing Reservations - Only show if there are actual resource conflicts */}
+                                    {(() => {
+                                        const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
+                                            reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
+                                                requestedVenue.venue_id === unavailableVenue.ven_id
+                                            )
+                                        );
+                                        const hasVehicleConflict = reservationDetails.vehicles?.some(requestedVehicle => 
+                                            reservationDetails.availabilityData?.unavailable_vehicles?.some(unavailableVehicle => 
+                                                requestedVehicle.vehicle_id === unavailableVehicle.vehicle_id
+                                            )
+                                        );
+                                        const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
+                                            const unavailableEquipment = reservationDetails.availabilityData?.unavailable_equipment?.find(
+                                                e => e.equip_id === requestedEquipment.equipment_id
+                                            );
+                                            if (!unavailableEquipment) return false;
+                                            const remainingQuantity = parseInt(unavailableEquipment.total_quantity) - parseInt(unavailableEquipment.reserved_quantity);
+                                            return parseInt(requestedEquipment.quantity) > remainingQuantity;
+                                        });
+                                        const hasResourceConflicts = hasVenueConflict || hasVehicleConflict || hasEquipmentConflict;
+                                        
+                                        return hasResourceConflicts && reservationDetails.availabilityData?.reservation_users?.length > 0 && (
+                                            <div className="bg-white p-4 rounded-lg border border-red-200 shadow-sm">
+                                                <h2 className="text-xl font-semibold text-red-800 mb-4 flex items-center gap-2">
+                                                    <InfoCircleOutlined className="text-red-600" />
+                                                    Existing Reservations
+                                                </h2>
+                                                
+                                                <div className="space-y-4">
+                                                    {reservationDetails.availabilityData.reservation_users.map((user, index) => (
+                                                        <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                                                            <div className="flex justify-between items-start">
+                                                                <div>
+                                                                    <p className="text-sm text-gray-500">Reserved by: {user.full_name}</p>
+                                                                    <p className="text-sm text-gray-500">Department: {user.department_name}</p>
+                                                                    <p className="text-sm text-gray-500">Role: {user.user_level_name}</p>
+                                                                </div>
+                                                                <Tag color="blue">
+                                                                    Priority: High
+                                                                </Tag>
+                                                            </div>
+
+                                                            <div className="mt-3">
+                                                                    <h4 className="font-medium text-gray-800">
+                                                                        Reservation Title: {user.reservation_title || 'Untitled Reservation'}
+                                                                    </h4>
+                                                                    <h4>Reservation Description: {user.reservation_description}</h4>
+                                                            </div>
+
+                                                            <div className="mt-3 pt-3 border-t border-gray-100">
+                                                                <div className="grid grid-cols-2 gap-4">
+                                                                    <div>
+                                                                        <p className="text-xs text-gray-500">Start Time</p>
+                                                                        <p className="font-medium">
+                                                                            {new Date(user.reservation_start_date).toLocaleString()}
+                                                                        </p>
+                                                                    </div>
+                                                                    <div>
+                                                                        <p className="text-xs text-gray-500">End Time</p>
+                                                                        <p className="font-medium">
+                                                                            {new Date(user.reservation_end_date).toLocaleString()}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                             )}
                         </>
-                    )}
-
-                    {/* Priority and Existing Reservations Section - Moved to Top */}
-                    {reservationDetails.active === "0" && (
-                        <div className="mb-6 space-y-4">
-                            {/* Priority Status Alert */}
-                            <Alert
-                                message={
-                                    <span className="font-semibold">
-                                        {priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked"}
-                                    </span>
-                                }
-                                description={priorityCheck.message}
-                                type={priorityCheck.hasPriority ? "success" : "warning"}
-                                showIcon
-                                className="border border-gray-200 shadow-sm"
-                            />
-                            
-                            {/* Existing Reservations - Only show if there are actual resource conflicts */}
-                            {(() => {
-                                const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
-                                    reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
-                                        requestedVenue.venue_id === unavailableVenue.ven_id
-                                    )
-                                );
-                                const hasVehicleConflict = reservationDetails.vehicles?.some(requestedVehicle => 
-                                    reservationDetails.availabilityData?.unavailable_vehicles?.some(unavailableVehicle => 
-                                        requestedVehicle.vehicle_id === unavailableVehicle.vehicle_id
-                                    )
-                                );
-                                const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
-                                    const unavailableEquipment = reservationDetails.availabilityData?.unavailable_equipment?.find(
-                                        e => e.equip_id === requestedEquipment.equipment_id
-                                    );
-                                    if (!unavailableEquipment) return false;
-                                    const remainingQuantity = parseInt(unavailableEquipment.total_quantity) - parseInt(unavailableEquipment.reserved_quantity);
-                                    return parseInt(requestedEquipment.quantity) > remainingQuantity;
-                                });
-                                const hasResourceConflicts = hasVenueConflict || hasVehicleConflict || hasEquipmentConflict;
-                                
-                                return hasResourceConflicts && reservationDetails.availabilityData?.reservation_users?.length > 0 && (
-                                    <div className="bg-white p-4 rounded-lg border border-red-200 shadow-sm">
-                                        <h2 className="text-xl font-semibold text-red-800 mb-4 flex items-center gap-2">
-                                            <InfoCircleOutlined className="text-red-600" />
-                                            Existing Reservations
-                                        </h2>
-                                        
-                                        <div className="space-y-4">
-                                            {reservationDetails.availabilityData.reservation_users.map((user, index) => (
-                                                <div key={index} className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                                    <div className="flex justify-between items-start">
-                                                        <div>
-                                                            <p className="text-sm text-gray-500">Reserved by: {user.full_name}</p>
-                                                            <p className="text-sm text-gray-500">Department: {user.department_name}</p>
-                                                            <p className="text-sm text-gray-500">Role: {user.user_level_name}</p>
-                                                        </div>
-                                                        <Tag color="blue">
-                                                            Priority: High
-                                                        </Tag>
-                                                    </div>
-
-                                                    <div className="mt-3">
-                                                            <h4 className="font-medium text-gray-800">
-                                                                Reservation Title: {user.reservation_title || 'Untitled Reservation'}
-                                                            </h4>
-                                                            <h4>Reservation Description: {user.reservation_description}</h4>
-                                                    </div>
-
-                                                    <div className="mt-3 pt-3 border-t border-gray-100">
-                                                        <div className="grid grid-cols-2 gap-4">
-                                                            <div>
-                                                                <p className="text-xs text-gray-500">Start Time</p>
-                                                                <p className="font-medium">
-                                                                    {new Date(user.reservation_start_date).toLocaleString()}
-                                                                </p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs text-gray-500">End Time</p>
-                                                                <p className="font-medium">
-                                                                    {new Date(user.reservation_end_date).toLocaleString()}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                );
-                            })()}
-                        </div>
                     )}
 
                     {/* Current Request Section - Moved Below */}
@@ -1469,46 +1676,51 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                 {/* Requester Information */}
-                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                    <h3 className="text-lg font-medium mb-4 text-gray-800">Requester Details</h3>
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                                        <UserOutlined className="text-blue-500" />
+                                        Requester Details
+                                    </h3>
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <UserOutlined className="text-blue-500" />
-                                            <div>
-                                                <p className="text-sm text-gray-500">Name</p>
-                                                <p className="font-medium">{reservationDetails.requester_name}</p>
-                                            </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Name</p>
+                                            <p className="font-medium">{reservationDetails.requester_name}</p>
                                         </div>
-                                        <div className="flex items-center gap-2">
-                                            <TeamOutlined className="text-green-500" />
-                                            <div>
-                                                <p className="text-sm text-gray-500">Role</p>
-                                                <p className="font-medium">{reservationDetails.user_level_name}</p>
-                                            </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Role</p>
+                                            <p className="font-medium">{reservationDetails.user_level_name}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Department</p>
+                                            <p className="font-medium">{reservationDetails.department_name}</p>
                                         </div>
                                     </div>
                                 </div>
 
-                                {/* Schedule */}
-                                <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                    <h3 className="text-lg font-medium mb-4 text-gray-800">Schedule</h3>
+                                {/* Schedule and Details */}
+                                <div className="space-y-4">
+                                    <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                                        <CalendarOutlined className="text-orange-500" />
+                                        Schedule & Details
+                                    </h3>
                                     <div className="space-y-3">
-                                        <div className="flex items-center gap-2">
-                                            <CalendarOutlined className="text-orange-500" />
-                                            <div>
-                                                <p className="text-sm text-gray-500">Date & Time</p>
-                                                <p className="font-medium">{formatDateRange(
-                                                    reservationDetails.reservation_start_date,
-                                                    reservationDetails.reservation_end_date
-                                                )}</p>
-                                            </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Description</p>
+                                            <p className="font-medium">{reservationDetails.reservation_description}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-sm text-gray-500">Date & Time</p>
+                                            <p className="font-medium">{formatDateRange(
+                                                reservationDetails.reservation_start_date,
+                                                reservationDetails.reservation_end_date
+                                            )}</p>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Resources Section */}
-                            <div className="mt-6">
+                            <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm mt-6">
                                 <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
                                 <div className="space-y-4">
                                     {/* Venues */}
@@ -1536,12 +1748,10 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                                     title: 'Driver',
                                                     dataIndex: 'driver',
                                                     key: 'driver',
-                                                    render: (text, record) => (
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center">
-                                                                <UserOutlined className="mr-2 text-blue-500" />
-                                                                <span className="font-medium">{text}</span>
-                                                            </div>
+                                                    render: (text) => (
+                                                        <div className="flex items-center">
+                                                            <UserOutlined className="mr-2 text-blue-500" />
+                                                            <span className="font-medium">{text}</span>
                                                         </div>
                                                     )
                                                 }
@@ -1563,33 +1773,6 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                     )}
                                 </div>
                             </div>
-
-                            {/* Trip Passengers Section */}
-                            {reservationDetails.passengers && reservationDetails.passengers.length > 0 && (
-                                <div className="mt-6">
-                                    <h3 className="text-lg font-medium mb-4 text-gray-800">Trip Passengers</h3>
-                                    <div className="bg-white p-4 rounded-lg border border-purple-200 shadow-sm">
-                                        <ul className="divide-y divide-purple-100">
-                                            {reservationDetails.passengers.map((passenger, index) => (
-                                                <li key={index} className="py-3 flex items-center gap-3">
-                                                    <UserOutlined className="text-purple-400 text-lg" />
-                                                    <span className="text-gray-700">{passenger.name}</span>
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Description */}
-                            {reservationDetails.reservation_description && (
-                                <div className="mt-6">
-                                    <h3 className="text-lg font-medium mb-2 text-gray-800">Description</h3>
-                                    <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                                        <p className="text-gray-700">{reservationDetails.reservation_description}</p>
-                                    </div>
-                                </div>
-                            )}
                         </div>
                     </div>
                 </div>
