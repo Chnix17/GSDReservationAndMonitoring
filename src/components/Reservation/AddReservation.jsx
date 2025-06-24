@@ -10,8 +10,8 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { UserOutlined, TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined, QuestionCircleOutlined } from '@ant-design/icons';
-import {  Form, Input,  Select, Card,  Radio, Result, Alert, Modal, Empty, Spin, Tooltip,  Pagination } from 'antd';
+import { UserOutlined, TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
+import {  Form, Input,  Select, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
 import { format } from 'date-fns';
 import { BsTools,  } from 'react-icons/bs';
 import { MdInventory } from 'react-icons/md';
@@ -105,33 +105,7 @@ const AddReservation = () => {
   }, []);
 
   // Add these new functions
-const handleAddPassenger = (passengerName) => {
-  if (!passengerName) {
-    passengerName = newPassenger;
-  }
-  
-  if (!passengerName.trim()) {
-    toast.error('Please enter a passenger name');
-    return;
-  }
 
-  // Check if passenger already exists
-  if (formData.passengers.some(p => p.name.toLowerCase() === passengerName.trim().toLowerCase())) {
-    toast.error('This passenger is already in the list');
-    return;
-  }
-
-  setFormData(prev => ({
-    ...prev,
-    passengers: [
-      ...prev.passengers,
-      { id: Date.now(), name: passengerName.trim() }
-    ]
-  }));
-
-  // Clear the new passenger input
-  setNewPassenger('');
-};
 
 const handleRemovePassenger = (passengerId) => {
   setFormData(prev => ({
@@ -375,7 +349,6 @@ const handleBack = () => {
       // Reset modal states
       setShowEquipmentModal(false);
       setShowPassengerModal(false);
-      setNewPassenger('');
       
       // Reset calendar data
       setCalendarData({
@@ -659,7 +632,6 @@ const resetForm = () => {
   // Reset modal states
   setShowEquipmentModal(false);
   setShowPassengerModal(false);
-  setNewPassenger('');
   
   // Reset calendar data
   setCalendarData({
@@ -706,6 +678,7 @@ const renderReviewSection = () => {
       handleBack={handleBack}
       handleAddReservation={handleAddReservation}
       handlePrintRequest={handlePrintRequest}
+      availableDrivers={availableDrivers}
     />
   );
 };
@@ -1027,7 +1000,7 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
 
 const handlePrintRequest = () => {
   // Find the selected driver using formData.driverName
-  const selectedDriver = drivers.find(d => d.driver_id.toString() === formData.driverName?.toString());
+  const selectedDriver = availableDrivers.find(d => d.driver_id.toString() === formData.driverName?.toString());
   
   const printContent = document.createElement('div');
   printContent.innerHTML = `
@@ -1063,9 +1036,8 @@ const handlePrintRequest = () => {
 };
 
 
-const [drivers] = useState([]);
+
 const [showPassengerModal, setShowPassengerModal] = useState(false);
-const [newPassenger, setNewPassenger] = useState('');
 
 // Add fetchDrivers function
 const fetchDrivers = useCallback(async (startDate, endDate) => {
@@ -1110,90 +1082,158 @@ useEffect(() => {
 const PassengerModal = ({ visible, onHide }) => {
   const [newPassengerName, setNewPassengerName] = useState('');
   const [passengerError, setPassengerError] = useState('');
+  const [localPassengers, setLocalPassengers] = useState([]);
 
-  const resetModal = () => {
-    setNewPassengerName('');
-    setPassengerError('');
-  };
+  useEffect(() => {
+    if (visible) {
+      setLocalPassengers([]);
+      setNewPassengerName('');
+      setPassengerError('');
+    }
+  }, [visible]);
 
-  const handleSubmit = () => {
+  const handleAddLocalPassenger = () => {
     if (!newPassengerName.trim()) {
       setPassengerError('Passenger name cannot be empty');
       return;
     }
-    
-    // Check if passenger name already exists
-    if (formData.passengers.some(p => p.name.toLowerCase() === newPassengerName.trim().toLowerCase())) {
+    if (
+      localPassengers.some(
+        p => p.name.toLowerCase() === newPassengerName.trim().toLowerCase()
+      ) ||
+      formData.passengers.some(
+        p => p.name.toLowerCase() === newPassengerName.trim().toLowerCase()
+      )
+    ) {
       setPassengerError('This passenger is already in the list');
       return;
     }
-    
-    handleAddPassenger(newPassengerName.trim());
-    resetModal();
+    setLocalPassengers(prev => [
+      ...prev,
+      { id: Date.now() + Math.random(), name: newPassengerName.trim() }
+    ]);
+    setNewPassengerName('');
+    setPassengerError('');
+  };
+
+  const handleRemoveLocalPassenger = id => {
+    setLocalPassengers(prev => prev.filter(p => p.id !== id));
+  };
+
+  const handleConfirm = () => {
+    if (localPassengers.length === 0) {
+      setPassengerError('Add at least one passenger before confirming');
+      return;
+    }
+    // Add all local passengers to the main form state
+    setFormData(prev => ({
+      ...prev,
+      passengers: [...prev.passengers, ...localPassengers]
+    }));
     onHide();
   };
 
+  if (!visible) return null;
+
   return (
-    <Modal
-      title={
-        <div className="flex items-center gap-2">
-          <TeamOutlined />
-          <span>Add Passenger</span>
-        </div>
-      }
-      open={visible}
-      onCancel={() => {
-        resetModal();
-        onHide();
-      }}
-      footer={[
-        <Button key="cancel" onClick={onHide}>
-          Cancel
-        </Button>,
-        <Button
-          key="submit"
-          type="primary"
-          onClick={handleSubmit}
-        >
-          Add Passenger
-        </Button>
-      ]}
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
     >
-      <div className="mb-4">
-        <Alert
-          message="Passenger Guidelines"
-          description="Add each passenger who will be traveling in the vehicle. Make sure to include all passengers for accurate capacity planning."
-          type="info"
-          showIcon
-          className="mb-4"
-        />
-        
-        <Form layout="vertical">
-          <Form.Item 
-            label="Passenger Name" 
-            required
-            validateStatus={passengerError ? "error" : ""}
-            help={passengerError}
-          >
-            <Input
-              placeholder="Enter passenger's full name"
-              value={newPassengerName}
-              onChange={e => {
-                setNewPassengerName(e.target.value);
-                if (passengerError) setPassengerError('');
-              }}
-              onPressEnter={handleSubmit}
-              suffix={
-                <GuidelineTooltip 
-                  title="Passenger Name"
-                  content="Enter the full name of the passenger. This information will be used for the travel manifest."
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-[#fafff4] border border-gray-100 rounded-xl shadow-sm w-full max-w-sm"
+      >
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex items-center gap-2">
+              <TeamOutlined className="text-lg text-green-700" />
+              <h3 className="text-lg font-medium text-gray-900">Add Passengers</h3>
+            </div>
+            <button
+              onClick={onHide}
+              className="p-1 hover:bg-lime-100 rounded-lg transition-colors"
+            >
+              <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Passenger Name <span className="text-red-500">*</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="Enter passenger's full name"
+                  value={newPassengerName}
+                  onChange={e => {
+                    setNewPassengerName(e.target.value);
+                    if (passengerError) setPassengerError('');
+                  }}
+                  onKeyDown={e => { if (e.key === 'Enter') handleAddLocalPassenger(); }}
+                  className={`flex-1 text-sm border ${passengerError ? 'border-red-400' : 'border-gray-300'} rounded-lg px-3 py-2 focus:ring-2 focus:ring-lime-500 focus:border-lime-500`}
                 />
-              }
-            />
-          </Form.Item>
-        </Form>
-      </div>
-    </Modal>
+                <button
+                  onClick={handleAddLocalPassenger}
+                  className="px-2 py-1 bg-green-500 text-white rounded"
+                  disabled={!newPassengerName.trim()}
+                >
+                  Add
+                </button>
+              </div>
+              {passengerError && (
+                <div className="text-xs text-red-500 mt-1">{passengerError}</div>
+              )}
+            </div>
+
+            {/* List of passengers to be added */}
+            <div>
+              {localPassengers.length > 0 ? (
+                <ul className="divide-y">
+                  {localPassengers.map((p, idx) => (
+                    <li key={p.id} className="flex items-center justify-between py-1">
+                      <span>{idx + 1}. {p.name}</span>
+                      <button
+                        onClick={() => handleRemoveLocalPassenger(p.id)}
+                        className="text-red-500 hover:underline text-xs"
+                      >
+                        Remove
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <div className="text-gray-400 text-sm">No passengers added yet.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6 flex justify-end gap-3">
+            <button
+              onClick={onHide}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleConfirm}
+              className={`px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 ${localPassengers.length > 0 ? 'bg-lime-600 hover:bg-lime-700' : 'bg-gray-300 cursor-not-allowed'}`}
+              disabled={localPassengers.length === 0}
+            >
+              Confirm
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
   );
 };
 
@@ -1645,7 +1685,7 @@ const renderDriverDropdown = () => {
           className="mb-4"
         >
           <Radio value="default">Default Driver</Radio>
-          <Radio value="trip_ticket">Trip Ticket Driver</Radio>
+          <Radio value="trip_ticket">Trip Ticket </Radio>
         </Radio.Group>
 
         {formData.driverType === 'default' ? (
@@ -1705,7 +1745,7 @@ const renderDriverDropdown = () => {
         ) : (
           <div className="p-3 bg-gray-50 rounded-lg">
             <div className="text-sm text-gray-600">
-              Trip ticket driver will be assigned later
+              Trip ticket will be on pending status
             </div>
           </div>
         )}
@@ -1714,25 +1754,6 @@ const renderDriverDropdown = () => {
   );
 };
 
-// Add a new guidelines component that can be reused across the form
-const GuidelineTooltip = ({ title, content }) => (
-  <Tooltip
-    title={
-      <div className="p-1">
-        <h4 className="font-medium mb-1">{title}</h4>
-        <p className="text-xs">{content}</p>
-      </div>
-    }
-    color="#fff"
-    overlayInnerStyle={{ 
-      color: '#555', 
-      boxShadow: '0 3px 6px rgba(0,0,0,0.1)',
-      border: '1px solid #eee'
-    }}
-  >
-    <QuestionCircleOutlined className="ml-1 text-gray-400 cursor-help" />
-  </Tooltip>
-);
 
 // Add fetch functions for resources
 const fetchVenues = useCallback(async () => {
@@ -1991,7 +2012,6 @@ return (
       visible={showPassengerModal}
       onHide={() => {
         setShowPassengerModal(false);
-        setNewPassenger('');
       }}
     />
     <EquipmentSelectionModal 

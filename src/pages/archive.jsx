@@ -180,12 +180,14 @@ const Archive = () => {
   }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment, fetchDrivers]);
 
   const handleRestoreUsers = async () => {
+    const payload = {
+      operation: "unarchiveUser",
+      userType: "user",
+      userId: selectedRowKeys
+    };
+    console.log('Restore Users Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "unarchiveUser",
-        userType: "user",
-        userId: selectedRowKeys
-      });
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
         message.success(`${selectedRowKeys.length} users restored successfully`);
@@ -201,12 +203,14 @@ const Archive = () => {
   };
 
   const handleRestoreVehicles = async () => {
+    const payload = {
+      operation: "unarchiveResource",
+      resourceType: "vehicle",
+      resourceId: selectedRowKeys
+    };
+    console.log('Restore Vehicles Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "unarchiveResource",
-        resourceType: "vehicle",
-        resourceId: selectedRowKeys
-      });
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
         message.success(`${selectedRowKeys.length} vehicles restored successfully`);
@@ -222,12 +226,14 @@ const Archive = () => {
   };
 
   const handleRestoreVenues = async () => {
+    const payload = {
+      operation: "unarchiveResource",
+      resourceType: "venue",
+      resourceId: selectedRowKeys
+    };
+    console.log('Restore Venues Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "unarchiveResource",
-        resourceType: "venue",
-        resourceId: selectedRowKeys
-      });
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
         message.success(`${selectedRowKeys.length} venues restored successfully`);
@@ -242,16 +248,30 @@ const Archive = () => {
     }
   };
 
-  const handleRestoreEquipment = async () => {
+  const handleRestoreEquipment = async (record) => {
+    let resourceIds;
+    if (record) {
+      if (record.unit_id) {
+        resourceIds = [record.unit_id];
+      } else if (record.equip_id) {
+        resourceIds = [record.equip_id];
+      } else {
+        message.error('No valid equipment ID found.');
+        return;
+      }
+    } else {
+      resourceIds = selectedRowKeys;
+    }
+    const payload = {
+      operation: "unarchiveResource",
+      resourceType: "equipment",
+      resourceId: resourceIds
+    };
+    console.log('Restore Equipment Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "unarchiveResource",
-        resourceType: "equipment",
-        resourceId: selectedRowKeys
-      });
-
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
       if (response.data.status === 'success') {
-        message.success(`${selectedRowKeys.length} equipment items restored successfully`);
+        message.success(`${resourceIds.length} equipment items restored successfully`);
         setSelectedRowKeys([]);
         fetchEquipment();
       } else {
@@ -264,12 +284,14 @@ const Archive = () => {
   };
 
   const handleRestoreDrivers = async () => {
+    const payload = {
+      operation: "unarchiveUser",
+      userType: "driver",
+      userId: selectedRowKeys
+    };
+    console.log('Restore Drivers Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "unarchiveUser",
-        userType: "driver",
-        userId: selectedRowKeys
-      });
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
         message.success(`${selectedRowKeys.length} drivers restored successfully`);

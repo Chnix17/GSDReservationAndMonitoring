@@ -25,6 +25,8 @@ const Sidebar = () => {
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
+  const departmentName = SecureStorage.getSessionItem('Department Name');
+  const userLevelName = SecureStorage.getSessionItem('user_level');
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -540,15 +542,19 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              {isDesktopSidebarOpen && <SectionLabel text="Venue Management" />}
-
-              <MiniSidebarItem 
-                icon={FaCalendarAlt} 
-                text="Venue Schedule" 
-                link="/Department/VenueSchedule" 
-                active={activeItem === '/Department/VenueSchedule'}
-                isExpanded={isDesktopSidebarOpen}
-              />
+              {/* Venue Management Section - Only for REGISTRAR Department Head */}
+              {(departmentName === 'REGISTRAR' && userLevelName === 'Department Head') && (
+                <>
+                  <SectionLabel text="Venue Management" />
+                  <MiniSidebarItem 
+                    icon={FaCalendarAlt} 
+                    text="Venue Schedule" 
+                    link="/Department/VenueSchedule" 
+                    active={activeItem === '/Department/VenueSchedule'}
+                    isExpanded={isDesktopSidebarOpen}
+                  />
+                </>
+              )}
 
             </nav>
 
@@ -617,15 +623,19 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              {isDesktopSidebarOpen && <SectionLabel text="Venue Management" />}
-
-              <MiniSidebarItem 
-                icon={FaCalendarAlt} 
-                text="Venue Schedule" 
-                link="/Department/VenueSchedule" 
-                active={activeItem === '/Department/VenueSchedule'}
-                isExpanded={isDesktopSidebarOpen}
-              />
+              {/* Venue Management Section - Only for REGISTRAR Department Head (Mobile) */}
+              {(departmentName === 'REGISTRAR' && userLevelName === 'Department Head') && (
+                <>
+                  <SectionLabel text="Venue Management" />
+                  <MiniSidebarItem 
+                    icon={FaCalendarAlt} 
+                    text="Venue Schedule" 
+                    link="/Department/VenueSchedule" 
+                    active={activeItem === '/Department/VenueSchedule'}
+                    isExpanded={isDesktopSidebarOpen}
+                  />
+                </>
+              )}
 
             </nav>
           </div>
@@ -636,9 +646,6 @@ const Sidebar = () => {
               ? 'lg:ml-64 pl-0 mb-[300px]' 
               : 'lg:ml-16 pl-0 mb-[300px]'
           }`}>
-
-
-
             {/* Content will be rendered here */}
           </main>
         </div>
@@ -672,9 +679,6 @@ const SectionLabel = ({ text }) => (
   </div>
 );
 
-
-
-
 const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge }) => {
   return (
     <Link 
@@ -690,19 +694,16 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
         <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
         {isExpanded && <span className="text-sm">{text}</span>}
       </div>
-      
       {badge && isExpanded && (
         <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
           {badge}
         </span>
       )}
-      
       {badge && !isExpanded && (
         <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
       )}
     </Link>
   );
 });
-
 
 export default Sidebar;

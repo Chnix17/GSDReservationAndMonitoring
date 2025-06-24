@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Card, Typography,  Divider,  Tag } from 'antd';
-import { PrinterOutlined, BankOutlined, CarOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
+import { BankOutlined, CarOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { FaTools } from 'react-icons/fa';
 import { format } from 'date-fns';
-import { Button as AntButton } from 'antd';
+
 
 const { Title, Text } = Typography;
 
@@ -26,7 +26,8 @@ const ReviewSection = ({
   loading,
   handleBack,
   handleAddReservation,
-  handlePrintRequest
+  handlePrintRequest,
+  availableDrivers
 }) => {
   // Add debug logging
   console.log('ReviewSection Props:', {
@@ -121,6 +122,27 @@ const ReviewSection = ({
                 <Tag color="blue">{vehicle.vehicle_license}</Tag>
               </div>
             ))}
+          </div>
+
+          {/* Driver Information */}
+          <div className="mt-6">
+            <div className="flex items-center gap-2 mb-2">
+              <UserOutlined className="text-blue-500" />
+              <Text strong className="text-lg">Driver</Text>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              {formData.driverType === 'trip_ticket' ? (
+                <Text strong className="text-blue-700">Trip Ticket (Pending Assignment)</Text>
+              ) : formData.driverType === 'default' && formData.driverName ? (
+                <Text strong className="text-blue-700">
+                  {availableDrivers && availableDrivers.length > 0
+                    ? (availableDrivers.find(d => d.driver_id?.toString() === formData.driverName?.toString())?.driver_full_name || 'Selected Driver')
+                    : 'Selected Driver'}
+                </Text>
+              ) : (
+                <Text type="secondary">No driver selected</Text>
+              )}
+            </div>
           </div>
 
           <div className="mt-6">

@@ -5,7 +5,7 @@ import {
   FaBars, FaUserCircle,
   FaTimes,
   FaBell, FaAngleRight,
-  FaAngleLeft, FaWrench
+  FaAngleLeft
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -21,7 +21,7 @@ const Sidebar = () => {
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const [notifications] = useState(5);
+  const [notifications] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
@@ -369,13 +369,7 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              <MiniSidebarItem 
-                icon={FaWrench}
-                text="View Maintenance"
-                link="/Personnel/ViewMaintenanceTask"
-                active={activeItem === '/Personnel/ViewMaintenanceTask'}
-                isExpanded={isDesktopSidebarOpen}
-              />
+     
             </nav>
 
             {/* User Profile - Show only icon when collapsed */}

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsFillGridFill, BsList, BsBuilding } from 'react-icons/bs';
-import { MdPeople, MdAccessTime } from 'react-icons/md';
+
 import { SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -73,17 +73,10 @@ const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
               ${isMobile ? 'gap-2' : 'gap-3'}
             `}>
               <div className="flex items-center gap-1 text-gray-600">
-                <MdPeople className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
-                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
-                  {venue.ven_occupancy}
-                </span>
+                
+          
               </div>
-              <div className="flex items-center gap-1 text-gray-600">
-                <MdAccessTime className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
-                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
-                  8:00 - 5:00
-                </span>
-              </div>
+             
             </div>
           </div>
         </div>
@@ -103,7 +96,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   // Filter venues based on search query
   const filteredVenues = venues.filter(venue =>
     venue.ven_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    venue.ven_occupancy.toString().includes(searchQuery)
+    (venue.ven_occupancy?.toString() || '').includes(searchQuery)
   );
 
   // Calculate pagination

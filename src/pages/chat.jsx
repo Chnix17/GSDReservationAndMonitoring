@@ -230,6 +230,8 @@ const Chat = () => {
   const [conversationSearch, setConversationSearch] = useState('');
   const [isMobile, setIsMobile] = useState(false);
 
+  const wsRef = useRef(null);
+
   // Set up responsive design
   useEffect(() => {
     const handleResize = () => {
@@ -726,28 +728,6 @@ const Chat = () => {
     };
 
     try {
-      // Add message to UI immediately
-      const newMsg = {
-        id: tempMessageId,
-        text: messageText,
-        timestamp: new Date(),
-        status: 'sending',
-        isOwn: true,
-        senderPic: currentUser.picture,
-        senderName: currentUser.name,
-        senderId: currentUser.id,
-        receiverId: activeConversation.id
-      };
-
-      // Update messages using function form to ensure latest state
-      setMessages(prev => {
-        // Check if message already exists
-        if (prev.some(msg => msg.id === tempMessageId)) {
-          return prev;
-        }
-        return [...prev, newMsg];
-      });
-
       // Send message via fetch
       const formData = new URLSearchParams();
       formData.append('operation', 'sendMessage');
@@ -767,15 +747,6 @@ const Chat = () => {
         throw new Error('Network response was not ok');
       }
 
-      // Update message status to 'sent' after successful sending
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === tempMessageId 
-            ? {...msg, status: 'sent'} 
-            : msg
-        )
-      );
-
       // Try to send through WebSocket if available
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(messageData));
@@ -787,14 +758,8 @@ const Chat = () => {
       setAttachmentPreview(null);
     } catch (error) {
       console.error('Error sending message:', error);
-      // Mark message as failed
-      setMessages(prev => 
-        prev.map(msg => 
-          msg.id === tempMessageId 
-            ? {...msg, status: 'failed'} 
-            : msg
-        )
-      );
+      // Optionally, show error to user
+      setErrorMessage('Failed to send message');
     }
   };
 
@@ -932,6 +897,7 @@ const Chat = () => {
       // Convert http:// to ws:// for WebSocket connection
       const wsUrl = apiUrl.replace('http://', 'ws://').replace('/coc/gsd/', '');
       const socket = new WebSocket(`${wsUrl}:8080`);
+      wsRef.current = socket;
       setConnectionStatus('connecting');
 
       socket.onopen = () => {
@@ -1014,8 +980,8 @@ const Chat = () => {
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.close();
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close();
         }
       };
     } catch (error) {
@@ -1025,17 +991,17 @@ const Chat = () => {
       const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
       reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
     }
-  }, [activeConversation, currentUser.id, currentUser.name, reconnectAttempts]);
+  }, [activeConversation?.name, currentUser.id, currentUser.name, reconnectAttempts]);
 
   useEffect(() => {
     const cleanup = connectWebSocket();
     return () => {
       if (cleanup) cleanup();
-      if (ws) {
-        ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
       }
     };
-  }, [connectWebSocket, ws]);
+  }, [connectWebSocket]);
 
   // Add connection status indicator in the UI
   useEffect(() => {
