@@ -343,7 +343,22 @@ const Update_Modal = ({
                 className="p-4"
                 initialValues={formData}
             >
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-6 items-end">
+                    <Form.Item
+                        label="Title"
+                        name="users_title"
+                        className="mb-0"
+                        style={{ minWidth: 80, maxWidth: 100 }}
+                    >
+                        <Select placeholder="Title" size="small" style={{ width: '100%' }}>
+                            <Select.Option value="">None</Select.Option>
+                            {titles.map((title) => (
+                                <Select.Option key={title.id} value={title.abbreviation}>
+                                    {title.abbreviation}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
                     <Form.Item
                         label="First Name"
                         name="users_firstname"
@@ -351,20 +366,20 @@ const Update_Modal = ({
                             { required: true, message: 'Please input first name!' },
                             { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter first name" />
                     </Form.Item>
-
                     <Form.Item
                         label="Middle Name"
                         name="users_middlename"
                         rules={[
                             { pattern: /^[a-zA-Z\s]*$/, message: 'Name can only contain letters and spaces' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter middle name" />
                     </Form.Item>
-
                     <Form.Item
                         label="Last Name"
                         name="users_lastname"
@@ -372,12 +387,31 @@ const Update_Modal = ({
                             { required: true, message: 'Please input last name!' },
                             { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter last name" />
                     </Form.Item>
+                    <Form.Item
+                        label="Suffix"
+                        name="users_suffix"
+                        className="mb-0"
+                        style={{ minWidth: 80, maxWidth: 100 }}
+                    >
+                        <Select placeholder="Suffix" size="small" style={{ width: '100%' }}>
+                            <Select.Option value="">None</Select.Option>
+                            <Select.Option value="Jr.">Jr.</Select.Option>
+                            <Select.Option value="Sr.">Sr.</Select.Option>
+                            <Select.Option value="II">II</Select.Option>
+                            <Select.Option value="III">III</Select.Option>
+                            <Select.Option value="IV">IV</Select.Option>
+                            <Select.Option value="V">V</Select.Option>
+                        </Select>
+                    </Form.Item>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="border-b border-gray-200 mb-6"></div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Form.Item
                         label="School ID"
                         name="users_school_id"
@@ -457,37 +491,6 @@ const Update_Modal = ({
                         tooltip="Password must contain at least 8 characters, including 1 uppercase, 1 lowercase, 1 number, and exactly 1 special character (!@#$%^&*)"
                     >
                         <Input.Password placeholder="Enter new password" />
-                    </Form.Item>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Form.Item
-                        label="Suffix"
-                        name="users_suffix"
-                    >
-                        <Select placeholder="Select suffix">
-                            <Select.Option value="">None</Select.Option>
-                            <Select.Option value="Jr.">Jr.</Select.Option>
-                            <Select.Option value="Sr.">Sr.</Select.Option>
-                            <Select.Option value="II">II</Select.Option>
-                            <Select.Option value="III">III</Select.Option>
-                            <Select.Option value="IV">IV</Select.Option>
-                            <Select.Option value="V">V</Select.Option>
-                        </Select>
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Title"
-                        name="users_title"
-                    >
-                        <Select placeholder="Select title">
-                            <Select.Option value="">None</Select.Option>
-                            {titles.map((title) => (
-                                <Select.Option key={title.id} value={title.abbreviation}>
-                                    {title.abbreviation}
-                                </Select.Option>
-                            ))}
-                        </Select>
                     </Form.Item>
                 </div>
 

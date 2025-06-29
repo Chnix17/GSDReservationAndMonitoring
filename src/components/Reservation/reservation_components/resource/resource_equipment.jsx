@@ -13,6 +13,33 @@ const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, cur
   const effectiveViewMode = isMobile ? 'list' : viewMode;
   const availableQuantity = parseInt(equipment.available_quantity) || 0;
   const isAvailable = availableQuantity > 0;
+  const [inputValue, setInputValue] = useState(currentQuantity || 0);
+  const [isFocused, setIsFocused] = useState(false);
+
+  // Update input value when currentQuantity changes
+  useEffect(() => {
+    setInputValue(currentQuantity || 0);
+  }, [currentQuantity]);
+
+  const handleInputChange = (e) => {
+    e.stopPropagation();
+    const value = e.target.value;
+    setInputValue(value);
+  };
+
+  const handleInputBlur = (e) => {
+    e.stopPropagation();
+    setIsFocused(false);
+    const value = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
+    const clampedValue = Math.min(Math.max(0, value), availableQuantity);
+    setInputValue(clampedValue);
+    onQuantityChange(equipment.equipment_id, clampedValue);
+  };
+
+  const handleInputFocus = (e) => {
+    e.stopPropagation();
+    setIsFocused(true);
+  };
 
   return (
     <motion.div
@@ -110,13 +137,10 @@ const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, cur
                   type="number"
                   min="0"
                   max={availableQuantity}
-                  value={currentQuantity}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    const value = parseInt(e.target.value) || 0;
-                    const clampedValue = Math.min(Math.max(0, value), availableQuantity);
-                    onQuantityChange(equipment.equipment_id, clampedValue);
-                  }}
+                  value={inputValue}
+                  onChange={handleInputChange}
+                  onBlur={handleInputBlur}
+                  onFocus={handleInputFocus}
                   onClick={(e) => e.stopPropagation()}
                   className={`
                     w-12 h-6 text-center border border-gray-300 rounded text-xs font-medium

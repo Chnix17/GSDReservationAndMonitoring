@@ -54,6 +54,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   const [baseUrl, setBaseUrl] = useState('');
   const [holidays, setHolidays] = useState(initialData?.holidays || []);
   const [equipmentAvailability, setEquipmentAvailability] = useState(initialData?.equipmentAvailability || []);
+  const userLevel = SecureStorage.getSessionItem('user_level');
+  const userDepartment = SecureStorage.getSessionItem('Department Name');
 
   // Update state when initialData changes
   useEffect(() => {
@@ -78,35 +80,35 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Business hours from 5 AM to 7 PM
-  const businessHours = [...Array(15)].map((_, i) => i + 5);
+  // Business hours from 8 AM to 5 PM
+  const businessHours = [...Array(10)].map((_, i) => i + 8);
   const [isLoading, setIsLoading] = useState(false);
   const [conflictDetails, setConflictDetails] = useState(null);
   const [showConflictModal, setShowConflictModal] = useState(false);
   const [isDatePickerModalOpen, setIsDatePickerModalOpen] = useState(false);
-  const [selectionMode, setSelectionMode] = useState('full');
+  // const [selectionMode, setSelectionMode] = useState('full');
 
-  const isSelectionValid = () => {
-    if (selectionMode === 'full') {
-      return (
-        dateRange.start && 
-        dateRange.end && 
-        selectedTimes.startTime !== null && 
-        selectedTimes.endTime !== null &&
-        selectedTimes.startTime >= 5 &&
-        selectedTimes.endTime <= 19 &&
-        setSelectionMode('full')
-      );
-    } else {
-      return (
-        dateRange.start && 
-        dateRange.end &&
-        selectedTimes.endTime !== null &&
-        selectedTimes.endTime <= 19 &&
-        setSelectionMode('partial')
-      );
-    }
-  };
+  // const isSelectionValid = () => {
+  //   if (selectionMode === 'full') {
+  //     return (
+  //       dateRange.start && 
+  //       dateRange.end && 
+  //       selectedTimes.startTime !== null && 
+  //       selectedTimes.endTime !== null &&
+  //       selectedTimes.startTime >= 5 &&
+  //       selectedTimes.endTime <= 19 &&
+  //       setSelectionMode('full')
+  //     );
+  //   } else {
+  //     return (
+  //       dateRange.start && 
+  //       dateRange.end &&
+  //       selectedTimes.endTime !== null &&
+  //       selectedTimes.endTime <= 19 &&
+  //       setSelectionMode('partial')
+  //     );
+  //   }
+  // };
 
 
 
@@ -289,8 +291,8 @@ const handleDateClick = (date) => {
   // Check if it's today but after business hours
   if (compareDate.getTime() === today.getTime()) {
     const currentHour = now.getHours();
-    if (currentHour >= 19) {
-      toast.error('Bookings for today are closed (after 7:00 PM)', {
+    if (currentHour >= 17) {
+      toast.error('Bookings for today are closed (after 5:00 PM)', {
         position: 'top-center',
         icon: '⏱️',
         className: 'font-medium'
@@ -324,7 +326,7 @@ const handleDateClick = (date) => {
   // Check reservation status - only prevent if fully reserved
   const status = getAvailabilityStatus(date, reservations);
   if (status === 'reserved') {
-    toast.error('This date is already fully reserved for the business hours (5AM-7PM)', {
+    toast.error('This date is already fully reserved for the business hours (8AM-5PM)', {
       position: 'top-center',
       icon: '❌',
       className: 'font-medium'
@@ -356,9 +358,9 @@ const handleDateClick = (date) => {
   // Set default times based on current time if it's today
   if (isSameDay(date, new Date())) {
     const currentHour = now.getHours();
-    const defaultStartHour = Math.max(currentHour + 1, 5); // Start at next hour, minimum 5 AM
+    const defaultStartHour = Math.max(currentHour + 1, 8); // Start at next hour, minimum 8 AM
     
-    if (defaultStartHour < 19) { // Only set if within business hours
+    if (defaultStartHour < 17) { // Only set if within business hours
       setSelectedTimes(prev => ({
         ...prev,
         startTime: defaultStartHour,
@@ -615,7 +617,7 @@ const renderCalendarGrid = () => {
         const isPastDate = compareDate < today;
         const isPresentDate = isSameDay(day, today);
         const currentTime = now.getHours();
-        const isAfterBusinessHours = isPresentDate && currentTime >= 19;
+        const isAfterBusinessHours = isPresentDate && currentTime >= 17;
         // const isBeforeBusinessHours = isPresentDate && currentTime < 5;
         const isUnavailable = isPastDate || isAfterBusinessHours || isWeekend;
         const isSelected = dateRange.start && day >= dateRange.start && 
@@ -885,6 +887,11 @@ const DayDetailsModal = () => {
     // Check if it's a holiday
     if (holidays.some(holiday => format(date, 'yyyy-MM-dd') === holiday.date)) {
       return 'holiday';
+    }
+
+    // If user is Department Head from COO, all slots are available
+    if (userLevel === 'Department Head' && userDepartment === 'COO') {
+      return 'available';
     }
     
     // For equipment resources
@@ -1552,77 +1559,48 @@ const DayDetailsModal = () => {
   };
 
 // Update the handleTimeSelection function
-const handleTimeSelection = () => {
-  if (!isSelectionValid()) {
-    toast.error('Please select both start and end times');
+const handleTimeSelection = (isOverride = false) => {
+  if (!selectedTimes.startTime || !selectedTimes.endTime) {
     return;
   }
 
-  try {
-    // Create safe Date objects
-    const startDateTime = new Date(dateRange.start);
-    const endDateTime = new Date(dateRange.end || dateRange.start);
+  const startDate = new Date(dateRange.start || new Date());
+  startDate.setHours(selectedTimes.startTime, selectedTimes.startMinute || 0, 0);
 
-    // Validate end time is not equal to start time
-    if (selectedTimes.startTime === selectedTimes.endTime && 
-        selectedTimes.startMinute === selectedTimes.endMinute) {
-      toast.error('End time cannot be the same as start time');
-      return;
-    }
+  const endDate = new Date(dateRange.start || new Date());
+  endDate.setHours(selectedTimes.endTime, selectedTimes.endMinute || 0, 0);
 
-    // Set hours and minutes
-    startDateTime.setHours(selectedTimes.startTime || 0);
-    startDateTime.setMinutes(selectedTimes.startMinute || 0);
-    endDateTime.setHours(selectedTimes.endTime || 0);
-    endDateTime.setMinutes(selectedTimes.endMinute || 0);
-
-    // Check if it's a weekend
-    const dayOfWeek = startDateTime.getDay();
-    if (dayOfWeek === 0 || dayOfWeek === 6) {
-      toast.error('Reservations can only be made on working days (Monday to Friday)');
-      return;
-    }
-
-    // Validate the base dates
-    if (!isValidDate(startDateTime) || !isValidDate(endDateTime)) {
-      toast.error('Invalid date selection');
-      return;
-    }
-
-    // Validate business hours
-    if (startDateTime.getHours() < 5 || endDateTime.getHours() > 19) {
-      toast.error('Reservations must be between 5 AM and 7 PM');
-      return;
-    }
-
-    // Check for valid chronological order
-    if (endDateTime <= startDateTime) {
-      toast.error('End time must be after start time');
-      return;
-    }
-
-    // Check for conflicts
-    const conflicts = checkConflicts(startDateTime, endDateTime);
-    
+  // Check for conflicts only if not overriding
+  if (!isOverride) {
+    const conflicts = checkConflicts(startDate, endDate);
     if (conflicts.length > 0) {
       setConflictDetails({
-        conflicts,
         attemptedBooking: {
-          start: format(startDateTime, 'MMM dd, yyyy HH:mm'),
-          end: format(endDateTime, 'MMM dd, yyyy HH:mm')
-        }
+          start: startDate,
+          end: endDate
+        },
+        conflicts
       });
       setShowConflictModal(true);
       return;
     }
-
-    // If all validations pass, proceed with the reservation
-    onDateSelect(startDateTime, endDateTime);
-    setIsDatePickerModalOpen(false);
-  } catch (error) {
-    console.error('Error in handleTimeSelection:', error);
-    toast.error('An error occurred while processing your selection');
   }
+
+  // If we're overriding or there are no conflicts, proceed with selection
+  onDateSelect({
+    startDate,
+    endDate,
+    isOverride
+  });
+
+  // Reset time selection
+  setSelectedTimes({
+    startTime: null,
+    endTime: null,
+    startMinute: null,
+    endMinute: null
+  });
+  setDateRange({ start: null, end: null });
 };
 
 // Add utility function to validate dates
@@ -1746,130 +1724,126 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   }));
 };
 
-  const renderConflictModal = () => (
-  <Dialog
-    open={showConflictModal}
-    onClose={() => setShowConflictModal(false)}
-    className="relative z-50"
-  >
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+  // Add this function to check if user can override
+  const canOverrideReservation = () => {
+    return userLevel === 'Department Head' && userDepartment === 'COO';
+  };
 
-    <div className="fixed inset-0 flex items-center justify-center p-4">
-      <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl p-5 sm:p-6 max-w-md w-full shadow-xl border border-gray-200 dark:border-gray-700/30">
-        <div className="mb-5">
-          <div className="flex items-center mb-4">
-            <div className="w-10 h-10 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mr-3">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6 text-red-600 dark:text-red-400">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+  // Update the renderConflictModal function
+  const renderConflictModal = () => (
+    <Dialog
+      open={showConflictModal}
+      onClose={() => setShowConflictModal(false)}
+      className="relative z-50"
+    >
+      <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+
+      <div className="fixed inset-0 flex items-center justify-center p-4">
+        <Dialog.Panel className="relative max-h-[90vh] w-full max-w-sm overflow-y-auto rounded-xl bg-white dark:bg-gray-800 p-4 shadow-xl">
+          {/* Close button */}
+          <button
+            onClick={() => setShowConflictModal(false)}
+            className="absolute right-2 top-2 rounded-lg p-1 text-gray-400 hover:text-gray-500"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Header */}
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex-shrink-0 rounded-full bg-red-100 p-2 dark:bg-red-900/30">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-5 w-5 text-red-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z" />
               </svg>
             </div>
-            <Dialog.Title className="text-lg sm:text-xl font-semibold text-red-700 dark:text-red-400">
-              Scheduling Conflict Detected
+            <Dialog.Title className="text-lg font-medium text-gray-900 dark:text-white">
+              Time Slot Conflict
             </Dialog.Title>
           </div>
-          
-          <p className="text-gray-600 dark:text-gray-300 mb-4 pl-1">
-            Your selected time slot conflicts with existing reservations:
-          </p>
 
           {conflictDetails && (
-            <>
-              <div className="bg-red-50 dark:bg-red-900/10 p-4 rounded-xl mb-4 border border-red-100 dark:border-red-900/20">
-                <p className="font-medium text-red-800 dark:text-red-300 mb-2 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 20" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-                  </svg>
-                  Your attempted booking:
-                </p>
-                <p className="text-red-600 dark:text-red-300 pl-7">
-                  <span className="font-medium">From:</span> {dayjs(conflictDetails.attemptedBooking.start).format('MMMM D, YYYY h:mm A')}
-                  <br/>
-                  <span className="font-medium">To:</span> {dayjs(conflictDetails.attemptedBooking.end).format('MMMM D, YYYY h:mm A')}
-                </p>
+            <div className="space-y-3">
+              {/* Your booking */}
+              <div className="rounded-lg bg-red-50 p-3 dark:bg-red-900/10">
+                <p className="mb-2 text-sm font-medium text-red-800 dark:text-red-200">Your booking:</p>
+                <div className="text-xs text-red-700 dark:text-red-300">
+                  {dayjs(conflictDetails.attemptedBooking.start).format('MMM D, YYYY h:mm A')} - {dayjs(conflictDetails.attemptedBooking.end).format('h:mm A')}
+                </div>
               </div>
 
-              <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-900/20">
-                <p className="font-medium text-amber-800 dark:text-amber-300 mb-2 flex items-center">
-                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 mr-1.5">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 5.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5m-9-6h.008v.008H12v-.008ZM12 15h.008v.008H12V15Zm0 2.25h.008v.008H12v-.008ZM9.75 15h.008v.008H9.75V15Zm0 2.25h.008v.008H9.75v-.008ZM7.5 15h.008v.008H7.5V15Zm0 2.25h.008v.008H7.5v-.008Zm6.75-4.5h.008v.008h-.008v-.008Zm0 2.25h.008v.008h-.008V15Zm0 2.25h.008v.008h-.008v-.008Zm2.25-4.5h.008v.008H16.5v-.008Zm0 2.25h.008v.008H16.5V15Z" />
-                  </svg>
-                  Existing reservations:
-                </p>
-                <ul className="space-y-3 pl-7">
-                {conflictDetails.conflicts.map((conflict, index) => {
-                  const startDate = dayjs(conflict.startDate);
-                  const endDate = dayjs(conflict.endDate);
-                  const isSameDay = startDate.isSame(endDate, 'day');
-                  
-                  // Determine what to display based on resource type
-                  let resourceDetails = '';
-                  if (conflict.venueName) {
-                    resourceDetails = conflict.venueName;
-                  } else if (conflict.vehicleMake) {
-                    resourceDetails = `${conflict.vehicleMake} ${conflict.vehicleModel}`;
-                    if (conflict.vehicleLicense) {
-                      resourceDetails += ` (${conflict.vehicleLicense})`;
-                    }
-                  }
+              {/* Override message */}
+              {canOverrideReservation() && (
+                <div className="rounded-lg bg-yellow-50 p-3 dark:bg-yellow-900/10">
+                  <p className="text-xs text-yellow-800 dark:text-yellow-300">
+                    <span className="font-medium">Note:</span> As COO Department Head, you can override this conflict.
+                  </p>
+                </div>
+              )}
 
-                  return (
-                    <li key={index} className="text-amber-700 dark:text-amber-300 border-l-2 border-amber-300 dark:border-amber-600 pl-3 py-1">
-                      {resourceDetails && (
-                        <div className="font-medium mb-1 text-amber-800 dark:text-amber-200">
-                          {resourceDetails}
-                        </div>
-                      )}
-                      <div className="text-sm">
-                        {isSameDay ? (
-                          <>
-                            <span className="inline-block w-16">Date:</span> {startDate.format('MMMM D, YYYY')}
-                            <br />
-                            <span className="inline-block w-16">Time:</span> {startDate.format('h:mm A')} - {endDate.format('h:mm A')}
-                          </>
-                        ) : (
-                          <>
-                            <span className="inline-block w-16">From:</span> {startDate.format('MMMM D, h:mm A')}
-                            <br />
-                            <span className="inline-block w-16">To:</span> {endDate.format('MMMM D, YYYY h:mm A')}
-                          </>
-                        )}
+              {/* Existing reservations */}
+              <div className="rounded-lg bg-amber-50 p-3 dark:bg-amber-900/10">
+                <p className="mb-2 text-sm font-medium text-amber-800 dark:text-amber-200">
+                  Conflicts with:
+                </p>
+                <div className="space-y-2">
+                  {conflictDetails.conflicts.map((conflict, index) => {
+                    const startDate = dayjs(conflict.startDate);
+                    const endDate = dayjs(conflict.endDate);
+                    
+                    let resourceName = '';
+                    if (conflict.venueName) resourceName = conflict.venueName;
+                    else if (conflict.vehicleMake) resourceName = `${conflict.vehicleMake} ${conflict.vehicleModel}`;
+                    else if (conflict.equipmentName) resourceName = conflict.equipmentName;
+
+                    return (
+                      <div key={index} className="text-xs text-amber-700 dark:text-amber-300">
+                        <div className="font-medium">{resourceName}</div>
+                        <div>{startDate.format('h:mm A')} - {endDate.format('h:mm A')}</div>
                       </div>
-                    </li>
-                  );
-                })}
-                </ul>
+                    );
+                  })}
+                </div>
               </div>
-            </>
+            </div>
           )}
-        </div>
 
-        <div className="flex justify-end space-x-3">
-          <button
-            className="px-4 py-2.5 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors"
-            onClick={() => setShowConflictModal(false)}
-          >
-            Cancel
-          </button>
-          <button
-            className="px-4 py-2.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors shadow-sm"
-            onClick={() => {
-              setShowConflictModal(false);
-              setSelectedTimes({
-                startTime: null,
-                endTime: null,
-                startMinute: null,
-                endMinute: null
-              });
-              setDateRange({ start: null, end: null });
-            }}
-          >
-            Choose Different Time
-          </button>
-        </div>
-      </Dialog.Panel>
-    </div>
-  </Dialog>
+          {/* Action buttons */}
+          <div className="mt-4 flex gap-2">
+            {canOverrideReservation() && (
+              <button
+                type="button"
+                className="flex-1 rounded-lg bg-yellow-500 px-3 py-2 text-sm font-medium text-white hover:bg-yellow-600"
+                onClick={() => {
+                  setShowConflictModal(false);
+                  handleTimeSelection(true);
+                }}
+              >
+                Override
+              </button>
+            )}
+            <button
+              type="button"
+              className="flex-1 rounded-lg bg-blue-500 px-3 py-2 text-sm font-medium text-white hover:bg-blue-600"
+              onClick={() => {
+                setShowConflictModal(false);
+                setSelectedTimes({
+                  startTime: null,
+                  endTime: null,
+                  startMinute: null,
+                  endMinute: null
+                });
+                setDateRange({ start: null, end: null });
+              }}
+            >
+              Choose Another Time
+            </button>
+          </div>
+        </Dialog.Panel>
+      </div>
+    </Dialog>
   );
+
   // Update the RangePicker in renderEnhancedDateTimeSelection
   
   // const getBusinessHoursStatus = (date) => {
@@ -1959,369 +1933,349 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   
     // Check if the selected time is in the past
     if (selectedDateTime < now) {
-      toast.error('Cannot select past time slots', {
-        position: 'top-center',
-        icon: '⏰',
-        className: 'font-medium'
-      });
-      return;
-    }
-    
-    // Check if it's today but we're trying to book for earlier than the next hour
-    if (isSameDay(day, now) && hour <= now.getHours()) {
-      toast.error('Please select a future time slot', {
-        position: 'top-center',
-        icon: '⏱️',
-        className: 'font-medium'
-      });
-      return;
-    }
-    
-    // Check if the time slot is already reserved
-    const status = getTimeSlotAvailability(day, hour, reservations);
-    if (status === 'reserved') {
-      toast.error('This time slot is already reserved', {
-        position: 'top-center',
-        icon: '❌',
-        className: 'font-medium'
-      });
-      return;
-    }
-    
-    // Check if it's a holiday
-    const formattedDate = format(day, 'yyyy-MM-dd');
-    const holidayInfo = holidays.find(h => h.date === formattedDate);
-    if (holidayInfo) {
-      toast.error(`Reservations not allowed on ${holidayInfo.name} (Holiday)`, {
-        position: 'top-center',
-        icon: '🏖️',
-        className: 'font-medium'
-      });
+      toast.error('Cannot select past dates and times');
       return;
     }
   
-    // Set start date and initial time
-    setDateRange({ start: day, end: null });
+    // Check if it's a holiday
+    if (holidays.some(holiday => format(day, 'yyyy-MM-dd') === holiday.date)) {
+      toast.error('Cannot select holiday dates');
+      return;
+    }
+  
+    // For Department Head from COO, allow selecting any time slot
+    const isDepartmentHeadCOO = userLevel === 'Department Head' && userDepartment === 'COO';
+  
+    // Check for existing reservations only if not Department Head from COO
+    if (!isDepartmentHeadCOO) {
+      const status = getTimeSlotAvailability(day, hour);
+      if (status === 'reserved' || status === 'partial') {
+        toast.error('This time slot is already reserved');
+        return;
+      }
+    }
+  
+    // Set the date range and open the modal
+    setDateRange({ start: day, end: day });
     setSelectedTimes({
       startTime: hour,
+      endTime: null,
       startMinute: 0,
-      endTime: hour + 1 >= 19 ? 19 : hour + 1, // Default end time to 1 hour later, capped at 7 PM
-      endMinute: 0
+      endMinute: null
     });
-    
-    // Reset end date
-
-    
-    // Show modal
     setIsDatePickerModalOpen(true);
   };
 
   // Add this new function to render the date range modal
-  const renderDateRangeModal = () => {
-    // Get blocked time slots for the entire date range
-    const getBlockedTimeSlotsForRange = (startDate, endDate) => {
-      const blockedSlots = {
-        hours: [],
-        minutes: {}
-      };
+  // const renderDateRangeModal = () => {
+  //   // Get blocked time slots for the entire date range
+  //   const getBlockedTimeSlotsForRange = (startDate, endDate) => {
+  //     const blockedSlots = {
+  //       hours: [],
+  //       minutes: {}
+  //     };
 
-      if (!startDate) return blockedSlots;
+  //     if (!startDate) return blockedSlots;
 
-      // If no end date, just check start date
-      const endDateToCheck = endDate || startDate;
+  //     // If no end date, just check start date
+  //     const endDateToCheck = endDate || startDate;
       
-      // Generate all dates in the range
-      const datesToCheck = [];
-      const currentDate = new Date(startDate);
-      const endDateObj = new Date(endDateToCheck);
+  //     // Generate all dates in the range
+  //     const datesToCheck = [];
+  //     const currentDate = new Date(startDate);
+  //     const endDateObj = new Date(endDateToCheck);
       
-      while (currentDate <= endDateObj) {
-        datesToCheck.push(new Date(currentDate));
-        currentDate.setDate(currentDate.getDate() + 1);
-      }
+  //     while (currentDate <= endDateObj) {
+  //       datesToCheck.push(new Date(currentDate));
+  //       currentDate.setDate(currentDate.getDate() + 1);
+  //     }
 
-      // Check each date in the range
-      datesToCheck.forEach(date => {
-        const dateBlockedSlots = getBlockedTimeSlots(date);
-        blockedSlots.hours.push(...dateBlockedSlots.hours);
+  //     // Check each date in the range
+  //     datesToCheck.forEach(date => {
+  //       const dateBlockedSlots = getBlockedTimeSlots(date);
+  //       blockedSlots.hours.push(...dateBlockedSlots.hours);
         
-        // Merge minutes
-        Object.keys(dateBlockedSlots.minutes).forEach(hour => {
-          if (!blockedSlots.minutes[hour]) {
-            blockedSlots.minutes[hour] = [];
-          }
-          blockedSlots.minutes[hour].push(...dateBlockedSlots.minutes[hour]);
-        });
-      });
+  //       // Merge minutes
+  //       Object.keys(dateBlockedSlots.minutes).forEach(hour => {
+  //         if (!blockedSlots.minutes[hour]) {
+  //           blockedSlots.minutes[hour] = [];
+  //         }
+  //         blockedSlots.minutes[hour].push(...dateBlockedSlots.minutes[hour]);
+  //       });
+  //     });
 
-      // Remove duplicates
-      blockedSlots.hours = [...new Set(blockedSlots.hours)];
-      Object.keys(blockedSlots.minutes).forEach(hour => {
-        blockedSlots.minutes[hour] = [...new Set(blockedSlots.minutes[hour])];
-      });
+  //     // Remove duplicates
+  //     blockedSlots.hours = [...new Set(blockedSlots.hours)];
+  //     Object.keys(blockedSlots.minutes).forEach(hour => {
+  //       blockedSlots.minutes[hour] = [...new Set(blockedSlots.minutes[hour])];
+  //     });
 
-      return blockedSlots;
-    };
+  //     return blockedSlots;
+  //   };
 
-    const blockedSlots = getBlockedTimeSlotsForRange(dateRange.start, dateRange.end);
-    const now = new Date();
-    const isToday = dateRange.start && isSameDay(dateRange.start, now);
-    const currentHour = now.getHours();
-    const currentMinute = now.getMinutes();
+  //   const blockedSlots = getBlockedTimeSlotsForRange(dateRange.start, dateRange.end);
+  //   const now = new Date();
+  //   const isToday = dateRange.start && isSameDay(dateRange.start, now);
+  //   const currentHour = now.getHours();
+  //   const currentMinute = now.getMinutes();
 
-    // Debug logging
-    console.log('Date Range:', dateRange);
-    console.log('Blocked Slots:', blockedSlots);
-    console.log('Reservations:', reservations);
+  //   // Debug logging
+  //   console.log('Date Range:', dateRange);
+  //   console.log('Blocked Slots:', blockedSlots);
+  //   console.log('Reservations:', reservations);
 
-    // Clear times when dates change
-    const handleDateChange = (newEndDate) => {
-      setDateRange({ ...dateRange, end: newEndDate });
-      // Clear times when date range changes
-      setSelectedTimes({
-        startTime: null,
-        endTime: null,
-        startMinute: null,
-        endMinute: null
-      });
-    };
+  //   // Clear times when dates change
+  //   const handleDateChange = (newEndDate) => {
+  //     setDateRange({ ...dateRange, end: newEndDate });
+  //     // Clear times when date range changes
+  //     setSelectedTimes({
+  //       startTime: null,
+  //       endTime: null,
+  //       startMinute: null,
+  //       endMinute: null
+  //     });
+  //   };
 
-    return (
-      <Dialog
-        open={isDatePickerModalOpen}
-        onClose={() => setIsDatePickerModalOpen(false)}
-        className="relative z-50"
-      >
-        <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
+  //   return (
+  //     <Dialog
+  //       open={isDatePickerModalOpen}
+  //       onClose={() => setIsDatePickerModalOpen(false)}
+  //       className="relative z-50"
+  //     >
+  //       <div className="fixed inset-0 bg-black/30" aria-hidden="true" />
 
-        <div className="fixed inset-0 flex items-center justify-center p-4">
-          <Dialog.Panel className="bg-white rounded-lg p-6 max-w-md w-full">
-            <Dialog.Title className="text-lg font-medium mb-4">
-              Select Date and Time Range
-            </Dialog.Title>
+  //       <div className="fixed inset-0 flex items-center justify-center p-4">
+  //         <Dialog.Panel className="bg-white rounded-lg p-6 max-w-md w-full">
+  //           <Dialog.Title className="text-lg font-medium mb-4">
+  //             Select Date and Time Range
+  //           </Dialog.Title>
 
-            <div className="space-y-4">
-              <div className="mb-4">
-                <p className="text-sm text-gray-600">Start Date:</p>
-                <p className="font-medium">{dayjs(dateRange.start).format('MMMM D, YYYY')}</p>
-                {dateRange.end && (
-                  <>
-                    <p className="text-sm text-gray-600 mt-2">End Date:</p>
-                    <p className="font-medium">{dayjs(dateRange.end).format('MMMM D, YYYY')}</p>
-                  </>
-                )}
-                {blockedSlots.hours.length > 0 && (
-                  <div className="text-xs text-rose-600 mt-1 p-2 bg-rose-50 rounded border border-rose-200">
-                    <div className="flex items-center mb-1">
-                      <span className="mr-1">⚠️</span>
+  //           <div className="space-y-4">
+  //             <div className="mb-4">
+  //               <p className="text-sm text-gray-600">Start Date:</p>
+  //               <p className="font-medium">{dayjs(dateRange.start).format('MMMM D, YYYY')}</p>
+  //               {dateRange.end && (
+  //                 <>
+  //                   <p className="text-sm text-gray-600 mt-2">End Date:</p>
+  //                   <p className="font-medium">{dayjs(dateRange.end).format('MMMM D, YYYY')}</p>
+  //                 </>
+  //               )}
+  //               {blockedSlots.hours.length > 0 && (
+  //                 <div className="text-xs text-rose-600 mt-1 p-2 bg-rose-50 rounded border border-rose-200">
+  //                   <div className="flex items-center mb-1">
+  //                     <span className="mr-1">⚠️</span>
                   
-                    </div>
+  //                   </div>
                   
-                  </div>
-                )}
-              </div>
+  //                 </div>
+  //               )}
+  //             </div>
               
-              <div>
-                <label className="block text-sm mb-2">Start Time</label>
-                <TimePicker
-                  className="w-full"
-                  format="HH:mm"
-                  minuteStep={30}
-                  placeholder="Select start time"
-                  value={selectedTimes.startTime !== null ? 
-                    dayjs().hour(selectedTimes.startTime).minute(selectedTimes.startMinute || 0) : 
-                    null
-                  }
-                  disabledTime={() => ({
-                    disabledHours: () => {
-                      // Always disable hours outside business hours (before 5am or after 7pm)
-                      const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 19);
+  //             <div>
+  //               <label className="block text-sm mb-2">Start Time</label>
+  //               <TimePicker
+  //                 className="w-full"
+  //                 format="HH:mm"
+  //                 minuteStep={30}
+  //                 placeholder="Select start time"
+  //                 value={selectedTimes.startTime !== null ? 
+  //                   dayjs().hour(selectedTimes.startTime).minute(selectedTimes.startMinute || 0) : 
+  //                   null
+  //                 }
+  //                 disabledTime={() => ({
+  //                   disabledHours: () => {
+  //                     // Always disable hours outside business hours (before 5am or after 7pm)
+  //                     const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 19);
                       
-                      // Add blocked hours from existing reservations
-                      baseDisabled.push(...blockedSlots.hours);
+  //                     // Add blocked hours from existing reservations
+  //                     baseDisabled.push(...blockedSlots.hours);
                       
-                      // If it's today, disable hours before current hour
-                      if (isToday) {
-                        for (let h = 5; h < currentHour; h++) {
-                          baseDisabled.push(h);
-                        }
-                      }
+  //                     // If it's today, disable hours before current hour
+  //                     if (isToday) {
+  //                       for (let h = 5; h < currentHour; h++) {
+  //                         baseDisabled.push(h);
+  //                       }
+  //                     }
                       
-                      const result = [...new Set(baseDisabled)]; // Remove duplicates
-                      console.log('Disabled hours for start time:', result);
-                      return result;
-                    },
-                    disabledMinutes: (selectedHour) => {
-                      const disabledMinutes = [];
+  //                     const result = [...new Set(baseDisabled)]; // Remove duplicates
+  //                     console.log('Disabled hours for start time:', result);
+  //                     return result;
+  //                   },
+  //                   disabledMinutes: (selectedHour) => {
+  //                     const disabledMinutes = [];
                       
-                      // Add blocked minutes from existing reservations
-                      if (blockedSlots.minutes[selectedHour]) {
-                        disabledMinutes.push(...blockedSlots.minutes[selectedHour]);
-                      }
+  //                     // Add blocked minutes from existing reservations
+  //                     if (blockedSlots.minutes[selectedHour]) {
+  //                       disabledMinutes.push(...blockedSlots.minutes[selectedHour]);
+  //                     }
                       
-                      // If today and selecting current hour, disable minutes before current minute
-                      if (isToday && selectedHour === currentHour) {
-                        for (let m = 0; m < currentMinute; m++) {
-                          disabledMinutes.push(m);
-                        }
-                      }
+  //                     // If today and selecting current hour, disable minutes before current minute
+  //                     if (isToday && selectedHour === currentHour) {
+  //                       for (let m = 0; m < currentMinute; m++) {
+  //                         disabledMinutes.push(m);
+  //                       }
+  //                     }
                       
-                      const result = [...new Set(disabledMinutes)]; // Remove duplicates
-                      console.log(`Disabled minutes for hour ${selectedHour}:`, result);
-                      return result;
-                    }
-                  })}
-                  onChange={(time) => {
-                    if (time) {
-                      setSelectedTimes(prev => ({
-                        ...prev,
-                        startTime: time.hour(),
-                        startMinute: time.minute()
-                      }));
-                    } else {
-                      setSelectedTimes(prev => ({
-                        ...prev,
-                        startTime: null,
-                        startMinute: null
-                      }));
-                    }
-                  }}
-                />
-              </div>
+  //                     const result = [...new Set(disabledMinutes)]; // Remove duplicates
+  //                     console.log(`Disabled minutes for hour ${selectedHour}:`, result);
+  //                     return result;
+  //                   }
+  //                 })}
+  //                 onChange={(time) => {
+  //                   if (time) {
+  //                     setSelectedTimes(prev => ({
+  //                       ...prev,
+  //                       startTime: time.hour(),
+  //                       startMinute: time.minute()
+  //                     }));
+  //                   } else {
+  //                     setSelectedTimes(prev => ({
+  //                       ...prev,
+  //                       startTime: null,
+  //                       startMinute: null
+  //                     }));
+  //                   }
+  //                 }}
+  //               />
+  //             </div>
 
-              <div>
-                <label className="block text-sm mb-2">End Time</label>
-                <TimePicker
-                  className="w-full"
-                  format="HH:mm"
-                  minuteStep={30}
-                  placeholder="Select end time"
-                  value={selectedTimes.endTime !== null ? 
-                    dayjs().hour(selectedTimes.endTime).minute(selectedTimes.endMinute || 0) : 
-                    null
-                  }
-                  disabledTime={() => ({
-                    disabledHours: () => {
-                      const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 20);
+  //             <div>
+  //               <label className="block text-sm mb-2">End Time</label>
+  //               <TimePicker
+  //                 className="w-full"
+  //                 format="HH:mm"
+  //                 minuteStep={30}
+  //                 placeholder="Select end time"
+  //                 value={selectedTimes.endTime !== null ? 
+  //                   dayjs().hour(selectedTimes.endTime).minute(selectedTimes.endMinute || 0) : 
+  //                   null
+  //                 }
+  //                 disabledTime={() => ({
+  //                   disabledHours: () => {
+  //                     const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 20);
                       
-                      // Add blocked hours from existing reservations
-                      baseDisabled.push(...blockedSlots.hours);
+  //                     // Add blocked hours from existing reservations
+  //                     baseDisabled.push(...blockedSlots.hours);
                       
-                      // If start time is selected, disable all hours before and including start hour
-                      if (selectedTimes.startTime !== null) {
-                        for (let h = 5; h <= selectedTimes.startTime; h++) {
-                          baseDisabled.push(h);
-                        }
-                      }
+  //                     // If start time is selected, disable all hours before and including start hour
+  //                     if (selectedTimes.startTime !== null) {
+  //                       for (let h = 5; h <= selectedTimes.startTime; h++) {
+  //                         baseDisabled.push(h);
+  //                       }
+  //                     }
                       
-                      const result = [...new Set(baseDisabled)]; // Remove duplicates
-                      console.log('Disabled hours for end time:', result);
-                      return result;
-                    },
-                    disabledMinutes: (selectedHour) => {
-                      const disabledMinutes = [];
+  //                     const result = [...new Set(baseDisabled)]; // Remove duplicates
+  //                     console.log('Disabled hours for end time:', result);
+  //                     return result;
+  //                   },
+  //                   disabledMinutes: (selectedHour) => {
+  //                     const disabledMinutes = [];
                       
-                      // Add blocked minutes from existing reservations
-                      if (blockedSlots.minutes[selectedHour]) {
-                        disabledMinutes.push(...blockedSlots.minutes[selectedHour]);
-                      }
+  //                     // Add blocked minutes from existing reservations
+  //                     if (blockedSlots.minutes[selectedHour]) {
+  //                       disabledMinutes.push(...blockedSlots.minutes[selectedHour]);
+  //                     }
                       
-                      // If same hour as start time, disable minutes <= start minute
-                      if (selectedTimes.startTime !== null && selectedHour === selectedTimes.startTime) {
-                        for (let m = 0; m <= (selectedTimes.startMinute || 0); m++) {
-                          disabledMinutes.push(m);
-                        }
-                      }
+  //                     // If same hour as start time, disable minutes <= start minute
+  //                     if (selectedTimes.startTime !== null && selectedHour === selectedTimes.startTime) {
+  //                       for (let m = 0; m <= (selectedTimes.startMinute || 0); m++) {
+  //                         disabledMinutes.push(m);
+  //                       }
+  //                     }
                       
-                      const result = [...new Set(disabledMinutes)]; // Remove duplicates
-                      console.log(`Disabled minutes for end time hour ${selectedHour}:`, result);
-                      return result;
-                    }
-                  })}
-                  onChange={(time) => {
-                    if (time) {
-                      setSelectedTimes(prev => ({
-                        ...prev,
-                        endTime: time.hour(),
-                        endMinute: time.minute()
-                      }));
-                    } else {
-                      setSelectedTimes(prev => ({
-                        ...prev,
-                        endTime: null,
-                        endMinute: null
-                      }));
-                    }
-                  }}
-                />
-              </div>
-            </div>
+  //                     const result = [...new Set(disabledMinutes)]; // Remove duplicates
+  //                     console.log(`Disabled minutes for end time hour ${selectedHour}:`, result);
+  //                     return result;
+  //                   }
+  //                 })}
+  //                 onChange={(time) => {
+  //                   if (time) {
+  //                     setSelectedTimes(prev => ({
+  //                       ...prev,
+  //                       endTime: time.hour(),
+  //                       endMinute: time.minute()
+  //                     }));
+  //                   } else {
+  //                     setSelectedTimes(prev => ({
+  //                       ...prev,
+  //                       endTime: null,
+  //                       endMinute: null
+  //                     }));
+  //                   }
+  //                 }}
+  //               />
+  //             </div>
+  //           </div>
 
-            <div className="mt-6 flex justify-end space-x-3">
-              <button
-                className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
-                onClick={() => setIsDatePickerModalOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                onClick={() => {
-                  if (!selectedTimes.startTime || !selectedTimes.endTime) {
-                    toast.error('Please select both start and end times');
-                    return;
-                  }
+  //           <div className="mt-6 flex justify-end space-x-3">
+  //             <button
+  //               className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded"
+  //               onClick={() => setIsDatePickerModalOpen(false)}
+  //             >
+  //               Cancel
+  //             </button>
+  //             <button
+  //               className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+  //               onClick={() => {
+  //                 if (!selectedTimes.startTime || !selectedTimes.endTime) {
+  //                   toast.error('Please select both start and end times');
+  //                   return;
+  //                 }
 
-                  // Check if selected times are blocked
-                  const isStartTimeBlocked = blockedSlots.hours.includes(selectedTimes.startTime);
-                  const isEndTimeBlocked = blockedSlots.hours.includes(selectedTimes.endTime);
+  //                 // Only check blocked times if not Department Head from COO
+  //                 const isDepartmentHeadCOO = userLevel === 'Department Head' && userDepartment === 'COO';
+  //                 if (!isDepartmentHeadCOO) {
+  //                   // Check if selected times are blocked
+  //                   const startTimeBlocked = blockedSlots.hours.includes(selectedTimes.startTime);
+  //                   const endTimeBlocked = blockedSlots.hours.includes(selectedTimes.endTime);
+                    
+  //                   if (startTimeBlocked || endTimeBlocked) {
+  //                     toast.error('Selected time slots are blocked due to existing reservations. Please choose different times.');
+  //                     return;
+  //                   }
+  //                 }
+
+  //                 const startDateTime = dayjs(dateRange.start)
+  //                   .hour(selectedTimes.startTime)
+  //                   .minute(selectedTimes.startMinute || 0)
+  //                   .toDate();
+
+  //                 const endDateTime = dayjs(dateRange.end || dateRange.start)
+  //                   .hour(selectedTimes.endTime)
+  //                   .minute(selectedTimes.endMinute || 0)
+  //                   .toDate();
+
+  //                 if (endDateTime <= startDateTime) {
+  //                   toast.error('End time must be after start time');
+  //                   return;
+  //                 }
+
+  //                 const conflicts = checkTimeSlotConflicts(startDateTime, endDateTime, reservations);
                   
-                  if (isStartTimeBlocked || isEndTimeBlocked) {
-                    toast.error('Selected time slots are blocked due to existing reservations. Please choose different times.');
-                    return;
-                  }
+  //                 if (conflicts.length > 0) {
+  //                   setConflictDetails({
+  //                     conflicts,
+  //                     attemptedBooking: {
+  //                       start: dayjs(startDateTime).format('MMM DD, YYYY HH:mm'),
+  //                       end: dayjs(endDateTime).format('MMM DD, YYYY HH:mm')
+  //                     }
+  //                   });
+  //                   setShowConflictModal(true);
+  //                   return;
+  //                 }
 
-                  const startDateTime = dayjs(dateRange.start)
-                    .hour(selectedTimes.startTime)
-                    .minute(selectedTimes.startMinute || 0)
-                    .toDate();
-
-                  const endDateTime = dayjs(dateRange.end || dateRange.start)
-                    .hour(selectedTimes.endTime)
-                    .minute(selectedTimes.endMinute || 0)
-                    .toDate();
-
-                  if (endDateTime <= startDateTime) {
-                    toast.error('End time must be after start time');
-                    return;
-                  }
-
-                  const conflicts = checkTimeSlotConflicts(startDateTime, endDateTime, reservations);
-                  
-                  if (conflicts.length > 0) {
-                    setConflictDetails({
-                      conflicts,
-                      attemptedBooking: {
-                        start: dayjs(startDateTime).format('MMM DD, YYYY HH:mm'),
-                        end: dayjs(endDateTime).format('MMM DD, YYYY HH:mm')
-                      }
-                    });
-                    setShowConflictModal(true);
-                    return;
-                  }
-
-                  onDateSelect(startDateTime, endDateTime);
-                  setIsDatePickerModalOpen(false);
-                }}
-              >
-                Confirm
-              </button>
-            </div>
-          </Dialog.Panel>
-        </div>
-      </Dialog>
-    );
-  };
+  //                 onDateSelect(startDateTime, endDateTime);
+  //                 setIsDatePickerModalOpen(false);
+  //               }}
+  //             >
+  //               Confirm
+  //             </button>
+  //           </div>
+  //         </Dialog.Panel>
+  //       </div>
+  //     </Dialog>
+  //   );
+  // };
 
   // Add this new date-time selection modal component
   const renderDateTimeSelectionModal = () => {
@@ -2385,7 +2339,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                     <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 011-2 0 1 1-2 0 1 1 012 0zM9 9a1 1 000 2v3a1 1 001 1h1a1 1 100-2v-3a1 1 00-1-1H9z" clipRule="evenodd" />
                   </svg>
-                  Business hours: 5:00 AM - 7:00 PM
+                  Business hours: 8:00 AM - 5:00 PM
                 </div>
                 {isToday && (
                   <div className="mt-1 text-xs font-medium text-blue-700 dark:text-blue-300 flex items-center">
@@ -2441,8 +2395,8 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     disabledTime={() => {
                       return {
                         disabledHours: () => {
-                          // Always disable hours outside business hours (before 5am or after 7pm)
-                          const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 19);
+                          // Always disable hours outside business hours (before 8am or after 5pm)
+                          const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 8 || h >= 17);
                           
                           // Add blocked hours from existing reservations
                           baseDisabled.push(...blockedSlots.hours);
@@ -2450,7 +2404,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                           // If it's today, disable hours before current hour
                           if (isToday) {
                             // Disable all hours before current hour
-                            for (let h = 5; h < currentHour; h++) {
+                            for (let h = 8; h < selectedTimes.startTime; h++) {
                               baseDisabled.push(h);
                             }
                             
@@ -2489,7 +2443,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                         }));
                       }
                     }}
-                    placeholder="5:00 AM - 7:00 PM"
+                    placeholder="8:00 AM - 5:00 PM"
                   />
                 </div>
                 <div>
@@ -2503,16 +2457,17 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                       dayjs().hour(selectedTimes.endTime).minute(selectedTimes.endMinute || 0) : 
                       null
                     }
+                    disabled={!selectedTimes.startTime}
                     disabledTime={() => ({
                       disabledHours: () => {
-                        const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 5 || h >= 20);
+                        const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 8 || h >= 17);
                         
                         // Add blocked hours from existing reservations
                         baseDisabled.push(...blockedSlots.hours);
                         
                         // If start time is selected, disable all hours before and including start hour
                         if (selectedTimes.startTime !== null) {
-                          for (let h = 5; h <= selectedTimes.startTime; h++) {
+                          for (let h = 8; h < selectedTimes.startTime; h++) {
                             baseDisabled.push(h);
                           }
                         }
@@ -2529,9 +2484,9 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                           disabledMinutes.push(...blockedSlots.minutes[selectedHour]);
                         }
                         
-                        // If same hour as start time, disable minutes <= start minute
+                        // If same hour as start time, disable minutes < start minute
                         if (selectedTimes.startTime !== null && selectedHour === selectedTimes.startTime) {
-                          for (let m = 0; m <= (selectedTimes.startMinute || 0); m++) {
+                          for (let m = 0; m < (selectedTimes.startMinute || 0); m++) {
                             disabledMinutes.push(m);
                           }
                         }
@@ -2550,7 +2505,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                         }));
                       }
                     }}
-                    placeholder="5:00 AM - 7:00 PM"
+                    placeholder="8:00 AM - 5:00 PM"
                   />
                 </div>
               </div>
@@ -2587,7 +2542,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     .minute(selectedTimes.startMinute || 0)
                     .toDate();
 
-                  const endDateTime = dayjs(dateRange.start)
+                  const endDateTime = dayjs(dateRange.end || dateRange.start)
                     .hour(selectedTimes.endTime)
                     .minute(selectedTimes.endMinute || 0)
                     .toDate();
@@ -2708,51 +2663,51 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   );
 
   // Update the checkTimeSlotConflicts function
-  const checkTimeSlotConflicts = (start, end) => {
-    if (selectedResource.type === 'equipment') {
-      const conflicts = [];
+  // const checkTimeSlotConflicts = (start, end) => {
+  //   if (selectedResource.type === 'equipment') {
+  //     const conflicts = [];
       
-      selectedResource.id.forEach(equipment => {
-        const overlappingItems = equipmentAvailability.filter(item => {
-          const itemStart = new Date(item.startDate);
-          const itemEnd = new Date(item.endDate);
+  //     selectedResource.id.forEach(equipment => {
+  //       const overlappingItems = equipmentAvailability.filter(item => {
+  //         const itemStart = new Date(item.startDate);
+  //         const itemEnd = new Date(item.endDate);
           
-          // Check if the time slot overlaps with the equipment reservation period
-          return (start <= itemEnd && end >= itemStart);
-        });
+  //         // Check if the time slot overlaps with the equipment reservation period
+  //         return (start <= itemEnd && end >= itemStart);
+  //       });
         
-        overlappingItems.forEach(item => {
-          const available = parseInt(item.totalAvailable);
-          const requested = parseInt(equipment.quantity);
+  //       overlappingItems.forEach(item => {
+  //         const available = parseInt(item.totalAvailable);
+  //         const requested = parseInt(equipment.quantity);
           
-          // Add conflict if requested quantity exceeds available quantity
-          if (available < requested) {
-            conflicts.push({
-              equipId: item.equipId,
-              name: item.name,
-              available: available,
-              requested: requested,
-              startDate: new Date(item.startDate),
-              endDate: new Date(item.endDate)
-            });
-          }
-        });
-      });
+  //         // Add conflict if requested quantity exceeds available quantity
+  //         if (available < requested) {
+  //           conflicts.push({
+  //             equipId: item.equipId,
+  //             name: item.name,
+  //             available: available,
+  //             requested: requested,
+  //             startDate: new Date(item.startDate),
+  //             endDate: new Date(item.endDate)
+  //           });
+  //         }
+  //       });
+  //     });
       
-      return conflicts;
-    }
+  //     return conflicts;
+  //   }
 
-    // Original conflict checking for venues/vehicles
-    return reservations.filter(res => {
-      if (!res.isReserved) return false;
+  //   // Original conflict checking for venues/vehicles
+  //   return reservations.filter(res => {
+  //     if (!res.isReserved) return false;
 
-      const resStart = new Date(res.startDate);
-      const resEnd = new Date(res.endDate);
+  //     const resStart = new Date(res.startDate);
+  //     const resEnd = new Date(res.endDate);
       
-      // Check if time periods overlap
-      return (start < resEnd && end > resStart);
-    });
-  };
+  //     // Check if time periods overlap
+  //     return (start < resEnd && end > resStart);
+  //   });
+  // };
 
   // Add helper function to get blocked time slots from existing reservations
   const getBlockedTimeSlots = (date) => {
@@ -2766,6 +2721,12 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
       return blockedSlots;
     }
 
+    // Return empty blocked slots for Department Head from COO
+    if (userLevel === 'Department Head' && userDepartment === 'COO') {
+      return blockedSlots;
+    }
+
+    // For equipment resources
     if (selectedResource.type === 'equipment') {
       // For equipment, check availability
       const dayEquipment = equipmentAvailability.filter(item => {

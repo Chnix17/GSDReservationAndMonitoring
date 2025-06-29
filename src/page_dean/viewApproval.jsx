@@ -71,7 +71,7 @@ const ViewApproval = () => {
     setLoading(true);
     try {
       // First, try fetchApprovalByDept
-      const response1 = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
+      const response1 = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
         operation: 'fetchApprovalByDept',
         json: {
           department_id: departmentId,

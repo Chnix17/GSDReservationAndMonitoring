@@ -10,7 +10,7 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { UserOutlined, TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
+import {  TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
 import {  Form, Input,  Select, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
 import { format } from 'date-fns';
 import { BsTools,  } from 'react-icons/bs';
@@ -84,9 +84,10 @@ const AddReservation = () => {
     driverType: 'default',
     driverName: '',
     tripTicketDriver: null,
+    ownDrivers: [],
   });
 
-  const [isLoadingDrivers, setIsLoadingDrivers] = useState(false);
+  
   const [availableDrivers, setAvailableDrivers] = useState([]);
 
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 375);
@@ -265,7 +266,7 @@ const validateCurrentStep = () => {
       // Validate business hours (8 AM - 5 PM)
       const startHour = formData.startDate.getHours();
       const endHour = formData.endDate.getHours();
-      if (startHour < 5 || startHour > 20 || endHour < 5 || endHour > 20) {
+      if (startHour < 8 || startHour >= 17 || endHour < 8 || endHour >= 17) {
         toast.error('Please select times between 8 AM and 5 PM');
         return false;
       }
@@ -336,6 +337,7 @@ const handleBack = () => {
         driverType: 'default',
         driverName: '',
         tripTicketDriver: null,
+        ownDrivers: [],
       });
       
       // Reset resource selection state
@@ -359,7 +361,7 @@ const handleBack = () => {
       
       // Reset driver-related state
       setAvailableDrivers([]);
-      setIsLoadingDrivers(false);
+   
       
       // Show confirmation toast
       toast.success('Form data cleared. You can start a new reservation.');
@@ -497,9 +499,26 @@ const handleAddReservation = async () => {
         toast.error('Please add at least one passenger');
         return false;
       }
+      if (formData.driverType === 'own') {
+        // Validation: each selected vehicle must have a driver name
+        if (!formData.ownDrivers || formData.ownDrivers.length !== selectedModels.length || formData.ownDrivers.some(d => !d.name.trim())) {
+          toast.error('Please enter a driver name for each selected vehicle');
+          return false;
+        }
+      }
+
+      // Build drivers array for payload
+      let drivers = [];
+      if (formData.driverType === 'own') {
+        drivers = formData.ownDrivers.map(d => ({
+          vehicle_id: d.vehicle_id,
+          name: d.name.trim(),
+          // user_id: (optional, if you have it)
+        }));
+      }
 
       const vehiclePayload = {
-        operation: 'vehiclereservation',
+        operation: 'vehicleReservation',
         form_data: {
           destination: formData.destination.trim(),
           purpose: formData.purpose.trim(),
@@ -508,13 +527,15 @@ const handleAddReservation = async () => {
           user_id: userId,
           vehicles: selectedModels,
           passengers: formData.passengers.map(p => p.name.trim()),
-          driver_id: formData.driverName || null,
+          ...(formData.driverType === 'own' ? { drivers } : {}),
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
           })).filter(item => item.quantity > 0)
         }
       };
+
+      console.log('Vehicle Payload:', JSON.stringify(vehiclePayload, null, 2));
 
       // Proceed with vehicle reservation
       const response = await axios.post(
@@ -619,6 +640,7 @@ const resetForm = () => {
     driverType: 'default',
     driverName: '',
     tripTicketDriver: null,
+    ownDrivers: [],
   });
   
   // Reset resource selection state
@@ -642,9 +664,9 @@ const resetForm = () => {
   
   // Reset driver-related state
   setAvailableDrivers([]);
-  setIsLoadingDrivers(false);
   
-  // Reset step
+  
+  // Reset step to 0 (resource type selection) so user can select a new resource type
   setCurrentStep(0);
   
   // Show confirmation toast
@@ -663,6 +685,17 @@ const renderReviewSection = () => {
     equipmentQuantities,
     equipment,
     formData
+  });
+
+  // Add debug logging for dates
+  console.log('Date debugging in renderReviewSection:', {
+    startDate: formData.startDate,
+    endDate: formData.endDate,
+    startDateType: typeof formData.startDate,
+    endDateType: typeof formData.endDate,
+    startDateInstance: formData.startDate instanceof Date,
+    endDateInstance: formData.endDate instanceof Date,
+    currentStep
   });
 
   return (
@@ -740,14 +773,36 @@ const renderStepContent = () => {
           setResourceType(type);
           setFormData(prev => ({ ...prev, resourceType: type }));
         }}
+        onStepAdvance={() => {
+          // Automatically advance to step 1 (resource selection)
+          setCurrentStep(1);
+    
+        }}
       />
     ),
     1: () => {
-      if (resourceType === 'venue') {
+      // If no resource type is selected, show the resource type selection
+      if (!formData.resourceType) {
+        return (
+          <SelectType 
+            resourceType={formData.resourceType}
+            onResourceTypeSelect={(type) => {
+              setResourceType(type);
+              setFormData(prev => ({ ...prev, resourceType: type }));
+            }}
+            onStepAdvance={() => {
+              // Automatically advance to step 1 (resource selection)
+              setCurrentStep(1);
+            }}
+          />
+        );
+      }
+      
+      if (formData.resourceType === 'venue') {
         return renderVenues();
-      } else if (resourceType === 'vehicle') {
+      } else if (formData.resourceType === 'vehicle') {
         return renderResources();
-      } else if (resourceType === 'equipment') {
+      } else if (formData.resourceType === 'equipment') {
         return renderEquipmentSelection();
       }
     },
@@ -756,7 +811,21 @@ const renderStepContent = () => {
       
         
         <ReservationCalendar
-          onDateSelect={(startDate, endDate) => {
+          onDateSelect={function(dateData, endDateParam) {
+            // Handle both object format and separate parameters for backward compatibility
+            const startDate = dateData.startDate || dateData;
+            const endDate = dateData.endDate || endDateParam;
+            
+            console.log('Date selection received:', {
+              dateData,
+              startDate,
+              endDate,
+              startDateType: typeof startDate,
+              endDateType: typeof endDate,
+              startDateInstance: startDate instanceof Date,
+              endDateInstance: endDate instanceof Date
+            });
+            
             setFormData((prev) => ({
               ...prev,
               startDate: startDate,
@@ -1041,7 +1110,7 @@ const [showPassengerModal, setShowPassengerModal] = useState(false);
 
 // Add fetchDrivers function
 const fetchDrivers = useCallback(async (startDate, endDate) => {
-  setIsLoadingDrivers(true);
+
 
   try {
     const response = await axios.post(`${encryptedUrl}/user.php`, {
@@ -1067,7 +1136,7 @@ const fetchDrivers = useCallback(async (startDate, endDate) => {
     setAvailableDrivers([]);
     toast.error('Failed to fetch available drivers');
   } finally {
-    setIsLoadingDrivers(false);
+
   }
 }, [encryptedUrl]);
 
@@ -1238,7 +1307,18 @@ const PassengerModal = ({ visible, onHide }) => {
 };
 
 // Enhanced Equipment Selection Modal with search, filtering and better UI
-const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQuantities }) => {
+const EquipmentSelectionModal = ({ 
+  localEquipmentQuantities, 
+  setLocalEquipmentQuantities,
+  showEquipmentModal,
+  setShowEquipmentModal,
+  equipment,
+  equipmentCategories,
+  setEquipmentQuantities,
+  setSelectedVenueEquipment,
+  fetchEquipment,
+  formData
+}) => {
   const [equipmentSearch, setEquipmentSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [localState, setLocalState] = useState({});
@@ -1296,14 +1376,14 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
     }
     
     // Get available quantity
-    const maxAvailable = Number(equip.available_quantity) || 0;
+    const maxAvailable = Number(equip.available_quantity || equip.available) || 0;
     
     // Ensure quantity doesn't exceed available amount and is not negative
     const constrainedValue = Math.max(0, Math.min(numericValue, maxAvailable));
     
     console.log('Updating equipment quantity:', {
       equipmentId: equipmentKey,
-      equipmentName: equip.equipment_name,
+      equipmentName: equip.equip_name || equip.equipment_name || equip.name || 'Equipment Name Not Available',
       currentValue: value,
       constrainedValue: constrainedValue,
       maxAvailable: maxAvailable,
@@ -1338,7 +1418,14 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
     // Update both states to ensure consistency
     setEquipmentQuantities(localState);
     setSelectedVenueEquipment(localState);
+    setLocalEquipmentQuantities(localState);
     setShowEquipmentModal(false);
+    
+    // Show success message
+    const selectedCount = Object.values(localState).filter(qty => qty > 0).length;
+    if (selectedCount > 0) {
+      toast.success(`${selectedCount} equipment item${selectedCount > 1 ? 's' : ''} selected successfully`);
+    }
   };
   
   const handleCancel = () => {
@@ -1351,11 +1438,37 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
 
   // Equipment Card Component for list view only
   const EquipmentCard = ({ item, isSelected, onClick, currentQuantity, onQuantityChange }) => {
-    const availableQuantity = parseInt(item.available_quantity) || 0;
+    const availableQuantity = parseInt(item.available_quantity || item.available) || 0;
     const isAvailable = availableQuantity > 0;
+    const [tempInputValue, setTempInputValue] = useState(currentQuantity?.toString() || '');
 
-    // Debug logging to check equipment data structure
+    useEffect(() => {
+      setTempInputValue(currentQuantity?.toString() || '');
+    }, [currentQuantity]);
+
     console.log('Equipment item:', item);
+
+    const handleInputChange = (e) => {
+      e.stopPropagation();
+      const inputValue = e.target.value;
+      
+      if (inputValue === '' || /^\d+$/.test(inputValue)) {
+        setTempInputValue(inputValue);
+      }
+    };
+
+    const handleInputBlur = () => {
+      if (tempInputValue === '') {
+        onQuantityChange(item.equip_id, 0);
+      } else {
+        const value = parseInt(tempInputValue);
+        if (!isNaN(value)) {
+          const clampedValue = Math.min(Math.max(0, value), availableQuantity);
+          onQuantityChange(item.equip_id, clampedValue);
+          setTempInputValue(clampedValue.toString());
+        }
+      }
+    };
 
     return (
       <Card
@@ -1367,17 +1480,15 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
         onClick={onClick}
       >
         <div className="flex flex-row items-center gap-3 w-full">
-          {/* Equipment Icon/Placeholder */}
           <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50 w-16 h-16 flex-shrink-0">
             <BsTools className="text-green-500 text-3xl" />
           </div>
 
-          {/* Content */}
           <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
             <div>
               <div className="flex items-start justify-between gap-2 mb-1">
                 <h3 className="font-medium text-gray-800 truncate text-base">
-                  {item.equipment_name || item.equip_name || item.name || 'Equipment Name Not Available'}
+                  {item.equip_name || 'Equipment Name Not Available'}
                 </h3>
                 {currentQuantity > 0 && (
                   <Tag 
@@ -1393,14 +1504,13 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
                 <div className="flex items-center gap-1 text-gray-600">
                   <MdInventory className="text-green-500 text-base" />
                   <span className="text-sm">
-                    qty: {availableQuantity}
+                    Available: {availableQuantity}
                   </span>
                 </div>
-                {/* Add equipment category if available */}
-                {item.equipment_category_name && (
+                {item.category_name && (
                   <div className="flex items-center gap-1 text-gray-600">
                     <span className="text-sm">
-                      Category: {item.equipment_category_name}
+                      Category: {item.category_name}
                     </span>
                   </div>
                 )}
@@ -1429,25 +1539,21 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
                   -
                 </button>
                 <input
-                  type="number"
-                  min="0"
-                  max={availableQuantity}
-                  value={currentQuantity}
-                  onChange={(e) => {
-                    e.stopPropagation();
-                    const value = parseInt(e.target.value) || 0;
-                    const clampedValue = Math.min(Math.max(0, value), availableQuantity);
-                    console.log('Input change for equipment:', item.equip_id, 'value:', value, 'clamped:', clampedValue);
-                    onQuantityChange(item.equip_id, clampedValue);
-                  }}
+                  type="text"
+                  pattern="[0-9]*"
+                  value={tempInputValue}
+                  onChange={handleInputChange}
+                  onBlur={handleInputBlur}
+                  onFocus={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
-                  className="w-12 h-6 text-center border border-gray-300 rounded text-xs font-medium
+                  placeholder="0"
+                  className="w-16 h-6 text-center border border-gray-300 rounded text-xs font-medium
                     focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 />
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    const newQty = currentQuantity + 1;
+                    const newQty = Math.min(currentQuantity + 1, availableQuantity);
                     console.log('Increasing quantity for equipment:', item.equip_id, 'from', currentQuantity, 'to', newQty);
                     onQuantityChange(item.equip_id, newQty);
                   }}
@@ -1471,18 +1577,22 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
   };
   
   // Filter equipment by search term and category
-  const filteredEquipment = equipment.filter(item => {
+  const filteredEquipment = Array.isArray(equipment) ? equipment.filter(item => {
     if (!item) return false;
     
+    // Check available quantity using the correct field name from API response
+    const availableQuantity = parseInt(item.available_quantity || item.available) || 0;
+    if (availableQuantity <= 0) return false;
+    
     const searchTerm = equipmentSearch?.toLowerCase() || '';
-    const itemName = item.equipment_name?.toLowerCase() || '';
-    const categoryId = item.equipment_category_id?.toString() || '';
+    const itemName = (item.equip_name || item.equipment_name || '').toLowerCase();
+    const categoryId = (item.equipments_category_id || item.equipment_category_id || '').toString();
     
     const matchesSearch = itemName.includes(searchTerm);
     const matchesCategory = selectedCategory === 'all' || categoryId === selectedCategory.toString();
     
     return matchesSearch && matchesCategory;
-  });
+  }) : [];
 
   // Calculate pagination
   const totalItems = filteredEquipment.length;
@@ -1581,7 +1691,7 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
               
               console.log('Rendering equipment card:', {
                 equipmentId: equipmentKey,
-                equipmentName: item.equipment_name,
+                equipmentName: item.equip_name || item.equipment_name || item.name || 'Equipment Name Not Available',
                 currentQty: currentQty,
                 localState: localState
               });
@@ -1592,7 +1702,7 @@ const EquipmentSelectionModal = ({ localEquipmentQuantities, setLocalEquipmentQu
                   item={item}
                   isSelected={currentQty > 0}
                   onClick={() => {
-                    const availableQty = parseInt(item.available_quantity) || 0;
+                    const availableQty = parseInt(item.available_quantity || item.available) || 0;
                     if (currentQty === 0 && availableQty > 0) {
                       console.log('Clicking to add equipment:', equipmentKey);
                       handleLocalQuantityChange(equipmentKey, 1);
@@ -1678,76 +1788,56 @@ const renderDriverDropdown = () => {
             setFormData(prev => ({
               ...prev,
               driverType: e.target.value,
-              driverName: e.target.value === 'trip_ticket' ? null : '', // Set null for trip ticket
-              tripTicketDriver: null
+              ownDrivers: e.target.value === 'own' ? selectedModels.map(vehicle_id => {
+                // Try to preserve existing names if switching back and forth
+                const existing = prev.ownDrivers?.find(d => d.vehicle_id === vehicle_id);
+                return { vehicle_id, name: existing ? existing.name : '' };
+              }) : [],
             }));
           }}
           className="mb-4"
         >
           <Radio value="default">Default Driver</Radio>
-          <Radio value="trip_ticket">Trip Ticket </Radio>
+          <Radio value="own">Own Driver</Radio>
         </Radio.Group>
 
-        {formData.driverType === 'default' ? (
-          isLoadingDrivers ? (
-            <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-              <Spin size="small" />
-              <span className="text-gray-500">Loading available drivers...</span>
-            </div>
-          ) : (
-            <>
-              <Select
-                value={formData.driverName}
-                onChange={(value) => {
-                  setFormData(prevState => ({
-                    ...prevState,
-                    driverName: value,
-                    tripTicketDriver: null
-                  }));
-                }}
-                placeholder="Select a default driver"
-                className="w-full"
-                disabled={availableDrivers.length === 0}
-                showSearch
-                filterOption={(input, option) =>
-                  option?.children?.toString().toLowerCase().includes(input.toLowerCase())
-                }
-              >
-                {availableDrivers.map(driver => (
-                  <Select.Option 
-                    key={driver.users_id} 
-                    value={driver.driver_id}
-                  >
-                    {driver.driver_full_name}
-                  </Select.Option>
-                ))}
-              </Select>
-
-              {formData.driverName && (
-                <Card className="bg-green-50 border-green-200">
-                  <div className="flex items-center gap-4">
-                    <div className="p-2 bg-green-100 rounded-full">
-                      <UserOutlined className="text-xl text-green-500" />
-                    </div>
-                    <div>
-                      <div className="font-medium text-green-700">
-                        {availableDrivers.find(d => d.driver_id === formData.driverName)?.driver_full_name}
-                      </div>
-                      <div className="text-sm text-green-600">
-                        {availableDrivers.find(d => d.driver_id === formData.driverName)?.departments_name || 'Driver'}
-                      </div>
-                    </div>
-                  </div>
-                </Card>
-              )}
-            </>
-          )
-        ) : (
-          <div className="p-3 bg-gray-50 rounded-lg">
-            <div className="text-sm text-gray-600">
-              Trip ticket will be on pending status
-            </div>
+        {formData.driverType === 'own' && (
+          <div className="space-y-2">
+            {selectedModels.length === 0 && (
+              <div className="text-xs text-gray-500">Select vehicles first to enter driver names.</div>
+            )}
+            {selectedModels.map((vehicle_id, idx) => {
+              // Find vehicle info
+              const vehicle = vehicles.find(v => v.vehicle_id === vehicle_id);
+              const driverObj = formData.ownDrivers?.find(d => d.vehicle_id === vehicle_id) || { name: '' };
+              return (
+                <div key={vehicle_id} className="flex items-center gap-2">
+                  <span className="text-sm text-gray-700 min-w-[120px]">
+                    {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
+                  </span>
+                  <Input
+                    placeholder="Enter driver name"
+                    value={driverObj.name}
+                    onChange={e => {
+                      const newName = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        ownDrivers: prev.ownDrivers.map(d =>
+                          d.vehicle_id === vehicle_id ? { ...d, name: newName } : d
+                        ),
+                      }));
+                    }}
+                    className="rounded"
+                    size={isMobile ? 'middle' : 'large'}
+                    required
+                  />
+                </div>
+              );
+            })}
           </div>
+        )}
+        {formData.driverType === 'default' && (
+          <div className="p-3 bg-gray-50 rounded-lg text-gray-600 text-sm">Default driver will be assigned by admin.</div>
         )}
       </div>
     </Form.Item>
@@ -1798,20 +1888,67 @@ const fetchVehicles = useCallback(async () => {
   }
 }, [encryptedUrl]);
 
-const fetchEquipment = useCallback(async () => {
+const fetchEquipment = useCallback(async (startDate, endDate) => {
   try {
+    // Get user level and department for COO Department Head check
+    const userLevel = SecureStorage.getSessionItem('user_level');
+    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
+    
+    // Prepare the API payload based on user role
+    let payload;
+    if (isCOODepartmentHead) {
+      // For COO Department Head, use simplified call without date range
+      payload = {
+        operation: 'fetchEquipments'
+      };
+    } else {
+      // For other users, use date range
+      let start = startDate;
+      let end = endDate;
+      if (start && end && start > end) {
+        // Swap to ensure start is before end
+        [start, end] = [end, start];
+      }
+      const startDateTime = start ? format(start, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+      const endDateTime = end ? format(end, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+      
+      payload = {
+        operation: 'fetchEquipments',
+        startDateTime: startDateTime,
+        endDateTime: endDateTime
+      };
+    }
+    console.log('Equipment payload:', payload);
+    
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/fetch2.php`,
+      url: `${encryptedUrl}/user.php`,
       headers: {
         'Content-Type': 'application/json'
       },
-      data: {
-        operation: 'fetchEquipments'
-      }
+      data: payload
     });
+
+    console.log('Equipment API Response:', response.data); // Debug log
+
     if (response.data.status === 'success') {
-      setEquipment(response.data.data);
+      const equipmentData = response.data.data || [];
+      const transformedEquipment = equipmentData.map(item => ({
+        ...item,
+        // Map the API response fields to the expected field names
+        available: item.available_quantity || 0,
+        equip_name: item.equip_name || item.equipment_name || 'Equipment Name Not Available',
+        equip_id: item.equip_id || item.equipment_id,
+        category_name: item.category_name || '',
+        equipments_category_id: item.equipments_category_id || item.equipment_category_id
+      }));
+      
+      console.log('Transformed equipment data:', transformedEquipment);
+      setEquipment(transformedEquipment);
+    } else {
+      console.error('Failed to fetch equipment:', response.data);
+      toast.error('Failed to fetch equipment');
     }
   } catch (error) {
     console.error('Error fetching equipment:', error);
@@ -1823,8 +1960,38 @@ const fetchEquipment = useCallback(async () => {
 useEffect(() => {
   fetchVenues();
   fetchVehicles();
-  fetchEquipment();
-}, [fetchVenues, fetchVehicles, fetchEquipment]);
+  
+  // Get user level and department for COO Department Head check
+  const userLevel = SecureStorage.getSessionItem('user_level');
+  const userDepartment = SecureStorage.getSessionItem('Department Name');
+  const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
+  
+  if (isCOODepartmentHead) {
+    // For COO Department Head, fetch equipment without dates
+    fetchEquipment();
+  } else if (formData.startDate && formData.endDate) {
+    // For other users, only fetch equipment if we have dates
+    fetchEquipment(formData.startDate, formData.endDate);
+  }
+}, [fetchVenues, fetchVehicles, fetchEquipment, formData.startDate, formData.endDate]);
+
+// Add separate useEffect to fetch equipment when dates change
+useEffect(() => {
+  if (formData.resourceType === 'equipment') {
+    // Get user level and department for COO Department Head check
+    const userLevel = SecureStorage.getSessionItem('user_level');
+    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
+    
+    if (isCOODepartmentHead) {
+      // For COO Department Head, fetch equipment without dates
+      fetchEquipment();
+    } else if (formData.startDate && formData.endDate) {
+      // For other users, only fetch if dates are available
+      fetchEquipment(formData.startDate, formData.endDate);
+    }
+  }
+}, [formData.startDate, formData.endDate, formData.resourceType, fetchEquipment]);
 
 // Add useEffect to handle calendar data fetching
 useEffect(() => {
@@ -1898,42 +2065,63 @@ useEffect(() => {
   }
 }, [currentStep, formData.resourceType, formData.venues, selectedModels, equipmentQuantities, encryptedUrl]);
 
+// Add useEffect to fetch equipment when modal opens
+useEffect(() => {
+  if (showEquipmentModal && (!equipment || equipment.length === 0)) {
+    // Get user level and department for COO Department Head check
+    const userLevel = SecureStorage.getSessionItem('user_level');
+    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
+    
+    if (isCOODepartmentHead) {
+      // For COO Department Head, fetch equipment without dates
+      fetchEquipment();
+    } else {
+      // For other users, use dates if available, otherwise use current date
+      const now = new Date();
+      const start = formData.startDate || now;
+      const end = formData.endDate || now;
+      fetchEquipment(start, end);
+    }
+  }
+}, [showEquipmentModal, fetchEquipment, equipment, formData.startDate, formData.endDate]);
+
 return (
-  <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-    <div className="hidden md:block">
-      {userLevel === '100' && <Sidebar />}
-    </div>
-    <div className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3' : 'p-6'}`}>
-      <div className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-6xl'}`}>
-        <div className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
-          <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center'}`}>
-            <Button
-              onClick={() => navigate(-1)}
-              className="p-button-text flex items-center gap-2 hover:bg-green-50 transition-colors"
-              icon={<i className="pi pi-arrow-left text-green-500" />}
-            >
-              <span className="font-medium text-green-600">Back to Dashboard</span>
-            </Button>
-          </div>
+  <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+    {userLevel === '100' && <Sidebar className="hidden md:block" />}
+    
+    <section className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3' : 'p-6'}`}>
+      <article className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-6xl'}`}>
+        {/* Header */}
+        <header className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
+          <Button
+            onClick={() => navigate(-1)}
+            className="p-button-text flex items-center gap-2 hover:bg-green-50 transition-colors"
+            icon={<i className="pi pi-arrow-left text-green-500" />}
+          >
+            <span className="font-medium text-green-600">Back to Dashboard</span>
+          </Button>
           <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-xl mt-2' : 'text-3xl'}`}>
             Create Reservation
           </h1>
           <p className="text-gray-600 text-sm">
             Complete the steps below to make your reservation
           </p>
-        </div>
+        </header>
 
-        {/* Enhanced steps indicator */}
-        <div className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
+        {/* Step Indicator */}
+        <section className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
           <StepIndicator 
             currentStep={currentStep} 
             resourceType={formData.resourceType} 
             isMobile={isMobile}
           />
-        </div>
+        </section>
 
-        <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
-          <div className={`px-4 py-3 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
+        {/* Main Content */}
+        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+          {/* Step Header */}
+          <header className={`px-4 py-3 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
             <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>
               {currentStep === 0 && "Select Resource Type"}
               {currentStep === 1 && `Select ${formData.resourceType === 'venue' ? 'Venue' : formData.resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
@@ -1942,18 +2130,20 @@ return (
               {currentStep === 4 && "Review Reservation"}
               {currentStep === 5 && "Reservation Complete"}
             </h2>
-          </div>
+          </header>
 
-          <div className={isMobile ? 'p-3' : 'p-6'}>
+          {/* Step Content */}
+          <article className={isMobile ? 'p-3' : 'p-6'}>
             <div className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-4xl'}`}>
               {renderStepContent()}
             </div>
-          </div>
+          </article>
 
+          {/* Step Navigation */}
           {currentStep !== 5 && (
-            <div className={`px-4 py-3 bg-gray-50 border-t border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
-              <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center'}`}>
-                <div className={`flex gap-2 ${isMobile ? 'w-full' : ''}`}>
+            <footer className={`px-4 py-3 bg-gray-50 border-t border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
+              <nav className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center'}`}>
+                <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'}`}>
                   <AntButton
                     type="default"
                     icon={<i className="pi pi-arrow-left" />}
@@ -1964,37 +2154,48 @@ return (
                   >
                     {isMobile ? 'Back' : 'Previous'}
                   </AntButton>
-                  {currentStep === 4 ? (
+                  {currentStep > 0 && (
                     <AntButton
-                      type="primary"
-                      icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
-                      onClick={handleAddReservation}
+                      type="default"
+                      icon={<i className="pi pi-refresh" />}
+                      onClick={resetForm}
                       size={isMobile ? "middle" : "large"}
-                      className={`${isMobile ? 'w-full' : ''} p-button-success bg-green-500 hover:bg-green-600 border-green-500`}
-                      disabled={loading}
+                      className={`p-button-outlined ${isMobile ? 'w-full' : ''} border-orange-500 text-orange-600 hover:bg-orange-50`}
                     >
-                      {loading ? 'Submitting...' : 'Submit'}
-                    </AntButton>
-                  ) : (
-                    <AntButton
-                      type="primary"
-                      icon={<i className="pi pi-arrow-right" />}
-                      onClick={handleNext}
-                      size={isMobile ? "middle" : "large"}
-                      className={`${isMobile ? 'w-full' : ''} p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white`}
-                    >
-                      Next
+                      {isMobile ? 'Reset' : 'Reset Form'}
                     </AntButton>
                   )}
                 </div>
-              </div>
-            </div>
+                {currentStep === 4 ? (
+                  <AntButton
+                    type="primary"
+                    icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
+                    onClick={handleAddReservation}
+                    size={isMobile ? "middle" : "large"}
+                    className={`${isMobile ? 'w-full' : ''} p-button-success bg-green-500 hover:bg-green-600 border-green-500`}
+                    disabled={loading}
+                  >
+                    {loading ? 'Submitting...' : 'Submit'}
+                  </AntButton>
+                ) : (
+                  <AntButton
+                    type="primary"
+                    icon={<i className="pi pi-arrow-right" />}
+                    onClick={handleNext}
+                    size={isMobile ? "middle" : "large"}
+                    className={`${isMobile ? 'w-full' : ''} p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white`}
+                  >
+                    Next
+                  </AntButton>
+                )}
+              </nav>
+            </footer>
           )}
-        </div>
-      </div>
-    </div>
+        </section>
+      </article>
+    </section>
 
-    {/* Rest of the components */}
+    {/* Toaster */}
     <Toaster 
       position="top-right"
       toastOptions={{
@@ -2008,19 +2209,24 @@ return (
       }}
     />
 
+    {/* Modals */}
     <PassengerModal
       visible={showPassengerModal}
-      onHide={() => {
-        setShowPassengerModal(false);
-      }}
+      onHide={() => setShowPassengerModal(false)}
     />
     <EquipmentSelectionModal 
       localEquipmentQuantities={localEquipmentQuantities}
       setLocalEquipmentQuantities={setLocalEquipmentQuantities}
+      showEquipmentModal={showEquipmentModal}
+      setShowEquipmentModal={setShowEquipmentModal}
+      equipment={equipment}
+      equipmentCategories={equipmentCategories}
+      setEquipmentQuantities={setEquipmentQuantities}
+      setSelectedVenueEquipment={setSelectedVenueEquipment}
+      fetchEquipment={fetchEquipment}
+      formData={formData}
     />
-    
-
-  </div>
+  </main>
 );
 };
 

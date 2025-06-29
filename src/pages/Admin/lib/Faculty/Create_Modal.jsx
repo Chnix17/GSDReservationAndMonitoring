@@ -147,6 +147,41 @@ const Create_Modal = ({
                 onHide();
                 form.resetFields();
             } else {
+                // Check for duplicate error message
+                if (response.data.message === 'A user with that School ID and Email already exists.') {
+                    form.setFields([
+                        {
+                            name: 'users_school_id',
+                            errors: ['A user with that School ID and Email already exists.']
+                        },
+                        {
+                            name: 'users_email',
+                            errors: ['A user with that School ID and Email already exists.']
+                        }
+                    ]);
+                    setLoading(false);
+                    return;
+                }
+                if (response.data.message === 'School ID already exists.') {
+                    form.setFields([
+                        {
+                            name: 'users_school_id',
+                            errors: ['School ID already exists.']
+                        }
+                    ]);
+                    setLoading(false);
+                    return;
+                }
+                if (response.data.message === 'Email address already exists.') {
+                    form.setFields([
+                        {
+                            name: 'users_email',
+                            errors: ['Email address already exists.']
+                        }
+                    ]);
+                    setLoading(false);
+                    return;
+                }
                 throw new Error(response.data.message || "Unknown error");
             }
         } catch (error) {
@@ -274,7 +309,23 @@ const Create_Modal = ({
                 onFinish={handleSubmit}
                 className="p-4"
             >
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Name row: Title | First Name | Middle Name | Last Name | Suffix */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-2 mb-6 items-end">
+                    <Form.Item
+                        label="Title"
+                        name="users_title"
+                        className="mb-0"
+                        style={{ minWidth: 80, maxWidth: 100 }}
+                    >
+                        <Select placeholder="Title" size="small" style={{ width: '100%' }}>
+                            <Select.Option value="">None</Select.Option>
+                            {titles.map((title) => (
+                                <Select.Option key={title.id} value={title.abbreviation}>
+                                    {title.abbreviation}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </Form.Item>
                     <Form.Item
                         label="First Name"
                         name="users_firstname"
@@ -282,20 +333,20 @@ const Create_Modal = ({
                             { required: true, message: 'Please input first name!' },
                             { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter first name" />
                     </Form.Item>
-
                     <Form.Item
                         label="Middle Name"
                         name="users_middlename"
                         rules={[
                             { pattern: /^[a-zA-Z\s]*$/, message: 'Name can only contain letters and spaces' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter middle name" />
                     </Form.Item>
-
                     <Form.Item
                         label="Last Name"
                         name="users_lastname"
@@ -303,12 +354,33 @@ const Create_Modal = ({
                             { required: true, message: 'Please input last name!' },
                             { pattern: /^[a-zA-Z\s]+$/, message: 'Name can only contain letters and spaces' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter last name" />
                     </Form.Item>
+                    <Form.Item
+                        label="Suffix"
+                        name="users_suffix"
+                        className="mb-0"
+                        style={{ minWidth: 80, maxWidth: 100 }}
+                    >
+                        <Select placeholder="Suffix" size="small" style={{ width: '100%' }}>
+                            <Select.Option value="">None</Select.Option>
+                            <Select.Option value="Jr.">Jr.</Select.Option>
+                            <Select.Option value="Sr.">Sr.</Select.Option>
+                            <Select.Option value="II">II</Select.Option>
+                            <Select.Option value="III">III</Select.Option>
+                            <Select.Option value="IV">IV</Select.Option>
+                            <Select.Option value="V">V</Select.Option>
+                        </Select>
+                    </Form.Item>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Divider */}
+                <div className="border-b border-gray-200 mb-6"></div>
+
+                {/* School ID & Phone */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <Form.Item
                         label="School ID"
                         name="users_school_id"
@@ -316,10 +388,10 @@ const Create_Modal = ({
                             { required: true, message: 'Please input school ID!' },
                             { pattern: /^[a-zA-Z0-9]+-[a-zA-Z0-9]+-[a-zA-Z0-9]+$/, message: 'School ID must be in the format x1-x1-x1' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter school ID" />
                     </Form.Item>
-
                     <Form.Item
                         label="Phone Number"
                         name="users_contact_number"
@@ -327,12 +399,17 @@ const Create_Modal = ({
                             { required: true, message: 'Please input phone number!' },
                             { pattern: /^\d{11}$/, message: 'Contact number must be 11 digits' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter phone number" />
                     </Form.Item>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Divider */}
+                <div className="border-b border-gray-200 mb-6"></div>
+
+                {/* Email & Role */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <Form.Item
                         label="Email Address"
                         name="users_email"
@@ -340,14 +417,15 @@ const Create_Modal = ({
                             { required: true, message: 'Please input email address!' },
                             { type: 'email', message: 'Please enter a valid email address' }
                         ]}
+                        className="mb-0"
                     >
                         <Input placeholder="Enter email address" />
                     </Form.Item>
-
                     <Form.Item
                         label="Role"
                         name="users_role"
                         rules={[{ required: true, message: 'Please select a role!' }]}
+                        className="mb-0"
                     >
                         <Select placeholder="Select role">
                             {userLevels.map((level) => (
@@ -359,11 +437,16 @@ const Create_Modal = ({
                     </Form.Item>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Divider */}
+                <div className="border-b border-gray-200 mb-6"></div>
+
+                {/* Department, Password, Birthday */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                     <Form.Item
                         label="Department"
                         name="departments_name"
                         rules={[{ required: true, message: 'Please select a department!' }]}
+                        className="mb-0"
                     >
                         <Select placeholder="Select department">
                             {departments.map((department) => (
@@ -373,7 +456,6 @@ const Create_Modal = ({
                             ))}
                         </Select>
                     </Form.Item>
-
                     <Form.Item
                         label="Password"
                         name="users_password"
@@ -386,43 +468,10 @@ const Create_Modal = ({
                             }}
                         ]}
                         tooltip="Password must contain at least 8 characters, including 1 uppercase, 1 lowercase, 1 number, and exactly 1 special character (!@#$%^&*)"
+                        className="mb-0"
                     >
                         <Input.Password placeholder="Enter password" />
                     </Form.Item>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Form.Item
-                        label="Suffix"
-                        name="users_suffix"
-                    >
-                        <Select placeholder="Select suffix">
-                            <Select.Option value="">None</Select.Option>
-                            <Select.Option value="Jr.">Jr.</Select.Option>
-                            <Select.Option value="Sr.">Sr.</Select.Option>
-                            <Select.Option value="II">II</Select.Option>
-                            <Select.Option value="III">III</Select.Option>
-                            <Select.Option value="IV">IV</Select.Option>
-                            <Select.Option value="V">V</Select.Option>
-                        </Select>
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Title"
-                        name="users_title"
-                    >
-                        <Select placeholder="Select title">
-                            <Select.Option value="">None</Select.Option>
-                            {titles.map((title) => (
-                                <Select.Option key={title.id} value={title.abbreviation}>
-                                    {title.abbreviation}
-                                </Select.Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Form.Item
                         label="Birthday"
                         name="users_birthday"
@@ -440,11 +489,13 @@ const Create_Modal = ({
                                 return age >= 18 && age <= 100 ? Promise.resolve() : Promise.reject('Age must be between 18 and 100');
                             }}
                         ]}
+                        className="mb-0"
                     >
                         <Input type="date" max={new Date().toISOString().split('T')[0]} />
                     </Form.Item>
                 </div>
 
+                {/* Button Row */}
                 <div className="flex justify-end gap-2 mt-4">
                     <Button onClick={onHide}>
                         Cancel
@@ -454,7 +505,6 @@ const Create_Modal = ({
                         htmlType="submit"
                         loading={loading}
                         className="bg-green-900 hover:bg-lime-900"
-                      
                     >
                         Add Faculty
                     </Button>

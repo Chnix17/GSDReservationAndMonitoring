@@ -93,7 +93,7 @@ const Sidebar = () => {
       const currentUserId = SecureStorage.getSessionItem('user_id');
       
       // Fetch approval notifications
-      const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+      const approvalResponse = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -108,7 +108,7 @@ const Sidebar = () => {
       console.log('Approval notification fetch response:', approvalData);
 
       // Fetch read notifications for current user
-      const readResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+      const readResponse = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

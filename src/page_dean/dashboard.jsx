@@ -169,7 +169,7 @@ const Dashboard = () => {
         const departmentId = SecureStorage.getSessionItem('department_id');
         const baseUrl = SecureStorage.getLocalItem("url");
         
-        const response = await fetch(`${baseUrl}/process_reservation.php`, {
+        const response = await fetch(`${baseUrl}/Department_Dean.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
