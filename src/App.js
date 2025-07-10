@@ -44,6 +44,8 @@ import ChatDepartment from './page_dean/chat';
 import ChatPersonnel from './pages/Personnel/chat';
 import Driver from './pages/Drivers';
 import Holiday from './pages/Admin/Holiday';
+import DriverDashboard from './pages/Driver/DriverDashboard';
+import DriverTrips from './pages/Driver/Trips'
 
 import VenueSchedule from './page_dean/VenueSchedule'
 
@@ -92,7 +94,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Holiday', '/Department/VenueSchedule'
+            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -162,7 +164,8 @@ const App = () => {
                         <Route path="/Personnel/ViewTask" element={<ProtectedRoute allowedRoles={['Personnel']}><ViewTask /></ProtectedRoute>} />
                         <Route path="/Personnel/Chat" element={<ProtectedRoute allowedRoles={['Personnel']}><ChatPersonnel /></ProtectedRoute>} />
                        
-
+                        <Route path="/Driver/Dashboard" element={<ProtectedRoute allowedRoles={['Driver']}><DriverDashboard/></ProtectedRoute>} />
+                        <Route path="/Driver/Trips" element={<ProtectedRoute allowedRoles={['Driver']}><DriverTrips/></ProtectedRoute>} />
                         {/* chats */}
                         <Route path="/chatAdmin" element={<ProtectedRoute allowedRoles={['Personnel', 'Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Chat /></ProtectedRoute>} />
                     </Routes>

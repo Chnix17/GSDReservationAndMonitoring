@@ -8,6 +8,7 @@ import { Modal } from 'antd';
 import { setSessionCookie, removeSessionCookie, refreshSessionCookie } from '../utils/cookieUtils';
 import { initializeSessionManager, updateLastActivity } from '../utils/sessionManager';
 import { SecureStorage } from '../utils/encryption';
+import ForcePassword from '../components/forcePassword';
 
 function Logins() {
     const [username, setUsername] = useState("");
@@ -57,6 +58,9 @@ function Logins() {
     const [loginResendTimer, setLoginResendTimer] = useState(180); // 3 minutes
     const [isResendingLoginOtp, setIsResendingLoginOtp] = useState(false);
     const [lastTimerUpdate, setLastTimerUpdate] = useState(Date.now());
+    const [showForcePassword, setShowForcePassword] = useState(false);
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [loginPassword, setLoginPassword] = useState(''); // Store password for OTP verification context
 
     const generateCaptcha = useCallback(() => {
         const canvas = captchaCanvasRef.current;
@@ -419,6 +423,18 @@ function Logins() {
                 const userData = loginResponse.data.data;
                 console.log("User data received:", userData);
                 
+                // Check if this is the first login and password needs to be changed
+                if (userData.first_login === true) {
+                    console.log("First login detected, forcing password change");
+                    setCurrentPassword(password); // Store current password for comparison
+                    setLoginPassword(password); // Store password for OTP context
+                    // Store user_id temporarily for password change process
+                    SecureStorage.setSessionItem("temp_user_id", userData.user_id);
+                    setShowForcePassword(true);
+                    setLoading(false);
+                    return;
+                }
+                
                 // Clear any previous state
                 removeSessionCookie('userSession');
                 localStorage.removeItem('forcedLogout');
@@ -450,6 +466,7 @@ function Logins() {
                     if (otpResponse.data.message === "Login OTP sent successfully") {
                         // Store user_id temporarily for OTP verification
                         SecureStorage.setSessionItem("temp_user_id", userData.user_id);
+                        setLoginPassword(password); // Store password for OTP context
                         
                         // Show OTP input form
                         setShowLoginOTP(true);
@@ -529,6 +546,10 @@ function Logins() {
                                 notify("Dean Login Successful");
                                 setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                                 break;
+                            case "Driver":
+                                notify("Driver Login Successful");
+                                setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                                break;
                             default:
                                 notify("User Login Successful");
                                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
@@ -604,6 +625,10 @@ function Logins() {
                             notify("Dean Login Successful");
                             setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                             break;
+                        case "Driver":
+                            notify("Driver Login Successful");
+                            setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                            break;
                         default:
                             notify("User Login Successful");
                             setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
@@ -619,6 +644,9 @@ function Logins() {
             removeSessionCookie('userSession');
             notify("Login failed. Please try again.", 'error');
             generateCaptcha();
+            // Clear any stored passwords on error
+            setCurrentPassword('');
+            setLoginPassword('');
         } finally {
             setLoading(false);
         }
@@ -886,6 +914,17 @@ function Logins() {
                 // Get the API URL
                 const apiUrl = SecureStorage.getLocalItem("url");
                 
+                // Check if this is the first login and password needs to be changed
+                if (response.data.user_data && response.data.user_data.first_login === true) {
+                    console.log("First login detected after OTP verification, forcing password change");
+                    setCurrentPassword(loginPassword); // Store current password for comparison
+                    // Store user_id temporarily for password change process
+                    SecureStorage.setSessionItem("temp_user_id", response.data.user_data.user_id);
+                    setShowForcePassword(true);
+                    setShowLoginOTP(false);
+                    return;
+                }
+                
                 // Clear existing storage but preserve API URL
                 localStorage.clear();
                 sessionStorage.clear();
@@ -949,6 +988,10 @@ function Logins() {
                             notify("Dean Login Successful");
                             setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                             break;
+                        case "Driver":
+                            notify("Driver Login Successful");
+                            setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                            break;
                         default:
                             notify("User Login Successful");
                             setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
@@ -986,6 +1029,17 @@ function Logins() {
                             userDetailsResponse.data.data.length > 0) {
                             
                             const userDetails = userDetailsResponse.data.data[0];
+                            
+                            // Check if this is the first login and password needs to be changed
+                            if (userDetails.first_login === true) {
+                                console.log("First login detected after fetching user details, forcing password change");
+                                setCurrentPassword(loginPassword); // Store current password for comparison
+                                // Store user_id temporarily for password change process
+                                SecureStorage.setSessionItem("temp_user_id", userDetails.users_id);
+                                setShowForcePassword(true);
+                                setShowLoginOTP(false);
+                                return;
+                            }
                             
                             // Set full user data
                             SecureStorage.setLocalItem("name", `${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname}`.trim());
@@ -1027,6 +1081,10 @@ function Logins() {
                                     notify("Dean Login Successful");
                                     setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                                     break;
+                                case "Driver":
+                                    notify("Driver Login Successful");
+                                    setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                                    break;
                                 default:
                                     notify("User Login Successful");
                                     setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
@@ -1058,6 +1116,9 @@ function Logins() {
             console.error('Error during OTP verification:', error);
             notify("Error verifying OTP", 'error');
             setLoginOtpDigits(Array(6).fill(''));
+            // Clear any stored passwords on error
+            setCurrentPassword('');
+            setLoginPassword('');
         } finally {
             setIsVerifyingLoginOtp(false);
         }
@@ -1096,6 +1157,123 @@ function Logins() {
             setIsResendingLoginOtp(false);
         }
     };
+
+    const handlePasswordChanged = async () => {
+        // After password is changed, proceed with the normal login flow
+        setShowForcePassword(false);
+        setCurrentPassword('');
+        setLoginPassword(''); // Clear stored password
+        
+        // Re-authenticate with the new password
+        try {
+            const apiUrl = SecureStorage.getLocalItem("url");
+            const userId = SecureStorage.getSessionItem("temp_user_id");
+            
+            // Get user details again to proceed with login
+            const userResponse = await axios.post(`${apiUrl}fetchMaster.php`, {
+                operation: "fetchUsersById",
+                id: userId
+            });
+            
+            if (userResponse.data.status === "success" && 
+                userResponse.data.data && 
+                userResponse.data.data.length > 0) {
+                
+                const userData = userResponse.data.data[0];
+                
+                // Clear existing storage but preserve API URL
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Restore API URL
+                SecureStorage.setLocalItem("url", apiUrl);
+
+                // Set localStorage items securely
+                SecureStorage.setLocalItem("user_id", userData.users_id);
+                SecureStorage.setLocalItem("name", `${userData.users_fname} ${userData.users_mname} ${userData.users_lname}`.trim());
+                SecureStorage.setLocalItem("school_id", userData.users_school_id);
+                SecureStorage.setLocalItem("contact_number", userData.users_contact_number);
+                SecureStorage.setLocalItem("user_level", userData.user_level_name);
+                SecureStorage.setLocalItem("user_level_id", userData.users_user_level_id);
+                SecureStorage.setLocalItem("department_id", userData.users_department_id);
+                SecureStorage.setLocalItem("profile_pic", userData.users_pic || "");
+                SecureStorage.setLocalItem("loggedIn", "true");
+                SecureStorage.setLocalItem("lastActivity", Date.now().toString());
+            
+                // Set sessionStorage items securely
+                SecureStorage.setSessionItem("user_id", userData.users_id);
+                SecureStorage.setSessionItem("name", `${userData.users_fname} ${userData.users_mname} ${userData.users_lname}`.trim());
+                SecureStorage.setSessionItem("school_id", userData.users_school_id);
+                SecureStorage.setSessionItem("contact_number", userData.users_contact_number);
+                SecureStorage.setSessionItem("user_level", userData.user_level_name);
+                SecureStorage.setSessionItem("user_level_id", userData.users_user_level_id);
+                SecureStorage.setSessionItem("department_id", userData.users_department_id);
+                SecureStorage.setSessionItem("profile_pic", userData.users_pic || "");
+                SecureStorage.setSessionItem("loggedIn", "true");
+                
+                // Set session cookie
+                setSessionCookie('userSession', {
+                    user_id: userData.users_id,
+                    school_id: userData.users_school_id,
+                    user_level: userData.user_level_name,
+                    timestamp: new Date().getTime()
+                });
+                
+                // Handle "Remember Me" functionality
+                if (rememberMe) {
+                    localStorage.setItem("rememberedUsername", username);
+                } else {
+                    localStorage.removeItem("rememberedUsername");
+                }
+                
+                // Navigate based on user level
+                const userLevel = userData.user_level_name;
+                switch(userLevel) {
+                    case "Super Admin":
+                        notify("Super Admin Login Successful");
+                        setTimeout(() => navigateTo("/adminDashboard"), 100);
+                        break;
+                    case "Personnel":
+                        notify("Personnel Login Successful");
+                        setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
+                        break;
+                    case "Admin":
+                        notify("Admin Login Successful");
+                        setTimeout(() => navigateTo("/adminDashboard"), 100);
+                        break;
+                    case "Dean":
+                    case "Secretary":
+                        notify("Dean Login Successful");
+                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                        break;
+                    case "Driver":
+                        notify("Driver Login Successful");
+                        setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                        break;
+                    default:
+                        notify("User Login Successful");
+                        setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
+                }
+            } else {
+                notify("Failed to retrieve user data after password change", 'error');
+                navigateTo("/");
+            }
+        } catch (error) {
+            console.error('Error after password change:', error);
+            notify("Error completing login after password change", 'error');
+            navigateTo("/");
+        }
+    };
+
+    // If force password change is required, show the ForcePassword component
+    if (showForcePassword) {
+        return (
+            <ForcePassword 
+                onPasswordChanged={handlePasswordChanged}
+                currentPassword={currentPassword}
+            />
+        );
+    }
 
     return (
         <div className="min-h-screen bg-accent-light overflow-hidden font-sans">
@@ -1143,8 +1321,8 @@ function Logins() {
                 </div>
                 
                 {/* Right Section - Login Form */}
-                <div className="w-full lg:w-1/2 flex justify-center items-center px-6 py-12 lg:px-12 relative z-10">
-                    <div className="w-full max-w-md">
+                <div className="w-full lg:w-1/2 flex justify-center items-center px-1 py-4 lg:px-1 relative z-10">
+                    <div className="w-full max-w-[340px] mx-auto">
                         
                         {/* Mobile Logo (visible only on small screens) */}
                         <div className="flex flex-col items-center lg:hidden mb-10">
@@ -1159,67 +1337,57 @@ function Logins() {
 
                         {/* Login Form or OTP Verification */}
                         {!showLoginOTP ? (
+                            /* Login Form */
                             <motion.div 
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5 }}
-                                className="bg-white rounded-3xl shadow-xl overflow-hidden"
+                                className="bg-white rounded-xl shadow-xl overflow-hidden"
                             >
-                                <div className="p-8">
-                                    <div className="text-center mb-8">
-                                        <h2 className="text-3xl font-bold text-gray-800">Welcome Back</h2>
-                                        <p className="text-gray-500 mt-2">Enter your credentials to continue</p>
+                                <div className="p-4">
+                                    <div className="text-center mb-4">
+                                        <div className="inline-flex items-center justify-center w-9 h-9 bg-emerald-100 rounded-full mb-2">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
+                                            </svg>
+                                        </div>
+                                        <h2 className="text-lg font-bold text-gray-800">Welcome Back</h2>
+                                        <p className="text-gray-500 mt-1 text-xs">Sign in to your account</p>
                                     </div>
                                     
-                                    <form onSubmit={handleLogin} className="space-y-6">
-                                        {/* Username Field */}
+                                    <form onSubmit={handleLogin} className="space-y-3">
+                                        {/* Username Input */}
                                         <div className="space-y-2">
-                                            <label className="block text-sm font-medium text-gray-700" htmlFor="username">
-                                                Username
-                                            </label>
+                                            <label className="block text-sm font-medium text-gray-700">Employee ID</label>
                                             <div className="relative group">
                                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                     <FaUser className="text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
                                                 </div>
-                                                <input 
-                                                    value={username} 
-                                                    onChange={handleUsernameChange} 
-                                                    className="block w-full pl-12 pr-4 py-3.5 text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out" 
-                                                    id="username" 
+                                                <input
                                                     type="text"
-                                                    placeholder="Enter your school ID (e.g., COL-2023-001)" 
-                                                    required 
+                                                    value={username}
+                                                    onChange={handleUsernameChange}
+                                                    className="block w-full pl-12 pr-4 py-3.5 text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out"
+                                                    placeholder="Enter your school ID"
+                                                    required
                                                 />
                                             </div>
-
                                         </div>
 
-                                        {/* Password Field */}
+                                        {/* Password Input */}
                                         <div className="space-y-2">
-                                            <div className="flex justify-between">
-                                                <label className="block text-sm font-medium text-gray-700" htmlFor="password">
-                                                    Password
-                                                </label>
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setShowForgotPassword(true)}
-                                                    className="text-sm font-medium text-primary-dark hover:text-accent-dark transition-colors"
-                                                >
-                                                    Forgot password?
-                                                </button>
-                                            </div>
+                                            <label className="block text-sm font-medium text-gray-700">Password</label>
                                             <div className="relative group">
                                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                     <FaLock className="text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
                                                 </div>
-                                                <input 
-                                                    value={password} 
-                                                    onChange={handlePasswordChange} 
-                                                    className="block w-full pl-12 pr-12 py-3.5 text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out" 
-                                                    id="password" 
-                                                    type={showPassword ? 'text' : 'password'} 
-                                                    placeholder="Enter your password" 
-                                                    required 
+                                                <input
+                                                    type={showPassword ? "text" : "password"}
+                                                    value={password}
+                                                    onChange={handlePasswordChange}
+                                                    className="block w-full pl-12 pr-12 py-3.5 text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out"
+                                                    placeholder="Enter your password"
+                                                    required
                                                 />
                                                 <button 
                                                     type="button" 
@@ -1231,11 +1399,8 @@ function Logins() {
                                             </div>
                                         </div>
 
-                                        {/* CAPTCHA Verification */}
-                                        <div className="space-y-2">
-                                            <label className="block text-sm font-medium text-gray-700">
-                                                Security Verification
-                                            </label>
+                                        {/* CAPTCHA */}
+                                        <div className="space-y-4">
                                             <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
                                                 <div className="p-4 bg-gray-50">
                                                     <canvas
@@ -1247,18 +1412,16 @@ function Logins() {
                                                 </div>
                                                 <div className="flex justify-between items-center px-4 py-2 border-t border-gray-100">
                                                     <p className="text-xs text-gray-500">Enter the characters shown above</p>
-                                                    <motion.button
-                                                        whileHover={{ scale: 1.05 }}
-                                                        whileTap={{ scale: 0.95 }}
+                                                    <button
                                                         onClick={generateCaptcha}
-                                                        type="button"
                                                         className="p-2 text-emerald-600 hover:text-emerald-700 rounded-full hover:bg-emerald-50 transition-colors text-sm flex items-center"
+                                                        type="button"
                                                     >
                                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
                                                             <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
                                                         </svg>
                                                         Refresh
-                                                    </motion.button>
+                                                    </button>
                                                 </div>
                                             </div>
                                             <input
@@ -1271,6 +1434,7 @@ function Logins() {
                                                     'border-gray-200'
                                                 } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out`}
                                                 placeholder="Type the characters here"
+                                                required
                                             />
                                             {isCaptchaCorrect === false && (
                                                 <p className="mt-1 text-sm text-red-600 flex items-center">
@@ -1283,30 +1447,46 @@ function Logins() {
                                         </div>
 
                                         {/* Remember Me */}
-                                        <div className="flex items-center">
-                                            <input
-                                                type="checkbox"
-                                                id="rememberMe"
-                                                checked={rememberMe}
-                                                onChange={(e) => setRememberMe(e.target.checked)}
-                                                className="h-5 w-5 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded transition-colors"
-                                            />
-                                            <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">Remember me</label>
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center">
+                                                <input
+                                                    id="remember-me"
+                                                    name="remember-me"
+                                                    type="checkbox"
+                                                    checked={rememberMe}
+                                                    onChange={(e) => setRememberMe(e.target.checked)}
+                                                    className="h-4 w-4 text-emerald-600 focus:ring-emerald-500 border-gray-300 rounded"
+                                                />
+                                                <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
+                                                    Remember me
+                                                </label>
+                                            </div>
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowForgotPassword(true)}
+                                                className="text-sm text-emerald-600 hover:text-emerald-700 font-medium"
+                                            >
+                                                Forgot password?
+                                            </button>
                                         </div>
 
-                                        {/* Sign In Button */}
-                                        <button 
-                                            className={`w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-primary-dark to-accent-dark hover:from-primary-dark hover:to-accent-dark focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary-dark shadow-lg shadow-primary-dark/30 transition-all duration-200 ease-in-out ${loading ? 'opacity-70 cursor-not-allowed' : ''}`}
+                                        {/* Login Button */}
+                                        <button
                                             type="submit"
                                             disabled={loading}
+                                            className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-500/30 transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
                                         >
                                             {loading ? (
-                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                            ) : null}
-                                            {loading ? 'Signing In...' : 'Sign In'}
+                                                <>
+                                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                    </svg>
+                                                    Signing in...
+                                                </>
+                                            ) : (
+                                                "Sign In"
+                                            )}
                                         </button>
                                     </form>
                                 </div>
@@ -1317,17 +1497,17 @@ function Logins() {
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.5 }}
-                                className="bg-white rounded-3xl shadow-xl overflow-hidden"
+                                className="bg-white rounded-2xl shadow-xl overflow-hidden"
                             >
-                                <div className="p-8">
-                                    <div className="text-center mb-8">
-                                        <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <div className="p-6">
+                                    <div className="text-center mb-6">
+                                        <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-3">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                                             </svg>
                                         </div>
-                                        <h2 className="text-2xl font-bold text-gray-800">Two-Factor Authentication</h2>
-                                        <p className="text-gray-500 mt-2">Enter the verification code sent to your email</p>
+                                        <h2 className="text-xl font-bold text-gray-800">Two-Factor Authentication</h2>
+                                        <p className="text-gray-500 mt-1 text-sm">Enter the verification code sent to your email</p>
                                     </div>
                                     
                                     <div className="space-y-6">
@@ -1440,7 +1620,7 @@ function Logins() {
                 onCancel={handleModalClose}
                 footer={null}
                 maskClosable={false}
-                width={480}
+                width={340}
                 className="modern-modal"
                 closeIcon={
                     <span className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer">
@@ -1450,15 +1630,15 @@ function Logins() {
                     </span>
                 }
             >
-                <div className="p-8">
-                    <div className="text-center mb-8">
-                        <div className="inline-flex items-center justify-center w-16 h-16 bg-emerald-100 rounded-full mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="p-4">
+                    <div className="text-center mb-4">
+                        <div className="inline-flex items-center justify-center w-9 h-9 bg-emerald-100 rounded-full mb-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
                             </svg>
                         </div>
-                        <h2 className="text-2xl font-bold text-gray-800">Reset Your Password</h2>
-                        <p className="text-gray-500 mt-2">{!showOtpInput ? "Enter your email to receive a verification code" : showPasswordReset ? "Create a new secure password" : "Enter the verification code sent to your email"}</p>
+                        <h2 className="text-lg font-bold text-gray-800">Reset Your Password</h2>
+                        <p className="text-gray-500 mt-1 text-xs">{!showOtpInput ? "Enter your email to receive a verification code" : showPasswordReset ? "Create a new secure password" : "Enter the verification code sent to your email"}</p>
                     </div>
 
                     <div className="space-y-6">

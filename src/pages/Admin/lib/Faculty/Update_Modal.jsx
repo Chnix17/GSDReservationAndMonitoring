@@ -35,7 +35,6 @@ const Update_Modal = ({
         departments_name: '',
         users_password: '',
         users_role: '',
-        users_birthday: '',
     });
 
     const [titles, setTitles] = useState([]);
@@ -67,7 +66,6 @@ const Update_Modal = ({
                         users_role: userDetails.users_user_level_id,
                         departments_name: userDetails.departments_name,
                         users_password: '',
-                        users_birthday: userDetails.users_birthdate || '',
                     };
                     setFormData(newFormData);
                     setOriginalData(newFormData);
@@ -142,24 +140,7 @@ const Update_Modal = ({
                     return 'Suffix can only contain letters, spaces, and periods';
                 }
                 return '';
-            case 'users_birthday':
-                if (!value) {
-                    return 'Birthday is required';
-                }
-                const birthDate = new Date(value);
-                const today = new Date();
-                let age = today.getFullYear() - birthDate.getFullYear();
-                const monthDiff = today.getMonth() - birthDate.getMonth();
-                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                    age--;
-                }
-                if (age < 18) {
-                    return 'Must be at least 18 years old';
-                }
-                if (age > 100) {
-                    return 'Invalid birth date';
-                }
-                return '';
+
             case 'users_email':
                 return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value) ? '' : 'Invalid email address';
             case 'users_school_id':
@@ -244,7 +225,6 @@ const Update_Modal = ({
                 fname: values.users_firstname,
                 mname: values.users_middlename || '',
                 lname: values.users_lastname,
-                birthdate: values.users_birthday || '',
                 suffix: values.users_suffix || '',
                 title: values.users_title || '',
                 title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null,
@@ -441,10 +421,14 @@ const Update_Modal = ({
                         name="users_email"
                         rules={[
                             { required: true, message: 'Please input email address!' },
-                            { type: 'email', message: 'Please enter a valid email address' }
+                            { type: 'email', message: 'Please enter a valid email address' },
+                            { 
+                                pattern: /^[a-zA-Z0-9._%+-]+@phinmaed\.com$/,
+                                message: 'Email must end with @phinmaed.com'
+                            }
                         ]}
                     >
-                        <Input placeholder="Enter email address" />
+                        <Input placeholder="Enter email address (e.g., chsi.valle.coc@phinmaed.com)" />
                     </Form.Item>
 
                     <Form.Item
@@ -494,28 +478,7 @@ const Update_Modal = ({
                     </Form.Item>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <Form.Item
-                        label="Birthday"
-                        name="users_birthday"
-                        rules={[
-                            { required: true, message: 'Please select birthday!' },
-                            { validator: (_, value) => {
-                                if (!value) return Promise.resolve();
-                                const birthDate = new Date(value);
-                                const today = new Date();
-                                let age = today.getFullYear() - birthDate.getFullYear();
-                                const monthDiff = today.getMonth() - birthDate.getMonth();
-                                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                                    age--;
-                                }
-                                return age >= 18 && age <= 100 ? Promise.resolve() : Promise.reject('Age must be between 18 and 100');
-                            }}
-                        ]}
-                    >
-                        <Input type="date" max={new Date().toISOString().split('T')[0]} />
-                    </Form.Item>
-                </div>
+
 
                 <div className="flex justify-end gap-2 mt-4">
                     <Button onClick={onHide}>

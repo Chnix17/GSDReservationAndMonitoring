@@ -192,48 +192,48 @@ function Checklist() {
     }
   };
 
-  const columns = [
-    {
-      title: 'Name of Resource',
-      dataIndex: 'name',
-      key: 'name',
-      sorter: true,
-      sortOrder: sortField === 'name' ? sortOrder : null,
-      render: (text) => <span className="font-medium">{text}</span>
-    },
-    {
-      title: 'No. Checklist',
-      dataIndex: 'checklistCount',
-      key: 'checklistCount',
-      sorter: true,
-      sortOrder: sortField === 'checklistCount' ? sortOrder : null,
-            render: (count) => <span className="font-medium">{count}</span>
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Tooltip title="View Checklist">
-            <Button
-              type="primary"
-              icon={<EyeOutlined />}
-              onClick={() => {
-                const type = currentTab === '1' ? 'venue' : 
-                            currentTab === '2' ? 'equipment' : 
-                            'vehicle';
-                console.log('View Checklist - Type:', type);
-                console.log('View Checklist - ID:', record.id);
-                fetchChecklistById(type, record.id);
-              }}
-              size="small"
-              className="bg-green-900 hover:bg-lime-900"
-            />
-          </Tooltip>
-        </Space>
-      ),
-    },
-  ];
+  // const columns = [
+  //   {
+  //     title: 'Name of Resource',
+  //     dataIndex: 'name',
+  //     key: 'name',
+  //     sorter: true,
+  //     sortOrder: sortField === 'name' ? sortOrder : null,
+  //     render: (text) => <span className="font-medium">{text}</span>
+  //   },
+  //   {
+  //     title: 'No. Checklist',
+  //     dataIndex: 'checklistCount',
+  //     key: 'checklistCount',
+  //     sorter: true,
+  //     sortOrder: sortField === 'checklistCount' ? sortOrder : null,
+  //           render: (count) => <span className="font-medium">{count}</span>
+  //   },
+  //   {
+  //     title: 'Action',
+  //     key: 'action',
+  //     render: (_, record) => (
+  //       <Space>
+  //         <Tooltip title="View Checklist">
+  //           <Button
+  //             type="primary"
+  //             icon={<EyeOutlined />}
+  //             onClick={() => {
+  //               const type = currentTab === '1' ? 'venue' : 
+  //                           currentTab === '2' ? 'equipment' : 
+  //                           'vehicle';
+  //               console.log('View Checklist - Type:', type);
+  //               console.log('View Checklist - ID:', record.id);
+  //               fetchChecklistById(type, record.id);
+  //             }}
+  //             size="small"
+  //             className="bg-green-900 hover:bg-lime-900"
+  //           />
+  //         </Tooltip>
+  //       </Space>
+  //     ),
+  //   },
+  // ];
 
   const fetchResources = async (type) => {
     try {
@@ -444,44 +444,6 @@ function Checklist() {
     vehicle.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const EnhancedFilters = () => (
-    <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div className="flex flex-col md:flex-row gap-4 flex-1">
-          <div className="flex-1">
-            <Input
-              placeholder="Search resources..."
-              allowClear
-              prefix={<SearchOutlined />}
-              size="large"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full"
-            />
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <Tooltip title="Refresh data">
-            <Button
-              icon={<ReloadOutlined />}
-              onClick={handleRefresh}
-              size="large"
-            />
-          </Tooltip>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            size="large"
-            onClick={() => setIsModalVisible(true)}
-            className="bg-lime-900 hover:bg-green-600"
-          >
-            Add Checklist
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-
   const renderTabContent = (data) => {
     let sortedData = [...data];
     if (sortField) {
@@ -507,59 +469,115 @@ function Checklist() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
-        <EnhancedFilters />
+        {/* Search and Filters */}
+        <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+          <div className="flex flex-row items-center gap-2 w-full">
+            <div className="flex-grow">
+              <Input
+                placeholder="Search resources..."
+                allowClear
+                prefix={<SearchOutlined />}
+                size="large"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <Tooltip title="Refresh data">
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleRefresh}
+                size="large"
+                style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              />
+            </Tooltip>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              size="large"
+              onClick={() => setIsModalVisible(true)}
+              className="bg-lime-900 hover:bg-green-600"
+            >
+              <span className="hidden sm:inline">Add Checklist</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </div>
+        </div>
         
-        <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+        <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
           {loading ? (
-            <div className="flex justify-center items-center p-8">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-900"></div>
+            <div className="flex justify-center items-center h-64">
+              <div className="loader"></div>
             </div>
           ) : (
             <>
-              <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+              <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                   <tr>
-                    {columns.map((column) => (
-                      <th
-                        key={column.key}
-                        scope="col"
-                        className="px-6 py-3"
-                        onClick={() => column.sorter && handleSort(column.dataIndex)}
-                      >
-                        <div className="flex items-center cursor-pointer hover:text-gray-900">
-                          {column.title}
-                          {sortField === column.dataIndex && (
-                            <span className="ml-1">
-                              {sortOrder === "asc" ? "↑" : "↓"}
-                            </span>
-                          )}
-                        </div>
-                      </th>
-                    ))}
+                    <th scope="col" className="px-4 py-4" onClick={() => handleSort('name')}>
+                      <div className="flex items-center cursor-pointer">
+                        NAME OF RESOURCE
+                        {sortField === 'name' && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-4" onClick={() => handleSort('checklistCount')}>
+                      <div className="flex items-center cursor-pointer">
+                        NO. CHECKLIST
+                        {sortField === 'checklistCount' && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-4">
+                      <div className="flex items-center">
+                        ACTIONS
+                      </div>
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
                   {paginatedData.length > 0 ? (
                     paginatedData.map((record) => (
-                      <tr
-                        key={record.key}
-                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
-                      >
-                        {columns.map((column) => (
-                          <td
-                            key={`${record.key}-${column.key}`}
-                            className="px-6 py-4"
-                          >
-                            {column.render
-                              ? column.render(record[column.dataIndex], record)
-                              : record[column.dataIndex]}
-                          </td>
-                        ))}
+                      <tr key={record.key} className="bg-white border-b last:border-b-0 border-gray-200">
+                        <td className="px-4 py-6">
+                          <div className="flex items-center">
+                            <span className="font-bold truncate block max-w-[140px]">{record.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-6 font-medium">
+                          {record.checklistCount || 0}
+                        </td>
+                        <td className="px-4 py-6">
+                          <div className="flex justify-center space-x-2">
+                            <Tooltip title="View Checklist">
+                              <Button
+                                shape="circle"
+                                icon={<EyeOutlined />}
+                                onClick={() => {
+                                  const type = currentTab === '1' ? 'venue' : 
+                                              currentTab === '2' ? 'equipment' : 
+                                              'vehicle';
+                                  console.log('View Checklist - Type:', type);
+                                  console.log('View Checklist - ID:', record.id);
+                                  fetchChecklistById(type, record.id);
+                                }}
+                                size="large"
+                                className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                              />
+                            </Tooltip>
+                          </div>
+                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={columns.length} className="px-6 py-24 text-center">
+                      <td colSpan={3} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                         <div className="text-center py-6">
                           <PlusOutlined className="text-5xl text-gray-300 mb-4" />
                           <p className="text-xl text-gray-500">No checklists found</p>
@@ -651,16 +669,16 @@ function Checklist() {
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
           <motion.div 
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-8"
+            className="mb-4 sm:mb-8"
           >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <h2 className="text-2xl font-custom-font font-bold text-green-900 mt-5">
+            <div className="mb-2 sm:mb-4 mt-10">
+              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                 Checklist 
               </h2>
             </div>

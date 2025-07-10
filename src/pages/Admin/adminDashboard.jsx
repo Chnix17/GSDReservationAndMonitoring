@@ -131,7 +131,7 @@
 
         const fetchReservations = useCallback(async () => {
             try {
-                const response = await axios.post(`${encryptedUrl}/records&reports.php`, {
+                const response = await axios.post(`${encryptedUrl}/user.php`, {
                     operation: 'fetchRecord'
                 });
 

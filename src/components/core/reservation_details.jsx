@@ -222,11 +222,24 @@ const ReservationDetails = ({
                                 <Table 
                                     title={() => "Vehicles"}
                                     dataSource={reservationDetails.vehicles.map(vehicle => {
-                                        // Find the driver assigned to this vehicle
-                                        const assignedDriver = reservationDetails.drivers?.find(driver => driver.assigned_vehicle?.vehicle_id === vehicle.vehicle_id);
+                                        // Collect all driver names for this reservation
+                                        let driverNames = 'No driver assigned';
+                                        if (reservationDetails.drivers && reservationDetails.drivers.length > 0) {
+                                            driverNames = reservationDetails.drivers.map(driver => {
+                                                if (driver.driver_name) {
+                                                    return driver.driver_name;
+                                                } else if (driver.name) {
+                                                    return driver.name;
+                                                } else if (driver.users_fname || driver.users_lname) {
+                                                    return [driver.users_fname, driver.users_mname, driver.users_lname].filter(Boolean).join(' ');
+                                                } else {
+                                                    return 'Unknown';
+                                                }
+                                            }).join(', ');
+                                        }
                                         return {
                                             ...vehicle,
-                                            driver: assignedDriver ? assignedDriver.name : 'No driver assigned'
+                                            driver: driverNames
                                         };
                                     })} 
                                     columns={[

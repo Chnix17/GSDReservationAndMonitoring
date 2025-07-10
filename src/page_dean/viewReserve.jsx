@@ -8,9 +8,9 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import Sidebar from './component/dean_sidebar';
-import {  Input, Button, Tooltip,  Pagination, Empty, Select } from 'antd';
+import {  Input, Button, Tooltip,  Pagination, Empty, Dropdown, Menu } from 'antd';
 import { SecureStorage } from '../utils/encryption';
-import {  SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import {  SearchOutlined, ReloadOutlined, FilterOutlined } from '@ant-design/icons';
 import ReservationDetails from './component/my_reservation_details';
 
 
@@ -55,7 +55,6 @@ const ViewReserve = () => {
             navigate('/gsd');
         }
   }, [navigate]);
-
 
 
     const confirmCancelReservation = async () => {
@@ -183,7 +182,7 @@ const ViewReserve = () => {
             console.log("Starting to fetch details for reservation:", reservation);
 
             // Fetch reservation details
-            const detailsResponse = await fetch(`${baseUrl}process_reservation.php`, {
+            const detailsResponse = await fetch(`${baseUrl}user.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -267,53 +266,62 @@ const ViewReserve = () => {
             <div className="flex-none">
                 <Sidebar />
             </div>
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-                <div className="p-[2.5rem] lg:p-12 min-h-screen">
+            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-20">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-4 sm:mb-8"
                     >
-                        <div className="mb-4 mt-20">
+                        <div className="mb-2 sm:mb-4 mt-20">
     
-                            <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                My Reservations
-                            </h2>
+                            
                         </div>
                     </motion.div>
 
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="flex-1">
-                                    <Input
-                                        placeholder="Search reservations..."
-                                        allowClear
-                                        prefix={<SearchOutlined />}
-                                        size="large"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full"
-                                    />
-                                </div>
-                                <div className="w-full md:w-48">
-                                    <Select
-                                        placeholder="Filter by status"
-                                        value={activeFilter}
-                                        onChange={setActiveFilter}
-                                        options={filterOptions}
-                                        className="w-full"
-                                        size="large"
-                                    />
-                                </div>
+                        <div className="flex flex-row items-center gap-2 w-full">
+                            <div className="flex-grow">
+                                <Input
+                                    placeholder="Search reservations..."
+                                    allowClear
+                                    prefix={<SearchOutlined />}
+                                    size="large"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full"
+                                />
                             </div>
-                            <div className="flex gap-2">
+                            <Dropdown
+                                overlay={
+                                    <Menu
+                                        onClick={({ key }) => setActiveFilter(key)}
+                                        selectedKeys={[activeFilter]}
+                                    >
+                                        {filterOptions.map(option => (
+                                            <Menu.Item key={option.value} style={option.value === activeFilter ? { fontWeight: 'bold', background: '#e6f7ff' } : {}}>
+                                                {option.label}
+                                            </Menu.Item>
+                                        ))}
+                                    </Menu>
+                                }
+                                trigger={["click"]}
+                                placement="bottomRight"
+                            >
+                                <Button
+                                    icon={<FilterOutlined />}
+                                    size="large"
+                                    style={{ background: 'white', border: '1px solid #d9d9d9', borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}
+                                />
+                            </Dropdown>
+                            <div>
                                 <Tooltip title="Refresh data">
                                     <Button
                                         icon={<ReloadOutlined />}
                                         onClick={handleRefresh}
                                         size="large"
+                                        style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                     />
                                 </Tooltip>
                             </div>
@@ -327,11 +335,11 @@ const ViewReserve = () => {
                             </div>
                         ) : (
                             <>
-                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('id')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('id')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     ID
                                                     {sortField === 'id' && (
                                                         <span className="ml-1">
@@ -340,9 +348,9 @@ const ViewReserve = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('title')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    Title
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('title')}>
+                                                <div className="flex items-center cursor-pointer">
+                                                    TITLE
                                                     {sortField === 'title' && (
                                                         <span className="ml-1">
                                                             {sortOrder === "asc" ? "↑" : "↓"}
@@ -350,9 +358,9 @@ const ViewReserve = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('createdAt')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    Created At
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('createdAt')}>
+                                                <div className="flex items-center cursor-pointer">
+                                                    CREATED AT
                                                     {sortField === 'createdAt' && (
                                                         <span className="ml-1">
                                                             {sortOrder === "asc" ? "↑" : "↓"}
@@ -360,9 +368,9 @@ const ViewReserve = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('startDate')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    Start Date
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('startDate')}>
+                                                <div className="flex items-center cursor-pointer">
+                                                    START DATE
                                                     {sortField === 'startDate' && (
                                                         <span className="ml-1">
                                                             {sortOrder === "asc" ? "↑" : "↓"}
@@ -370,9 +378,9 @@ const ViewReserve = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('endDate')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    End Date
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('endDate')}>
+                                                <div className="flex items-center cursor-pointer">
+                                                    END DATE
                                                     {sortField === 'endDate' && (
                                                         <span className="ml-1">
                                                             {sortOrder === "asc" ? "↑" : "↓"}
@@ -380,19 +388,19 @@ const ViewReserve = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
-                                                    Participants
+                                                    PARTICIPANTS
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
-                                                    Status
+                                                    STATUS
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
-                                                    Actions
+                                                    ACTIONS
                                                 </div>
                                             </th>
                                         </tr>
@@ -404,51 +412,39 @@ const ViewReserve = () => {
                                                 .map((reservation) => (
                                                     <tr
                                                         key={reservation.id}
-                                                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                                        className="bg-white border-b last:border-b-0 border-gray-200"
                                                     >
-                                                        <td className="px-6 py-4">{reservation.id}</td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex items-center">
-                                                             
-                                                                <span className="font-medium">{reservation.title}</span>
-                                                            </div>
+                                                        <td className="px-4 py-6 font-medium">{reservation.id}</td>
+                                                        <td className="px-4 py-6 font-bold">
+                                                            <span className="truncate block max-w-[140px]">{reservation.title}</span>
                                                         </td>
-                                                        <td className="px-6 py-4">{reservation.createdAt}</td>
-                                                        <td className="px-6 py-4">{format(new Date(reservation.startDate), 'MMM dd, yyyy h:mm a')}</td>
-                                                        <td className="px-6 py-4">{format(new Date(reservation.endDate), 'MMM dd, yyyy h:mm a')}</td>
-                                                        <td className="px-6 py-4">{reservation.participants || 'Not specified'}</td>
-                                                        <td className="px-6 py-4">
-                                                            <span className={`px-3 py-1 rounded-full text-sm font-medium ${
-                                                                reservation.status.toLowerCase() === 'approved' ? 'bg-green-100 text-green-800' :
-                                                                reservation.status.toLowerCase() === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                                                                reservation.status.toLowerCase() === 'declined' ? 'bg-red-100 text-red-800' :
-                                                                reservation.status.toLowerCase() === 'completed' ? 'bg-blue-100 text-blue-800' :
-                                                                reservation.status.toLowerCase() === 'cancelled' ? 'bg-gray-100 text-gray-800' :
-                                                                reservation.status.toLowerCase() === 'reserved' ? 'bg-purple-100 text-purple-800' :
-                                                                'bg-gray-100 text-gray-800'
-                                                            }`}>
+                                                        <td className="px-4 py-6">{reservation.createdAt}</td>
+                                                        <td className="px-4 py-6">{format(new Date(reservation.startDate), 'MMM dd, yyyy h:mm a')}</td>
+                                                        <td className="px-4 py-6">{format(new Date(reservation.endDate), 'MMM dd, yyyy h:mm a')}</td>
+                                                        <td className="px-4 py-6">{reservation.participants || 'Not specified'}</td>
+                                                        <td className="px-4 py-6">
+                                                            <span className="inline-flex items-center px-6 py-2 rounded-full text-base font-semibold bg-gray-100 text-gray-600">
                                                                 {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
                                                             </span>
                                                         </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex space-x-2">
-                                                                <Button
-                                                                    type="primary"
-                                                                    icon={<FaEye />}
-                                                                    onClick={() => {
-                                                                        console.log("View button clicked for reservation:", reservation);
-                                                                        handleViewReservation(reservation);
-                                                                    }}
-                                                                    size="middle"
-                                                                    className="bg-blue-600 hover:bg-blue-700"
-                                                                />
+                                                        <td className="px-4 py-6">
+                                                            <div className="flex justify-center">
+                                                                <Tooltip title="View Details">
+                                                                    <Button
+                                                                        shape="circle"
+                                                                        icon={<FaEye />}
+                                                                        onClick={() => handleViewReservation(reservation)}
+                                                                        size="large"
+                                                                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center"
+                                                                    />
+                                                                </Tooltip>
                                                             </div>
                                                         </td>
                                                     </tr>
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={8} className="px-6 py-24 text-center">
+                                                <td colSpan={8} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={

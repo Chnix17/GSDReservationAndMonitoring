@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, Button, Form, Input,  Tooltip, Empty, Pagination, Alert } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import { FaArrowLeft, FaEye } from 'react-icons/fa';
+import {  FaEye } from 'react-icons/fa';
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
@@ -40,9 +40,6 @@ const EquipmentCategories = () => {
         }
     }, [navigate]);
 
-
-   // <--- ADDED fetchCategories here
-
     const fetchCategories = useCallback(async () => {
         setLoading(true);
         try {
@@ -59,6 +56,7 @@ const EquipmentCategories = () => {
             setLoading(false);
         }
     }, [encryptedUrl]);
+    
     useEffect(() => {
         fetchCategories();
     }, [fetchCategories]); 
@@ -207,24 +205,24 @@ const EquipmentCategories = () => {
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
             {/* Fixed Sidebar */}
-            <div className="flex-shrink-0">
+            <div className="flex-none">
                 <Sidebar />
             </div>
             
             {/* Scrollable Content Area */}
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-                <div className="p-[2.5rem] lg:p-12 min-h-screen">
+            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-4 sm:mb-8"
                     >
-                        <div className="mb-4 mt-20">
-                            <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
+                        <div className="mb-2 sm:mb-4 mt-10">
+                            {/* <Button variant="link" onClick={() => navigate('/Master')} className="text-green-800">
                                 <FaArrowLeft className="mr-2" /> Back to Master
-                            </Button>
-                            <h2 className="text-2xl font-bold text-green-900 mt-5">
+                            </Button> */}
+                            <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                                 Equipment Categories Management
                             </h2>
                         </div>
@@ -232,54 +230,52 @@ const EquipmentCategories = () => {
 
                     {/* Search and Filters */}
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="flex-1">
-                                    <Input
-                                        placeholder="Search categories by name"
-                                        allowClear
-                                        prefix={<SearchOutlined />}
-                                        size="large"
-                                        value={searchTerm}
-                                        onChange={handleSearchChange}
-                                        className="w-full"
-                                    />
-                                </div>
-                            </div>
-                            <div className="flex gap-2">
-                                <Tooltip title="Refresh data">
-                                    <Button
-                                        icon={<ReloadOutlined />}
-                                        onClick={handleRefresh}
-                                        size="large"
-                                    />
-                                </Tooltip>
-                                <Button
-                                    type="primary"
-                                    icon={<PlusOutlined />}
+                        <div className="flex flex-row items-center gap-2 w-full">
+                            <div className="flex-grow">
+                                <Input
+                                    placeholder="Search categories by name"
+                                    allowClear
+                                    prefix={<SearchOutlined />}
                                     size="large"
-                                    onClick={handleAddCategory}
-                                    className="bg-lime-900 hover:bg-green-600"
-                                >
-                                    Add Category
-                                </Button>
+                                    value={searchTerm}
+                                    onChange={handleSearchChange}
+                                    className="w-full"
+                                />
                             </div>
+                            <Tooltip title="Refresh data">
+                                <Button
+                                    icon={<ReloadOutlined />}
+                                    onClick={handleRefresh}
+                                    size="large"
+                                    style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                />
+                            </Tooltip>
+                            <Button
+                                type="primary"
+                                icon={<PlusOutlined />}
+                                size="large"
+                                onClick={handleAddCategory}
+                                className="bg-lime-900 hover:bg-green-600"
+                            >
+                                <span className="hidden sm:inline">Add Category</span>
+                                <span className="sm:hidden">Add</span>
+                            </Button>
                         </div>
                     </div>
 
                     {/* Table */}
-                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
                         {loading ? (
                             <div className="flex justify-center items-center h-64">
                                 <div className="loader"></div>
                             </div>
                         ) : (
                             <>
-                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('equipments_category_id')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('equipments_category_id')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     ID
                                                     {sortField === 'equipments_category_id' && (
                                                         <span className="ml-1">
@@ -288,9 +284,9 @@ const EquipmentCategories = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('equipments_category_name')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
-                                                    Category Name
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('equipments_category_name')}>
+                                                <div className="flex items-center cursor-pointer">
+                                                    CATEGORY NAME
                                                     {sortField === 'equipments_category_name' && (
                                                         <span className="ml-1">
                                                             {sortOrder === "asc" ? "↑" : "↓"}
@@ -298,9 +294,9 @@ const EquipmentCategories = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
-                                                <div className="flex items-center">
-                                                    Actions
+                                            <th scope="col" className="px-4 py-4">
+                                                <div className="flex items-center justify-center">
+                                                    ACTIONS
                                                 </div>
                                             </th>
                                         </tr>
@@ -312,37 +308,45 @@ const EquipmentCategories = () => {
                                                 .map((category) => (
                                                     <tr
                                                         key={category.equipments_category_id}
-                                                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                                        className="bg-white border-b last:border-b-0 border-gray-200"
                                                     >
-                                                        <td className="px-6 py-4">{category.equipments_category_id}</td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-6 font-medium">
+                                                            {category.equipments_category_id}
+                                                        </td>
+                                                        <td className="px-4 py-6">
                                                             <div className="flex items-center">
                                                                 <FaEye className="mr-2 text-green-900" />
-                                                                <span className="font-medium">{category.equipments_category_name}</span>
+                                                                <span className="font-bold truncate block max-w-[200px]">{category.equipments_category_name}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex space-x-2">
-                                                                <Button
-                                                                    type="primary"
-                                                                    icon={<EditOutlined />}
-                                                                    onClick={() => handleEdit(category.equipments_category_id)}
-                                                                    size="middle"
-                                                                    className="bg-green-900 hover:bg-lime-900"
-                                                                />
-                                                                <Button
-                                                                    danger
-                                                                    icon={<DeleteOutlined />}
-                                                                    onClick={() => handleDelete(category.equipments_category_id)}
-                                                                    size="middle"
-                                                                />
+                                                        <td className="px-4 py-6">
+                                                            <div className="flex justify-center space-x-2">
+                                                                <Tooltip title="Edit Category">
+                                                                    <Button
+                                                                        shape="circle"
+                                                                        icon={<EditOutlined />}
+                                                                        onClick={() => handleEdit(category.equipments_category_id)}
+                                                                        size="large"
+                                                                        className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                                                                    />
+                                                                </Tooltip>
+                                                                <Tooltip title="Delete Category">
+                                                                    <Button
+                                                                        shape="circle"
+                                                                        danger
+                                                                        icon={<DeleteOutlined />}
+                                                                        onClick={() => handleDelete(category.equipments_category_id)}
+                                                                        size="large"
+                                                                        className="shadow-lg flex items-center justify-center"
+                                                                    />
+                                                                </Tooltip>
                                                             </div>
                                                         </td>
                                                     </tr>
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={3} className="px-6 py-24 text-center">
+                                                <td colSpan={3} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={

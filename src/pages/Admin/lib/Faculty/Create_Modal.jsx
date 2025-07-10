@@ -22,9 +22,7 @@ const Create_Modal = ({
     // Get base URL from SecureStorage
     const baseUrl = SecureStorage.getLocalItem("url");
 
-    // Password validation regex
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*])[A-Za-z\d!@#$%^&*]*$/;
-    const passwordSingleSpecialCharRegex = /[!@#$%^&*]/g;
+    // Default password will be the school ID
 
 
 
@@ -110,11 +108,10 @@ const Create_Modal = ({
                     schoolId: values.users_school_id,
                     contact: values.users_contact_number,
                     userLevelId: values.users_role,
-                    password: values.users_password,
+                    password: values.users_school_id, // Default password is school ID
                     departmentId: selectedDepartment.departments_id,
                     pic: "",
                     suffix: values.users_suffix || "",
-                    birthdate: values.users_birthday || "",
                     title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
                 };
             } else {
@@ -127,10 +124,9 @@ const Create_Modal = ({
                     schoolId: values.users_school_id,
                     contact: values.users_contact_number,
                     userLevelId: values.users_role,
-                    password: values.users_password,
+                    password: values.users_school_id, // Default password is school ID
                     departmentId: selectedDepartment.departments_id,
                     suffix: values.users_suffix || "",
-                    birthdate: values.users_birthday || "",
                     title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null
                 };
             }
@@ -415,11 +411,15 @@ const Create_Modal = ({
                         name="users_email"
                         rules={[
                             { required: true, message: 'Please input email address!' },
-                            { type: 'email', message: 'Please enter a valid email address' }
+                            { type: 'email', message: 'Please enter a valid email address' },
+                            { 
+                                pattern: /^[a-zA-Z0-9._%+-]+@phinmaed\.com$/,
+                                message: 'Email must end with @phinmaed.com'
+                            }
                         ]}
                         className="mb-0"
                     >
-                        <Input placeholder="Enter email address" />
+                        <Input placeholder="Enter email address (e.g., chsi.valle.coc@phinmaed.com)" />
                     </Form.Item>
                     <Form.Item
                         label="Role"
@@ -440,8 +440,8 @@ const Create_Modal = ({
                 {/* Divider */}
                 <div className="border-b border-gray-200 mb-6"></div>
 
-                {/* Department, Password, Birthday */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                {/* Department */}
+                <div className="grid grid-cols-1 md:grid-cols-1 gap-4 mb-6">
                     <Form.Item
                         label="Department"
                         name="departments_name"
@@ -456,43 +456,13 @@ const Create_Modal = ({
                             ))}
                         </Select>
                     </Form.Item>
-                    <Form.Item
-                        label="Password"
-                        name="users_password"
-                        rules={[
-                            { required: true, message: 'Please input password!' },
-                            { pattern: passwordRegex, message: 'Password must meet requirements' },
-                            { validator: (_, value) => {
-                                const specialCharCount = (value.match(passwordSingleSpecialCharRegex) || []).length;
-                                return specialCharCount === 1 ? Promise.resolve() : Promise.reject('Password must contain exactly 1 special character');
-                            }}
-                        ]}
-                        tooltip="Password must contain at least 8 characters, including 1 uppercase, 1 lowercase, 1 number, and exactly 1 special character (!@#$%^&*)"
-                        className="mb-0"
-                    >
-                        <Input.Password placeholder="Enter password" />
-                    </Form.Item>
-                    <Form.Item
-                        label="Birthday"
-                        name="users_birthday"
-                        rules={[
-                            { required: true, message: 'Please select birthday!' },
-                            { validator: (_, value) => {
-                                if (!value) return Promise.resolve();
-                                const birthDate = new Date(value);
-                                const today = new Date();
-                                let age = today.getFullYear() - birthDate.getFullYear();
-                                const monthDiff = today.getMonth() - birthDate.getMonth();
-                                if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
-                                    age--;
-                                }
-                                return age >= 18 && age <= 100 ? Promise.resolve() : Promise.reject('Age must be between 18 and 100');
-                            }}
-                        ]}
-                        className="mb-0"
-                    >
-                        <Input type="date" max={new Date().toISOString().split('T')[0]} />
-                    </Form.Item>
+                </div>
+
+                {/* Info about default password */}
+                <div className="bg-blue-50 border border-blue-200 rounded-md p-3 mb-6">
+                    <p className="text-sm text-blue-800">
+                        <strong>Note:</strong> The default password will be set to the School ID. Users should change their password upon first login.
+                    </p>
                 </div>
 
                 {/* Button Row */}
@@ -506,7 +476,7 @@ const Create_Modal = ({
                         loading={loading}
                         className="bg-green-900 hover:bg-lime-900"
                     >
-                        Add Faculty
+                        submit
                     </Button>
                 </div>
             </Form>

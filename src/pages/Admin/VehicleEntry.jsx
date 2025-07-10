@@ -331,17 +331,6 @@ const VehicleEntry = () => {
         },
     ];
 
-    // Add tableStyle object before the return statement
-    const tableStyle = {
-        width: '100%',
-        borderCollapse: 'separate',
-        borderSpacing: 0,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24)',
-        borderRadius: '0.5rem',
-        overflow: 'hidden',
-        border: '1px solid #e5e7eb'
-    };
-
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
@@ -349,27 +338,27 @@ const VehicleEntry = () => {
                 <Sidebar />
             </div>
             
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-                <div className="p-[2.5rem] lg:p-12 min-h-screen">
+            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-4 sm:mb-8"
                     >
-                        <div className="mb-4 mt-20">
+                        <div className="mb-2 sm:mb-4 mt-10">
                            
-                            <h2 className="text-2xl font-bold text-green-900 mt-5">
-                                Vehicle Management
-                            </h2>
+                            {/* <h2 className="text-2xl font-bold text-green-900 mt-5">
+                                List Of Vehicles
+                            </h2> */}
                         </div>
                     </motion.div>
 
                     {/* Search and Filters */}
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="flex-1">
+                        <div className="flex flex-row flex-wrap md:flex-row md:items-center md:justify-between gap-2 md:gap-4 w-full">
+                            <div className="flex flex-row flex-1 gap-2 md:gap-4">
+                                <div className="flex-1 min-w-0">
                                     <Input
                                         placeholder="Search vehicles..."
                                         allowClear
@@ -380,19 +369,7 @@ const VehicleEntry = () => {
                                         className="w-full"
                                     />
                                 </div>
-                            </div>
-                            <div className="flex gap-2">
-                                {selectedVehicles.length > 0 && (
-                                    <Button
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => handleArchiveVehicle(selectedVehicles)}
-                                        size="large"
-                                    >
-                                        Archive Selected ({selectedVehicles.length})
-                                    </Button>
-                                )}
-                                <Tooltip title="Refresh data">
+                                <Tooltip title="Refresh data" className="flex-shrink-0">
                                     <Button
                                         icon={<ReloadOutlined />}
                                         onClick={handleRefresh}
@@ -408,7 +385,7 @@ const VehicleEntry = () => {
                                     <Button
                                         type="primary"
                                         size="large"
-                                        className="bg-lime-900 hover:bg-green-600"
+                                        className="bg-lime-900 hover:bg-green-600 flex-shrink-0"
                                     >
                                         <Space>
                                             Add Vehicle
@@ -417,21 +394,32 @@ const VehicleEntry = () => {
                                     </Button>
                                 </Dropdown>
                             </div>
+                            {selectedVehicles.length > 0 && (
+                                <Button
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => handleArchiveVehicle(selectedVehicles)}
+                                    size="large"
+                                    className="w-full md:w-auto"
+                                >
+                                    Archive Selected ({selectedVehicles.length})
+                                </Button>
+                            )}
                         </div>
                     </div>
 
                     {/* Table */}
-                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4]">
                         {loading ? (
                             <div className="flex justify-center items-center h-64">
                                 <div className="loader"></div>
                             </div>
                         ) : (
                             <>
-                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400" style={tableStyle}>
-                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     <input
                                                         type="checkbox"
@@ -443,12 +431,12 @@ const VehicleEntry = () => {
                                                                 setSelectedVehicles([]);
                                                             }
                                                         }}
-                                                        checked={selectedVehicles.length === filteredVehicles.length}
+                                                        checked={selectedVehicles.length === filteredVehicles.length && filteredVehicles.length > 0}
                                                     />
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_license')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('vehicle_license')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     License
                                                     {sortField === 'vehicle_license' && (
                                                         <span className="ml-1">
@@ -457,8 +445,8 @@ const VehicleEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_make_name')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('vehicle_make_name')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     Make
                                                     {sortField === 'vehicle_make_name' && (
                                                         <span className="ml-1">
@@ -467,8 +455,8 @@ const VehicleEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_category_name')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('vehicle_category_name')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     Category
                                                     {sortField === 'vehicle_category_name' && (
                                                         <span className="ml-1">
@@ -477,8 +465,8 @@ const VehicleEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('vehicle_model_name')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('vehicle_model_name')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     Model
                                                     {sortField === 'vehicle_model_name' && (
                                                         <span className="ml-1">
@@ -487,8 +475,8 @@ const VehicleEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('year')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('year')}>
+                                                <div className="flex items-center cursor-pointer">
                                                     Year
                                                     {sortField === 'year' && (
                                                         <span className="ml-1">
@@ -497,12 +485,12 @@ const VehicleEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Status
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Actions
                                                 </div>
@@ -516,9 +504,9 @@ const VehicleEntry = () => {
                                                 .map((vehicle) => (
                                                     <tr
                                                         key={vehicle.vehicle_id}
-                                                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                                        className="bg-white border-b border-gray-200 hover:bg-gray-50"
                                                     >
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             <input
                                                                 type="checkbox"
                                                                 className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
@@ -532,24 +520,23 @@ const VehicleEntry = () => {
                                                                 }}
                                                             />
                                                         </td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             <div className="flex items-center">
-                                                  
                                                                 <span className="font-medium">{vehicle.vehicle_license}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-4">{vehicle.vehicle_make_name}</td>
-                                                        <td className="px-6 py-4">{vehicle.vehicle_category_name}</td>
-                                                        <td className="px-6 py-4">{vehicle.vehicle_model_name}</td>
-                                                        <td className="px-6 py-4">{vehicle.year}</td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">{vehicle.vehicle_make_name}</td>
+                                                        <td className="px-4 py-4">{vehicle.vehicle_category_name}</td>
+                                                        <td className="px-4 py-4">{vehicle.vehicle_model_name}</td>
+                                                        <td className="px-4 py-4">{vehicle.year}</td>
+                                                        <td className="px-4 py-4">
                                                             <Tag 
                                                                 value={vehicle.status_availability_name || 'Unknown'} 
                                                                 severity={vehicle.status_availability_name?.toLowerCase() === 'available' ? 'success' : 'danger'}
                                                                 className="px-2 py-1 text-xs font-semibold"
                                                             />
                                                         </td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             <div className="flex space-x-2">
                                                                 <Button
                                                                     type="primary"
@@ -577,11 +564,11 @@ const VehicleEntry = () => {
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={8} className="px-6 py-24 text-center">
+                                                <td colSpan={8} className="px-4 py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={
-                                                            <span className="text-gray-500 dark:text-gray-400">
+                                                            <span className="text-gray-500">
                                                                 No vehicles found
                                                             </span>
                                                         }
@@ -593,7 +580,7 @@ const VehicleEntry = () => {
                                 </table>
 
                                 {/* Pagination */}
-                                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className="p-4 border-t border-gray-200">
                                     <Pagination
                                         current={currentPage}
                                         pageSize={pageSize}

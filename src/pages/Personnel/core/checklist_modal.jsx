@@ -422,7 +422,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         operation: 'updateTask',
         type: type,
         id: reservationChecklistId,
-        isActive: newValue === "1" ? 1 : 0
+        isActive: newValue === 1 ? 1 : 0
       }, {
         headers: {
           'Content-Type': 'application/json'

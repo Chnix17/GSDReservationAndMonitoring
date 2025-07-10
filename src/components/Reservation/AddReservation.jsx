@@ -11,7 +11,7 @@ import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
 import {  TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
-import {  Form, Input,  Select, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
+import {  Form, Input, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
 import { format } from 'date-fns';
 import { BsTools,  } from 'react-icons/bs';
 import { MdInventory } from 'react-icons/md';
@@ -54,9 +54,9 @@ const AddReservation = () => {
   const [selectedModels, setSelectedModels] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [vehicleCategories, setVehicleCategories] = useState([]);
-  const [equipmentCategories, setEquipmentCategories] = useState([]);
-  const [resourceType, setResourceType] = useState(''); // 'vehicle' or 'venue'
+  // const [vehicleCategories, setVehicleCategories] = useState([]);
+  // const [equipmentCategories, setEquipmentCategories] = useState([]);
+  const [resourceType, setResourceType] = useState(''); // 'vehicle', 'venue', or 'equipment'
   const [showEquipmentModal, setShowEquipmentModal] = useState(false);
   const [selectedVenueEquipment, setSelectedVenueEquipment] = useState({});
   const [equipmentQuantities, setEquipmentQuantities] = useState({});
@@ -70,7 +70,6 @@ const AddReservation = () => {
   });
 
   const [formData, setFormData] = useState({
-    resourceType: '',
     startDate: null,
     endDate: null,
     selectedTime: null,
@@ -148,36 +147,36 @@ useEffect(() => {
   console.log('Date change detected:', {
     startDate: formData.startDate,
     endDate: formData.endDate,
-    resourceType: formData.resourceType
+    resourceType: resourceType
   });
-}, [formData.startDate, formData.endDate, formData.resourceType]);
+}, [formData.startDate, formData.endDate, resourceType]);
   
 
-  useEffect(() => {
-    const fetchCategories = async () => {
-      try {
-        const vehicleResponse = await axios.post(
-          `${encryptedUrl}/fetch2.php`,
-          new URLSearchParams({ operation: 'fetchVehicleCategories' })
-        );
-        if (vehicleResponse.data.status === 'success') {
-          setVehicleCategories(vehicleResponse.data.data);
-        }
+  // useEffect(() => {
+  //   const fetchCategories = async () => {
+  //     try {
+  //       const vehicleResponse = await axios.post(
+  //         `${encryptedUrl}/fetch2.php`,
+  //         new URLSearchParams({ operation: 'fetchVehicleCategories' })
+  //       );
+  //       if (vehicleResponse.data.status === 'success') {
+  //         setVehicleCategories(vehicleResponse.data.data);
+  //       }
 
-        const equipResponse = await axios.post(
-          `${encryptedUrl}/fetch2.php`,
-          new URLSearchParams({ operation: 'fetchEquipmentCategories' })
-        );
-        if (equipResponse.data.status === 'success') {
-          setEquipmentCategories(equipResponse.data.data);
-        }
-      } catch (error) {
-        console.error('Error fetching categories:', error);
-      }
-    };
+  //       const equipResponse = await axios.post(
+  //         `${encryptedUrl}/fetch2.php`,
+  //         new URLSearchParams({ operation: 'fetchEquipmentCategories' })
+  //       );
+  //       if (equipResponse.data.status === 'success') {
+  //         setEquipmentCategories(equipResponse.data.data);
+  //       }
+  //     } catch (error) {
+  //       console.error('Error fetching categories:', error);
+  //     }
+  //   };
 
-    fetchCategories();
-  }, [encryptedUrl]);
+  //   fetchCategories();
+  // }, [encryptedUrl]);
 
 
 
@@ -188,11 +187,11 @@ const handleNext = async () => {
 
   // Add console logging for selected resources
   if (currentStep === 1) {
-    if (formData.resourceType === 'venue') {
+    if (resourceType === 'venue') {
       console.log('Selected Venue IDs:', formData.venues);
-    } else if (formData.resourceType === 'vehicle') {
+    } else if (resourceType === 'vehicle') {
       console.log('Selected Vehicle IDs:', selectedModels);
-    } else if (formData.resourceType === 'equipment') {
+    } else if (resourceType === 'equipment') {
       console.log('Selected Equipment IDs:', Object.entries(equipmentQuantities)
         .filter(([_, qty]) => qty > 0)
         .map(([id, qty]) => ({ id, quantity: qty }))
@@ -201,7 +200,7 @@ const handleNext = async () => {
   }
 
   // For equipment selection, ensure the state is updated before moving to review
-  if (currentStep === 3 && formData.resourceType === 'venue') {
+  if (currentStep === 3 && resourceType === 'venue') {
     // First update the equipment state
     const newEquipment = {};
     Object.entries(equipmentQuantities).forEach(([equipId, quantity]) => {
@@ -236,22 +235,22 @@ const handleNext = async () => {
 const validateCurrentStep = () => {
   switch (currentStep) {
     case 0:
-      if (!formData.resourceType) {
+      if (!resourceType) {
         toast.error('Please select a resource type (Venue, Vehicle, or Equipment)');
         return false;
       }
       return true;
 
     case 1:
-      if (formData.resourceType === 'venue' && (!formData.venues || formData.venues.length === 0)) {
+      if (resourceType === 'venue' && (!formData.venues || formData.venues.length === 0)) {
         toast.error('Please select at least one venue');
         return false;
       }
-      if (formData.resourceType === 'vehicle' && selectedModels.length === 0) {
+      if (resourceType === 'vehicle' && selectedModels.length === 0) {
         toast.error('Please select at least one vehicle');
         return false;
       }
-      if (formData.resourceType === 'equipment' && Object.keys(equipmentQuantities).length === 0) {
+      if (resourceType === 'equipment' && Object.keys(equipmentQuantities).length === 0) {
         toast.error('Please select at least one equipment item');
         return false;
       }
@@ -280,13 +279,13 @@ const validateCurrentStep = () => {
       return true;
 
     case 3:
-      if (formData.resourceType === 'venue') {
+      if (resourceType === 'venue') {
         if (!formData.eventTitle || !formData.description || formData.venues.length === 0) {
           toast.error('Please fill in all required venue reservation fields');
           return false;
         }
         return true;
-      } else if (formData.resourceType === 'equipment') {
+      } else if (resourceType === 'equipment') {
         if (!formData.eventTitle || !formData.description) {
           toast.error('Please fill in all required equipment reservation fields');
           return false;
@@ -323,7 +322,6 @@ const handleBack = () => {
     if (newStep === 0) {
       // Reset all form-related state
       setFormData({
-        resourceType: '',
         startDate: null,
         endDate: null,
         selectedTime: null,
@@ -402,9 +400,6 @@ const renderResources = () => (
   <ResourceVehicle
     selectedVehicles={selectedModels}
     onVehicleSelect={handleVehicleSelect}
-    vehicleCategories={vehicleCategories}
-    selectedCategory={selectedCategory}
-    onCategoryChange={setSelectedCategory}
     isMobile={isMobile}
   />
 );
@@ -444,7 +439,7 @@ const handleAddReservation = async () => {
     }
 
     // Resource type specific validation and submission
-    if (formData.resourceType === 'venue') {
+    if (resourceType === 'venue') {
       if (!formData.eventTitle || !formData.description || formData.venues.length === 0) {
         toast.error('Please fill in all required venue reservation fields');
         return false;
@@ -486,7 +481,7 @@ const handleAddReservation = async () => {
         throw new Error(response.data.message || 'Failed to submit venue reservation');
       }
 
-    } else if (formData.resourceType === 'vehicle') {
+    } else if (resourceType === 'vehicle') {
       if (!selectedModels || selectedModels.length === 0) {
         toast.error('Please select at least one vehicle');
         return false;
@@ -556,7 +551,7 @@ const handleAddReservation = async () => {
         throw new Error(response.data.message || 'Failed to submit vehicle reservation');
       }
 
-    } else if (formData.resourceType === 'equipment') {
+    } else if (resourceType === 'equipment') {
       // Equipment specific validation
       if (!formData.eventTitle || !formData.description) {
         toast.error('Please fill in all required equipment reservation fields');
@@ -626,7 +621,6 @@ const handleAddReservation = async () => {
 const resetForm = () => {
   // Reset all form-related state
   setFormData({
-    resourceType: '',
     startDate: null,
     endDate: null,
     selectedTime: null,
@@ -768,10 +762,9 @@ const renderStepContent = () => {
   const steps = {
     0: () => (
       <SelectType 
-        resourceType={formData.resourceType}
+        resourceType={resourceType}
         onResourceTypeSelect={(type) => {
           setResourceType(type);
-          setFormData(prev => ({ ...prev, resourceType: type }));
         }}
         onStepAdvance={() => {
           // Automatically advance to step 1 (resource selection)
@@ -782,13 +775,12 @@ const renderStepContent = () => {
     ),
     1: () => {
       // If no resource type is selected, show the resource type selection
-      if (!formData.resourceType) {
+      if (!resourceType) {
         return (
           <SelectType 
-            resourceType={formData.resourceType}
+            resourceType={resourceType}
             onResourceTypeSelect={(type) => {
               setResourceType(type);
-              setFormData(prev => ({ ...prev, resourceType: type }));
             }}
             onStepAdvance={() => {
               // Automatically advance to step 1 (resource selection)
@@ -798,11 +790,11 @@ const renderStepContent = () => {
         );
       }
       
-      if (formData.resourceType === 'venue') {
+      if (resourceType === 'venue') {
         return renderVenues();
-      } else if (formData.resourceType === 'vehicle') {
+      } else if (resourceType === 'vehicle') {
         return renderResources();
-      } else if (formData.resourceType === 'equipment') {
+      } else if (resourceType === 'equipment') {
         return renderEquipmentSelection();
       }
     },
@@ -837,15 +829,15 @@ const renderStepContent = () => {
             toast.success('Date and time selected successfully! Please fill in the required details.');
           }}
           selectedResource={{
-            type: formData.resourceType,
-            id: formData.resourceType === 'equipment' 
+            type: resourceType,
+            id: resourceType === 'equipment' 
               ? Object.entries(equipmentQuantities)
                   .filter(([_, qty]) => qty > 0)
                   .map(([id, qty]) => ({
                     id: parseInt(id),
                     quantity: qty
                   }))
-              : formData.resourceType === 'venue' 
+              : resourceType === 'venue' 
                 ? formData.venues
                 : selectedModels
           }}
@@ -867,7 +859,7 @@ const renderStepContent = () => {
 
 const renderEquipmentSelection = () => (
   <ResourceEquipment
-    equipmentCategories={equipmentCategories}
+    // equipmentCategories={equipmentCategories}
     selectedCategory={selectedCategory}
     onCategoryChange={setSelectedCategory}
     equipmentQuantities={equipmentQuantities}
@@ -877,7 +869,7 @@ const renderEquipmentSelection = () => (
         [equipId]: value
       }));
       
-      if (formData.resourceType === 'venue' || formData.resourceType === 'vehicle') {
+      if (resourceType === 'venue' || resourceType === 'vehicle') {
         setSelectedVenueEquipment(prev => {
           const newSelection = { ...prev };
           if (value <= 0) {
@@ -1079,12 +1071,12 @@ const handlePrintRequest = () => {
       <div style="margin-bottom: 20px;">
         <h3>Basic Information</h3>
         <p><strong>Reservation Name:</strong> ${formData.reservationName}</p>
-        <p><strong>Resource Type:</strong> ${formData.resourceType}</p>
+        <p><strong>Resource Type:</strong> ${resourceType}</p>
         <p><strong>Date:</strong> ${format(new Date(formData.startDate), 'PPP')} - ${format(new Date(formData.endDate), 'PPP')}</p>
         <p><strong>Time:</strong> ${format(new Date(formData.startDate), 'p')} - ${format(new Date(formData.endDate), 'p')}</p>
       </div>
 
-      ${formData.resourceType === 'venue' ? `
+      ${resourceType === 'venue' ? `
         // ...existing venue details code...
       ` : `
         <div style="margin-bottom: 20px;">
@@ -1142,10 +1134,10 @@ const fetchDrivers = useCallback(async (startDate, endDate) => {
 
 // Add useEffect to fetch drivers
 useEffect(() => {
-  if (formData.startDate && formData.endDate && formData.resourceType === 'vehicle') {
+  if (formData.startDate && formData.endDate && resourceType === 'vehicle') {
     fetchDrivers(formData.startDate, formData.endDate);
   }
-}, [formData.startDate, formData.endDate, formData.resourceType, fetchDrivers]);
+}, [formData.startDate, formData.endDate, resourceType, fetchDrivers]);
 
 // Add PassengerModal component
 const PassengerModal = ({ visible, onHide }) => {
@@ -1209,7 +1201,7 @@ const PassengerModal = ({ visible, onHide }) => {
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[60] flex items-center justify-center p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[1000] flex items-center justify-center p-4"
     >
       <motion.div
         initial={{ scale: 0.95, opacity: 0 }}
@@ -1313,14 +1305,14 @@ const EquipmentSelectionModal = ({
   showEquipmentModal,
   setShowEquipmentModal,
   equipment,
-  equipmentCategories,
   setEquipmentQuantities,
   setSelectedVenueEquipment,
   fetchEquipment,
   formData
 }) => {
   const [equipmentSearch, setEquipmentSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState('all');
+  // Remove selectedCategory state and all category filtering
+  // const [selectedCategory, setSelectedCategory] = useState('all');
   const [localState, setLocalState] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
@@ -1579,19 +1571,12 @@ const EquipmentSelectionModal = ({
   // Filter equipment by search term and category
   const filteredEquipment = Array.isArray(equipment) ? equipment.filter(item => {
     if (!item) return false;
-    
-    // Check available quantity using the correct field name from API response
     const availableQuantity = parseInt(item.available_quantity || item.available) || 0;
     if (availableQuantity <= 0) return false;
-    
     const searchTerm = equipmentSearch?.toLowerCase() || '';
     const itemName = (item.equip_name || item.equipment_name || '').toLowerCase();
-    const categoryId = (item.equipments_category_id || item.equipment_category_id || '').toString();
-    
     const matchesSearch = itemName.includes(searchTerm);
-    const matchesCategory = selectedCategory === 'all' || categoryId === selectedCategory.toString();
-    
-    return matchesSearch && matchesCategory;
+    return matchesSearch;
   }) : [];
 
   // Calculate pagination
@@ -1621,6 +1606,7 @@ const EquipmentSelectionModal = ({
       open={showEquipmentModal}
       onCancel={handleCancel}
       width={1000}
+      zIndex={1000}
       footer={[
         <AntButton key="cancel" onClick={handleCancel}>
           Cancel
@@ -1636,8 +1622,6 @@ const EquipmentSelectionModal = ({
       ]}
     >
       <div className="space-y-4">
-
-        
         {/* Header with Search and Controls */}
         <div className="bg-white rounded-lg shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -1654,8 +1638,7 @@ const EquipmentSelectionModal = ({
               </p>
             </div>
           </div>
-
-          {/* Search and Filter Controls */}
+          {/* Search Control Only */}
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4">
             <Input.Search
               placeholder="Search equipment by name..."
@@ -1664,20 +1647,6 @@ const EquipmentSelectionModal = ({
               value={equipmentSearch}
               className="w-full max-w-md"
               size="large"
-            />
-            
-            <Select
-              placeholder="Filter by category"
-              value={selectedCategory}
-              onChange={setSelectedCategory}
-              className="w-full sm:w-60"
-              options={[
-                { value: 'all', label: 'All Categories' },
-                ...equipmentCategories.map(cat => ({
-                  value: cat.equipment_category_id.toString(),
-                  label: cat.equipment_category_name
-                }))
-              ]}
             />
           </div>
         </div>
@@ -1977,7 +1946,7 @@ useEffect(() => {
 
 // Add separate useEffect to fetch equipment when dates change
 useEffect(() => {
-  if (formData.resourceType === 'equipment') {
+  if (resourceType === 'equipment') {
     // Get user level and department for COO Department Head check
     const userLevel = SecureStorage.getSessionItem('user_level');
     const userDepartment = SecureStorage.getSessionItem('Department Name');
@@ -1991,7 +1960,7 @@ useEffect(() => {
       fetchEquipment(formData.startDate, formData.endDate);
     }
   }
-}, [formData.startDate, formData.endDate, formData.resourceType, fetchEquipment]);
+}, [formData.startDate, formData.endDate, resourceType, fetchEquipment]);
 
 // Add useEffect to handle calendar data fetching
 useEffect(() => {
@@ -2015,7 +1984,7 @@ useEffect(() => {
         }
 
         // Fetch reservations based on resource type
-        if (formData.resourceType === 'equipment') {
+        if (resourceType === 'equipment') {
           const equipmentResponse = await axios.post(
             `${encryptedUrl}/user.php`,
             {
@@ -2041,8 +2010,8 @@ useEffect(() => {
             `${encryptedUrl}/user.php`,
             {
               operation: 'fetchReservations',
-              resourceType: formData.resourceType,
-              resourceIds: formData.resourceType === 'venue' 
+              resourceType: resourceType,
+              resourceIds: resourceType === 'venue' 
                 ? formData.venues 
                 : selectedModels
             }
@@ -2063,7 +2032,7 @@ useEffect(() => {
 
     fetchCalendarData();
   }
-}, [currentStep, formData.resourceType, formData.venues, selectedModels, equipmentQuantities, encryptedUrl]);
+}, [currentStep, resourceType, formData.venues, selectedModels, equipmentQuantities, encryptedUrl]);
 
 // Add useEffect to fetch equipment when modal opens
 useEffect(() => {
@@ -2086,11 +2055,19 @@ useEffect(() => {
   }
 }, [showEquipmentModal, fetchEquipment, equipment, formData.startDate, formData.endDate]);
 
+// Ensure formData.resourceType is always in sync with resourceType
+useEffect(() => {
+  setFormData(prev => ({
+    ...prev,
+    resourceType: resourceType
+  }));
+}, [resourceType]);
+
 return (
   <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
     {userLevel === '100' && <Sidebar className="hidden md:block" />}
     
-    <section className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3' : 'p-6'}`}>
+    <section className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3 pb-24' : 'p-6'}`}>
       <article className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-6xl'}`}>
         {/* Header */}
         <header className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
@@ -2113,18 +2090,18 @@ return (
         <section className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
           <StepIndicator 
             currentStep={currentStep} 
-            resourceType={formData.resourceType} 
+            resourceType={resourceType} 
             isMobile={isMobile}
           />
         </section>
 
         {/* Main Content */}
-        <section className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden${isMobile && currentStep !== 5 ? ' pb-24' : ''}`}>
           {/* Step Header */}
           <header className={`px-4 py-3 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
             <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>
               {currentStep === 0 && "Select Resource Type"}
-              {currentStep === 1 && `Select ${formData.resourceType === 'venue' ? 'Venue' : formData.resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
+              {currentStep === 1 && `Select ${resourceType === 'venue' ? 'Venue' : resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
               {currentStep === 2 && "Choose Date & Time"}
               {currentStep === 3 && "Enter Details"}
               {currentStep === 4 && "Review Reservation"}
@@ -2139,30 +2116,30 @@ return (
             </div>
           </article>
 
-          {/* Step Navigation */}
-          {currentStep !== 5 && (
-            <footer className={`px-4 py-3 bg-gray-50 border-t border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
-              <nav className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-between items-center'}`}>
-                <div className={`flex ${isMobile ? 'flex-col gap-2' : 'gap-2'}`}>
+          {/* Step Navigation - Desktop */}
+          {currentStep !== 5 && !isMobile && (
+            <footer className="px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <nav className="flex justify-between items-center">
+                <div className="flex gap-2">
                   <AntButton
                     type="default"
                     icon={<i className="pi pi-arrow-left" />}
                     onClick={handleBack}
-                    size={isMobile ? "middle" : "large"}
-                    className={`p-button-outlined ${isMobile ? 'w-full' : ''}`}
+                    size="large"
+                    className="p-button-outlined"
                     disabled={currentStep === 0}
                   >
-                    {isMobile ? 'Back' : 'Previous'}
+                    Previous
                   </AntButton>
                   {currentStep > 0 && (
                     <AntButton
                       type="default"
                       icon={<i className="pi pi-refresh" />}
                       onClick={resetForm}
-                      size={isMobile ? "middle" : "large"}
-                      className={`p-button-outlined ${isMobile ? 'w-full' : ''} border-orange-500 text-orange-600 hover:bg-orange-50`}
+                      size="large"
+                      className="p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50"
                     >
-                      {isMobile ? 'Reset' : 'Reset Form'}
+                      Reset Form
                     </AntButton>
                   )}
                 </div>
@@ -2171,8 +2148,8 @@ return (
                     type="primary"
                     icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
                     onClick={handleAddReservation}
-                    size={isMobile ? "middle" : "large"}
-                    className={`${isMobile ? 'w-full' : ''} p-button-success bg-green-500 hover:bg-green-600 border-green-500`}
+                    size="large"
+                    className="p-button-success bg-green-500 hover:bg-green-600 border-green-500"
                     disabled={loading}
                   >
                     {loading ? 'Submitting...' : 'Submit'}
@@ -2182,8 +2159,8 @@ return (
                     type="primary"
                     icon={<i className="pi pi-arrow-right" />}
                     onClick={handleNext}
-                    size={isMobile ? "middle" : "large"}
-                    className={`${isMobile ? 'w-full' : ''} p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white`}
+                    size="large"
+                    className="p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white"
                   >
                     Next
                   </AntButton>
@@ -2209,6 +2186,59 @@ return (
       }}
     />
 
+    {/* Fixed Mobile Navigation */}
+    {currentStep !== 5 && isMobile && (
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 p-3">
+        <nav className="flex flex-col gap-2">
+          <div className="flex gap-2">
+            <AntButton
+              type="default"
+              icon={<i className="pi pi-arrow-left" />}
+              onClick={handleBack}
+              size="middle"
+              className="flex-1 p-button-outlined"
+              disabled={currentStep === 0}
+            >
+              Back
+            </AntButton>
+            {currentStep > 0 && (
+              <AntButton
+                type="default"
+                icon={<i className="pi pi-refresh" />}
+                onClick={resetForm}
+                size="middle"
+                className="flex-1 p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50"
+              >
+                Reset
+              </AntButton>
+            )}
+          </div>
+          {currentStep === 4 ? (
+            <AntButton
+              type="primary"
+              icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
+              onClick={handleAddReservation}
+              size="middle"
+              className="w-full p-button-success bg-green-500 hover:bg-green-600 border-green-500"
+              disabled={loading}
+            >
+              {loading ? 'Submitting...' : 'Submit'}
+            </AntButton>
+          ) : (
+            <AntButton
+              type="primary"
+              icon={<i className="pi pi-arrow-right" />}
+              onClick={handleNext}
+              size="middle"
+              className="w-full p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white"
+            >
+              Next
+            </AntButton>
+          )}
+        </nav>
+      </div>
+    )}
+
     {/* Modals */}
     <PassengerModal
       visible={showPassengerModal}
@@ -2220,7 +2250,6 @@ return (
       showEquipmentModal={showEquipmentModal}
       setShowEquipmentModal={setShowEquipmentModal}
       equipment={equipment}
-      equipmentCategories={equipmentCategories}
       setEquipmentQuantities={setEquipmentQuantities}
       setSelectedVenueEquipment={setSelectedVenueEquipment}
       fetchEquipment={fetchEquipment}
@@ -2233,6 +2262,3 @@ return (
 
 
 export default AddReservation;
-
-
-

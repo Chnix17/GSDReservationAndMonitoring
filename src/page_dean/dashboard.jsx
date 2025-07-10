@@ -576,83 +576,71 @@ const Dashboard = () => {
                 {approvalRequests.length} Pending
               </div>
             </div>
-            <div className="p-3 md:p-4">
-              <div className="overflow-x-auto -mx-3 md:-mx-4">
-                <div className="inline-block min-w-full align-middle">
-                  <div className="overflow-hidden">
-                    <table className="min-w-full divide-y divide-gray-200">
-                      <thead className="bg-gray-50/50">
-                        <tr>
-                          <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Title</th>
-                          <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Requestor</th>
-                          <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Schedule</th>
-                          <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Status</th>
-                          <th scope="col" className="px-3 md:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider whitespace-nowrap">Action</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white/50 divide-y divide-gray-200">
-                        {paginatedApproval.length > 0 ? (
-                          paginatedApproval.map((request) => (
-                            <tr key={request.reservation_id} className="hover:bg-gray-50/50 transition-colors duration-150">
-                              <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-medium">{request.reservation_title}</div>
-                              </td>
-                              <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="font-medium">{request.requester_name}</div>
-                              </td>
-                              <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                <div className="space-y-0.5">
-                                  <div className="font-medium">
-                                    {format(new Date(request.reservation_start_date), 'MMM dd, yyyy h:mm a')} - 
-                                    {format(new Date(request.reservation_end_date), 'h:mm a')}
-                                  </div>
-                                  <div className="text-xs text-gray-500">
-                                    Duration: {calculateDuration(request.reservation_start_date, request.reservation_end_date)}
-                                  </div>
-                                </div>
-                              </td>
-                              <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap">
-                                <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
-                                  Pending
-                                </span>
-                              </td>
-                              <td className="px-3 md:px-6 py-3 md:py-4 whitespace-nowrap text-sm text-gray-900">
-                                <button
-                                  onClick={() => handleViewDetails(request)}
-                                  className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-lime-700 bg-lime-100 hover:bg-lime-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lime-500"
-                                >
-                                  <FiEye className="mr-1" /> View
-                                </button>
-                              </td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={5} className="px-6 py-24 text-center">
-                              <Empty
-                                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                description={
-                                  <span className="text-gray-500 dark:text-gray-400">
-                                    No pending approval requests
-                                  </span>
-                                }
-                              />
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                    <div className="flex justify-center mt-4">
-                      <Pagination
-                        current={approvalPage}
-                        pageSize={pageSize}
-                        total={approvalRequests.length}
-                        onChange={setApprovalPage}
-                        showSizeChanger={false}
-                      />
-                    </div>
-                  </div>
-                </div>
+            <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4]">
+              <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
+                  <tr>
+                    <th scope="col" className="px-4 py-4 whitespace-nowrap text-xs md:text-sm font-medium uppercase tracking-wider">Title</th>
+                    <th scope="col" className="px-4 py-4 whitespace-nowrap text-xs md:text-sm font-medium uppercase tracking-wider">Requestor</th>
+                    <th scope="col" className="px-4 py-4 whitespace-nowrap text-xs md:text-sm font-medium uppercase tracking-wider">Schedule</th>
+                    <th scope="col" className="px-4 py-4 whitespace-nowrap text-xs md:text-sm font-medium uppercase tracking-wider">Status</th>
+                    <th scope="col" className="px-4 py-4 whitespace-nowrap text-xs md:text-sm font-medium uppercase tracking-wider">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedApproval.length > 0 ? (
+                    paginatedApproval.map((request) => (
+                      <tr key={request.reservation_id} className="bg-white border-b last:border-b-0 border-gray-200 hover:bg-gray-50/50 transition-colors duration-150">
+                        <td className="px-4 py-6 font-medium max-w-[140px] truncate">{request.reservation_title}</td>
+                        <td className="px-4 py-6 font-medium">{request.requester_name}</td>
+                        <td className="px-4 py-6">
+                          <div className="font-medium">
+                            {format(new Date(request.reservation_start_date), 'MMM dd, yyyy h:mm a')} - 
+                            {format(new Date(request.reservation_end_date), 'h:mm a')}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            Duration: {calculateDuration(request.reservation_start_date, request.reservation_end_date)}
+                          </div>
+                        </td>
+                        <td className="px-4 py-6">
+                          <span className="inline-flex items-center px-6 py-2 rounded-full text-base font-semibold bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200">
+                            Pending
+                          </span>
+                        </td>
+                        <td className="px-4 py-6">
+                          <button
+                            onClick={() => handleViewDetails(request)}
+                            className="inline-flex items-center px-2.5 py-1.5 border border-transparent text-xs font-medium rounded text-lime-700 bg-lime-100 hover:bg-lime-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-lime-500"
+                          >
+                            <FiEye className="mr-1" /> View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={5} className="px-2 md:px-6 py-12 md:py-24 text-center">
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description={
+                            <span className="text-gray-500 dark:text-gray-400">
+                              No pending approval requests
+                            </span>
+                          }
+                        />
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              <div className="flex justify-center mt-4">
+                <Pagination
+                  current={approvalPage}
+                  pageSize={pageSize}
+                  total={approvalRequests.length}
+                  onChange={setApprovalPage}
+                  showSizeChanger={false}
+                />
               </div>
             </div>
           </motion.div>

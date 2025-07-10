@@ -37,6 +37,7 @@ const ProtectedRoute = ({ children, allowedRoles, requiredDepartment }) => {
         if (userRole === 'Personnel') return '/personnelDashboard';
         if (userRole === 'Dean' || userRole === 'Secretary' || userRole === 'Department Head') return '/Department/Dashboard';
         if (userRole === 'Faculty/Staff' || userRole === 'School Head' || userRole === 'SBO PRESIDENT' || userRole === 'CSG PRESIDENT') return '/Faculty/Dashboard';
+        if (userRole === 'Driver') return '/Driver/Dashboard';
         return '/gsd';
     };
 

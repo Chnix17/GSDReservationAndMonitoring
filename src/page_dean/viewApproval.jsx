@@ -5,7 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SecureStorage } from '../utils/encryption';
 import { useNavigate } from 'react-router-dom';
 import { FiEye,  } from 'react-icons/fi';
-import { Button, Tooltip, Empty, Input, Select, Pagination } from 'antd';
+import { Button, Tooltip, Empty, Input, Pagination} from 'antd';
 import { Box, Typography, RadioGroup, FormControlLabel, Radio as MuiRadio, TextField, Modal as MuiModal, Button as MuiButton } from '@mui/material';
 import ReservationDetails from './component/Reservation_Details';
 import ReservationDetailsApproval from './component/Reservation_Details Approval';
@@ -17,7 +17,6 @@ const ViewApproval = () => {
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [departmentId, setDepartmentId] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [filterStatus, setFilterStatus] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [sortField, setSortField] = useState('id');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -27,13 +26,6 @@ const ViewApproval = () => {
   const [declineReason, setDeclineReason] = useState('');
   const [customReason, setCustomReason] = useState('');
   const [approvalModalRequest, setApprovalModalRequest] = useState(null);
-
-  const filterOptions = [
-    { value: 'all', label: 'All Requests' },
-    { value: 'pending', label: 'Pending' },
-    { value: 'approved', label: 'Approved' },
-    { value: 'declined', label: 'Declined' }
-  ];
 
   const declineReasons = [
     'Schedule conflict with existing reservation',
@@ -273,9 +265,7 @@ const ViewApproval = () => {
       (request.reservation_description || '').toLowerCase().includes(searchQuery.toLowerCase())
     );
     
-    const matchesStatus = filterStatus === 'all' || request.status === filterStatus;
-
-    return matchesSearch && matchesStatus;
+    return matchesSearch;
   });
 
   const sortedRequests = [...filteredRequests].sort((a, b) => {
@@ -305,8 +295,8 @@ const ViewApproval = () => {
       <div className="flex-none">
         <DeanSidebar />
       </div>
-      <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto mt-20">
+        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen">
           <motion.div 
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
@@ -314,38 +304,26 @@ const ViewApproval = () => {
             className="mb-8"
           >
             <div className="mb-4 mt-20">
-              <h2 className="text-2xl font-bold text-green-900 mt-5">
+              {/* <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Approval Requests
-              </h2>
+              </h2> */}
             </div>
           </motion.div>
 
           <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex flex-col md:flex-row gap-4 flex-1">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search requests..."
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    size="large"
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
-                <div className="w-full md:w-48">
-                  <Select
-                    placeholder="Filter by status"
-                    value={filterStatus}
-                    onChange={setFilterStatus}
-                    options={filterOptions}
-                    className="w-full"
-                    size="large"
-                  />
-                </div>
+            <div className="flex flex-row items-center gap-2 w-full">
+              <div className="flex-grow">
+                <Input
+                  placeholder="Search requests..."
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  size="large"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full"
+                />
               </div>
-              <div className="flex gap-2">
+              <div>
                 <Tooltip title="Refresh data">
                   <Button
                     icon={<ReloadOutlined />}
@@ -364,11 +342,11 @@ const ViewApproval = () => {
               </div>
             ) : (
               <>
-                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                  <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                  <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                     <tr>
-                      <th scope="col" className="px-6 py-3" onClick={() => handleSort('id')}>
-                        <div className="flex items-center cursor-pointer hover:text-gray-900">
+                      <th scope="col" className="px-4 py-4" onClick={() => handleSort('id')}>
+                        <div className="flex items-center cursor-pointer">
                           ID
                           {sortField === 'id' && (
                             <span className="ml-1">
@@ -377,13 +355,13 @@ const ViewApproval = () => {
                           )}
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-4 py-4">
                         <div className="flex items-center">
                           Title
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3" onClick={() => handleSort('createdAt')}>
-                        <div className="flex items-center cursor-pointer hover:text-gray-900">
+                      <th scope="col" className="px-4 py-4 hidden md:table-cell" onClick={() => handleSort('createdAt')}>
+                        <div className="flex items-center cursor-pointer">
                           Created At
                           {sortField === 'createdAt' && (
                             <span className="ml-1">
@@ -392,8 +370,8 @@ const ViewApproval = () => {
                           )}
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3" onClick={() => handleSort('startDate')}>
-                        <div className="flex items-center cursor-pointer hover:text-gray-900">
+                      <th scope="col" className="px-4 py-4 hidden md:table-cell" onClick={() => handleSort('startDate')}>
+                        <div className="flex items-center cursor-pointer">
                           Start Date
                           {sortField === 'startDate' && (
                             <span className="ml-1">
@@ -402,12 +380,12 @@ const ViewApproval = () => {
                           )}
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-4 py-4 hidden md:table-cell">
                         <div className="flex items-center">
                           Requester
                         </div>
                       </th>
-                      <th scope="col" className="px-6 py-3">
+                      <th scope="col" className="px-4 py-4">
                         <div className="flex items-center">
                           Actions
                         </div>
@@ -421,29 +399,27 @@ const ViewApproval = () => {
                         .map((request) => (
                           <tr
                             key={request.reservation_id}
-                            className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                            className="bg-white border-b last:border-b-0 border-gray-200"
                           >
-                            <td className="px-6 py-4">{request.reservation_id}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex items-center">
-                                <span className="font-medium">{request.reservation_title}</span>
-                              </div>
+                            <td className="px-4 py-6 font-medium">{request.reservation_id}</td>
+                            <td className="px-4 py-6 font-bold">
+                              <span className="truncate block max-w-[140px]">{request.reservation_title}</span>
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 py-6 hidden md:table-cell">
                               {format(new Date(request.reservation_created_at), 'MMM dd, yyyy h:mm a')}
                             </td>
-                            <td className="px-6 py-4">
+                            <td className="px-4 py-6 hidden md:table-cell">
                               {format(new Date(request.reservation_start_date), 'MMM dd, yyyy h:mm a')}
                             </td>
-                            <td className="px-6 py-4">{request.requester_name}</td>
-                            <td className="px-6 py-4">
-                              <div className="flex space-x-2">
+                            <td className="px-4 py-6 hidden md:table-cell">{request.requester_name}</td>
+                            <td className="px-4 py-6">
+                              <div className="flex justify-center">
                                 <Button
                                   type="primary"
                                   icon={<FiEye />}
                                   onClick={() => request.fromApprovalByDept ? handleViewDetails(request) : handleViewApprovalDetails(request)}
                                   size="middle"
-                                  className="bg-blue-600 hover:bg-blue-700"
+                                  className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center"
                                 />
                               </div>
                             </td>
@@ -451,7 +427,7 @@ const ViewApproval = () => {
                         ))
                     ) : (
                       <tr>
-                        <td colSpan={7} className="px-6 py-24 text-center">
+                        <td colSpan={7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                           <Empty
                             image={Empty.PRESENTED_IMAGE_SIMPLE}
                             description={

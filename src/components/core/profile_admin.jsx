@@ -36,7 +36,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   const fetchUserData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const userId = SecureStorage.getSessionItem('user_id') || '42'; // Use the stored user ID or default to 42
+      const userId = SecureStorage.getSessionItem('user_id'); // Use the stored user ID or default to 42
       
       console.log('Fetching user data for ID:', userId);
       
@@ -628,43 +628,49 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-2 sm:p-4">
         <ToastContainer />
         <motion.div 
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          exit={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 20, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden flex flex-col"
+          className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col"
         >
           {/* Header */}
-          <div className="px-8 py-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center bg-gradient-to-r from-green-50 to-green-100 dark:from-gray-800 dark:to-gray-700">
-            <div className="flex items-center space-x-3">
-              <div className="bg-green-100 dark:bg-green-800/30 p-2 rounded-lg">
-                <FaUser className="text-green-600 dark:text-green-400" size={22} />
+          <div className="relative px-6 sm:px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-br from-green-500 via-green-600 to-green-700 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
+                  <FaUser className="text-white" size={24} />
+                </div>
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-bold text-white">My Profile</h2>
+                  <p className="text-green-100 text-sm hidden sm:block">Manage your account settings</p>
+                </div>
               </div>
-              <h2 className="text-2xl font-bold text-gray-800 dark:text-white">My Profile</h2>
+              <button 
+                onClick={onClose}
+                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-all duration-200"
+              >
+                <FaTimes size={20} />
+              </button>
             </div>
-            <button 
-              onClick={onClose}
-              className="text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 bg-white/80 dark:bg-gray-700/80 p-2 rounded-full transition-all hover:bg-white dark:hover:bg-gray-700"
-            >
-              <FaTimes size={18} />
-            </button>
           </div>
           
           {/* Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700 px-8">
+          <div className="flex border-b border-gray-200 dark:border-gray-700 px-4 sm:px-8 bg-gray-50 dark:bg-gray-800/50">
             <button
-              className={`px-5 py-4 text-sm font-medium flex items-center space-x-2 transition-all relative ${
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-4 text-sm font-medium flex items-center justify-center sm:justify-start space-x-2 transition-all relative ${
                 activeTab === 'profile' 
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400'
+                  ? 'text-green-600 dark:text-green-400 bg-white dark:bg-gray-800 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-white/50 dark:hover:bg-gray-800/50'
               }`}
               onClick={() => setActiveTab('profile')}
             >
               <FaIdCard size={16} />
-              <span>Profile</span>
+              <span className="hidden sm:inline">Profile</span>
+              <span className="sm:hidden">Info</span>
               {activeTab === 'profile' && (
                 <motion.div 
                   layoutId="tab-indicator"
@@ -674,10 +680,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
               )}
             </button>
             <button
-              className={`px-5 py-4 text-sm font-medium flex items-center space-x-2 transition-all relative ${
+              className={`flex-1 sm:flex-none px-4 sm:px-6 py-4 text-sm font-medium flex items-center justify-center sm:justify-start space-x-2 transition-all relative ${
                 activeTab === 'security' 
-                  ? 'text-green-600 dark:text-green-400'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-green-600 dark:hover:text-green-400'
+                  ? 'text-green-600 dark:text-green-400 bg-white dark:bg-gray-800 shadow-sm'
+                  : 'text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-white/50 dark:hover:bg-gray-800/50'
               }`}
               onClick={() => setActiveTab('security')}
             >
@@ -694,7 +700,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           </div>
           
           {/* Content */}
-          <div className="p-8 flex-1 overflow-y-auto bg-white dark:bg-gray-800">
+          <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
             {/* Profile Tab */}
             {activeTab === 'profile' && (
               <motion.div 

@@ -41,6 +41,64 @@
   }
 }
 
+/* Responsive Table Styles */
+@media screen and (max-width: 768px) {
+  .responsive-table {
+    font-size: 12px;
+  }
+  
+  .responsive-table th,
+  .responsive-table td {
+    padding: 8px 4px;
+  }
+  
+  .responsive-table th {
+    font-size: 11px;
+  }
+  
+  .responsive-table .ant-tag {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  .responsive-table .ant-btn {
+    font-size: 11px;
+    padding: 4px 8px;
+    height: auto;
+  }
+}
+
+@media screen and (max-width: 480px) {
+  .responsive-table {
+    font-size: 11px;
+  }
+  
+  .responsive-table th,
+  .responsive-table td {
+    padding: 6px 2px;
+  }
+  
+  .responsive-table th {
+    font-size: 10px;
+  }
+  
+  .responsive-table .ant-tag {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+  
+  .responsive-table .ant-btn {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+  
+  /* Hide less important columns on very small screens */
+  .responsive-table th:nth-child(2),
+  .responsive-table td:nth-child(2) {
+    display: none;
+  }
+}
+
 /* Enhanced scrollbar for better mobile experience */
 ::-webkit-scrollbar {
   width: 6px;

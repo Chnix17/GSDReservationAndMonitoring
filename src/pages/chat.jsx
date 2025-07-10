@@ -229,6 +229,7 @@ const Chat = () => {
   const [viewMode, setViewMode] = useState('list');
   const [conversationSearch, setConversationSearch] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
 
   const wsRef = useRef(null);
 
@@ -334,19 +335,9 @@ const Chat = () => {
             (msg.receiverId === currentUser.id && msg.senderId === activeConversation.id)
           );
           
-          setMessages(prev => {
-            // Merge existing messages with new ones, avoiding duplicates
-            const existingIds = new Set(prev.map(msg => msg.id));
-            const newMessages = conversationMessages.filter(msg => !existingIds.has(msg.id));
-            
-            // Only update state if we have new messages
-            if (newMessages.length === 0) return prev;
-            
-            // Return combined messages sorted by timestamp
-            return [...prev, ...newMessages].sort((a, b) => 
-              new Date(a.timestamp) - new Date(b.timestamp)
-            );
-          });
+          setMessages(
+            conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+          );
         }
 
         // Update conversations list
@@ -434,9 +425,7 @@ const Chat = () => {
                 </div>
                 <div>
                   <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
-                  <p className="text-sm text-white/80 flex items-center gap-1">
-                    {activeConversation?.lastMessage}
-                  </p>
+                 
                 </div>
               </div>
             </div>
@@ -1023,6 +1012,7 @@ const Chat = () => {
   const handleConversationClick = (conversation) => {
     setActiveConversation(conversation);
     setViewMode('conversation');
+    setShouldAutoScroll(true); // Trigger auto-scroll when conversation opens
   };
 
   // Add a handler for back button click
@@ -1122,6 +1112,17 @@ const Chat = () => {
     // Clean up on unmount or when conversation changes
     return () => clearInterval(pollingInterval);
   }, [activeConversation, currentUser.id, memorizeFetchAllChats]);
+
+  // Auto-scroll to bottom only when conversation is first opened
+  useEffect(() => {
+    if (shouldAutoScroll && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+      setShouldAutoScroll(false); // Reset the flag after scrolling
+    }
+  }, [shouldAutoScroll, messages]);
 
   // Add error handling component
   const ErrorMessage = ({ message, onClose }) => (

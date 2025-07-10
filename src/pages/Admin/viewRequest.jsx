@@ -81,7 +81,7 @@ const ReservationRequests = () => {
     const updateStats = useCallback((data) => {
         const computed = {
           total:    data.length,
-          pending:  data.filter(item => item.active === "0" || item.active == null).length,
+          pending:  data.filter(item => item.active === 0 || item.active == null).length,
           approved: data.filter(item => item.reservation_status === "Approved").length,
           declined: data.filter(item => item.reservation_status === "Declined").length
         };
@@ -135,10 +135,12 @@ const ReservationRequests = () => {
         }
     }, [updateStats, encryptedUrl]); 
 
-    const fetchVenueSchedules = async () => {
+    const fetchVenueSchedules = async (startDateTime, endDateTime) => {
         try {
-            const response = await axios.post(`${encryptedUrl}/user.php`, {
-                operation: 'fetchVenueScheduled'
+            const response = await axios.post(`${encryptedUrl}/Department_Dean.php`, {
+                operation: 'fetchVenueScheduledCheck',
+                startDateTime,
+                endDateTime
             }, {
                 headers: {
                     'Content-Type': 'application/json'
@@ -214,40 +216,62 @@ const ReservationRequests = () => {
 
                 // Fetch venue schedules for class schedule check - handle errors gracefully
                 try {
-                    scheduledVenues = await fetchVenueSchedules();
+                    scheduledVenues = await fetchVenueSchedules(details.reservation_start_date, details.reservation_end_date);
                     console.log('Venue schedules fetched:', scheduledVenues);
                 } catch (venueError) {
                     console.error('Error fetching venue schedules:', venueError);
                     // Continue without venue schedules
                 }
 
-                // Mark venues that have a class schedule
+                // Mark venues that have a class schedule (conflict)
                 try {
-                    venuesWithClassSchedule = details.venues?.map(venue => ({
-                        ...venue,
-                        hasClassSchedule: scheduledVenues.some(sv => sv.ven_id === venue.venue_id)
-                    })) || [];
+                    venuesWithClassSchedule = (details.venues || []).map(venue => {
+                        // Find all class schedules for this venue
+                        const classSchedules = scheduledVenues.filter(sv => String(sv.ven_id) === String(venue.venue_id));
+                        // Check for any overlap by day and time
+                        const reservationStart = new Date(details.reservation_start_date);
+                        const reservationEnd = new Date(details.reservation_end_date);
+                        const reservationDay = reservationStart.toLocaleString('en-US', { weekday: 'long' });
+                        // Helper to check time overlap
+                        function timeOverlap(start1, end1, start2, end2) {
+                            return (start1 < end2 && end1 > start2);
+                        }
+                        // Check if any class schedule overlaps with reservation
+                        const hasClassScheduleConflict = classSchedules.some(cs => {
+                            if (cs.day_of_week !== reservationDay) return false;
+                            // Parse class schedule times
+                            const [csStartHour, csStartMin] = cs.start_time.split(':').map(Number);
+                            const [csEndHour, csEndMin] = cs.end_time.split(':').map(Number);
+                            // Build Date objects for the reservation day
+                            const classStart = new Date(reservationStart);
+                            classStart.setHours(csStartHour, csStartMin, 0, 0);
+                            const classEnd = new Date(reservationStart);
+                            classEnd.setHours(csEndHour, csEndMin, 0, 0);
+                            // Compare with reservation times (on the same day)
+                            return timeOverlap(reservationStart, reservationEnd, classStart, classEnd);
+                        });
+                        return {
+                            ...venue,
+                            isAvailable: !hasClassScheduleConflict
+                        };
+                    });
                 } catch (mappingError) {
                     console.error('Error mapping venues with class schedule:', mappingError);
-                    venuesWithClassSchedule = details.venues || [];
+                    venuesWithClassSchedule = (details.venues || []).map(v => ({ ...v, isAvailable: true }));
                 }
-
-                // If active === "1" and any venue has a class schedule, set a flag for registrar approval required
-                const registrarApprovalRequired = details.active === "1" && venuesWithClassSchedule.some(v => v.hasClassSchedule);
 
                 // Combine the details with availability data and class schedule info
                 const detailsWithAvailability = {
                     ...details,
                     venues: venuesWithClassSchedule,
-                    availabilityData: availabilityData,
-                    registrarApprovalRequired
+                    availabilityData: availabilityData
                 };
 
                 console.log('Setting reservation details:', detailsWithAvailability);
                 setReservationDetails(detailsWithAvailability);
                 setCurrentRequest({
                     reservation_id: details.reservation_id,
-                    isUnderReview: details.active === "0" || details.active === "1"
+                    isUnderReview: details.active === 0 || details.active === 1
                 });
                 setIsDetailModalOpen(true);
             } else {
@@ -612,7 +636,7 @@ const ReservationRequests = () => {
     
             if (response.data?.status === 'success') {
                 // await autoDeclineExpired(response.data.data);
-                const pendingRequests = response.data.data.filter(request => request.active === "0" || request.active == null);
+                const pendingRequests = response.data.data.filter(request => request.active === 0 || request.active == null);
                 setReservations(pendingRequests);
                 updateStats(response.data.data);
             }
@@ -630,7 +654,7 @@ const ReservationRequests = () => {
 
             if (response.data?.status === 'success') {
                 // Filter for active === "1"
-                const reviewRequests = response.data.data.filter(request => request.active === "1");
+                const reviewRequests = response.data.data.filter(request => request.active === 1);
                 setReservations(reviewRequests);
                 updateStats(response.data.data);
             }
@@ -698,7 +722,7 @@ const ReservationRequests = () => {
                 render: (text, record) => (
                     <div className="flex items-center">
                         {getIconForType(record.type)}
-                        <span className="ml-2 font-medium">{text || record.reservation_destination || 'Untitled'}</span>
+                        <span className="ml-2 font-medium truncate block max-w-[140px]">{text || record.reservation_destination || 'Untitled'}</span>
                     </div>
                 ),
             },
@@ -707,7 +731,11 @@ const ReservationRequests = () => {
                 dataIndex: 'reservation_description',
                 key: 'reservation_description',
                 ellipsis: true,
-                width: '20%',
+                render: (text) => (
+                    <span className="truncate block max-w-[200px]" title={text}>
+                        {text}
+                    </span>
+                ),
             },
             {
                 title: 'Start Date',
@@ -715,7 +743,11 @@ const ReservationRequests = () => {
                 key: 'reservation_start_date',
                 sorter: true,
                 sortOrder: sortField === 'reservation_start_date' ? sortOrder : null,
-                render: (text) => new Date(text).toLocaleString(),
+                render: (text) => (
+                    <span className="whitespace-nowrap">
+                        {new Date(text).toLocaleDateString()}
+                    </span>
+                ),
             },
             {
                 title: 'End Date',
@@ -723,7 +755,11 @@ const ReservationRequests = () => {
                 key: 'reservation_end_date',
                 sorter: true,
                 sortOrder: sortField === 'reservation_end_date' ? sortOrder : null,
-                render: (text) => new Date(text).toLocaleString(),
+                render: (text) => (
+                    <span className="whitespace-nowrap">
+                        {new Date(text).toLocaleDateString()}
+                    </span>
+                ),
             },
             {
                 title: 'Requester',
@@ -731,6 +767,11 @@ const ReservationRequests = () => {
                 key: 'requester_name',
                 sorter: true,
                 sortOrder: sortField === 'requester_name' ? sortOrder : null,
+                render: (text) => (
+                    <span className="truncate block max-w-[120px]" title={text}>
+                        {text}
+                    </span>
+                ),
             },
             {
                 title: 'Created At',
@@ -738,7 +779,11 @@ const ReservationRequests = () => {
                 key: 'reservation_created_at',
                 sorter: true,
                 sortOrder: sortField === 'reservation_created_at' ? sortOrder : null,
-                render: (text) => new Date(text).toLocaleString(),
+                render: (text) => (
+                    <span className="whitespace-nowrap">
+                        {new Date(text).toLocaleDateString()}
+                    </span>
+                ),
             },
             {
                 title: 'Status',
@@ -749,15 +794,15 @@ const ReservationRequests = () => {
                     return (
                         <Tag color={
                             isExpired ? 'red' :
-                            (record.active === "1") ? 'gold' :
+                            (record.active === 1) ? 'gold' :
                             status === 'Pending' ? 'blue' :
                             status === 'Approved' ? 'green' :
                             status === 'Declined' ? 'red' : 'default'
                         }
-                        className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center"
+                        className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center whitespace-nowrap"
                         >
                         {isExpired ? "Expired" :
-                         (record.active === "1") ? "Final Confirmation" : "Waiting for Approval"}
+                         (record.active === 1) ? "Final Confirmation" : "Waiting for Approval"}
                         </Tag>
                     );
                 },
@@ -768,40 +813,45 @@ const ReservationRequests = () => {
                 render: (_, record) => {
                     const isExpired = new Date(record.reservation_end_date) < new Date();
                     return (
-                        <Button 
-                            type="primary"
-                            loading={isLoadingDetails}
-                            disabled={isLoadingDetails}
-                            onClick={() => {
-                                console.log('View button clicked for reservation ID:', record.reservation_id);
-                                try {
-                                    onView(record.reservation_id);
-                                } catch (error) {
-                                    console.error('Error in View button click:', error);
-                                    toast.error('Error opening reservation details');
-                                }
-                            }}
-                            icon={<EyeOutlined />}
-                            className="bg-green-900 hover:bg-lime-900"
-                            title={isExpired ? "This reservation has expired" : "View details"}
-                        >
-                            View
-                        </Button>
+                        <div className="flex justify-center space-x-2">
+                            <Tooltip title={isExpired ? "This reservation has expired" : "View details"}>
+                                <Button 
+                                    type="primary"
+                                    loading={isLoadingDetails}
+                                    disabled={isLoadingDetails}
+                                    onClick={() => {
+                                        console.log('View button clicked for reservation ID:', record.reservation_id);
+                                        try {
+                                            onView(record.reservation_id);
+                                        } catch (error) {
+                                            console.error('Error in View button click:', error);
+                                            toast.error('Error opening reservation details');
+                                        }
+                                    }}
+                                    icon={<EyeOutlined />}
+                                    className="bg-green-900 hover:bg-lime-900"
+                                    size="large"
+                                >
+                                    <span className="hidden sm:inline">View</span>
+                                    <span className="sm:hidden">View</span>
+                                </Button>
+                            </Tooltip>
+                        </div>
                     );
                 },
             },
         ];
 
         return (
-            <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
-                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+            <>
+                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                         <tr>
                             {columns.map((column) => (
                                 <th
                                     key={column.key}
                                     scope="col"
-                                    className="px-6 py-3"
+                                    className="px-4 py-4"
                                     onClick={() => column.sorter && handleSort(column.dataIndex)}
                                 >
                                     <div className="flex items-center cursor-pointer hover:text-gray-900">
@@ -822,12 +872,12 @@ const ReservationRequests = () => {
                                 .map((record) => (
                                     <tr
                                         key={record.reservation_id}
-                                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
+                                        className="bg-white border-b last:border-b-0 border-gray-200 hover:bg-gray-50"
                                     >
                                         {columns.map((column) => (
                                             <td
                                                 key={`${record.reservation_id}-${column.key}`}
-                                                className="px-6 py-4"
+                                                className="px-4 py-6"
                                             >
                                                 {column.render
                                                     ? column.render(record[column.dataIndex], record)
@@ -838,7 +888,7 @@ const ReservationRequests = () => {
                                 ))
                         ) : (
                             <tr>
-                                <td colSpan={columns.length} className="px-6 py-24 text-center">
+                                <td colSpan={columns.length} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                     <Empty
                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                         description={
@@ -868,7 +918,7 @@ const ReservationRequests = () => {
                         className="flex justify-end"
                     />
                 </div>
-            </div>
+            </>
         );
     };
 
@@ -876,17 +926,22 @@ const ReservationRequests = () => {
     // Replace the existing card rendering code in the return statement
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
-            <Sidebar />
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-                <div className="p-[2.5rem] lg:p-12 min-h-screen">
-                    <motion.div
+            {/* Fixed Sidebar */}
+            <div className="flex-none">
+                <Sidebar />
+            </div>
+            
+            {/* Scrollable Content Area */}
+            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
+                    <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-4 sm:mb-8"
                     >
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <h2 className="text-2xl font-custom-font font-bold text-green-900 mt-5">
+                        <div className="mb-2 sm:mb-4 mt-10">
+                            <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                                 Reservation Requests
                             </h2>
                         </div>
@@ -901,33 +956,33 @@ const ReservationRequests = () => {
                                         key: '1',
                                         label: 'Waiting',
                                         icon: <ClockCircleOutlined />,
-                                        count: reservations.filter(r => r.active === "0" || r.active == null).length,
+                                        count: reservations.filter(r => r.active === 0 || r.active == null).length,
                                         color: 'blue'
                                     },
                                     {
                                         key: '2',
                                         label: 'Final',
                                         icon: <CheckCircleOutlined />,
-                                        count: reservations.filter(r => r.active === "1").length,
+                                        count: reservations.filter(r => r.active === 1).length,
                                         color: 'amber'
                                     }
                                 ].map((tab) => (
                                     <button
                                         key={tab.key}
                                         onClick={() => handleTabChange(tab.key)}
-                                        className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 border-b-2 transition-colors duration-200 ${
+                                        className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-3 border-b-2 transition-colors duration-200 ${
                                             activeTab === tab.key
                                                 ? 'border-green-600 text-green-600'
                                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
                                         }`}
                                     >
-                                        <span className={`text-base ${activeTab === tab.key ? 'text-green-600' : `text-${tab.color}-500`}`}>
+                                        <span className={`text-sm sm:text-base ${activeTab === tab.key ? 'text-green-600' : `text-${tab.color}-500`}`}>
                                             {tab.icon}
                                         </span>
-                                        <span className="font-medium text-sm">
+                                        <span className="font-medium text-xs sm:text-sm">
                                             {tab.label}
                                         </span>
-                                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                                        <span className={`px-1 sm:px-2 py-0.5 rounded-full text-xs font-medium ${
                                             activeTab === tab.key
                                                 ? 'bg-green-100 text-green-600'
                                                 : `bg-${tab.color}-50 text-${tab.color}-600`
@@ -942,37 +997,36 @@ const ReservationRequests = () => {
                     
                     {/* Search & Controls */}
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="flex-1">
-                                    <Search
-                                        placeholder="Search by ID, title, or requester"
-                                        allowClear
-                                        enterButton={<SearchOutlined />}
-                                        size="large"
-                                        value={searchTerm}
-                                        onChange={e => setSearchTerm(e.target.value)}
-                                        className="w-full"
-                                    />
-                                </div>
+                        <div className="flex flex-row items-center gap-2 w-full">
+                            <div className="flex-grow">
+                                <Search
+                                    placeholder="Search by ID, title, or requester"
+                                    allowClear
+                                    enterButton={<SearchOutlined />}
+                                    size="large"
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="w-full"
+                                />
                             </div>
-                            <div className="flex gap-2">
-                                <Tooltip title="Refresh data">
-                                    <Button 
-                                        icon={<ReloadOutlined />} 
-                                        onClick={handleRefresh}
-                                        size="large"
-                                    />
-                                </Tooltip>
-                            </div>
+                            <Tooltip title="Refresh data">
+                                <Button 
+                                    icon={<ReloadOutlined />} 
+                                    onClick={handleRefresh}
+                                    size="large"
+                                    style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                />
+                            </Tooltip>
                         </div>
                     </div>
 
                     <div className="mt-4">
-                        <RequestTable 
-                            data={filteredReservations}
-                            onView={fetchReservationDetails}
-                        />
+                        <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
+                            <RequestTable 
+                                data={filteredReservations}
+                                onView={fetchReservationDetails}
+                            />
+                        </div>
                     </div>
 
                     {/* Detail Modal for Accepting */}
@@ -1106,7 +1160,7 @@ const formatDateRange = (startDate, endDate) => {
 
 const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetails, onAccept, onDecline, isAccepting, isDeclining, setIsDeclineReasonModalOpen, declineReason, setDeclineReason }) => {
     const [tripTicketApproved, setTripTicketApproved] = useState(false);
-    const [isCheckingRegistrar, setIsCheckingRegistrar] = useState(false);
+    // const [isCheckingRegistrar, setIsCheckingRegistrar] = useState(false);
     const [availableDrivers, setAvailableDrivers] = useState([]);
     const [vehicleDriverAssignments, setVehicleDriverAssignments] = useState({});
     const [driverError, setDriverError] = useState("");
@@ -1114,6 +1168,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
     
     // Fetch available drivers when modal opens
     useEffect(() => {
+        setDriverError(""); // Reset driver error when modal opens or reservation changes
         const fetchDrivers = async () => {
             if (!reservationDetails || !reservationDetails.reservation_start_date || !reservationDetails.reservation_end_date) return;
             try {
@@ -1123,7 +1178,16 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     endDateTime: reservationDetails.reservation_end_date
                 });
                 if (response.data?.status === 'success') {
-                    setAvailableDrivers(response.data.data);
+                    setAvailableDrivers(
+                        response.data.data.map(driver => ({
+                            ...driver,
+                            full_name: [
+                                driver.users_fname,
+                                driver.users_mname ? driver.users_mname : '',
+                                driver.users_lname
+                            ].filter(Boolean).join(' ')
+                        }))
+                    );
                 } else {
                     setAvailableDrivers([]);
                 }
@@ -1138,8 +1202,10 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                 const assignments = {};
                 (reservationDetails.vehicles || []).forEach(vehicle => {
                     // Try to find assigned driver for this vehicle
-                    const assignedDriver = (reservationDetails.drivers || []).find(driver => driver.assigned_vehicle && String(driver.assigned_vehicle.vehicle_id) === String(vehicle.vehicle_id));
-                    if (assignedDriver) {
+                    const assignedDriver = (reservationDetails.drivers || []).find(driver => 
+                        driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
+                    );
+                    if (assignedDriver && assignedDriver.driver_id) {
                         assignments[vehicle.vehicle_id] = assignedDriver.driver_id;
                     }
                 });
@@ -1148,16 +1214,24 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             // Check for sufficient drivers immediately
             if (reservationDetails && reservationDetails.vehicles && reservationDetails.vehicles.length > 0) {
                 setTimeout(() => {
-                    // Check if all vehicles already have a driver assigned (from reservationDetails.drivers)
-                    const assignedCount = (reservationDetails.vehicles || []).filter(vehicle => {
-                        return (reservationDetails.drivers || []).some(driver => driver.assigned_vehicle && String(driver.assigned_vehicle.vehicle_id) === String(vehicle.vehicle_id));
-                    }).length;
-                    if (assignedCount === reservationDetails.vehicles.length) {
+                    // Check if all vehicles already have a driver assigned with a name (from reservationDetails.drivers)
+                    const vehiclesWithExistingDrivers = (reservationDetails.vehicles || []).filter(vehicle => {
+                        return (reservationDetails.drivers || []).some(driver => 
+                            driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) && driver.driver_name
+                        );
+                    });
+                    
+                    // If all vehicles have existing drivers with names, no need for validation
+                    if (vehiclesWithExistingDrivers.length === reservationDetails.vehicles.length) {
                         setDriverError(""); // All vehicles have drivers, do not block
-                    } else if (availableDrivers.length < reservationDetails.vehicles.length) {
-                        setDriverError("Not enough available drivers for the requested vehicles. Reservation cannot be approved.");
                     } else {
-                        setDriverError("");
+                        // Check if there are enough available drivers for the remaining vehicles
+                        const vehiclesNeedingDrivers = reservationDetails.vehicles.length - vehiclesWithExistingDrivers.length;
+                        if (availableDrivers.length < vehiclesNeedingDrivers) {
+                            setDriverError("Not enough available drivers for the requested vehicles. Reservation cannot be approved.");
+                        } else {
+                            setDriverError("");
+                        }
                     }
                 }, 200); // slight delay to ensure availableDrivers is set
             }
@@ -1197,18 +1271,18 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         if (!reservationDetails.drivers || reservationDetails.drivers.length === 0) return false;
         const driver = reservationDetails.drivers[0];
         
-        // Case 1: If driver and name have values but is_accepted_trip is null - No trip ticket required
-        if (driver && driver.driver_id && driver.name && driver.is_accepted_trip === null) {
+        // Case 1: If driver_id and driver_name have values but is_accepted_trip is null - No trip ticket required
+        if (driver && driver.driver_id && driver.driver_name && driver.is_accepted_trip === null) {
             return false;
         }
         
-        // Case 2: If driver and name are null but is_accepted_trip is 0 - Trip ticket required
-        if (driver && !driver.driver_id && !driver.name && driver.is_accepted_trip === "0") {
+        // Case 2: If driver_id is null but driver_name exists and is_accepted_trip is 0 - Trip ticket required
+        if (driver && !driver.driver_id && driver.driver_name && driver.is_accepted_trip === "0") {
             return true;
         }
         
         // Case 3: If all values are null - No trip ticket required
-        if (driver && !driver.driver_id && !driver.name && driver.is_accepted_trip === null) {
+        if (driver && !driver.driver_id && !driver.driver_name && driver.is_accepted_trip === null) {
             return false;
         }
 
@@ -1366,31 +1440,31 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
     };
 
     // Handler for checking registrar availability
-    const handleCheckRegistrarAvailability = async () => {
-        setIsCheckingRegistrar(true);
-        try {
-            const response = await axios.post(`${encryptedUrl}/user.php`, {
-                operation: 'handleReview',
-                reservationId: reservationDetails.reservation_id,
-                userId: SecureStorage.getSessionItem('user_id')
-            });
+    // const handleCheckRegistrarAvailability = async () => {
+    //     setIsCheckingRegistrar(true);
+    //     try {
+    //         const response = await axios.post(`${encryptedUrl}/user.php`, {
+    //             operation: 'handleReview',
+    //             reservationId: reservationDetails.reservation_id,
+    //             userId: SecureStorage.getSessionItem('user_id')
+    //         });
 
-            if (response.data?.status === 'success') {
-                // Fetch updated details
-                const updatedDetails = await fetchReservationDetailsForModal(reservationDetails.reservation_id);
-                if (updatedDetails) {
-                    setReservationDetails(updatedDetails);
-                }
-                toast.success('Registrar has approved the reservation!');
-            } else {
-                toast.error(response.data?.message || 'Registrar did not approve the reservation.');
-            }
-        } catch (error) {
-            toast.error('Failed to check registrar availability.');
-        } finally {
-            setIsCheckingRegistrar(false);
-        }
-    };
+    //         if (response.data?.status === 'success') {
+    //             // Fetch updated details
+    //             const updatedDetails = await fetchReservationDetailsForModal(reservationDetails.reservation_id);
+    //             if (updatedDetails) {
+    //                 setReservationDetails(updatedDetails);
+    //             }
+    //             toast.success('Registrar has approved the reservation!');
+    //         } else {
+    //             toast.error(response.data?.message || 'Registrar did not approve the reservation.');
+    //         }
+    //     } catch (error) {
+    //         toast.error('Failed to check registrar availability.');
+    //     } finally {
+    //         setIsCheckingRegistrar(false);
+    //     }
+    // };
 
     // Handler for driver assignment change
     const handleDriverAssign = (vehicleId, driverId) => {
@@ -1402,28 +1476,42 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         setDriverError("");
         // If there are vehicles, check assignments
         if (reservationDetails?.vehicles && reservationDetails.vehicles.length > 0) {
-            // Check if enough available drivers for the number of vehicles
-            if (availableDrivers.length < reservationDetails.vehicles.length) {
-                setDriverError("Not enough available drivers for the requested vehicles. Reservation cannot be approved.");
-                return;
-            }
-            // Check if all vehicles have a driver assigned
-            const assignedDrivers = Object.values(vehicleDriverAssignments).filter(Boolean);
-            if (assignedDrivers.length < reservationDetails.vehicles.length) {
+            // Check if all vehicles have a driver assigned (either existing or new assignment)
+            const vehiclesWithoutDrivers = reservationDetails.vehicles.filter(vehicle => {
+                // Check if there's an existing driver assignment with a name
+                const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                    driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) && driver.driver_name
+                );
+                
+                // Check if there's a new assignment in the current session
+                const newAssignment = vehicleDriverAssignments[vehicle.vehicle_id];
+                
+                // Vehicle needs a driver if there's no existing assignment with name and no new assignment
+                return !existingDriver && !newAssignment;
+            });
+            
+            if (vehiclesWithoutDrivers.length > 0) {
                 setDriverError("Please assign a driver to each vehicle before approving the reservation.");
                 return;
             }
-            // Insert assigned drivers before approving reservation
+            
+            // Insert new driver assignments before approving reservation (only for vehicles that don't have existing drivers)
             try {
                 for (const vehicle of reservationDetails.vehicles) {
-                    const driverId = vehicleDriverAssignments[vehicle.vehicle_id];
-                    if (driverId) {
-                        await axios.post(`${encryptedUrl}/user.php`, {
-                            operation: 'insertDriver',
-                            reservation_reservation_id: reservationDetails.reservation_id,
-                            reservation_driver_user_id: driverId,
-                            reservation_vehicle_id: vehicle.reservation_vehicle_id
-                        });
+                    const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                        driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) && driver.driver_name
+                    );
+                    
+                    // Only insert if there's no existing driver with name and there's a new assignment
+                    if (!existingDriver) {
+                        const driverId = vehicleDriverAssignments[vehicle.vehicle_id];
+                        if (driverId) {
+                            await axios.post(`${encryptedUrl}/user.php`, {
+                                operation: 'insertDriver',
+                                reservation_driver_user_id: driverId,
+                                reservation_vehicle_id: vehicle.reservation_vehicle_id
+                            });
+                        }
                     }
                 }
             } catch (error) {
@@ -1463,6 +1551,11 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     size="large" 
                     icon={<CheckCircleOutlined />} 
                     className="bg-green-900 hover:bg-lime-900"
+                    disabled={
+                        !!driverError ||
+                        !priorityCheck.hasPriority ||
+                        (reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false))
+                    }
                 >
                     Accept
                 </Button>,
@@ -1478,14 +1571,12 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                 </Button>
             ];
         }
-        if (reservationDetails.active === "0" || reservationDetails.active === "1") {
+        if (reservationDetails.active === 0 || reservationDetails.active === 1) {
             const priorityCheck = checkPriority();
             const isDisabled = needsTripTicketApproval() ? !tripTicketApproved : hasPendingTripTicket();
             const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
-            // Disable Accept if registrar approval is required and not yet confirmed
-            const registrarApprovalRequired = reservationDetails.registrarApprovalRequired;
-            // Placeholder: registrar approval confirmation logic (e.g., reservationDetails.registrarApproved)
-            const registrarApproved = reservationDetails.registrarApproved || false;
+            // Disable Accept if any venue is not available
+            const anyVenueNotAvailable = reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
             if (isExpired) {
                 return [
                     <Button key="decline" danger loading={isDeclining} onClick={(e) => {
@@ -1496,28 +1587,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     </Button>
                 ];
             }
-            // If registrar approval required and not yet approved, show Check Availability button
-            if (registrarApprovalRequired && !registrarApproved) {
-                return [
-                    <Button key="decline" danger loading={isDeclining} onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenDeclineReasonModal();
-                    }} size="large" icon={<CloseCircleOutlined />}> 
-                        Decline
-                    </Button>,
-                    <Button 
-                        key="check-registrar" 
-                        type="primary" 
-                        loading={isCheckingRegistrar} 
-                        onClick={handleCheckRegistrarAvailability} 
-                        size="large" 
-                        icon={<InfoCircleOutlined />} 
-                        className="bg-yellow-600 hover:bg-yellow-700"
-                    >
-                        Check Availability
-                    </Button>,
-                ];
-            }
+            // Remove Check Availability button
             return [
                 <Button key="decline" danger loading={isDeclining} onClick={(e) => {
                     e.stopPropagation();
@@ -1532,7 +1602,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     onClick={handleAcceptWithDriverCheck} 
                     size="large" 
                     icon={<CheckCircleOutlined />} 
-                    disabled={!!driverError || !priorityCheck.hasPriority || isDisabled || (registrarApprovalRequired && !registrarApproved)}
+                    disabled={!!driverError || !priorityCheck.hasPriority || isDisabled || anyVenueNotAvailable}
                     className="bg-green-900 hover:bg-lime-900"
                 >
                     Accept
@@ -1560,12 +1630,9 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             <span className="font-medium">{text}</span>
                         </div>
                         <div className="flex flex-col items-end">
-                            <Tag color={checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
+                            <Tag color={record.isAvailable ? 'green' : 'red'}>
+                                {record.isAvailable ? 'Available' : 'Not Available'}
                             </Tag>
-                            {record.hasClassSchedule && (
-                                <Tag color="orange" className="mt-1">Class Schedule: Registrar Approval Needed</Tag>
-                            )}
                         </div>
                     </div>
                 )
@@ -1632,26 +1699,50 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             dataIndex: 'driver',
             key: 'driver',
             render: (_, vehicle) => {
-                // Find assigned driver
-                const assignedDriverId = vehicleDriverAssignments[vehicle.vehicle_id];
-                const assignedDriver = availableDrivers.find(d => String(d.driver_id) === String(assignedDriverId)) || (reservationDetails.drivers || []).find(driver => driver.assigned_vehicle && String(driver.assigned_vehicle.vehicle_id) === String(vehicle.vehicle_id));
-                if (assignedDriver) {
-                    return <span>{assignedDriver.driver_full_name || assignedDriver.name}</span>;
+                // First check if there's already a driver assigned to this vehicle from reservation details
+                const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                    driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
+                );
+                
+                // If there's an existing driver with a name, display it
+                if (existingDriver && existingDriver.driver_name) {
+                    return <span className="font-medium text-green-600">{existingDriver.driver_name}</span>;
                 }
+                
+                // If there's an existing driver but no name, try to find from available drivers
+                if (existingDriver && existingDriver.driver_id) {
+                    const assignedDriver = availableDrivers.find(d => String(d.users_id) === String(existingDriver.driver_id));
+                    if (assignedDriver) {
+                        return <span className="font-medium text-green-600">{assignedDriver.full_name}</span>;
+                    }
+                }
+                
+                // Check if there's a manual assignment in the current session
+                const assignedDriverId = vehicleDriverAssignments[vehicle.vehicle_id];
+                const assignedDriver = availableDrivers.find(d => String(d.users_id) === String(assignedDriverId));
+                if (assignedDriver) {
+                    return <span className="font-medium text-blue-600">{assignedDriver.full_name}</span>;
+                }
+                
+                // If no driver is assigned, show dropdown for assignment
                 // Exclude drivers already assigned to other vehicles
                 const assignedDriverIds = Object.entries(vehicleDriverAssignments)
                     .filter(([vid, did]) => String(vid) !== String(vehicle.vehicle_id))
                     .map(([_, did]) => did)
                     .filter(Boolean);
-                const availableForThisVehicle = availableDrivers.filter(driver => !assignedDriverIds.includes(String(driver.driver_id)));
+                const availableForThisVehicle = availableDrivers.filter(driver => !assignedDriverIds.includes(String(driver.users_id)));
+                
                 return (
                     <select
                         value={vehicleDriverAssignments[vehicle.vehicle_id] || ''}
                         onChange={e => handleDriverAssign(vehicle.vehicle_id, e.target.value)}
+                        className="border border-gray-300 rounded px-2 py-1 text-sm"
                     >
                         <option value="">Select Driver</option>
                         {availableForThisVehicle.map(driver => (
-                            <option key={driver.driver_id} value={driver.driver_id}>{driver.driver_full_name}</option>
+                            <option key={driver.users_id} value={driver.users_id}>
+                                {driver.full_name}
+                            </option>
                         ))}
                     </select>
                 );
@@ -1667,12 +1758,19 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         setIsDeclineReasonModalOpen(true);
     };
 
+    // Determine if any venue is not available due to class schedule
+    const anyVenueNotAvailable = reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
+    // const priorityStatusMessage = anyVenueNotAvailable
+    //     ? 'One or more venues are not available due to scheduled classes.'
+    //     : priorityCheck.message;
+
     return (
         <Modal
             title={null}
             visible={visible}
             onCancel={onClose}
-            width={800}
+            width="90%"
+            style={{ maxWidth: 800 }}
             footer={getModalFooter()}
             className="reservation-detail-modal"
             bodyStyle={{ padding: '0' }}
@@ -1779,31 +1877,17 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             )}
 
                             {/* Priority and Existing Reservations Section - Moved to Top */}
-                            {(reservationDetails.active === "0" || reservationDetails.active === "1") && (
+                            {(reservationDetails.active === 0 || reservationDetails.active === 1) && (
                                 <div className="mb-6 space-y-4">
-                                    {/* Registrar approval warning - only show if not expired */}
-                                    {!(new Date(reservationDetails.reservation_end_date) < new Date()) && reservationDetails.registrarApprovalRequired &&
-                                        !reservationDetails.registrarApproved &&
-                                        reservationDetails.status_name !== "Registrar Approval" &&
-                                        reservationDetails.status_name !== "Venue Approved" &&
-                                        reservationDetails.status_name !== "Venue Declined" && (
-                                        <Alert
-                                            message={<span className="font-semibold">Registrar Approval Required</span>}
-                                            description={"This reservation includes a venue with a class schedule. Please process with the registrar to check availability before approval."}
-                                            type="warning"
-                                            showIcon
-                                            className="border border-orange-200 shadow-sm"
-                                        />
-                                    )}
                                     {/* Priority Status Alert */}
                                     <Alert
                                         message={
                                             <span className="font-semibold">
-                                                {priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked"}
+                                                {anyVenueNotAvailable ? "Priority Status: Blocked" : (priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked")}
                                             </span>
                                         }
-                                        description={priorityCheck.message}
-                                        type={priorityCheck.hasPriority ? "success" : "warning"}
+                                        description={anyVenueNotAvailable ? 'One or more venues are not available due to scheduled classes.' : priorityCheck.message}
+                                        type={anyVenueNotAvailable ? "warning" : (priorityCheck.hasPriority ? "success" : "warning")}
                                         showIcon
                                         className="border border-gray-200 shadow-sm"
                                     />
@@ -1892,7 +1976,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                 Current Request Details
                             </h2>
                             
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                                 {/* Requester Information */}
                                 <div className="space-y-4">
                                     <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
@@ -1902,15 +1986,15 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                     <div className="space-y-3">
                                         <div>
                                             <p className="text-sm text-gray-500">Name</p>
-                                            <p className="font-medium">{reservationDetails.requester_name}</p>
+                                            <p className="font-medium break-words">{reservationDetails.requester_name}</p>
                                         </div>
                                         <div>
                                             <p className="text-sm text-gray-500">Role</p>
-                                            <p className="font-medium">{reservationDetails.user_level_name}</p>
+                                            <p className="font-medium break-words">{reservationDetails.user_level_name}</p>
                                         </div>
                                         <div>
                                             <p className="text-sm text-gray-500">Department</p>
-                                            <p className="font-medium">{reservationDetails.department_name}</p>
+                                            <p className="font-medium break-words">{reservationDetails.department_name}</p>
                                         </div>
                                     </div>
                                 </div>
@@ -1924,11 +2008,11 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                     <div className="space-y-3">
                                         <div>
                                             <p className="text-sm text-gray-500">Description</p>
-                                            <p className="font-medium">{reservationDetails.reservation_description}</p>
+                                            <p className="font-medium break-words">{reservationDetails.reservation_description}</p>
                                         </div>
                                         <div>
                                             <p className="text-sm text-gray-500">Date & Time</p>
-                                            <p className="font-medium">{formatDateRange(
+                                            <p className="font-medium break-words">{formatDateRange(
                                                 reservationDetails.reservation_start_date,
                                                 reservationDetails.reservation_end_date
                                             )}</p>
@@ -2028,7 +2112,8 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
             }
             visible={visible}
             onCancel={onClose}
-            width={700}
+            width="90%"
+            style={{ maxWidth: 700 }}
             footer={[
                 <Button key="close" onClick={onClose}>
                     Close
@@ -2040,7 +2125,8 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                     onClick={handleCancelAndReserve}
                     icon={<CloseCircleOutlined />}
                 >
-                    Cancel Existing & And Approve This
+                    <span className="hidden sm:inline">Cancel Existing & Approve This</span>
+                    <span className="sm:hidden">Override</span>
                 </Button>,
             ]}
         >

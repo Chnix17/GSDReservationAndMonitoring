@@ -1,16 +1,16 @@
 import React, { useState, useEffect, createContext, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
-  FaTachometerAlt, FaFileAlt, 
-  FaBars,  FaUserCircle, FaCar, FaTimes,
-  FaComments,  FaBell, 
-  FaAngleRight, FaAngleLeft,
-  FaCalendarAlt
+  FaTachometerAlt, FaClipboardList,
+  FaBars, FaUserCircle,
+  FaTimes,
+  FaBell, FaAngleRight,
+  FaAngleLeft
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
-import { SecureStorage } from '../../utils/encryption';
-import ProfileAdminModal from '../../components/core/profile_admin';
+import { SecureStorage } from '../../../utils/encryption';
+import ProfileAdminModal from '../../../components/core/profile_admin';
 
 const SidebarContext = createContext();
 
@@ -21,253 +21,13 @@ const Sidebar = () => {
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
-  const [notifications, setNotifications] = useState([]);
+  const [notifications] = useState('');
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
-  const departmentName = SecureStorage.getSessionItem('Department Name');
-  const userLevelName = SecureStorage.getSessionItem('user_level');
 
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    try {
-      const baseUrl = SecureStorage.getLocalItem("url");
-      const currentUserId = SecureStorage.getSessionItem('user_id');
-      console.log('Fetching notifications from:', `${baseUrl}/faculty&Staff.php`);
-      
-      // Fetch regular notifications
-      const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchNotification',
-          userId: currentUserId
-        })
-      });
-      const data = await response.json();
-      console.log('Notification fetch response:', data);
-      
-      // Fetch approval notifications
-      const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchApprovalNotification',
-          department_id: SecureStorage.getSessionItem('department_id'),
-          user_level_id: SecureStorage.getSessionItem('user_level_id')
-        })
-      });
-      const approvalData = await approvalResponse.json();
-      console.log('Approval notification fetch response:', approvalData);
 
-      // Fetch read notifications for current user
-      const readResponse = await fetch(`${baseUrl}/process_reservation.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchReadApprovalNotification'
-        })
-      });
-      const readData = await readResponse.json();
-      console.log('Read notifications response:', readData);
-
-      // Create a map of read notification IDs for the current user
-      const readNotificationMap = new Map();
-      if (readData.status === 'success') {
-        readData.data.forEach(read => {
-          if (read.user_id === currentUserId && read.is_read === 1) {
-            readNotificationMap.set(read.notification_id, true);
-          }
-        });
-      }
-      
-      // Combine both notification types
-      let combinedNotifications = [];
-      
-      if (data.status === 'success') {
-        combinedNotifications = [...data.data];
-      }
-      
-      if (approvalData.status === 'success') {
-        // Process approval notifications and set read status
-        const processedApprovalNotifications = approvalData.data.map(notification => ({
-          ...notification,
-          is_read: readNotificationMap.has(notification.notification_id) ? 1 : 0
-        }));
-        combinedNotifications = [...combinedNotifications, ...processedApprovalNotifications];
-      }
-      
-      // Sort notifications by creation date
-      combinedNotifications.sort((a, b) => {
-        const dateA = new Date(a.notification_created_at || a.notification_create);
-        const dateB = new Date(b.notification_created_at || b.notification_create);
-        return dateB - dateA;
-      });
-      
-      console.log('Combined notifications:', combinedNotifications);
-      setNotifications(combinedNotifications);
-      
-    } catch (error) {
-      console.error('Error fetching notifications:', error);
-    }
-  };
-
-  // Mark notifications as read
-  const markNotificationsAsRead = async (notificationIds) => {
-    try {
-      const baseUrl = SecureStorage.getLocalItem("url");
-      const currentUserId = SecureStorage.getSessionItem('user_id');
-
-      // Separate regular and approval notifications
-      const regularNotificationIds = [];
-      const approvalNotificationIds = [];
-
-      console.log(approvalNotificationIds);
-
-      notifications.forEach(notification => {
-        if (notification.notification_reservation_id) {
-          regularNotificationIds.push(notification.notification_reservation_id);
-        } else if (notification.notification_id) {
-          approvalNotificationIds.push(notification.notification_id);
-        }
-      });
-
-      // Update regular notifications if any exist
-      if (regularNotificationIds.length > 0) {
-        const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation: 'updateReadNotification',
-            notificationIds: regularNotificationIds
-          })
-        });
-        const data = await response.json();
-        console.log('Regular notifications update response:', data);
-      }
-
-      // Update approval notifications if any exist
-      if (approvalNotificationIds.length > 0) {
-        const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation: 'updateReadApprovalNotification',
-            notification_ids: approvalNotificationIds,
-            user_id: currentUserId
-          })
-        });
-        const approvalData = await approvalResponse.json();
-        console.log('Approval notifications update response:', approvalData);
-      }
-
-      // Refresh notifications after marking as read
-      fetchNotifications();
-    } catch (error) {
-      console.error('Error marking notifications as read:', error);
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    // Set up polling to refresh notifications every minute
-    const interval = setInterval(fetchNotifications, 60000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Update the notifications Popover content
-  const renderNotifications = () => {
-    const unreadCount = notifications.filter(n => n.is_read === 0).length;
-    
-    return (
-      <Popover className="relative">
-        {({ open }) => (
-          <>
-            <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
-              <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                  {unreadCount}
-                </span>
-              )}
-            </Popover.Button>
-            <Transition
-              show={open}
-              as={React.Fragment}
-              enter="transition ease-out duration-200"
-              enterFrom="opacity-0 translate-y-1"
-              enterTo="opacity-100 translate-y-0"
-              leave="transition ease-in duration-150"
-              leaveFrom="opacity-100 translate-y-0"
-              leaveTo="opacity-0 translate-y-1"
-            >
-              <Popover.Panel
-                className="
-                  fixed left-1/2 top-20 z-50 w-[95vw] max-w-xs -translate-x-1/2
-                  sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-xs sm:left-auto sm:translate-x-0 sm:z-10
-                  origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5
-                "
-              >
-                <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                  <h3 className="font-medium">Notifications</h3>
-                  {unreadCount > 0 && (
-                    <button 
-                      onClick={() => {
-                        const unreadIds = notifications
-                          .filter(n => n.is_read === 0)
-                          .map(n => n.notification_reservation_id);
-                        markNotificationsAsRead(unreadIds);
-                      }}
-                      className="text-xs text-green-600 dark:text-green-400 hover:underline"
-                    >
-                      Mark all as read
-                    </button>
-                  )}
-                </div>
-                <div className="max-h-80 overflow-y-auto">
-                  {notifications.length === 0 ? (
-                    <div className="p-3 text-center text-gray-500 dark:text-gray-400">
-                      No notifications
-                    </div>
-                  ) : (
-                    notifications.map((notification) => (
-                      <div 
-                        key={notification.notification_reservation_id}
-                        className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                          notification.is_read === 0 ? 'bg-green-50 dark:bg-green-900/20' : ''
-                        }`}
-                      >
-                        <p className="text-sm font-medium">{notification.notification_message}</p>
-                        <p className="text-xs text-gray-400 mt-1">
-                          {new Date(notification.notification_created_at || notification.notification_create).toLocaleString()}
-                        </p>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="p-2 text-center">
-                  <Link to="/Department/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
-                    View all notifications
-                  </Link>
-                </div>
-              </Popover.Panel>
-            </Transition>
-          </>
-        )}
-      </Popover>
-    );
-  };
-
+  
   useEffect(() => {
     setActiveItem(location.pathname);
     const handleResize = () => {
@@ -338,7 +98,56 @@ const Sidebar = () => {
             </div>
             
             {/* Notifications */}
-            {renderNotifications()}
+            <Popover className="relative">
+              {({ open }) => (
+                <>
+                  <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
+                    <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
+                    {notifications > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                        {notifications}
+                      </span>
+                    )}
+                  </Popover.Button>
+                  <Transition
+                    show={open}
+                    as={React.Fragment}
+                    enter="transition ease-out duration-200"
+                    enterFrom="opacity-0 translate-y-1"
+                    enterTo="opacity-100 translate-y-0"
+                    leave="transition ease-in duration-150"
+                    leaveFrom="opacity-100 translate-y-0"
+                    leaveTo="opacity-0 translate-y-1"
+                  >
+                    <Popover.Panel className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
+                      <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <h3 className="font-medium">Notifications</h3>
+                        <button className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                          Mark all as read
+                        </button>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        <div className="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <p className="text-sm font-medium">New reservation request</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A new venue request needs your approval</p>
+                          <p className="text-xs text-gray-400 mt-1">3 mins ago</p>
+                        </div>
+                        <div className="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <p className="text-sm font-medium">System Update</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">GSD Portal has been updated to version 2.4.0</p>
+                          <p className="text-xs text-gray-400 mt-1">1 hour ago</p>
+                        </div>
+                      </div>
+                      <div className="p-2 text-center">
+                        <Link to="/notifications" className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                          View all notifications
+                        </Link>
+                      </div>
+                    </Popover.Panel>
+                  </Transition>
+                </>
+              )}
+            </Popover>
             
             {/* Profile Menu */}
             <Popover className="relative">
@@ -405,7 +214,46 @@ const Sidebar = () => {
 
           <div className="flex items-center space-x-3">
             {/* Notifications */}
-            {renderNotifications()}
+            <Popover className="relative">
+              {({ open }) => (
+                <>
+                  <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
+                    <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
+                    {notifications > 0 && (
+                      <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
+                        {notifications}
+                      </span>
+                    )}
+                  </Popover.Button>
+                  <Transition
+                    show={open}
+                    as={React.Fragment}
+                    enter="transition ease-out duration-200"
+                    enterFrom="opacity-0 translate-y-1"
+                    enterTo="opacity-100 translate-y-0"
+                    leave="transition ease-in duration-150"
+                    leaveFrom="opacity-100 translate-y-0"
+                    leaveTo="opacity-0 translate-y-1"
+                  >
+                    <Popover.Panel className="absolute right-0 z-10 mt-2 w-72 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
+                      <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
+                        <h3 className="font-medium">Notifications</h3>
+                        <button className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                          Mark all as read
+                        </button>
+                      </div>
+                      <div className="max-h-60 overflow-y-auto">
+                        <div className="p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <p className="text-sm font-medium">New reservation request</p>
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">A new venue request needs your approval</p>
+                          <p className="text-xs text-gray-400 mt-1">3 mins ago</p>
+                        </div>
+                      </div>
+                    </Popover.Panel>
+                  </Transition>
+                </>
+              )}
+            </Popover>
             
             {/* User Menu */}
             <Popover className="relative">
@@ -505,63 +353,20 @@ const Sidebar = () => {
             
             {/* Navigation */}
             <nav className={`flex-grow overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`}>
-              {/* Main Menu Items */}
               <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
-                link="/Department/Dashboard" 
-                active={activeItem === '/Department/Dashboard'}
+                link="/Driver/Dashboard" 
+                active={activeItem === '/Driver/Dashboard'}
                 isExpanded={isDesktopSidebarOpen}
               />
-
               <MiniSidebarItem 
-                icon={FaComments} 
-                text="Chat" 
-                link="/Department/Chat" 
-                active={activeItem === '/Department/Chat'}
+                icon={FaClipboardList} 
+                text="Trips" 
+                link="/Driver/Trips" 
+                active={activeItem === '/Driver/Trips'}
                 isExpanded={isDesktopSidebarOpen}
               />
-
-{isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
-
-              <MiniSidebarItem 
-                icon={FaCar} 
-                text="Make Reservation" 
-                link="/addReservation" 
-                active={activeItem === '/addReservation'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="My Reservation" 
-                link="/Department/Myreservation" 
-                active={activeItem === '/Department/Myreservation'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="View Approvals" 
-                link="/Department/ViewApproval" 
-                active={activeItem === '/Department/ViewApproval'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              {/* Venue Management Section - Only for REGISTRAR Department Head */}
-              {(departmentName === 'REGISTRAR' && userLevelName === 'Department Head') && (
-                <>
-                  <SectionLabel text="Venue Management" />
-                  <MiniSidebarItem 
-                    icon={FaCalendarAlt} 
-                    text="Venue Schedule" 
-                    link="/Department/VenueSchedule" 
-                    active={activeItem === '/Department/VenueSchedule'}
-                    isExpanded={isDesktopSidebarOpen}
-                  />
-                </>
-              )}
-
             </nav>
 
             {/* User Profile - Show only icon when collapsed */}
@@ -587,62 +392,18 @@ const Sidebar = () => {
 
             {/* Navigation - Same as desktop but separate instance */}
             <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
-            <MiniSidebarItem 
+              <SidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
-                link="/Department/Dashboard" 
-                active={activeItem === '/Department/Dashboard'}
-                isExpanded={isDesktopSidebarOpen}
+                link="/Driver/Dashboard"
+                active={activeItem === '/Driver/Dashboard'} 
               />
-
-              <MiniSidebarItem 
-                icon={FaComments} 
-                text="Chat" 
-                link="/Department/Chat" 
-                active={activeItem === '/Department/Chat'}
-                isExpanded={isDesktopSidebarOpen}
+              <SidebarItem 
+                icon={FaClipboardList} 
+                text="Trips" 
+                link="/Driver/Trips" 
+                active={activeItem === '/Driver/Trips'} 
               />
-
-              {isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
-
-              <MiniSidebarItem 
-                icon={FaCar} 
-                text="Make Reservation" 
-                link="/addReservation" 
-                active={activeItem === '/addReservation'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="My Reservation" 
-                link="/Department/Myreservation" 
-                active={activeItem === '/Department/Myreservation'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="View Approvals" 
-                link="/Department/ViewApproval" 
-                active={activeItem === '/Department/ViewApproval'}
-                isExpanded={isDesktopSidebarOpen}
-              />
-
-              {/* Venue Management Section - Only for REGISTRAR Department Head (Mobile) */}
-              {(departmentName === 'REGISTRAR' && userLevelName === 'Department Head') && (
-                <>
-                  <SectionLabel text="Venue Management" />
-                  <MiniSidebarItem 
-                    icon={FaCalendarAlt} 
-                    text="Venue Schedule" 
-                    link="/Department/VenueSchedule" 
-                    active={activeItem === '/Department/VenueSchedule'}
-                    isExpanded={isDesktopSidebarOpen}
-                  />
-                </>
-              )}
-
             </nav>
           </div>
 
@@ -652,6 +413,9 @@ const Sidebar = () => {
               ? 'lg:ml-64 pl-0 mb-[300px]' 
               : 'lg:ml-16 pl-0 mb-[300px]'
           }`}>
+
+
+
             {/* Content will be rendered here */}
           </main>
         </div>
@@ -676,14 +440,37 @@ const Sidebar = () => {
   );
 };
 
-// Section Label Component - Clean and minimal
-const SectionLabel = ({ text }) => (
-  <div className="pt-3 pb-1">
-    <p className="px-2 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
-      {text}
-    </p>
-  </div>
-);
+
+// Simplified SidebarItem
+const SidebarItem = React.memo(({ icon: Icon, text, link, active, badge }) => {
+  return (
+    <Link 
+      to={link} 
+      className={`flex items-center justify-between p-2.5 rounded-lg transition-all ${
+        active 
+          ? 'bg-[#145414] text-white font-medium' 
+          : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
+      }`}
+    >
+      <div className="flex items-center space-x-3">
+        <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
+        <span className="text-sm">{text}</span>
+      </div>
+      
+      {badge && (
+        <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
+          {badge}
+        </span>
+      )}
+      
+      {active && (
+        <div className="absolute left-0 w-1 h-7 bg-[#145414] rounded-r-full" />
+      )}
+    </Link>
+  );
+});
+
+
 
 const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge }) => {
   return (
@@ -700,11 +487,13 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
         <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
         {isExpanded && <span className="text-sm">{text}</span>}
       </div>
+      
       {badge && isExpanded && (
         <span className="px-1.5 py-0.5 text-xs font-bold text-white bg-red-500 rounded-full">
           {badge}
         </span>
       )}
+      
       {badge && !isExpanded && (
         <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
       )}
@@ -712,4 +501,5 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
   );
 });
 
-export default Sidebar;
+
+export default Sidebar; 

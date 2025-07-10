@@ -294,11 +294,11 @@ const ReservationDetails = ({
                                         <Table 
                                             title={() => "Vehicles"}
                                             dataSource={reservationDetails.vehicles.map(vehicle => {
-                                                // Find the driver assigned to this vehicle
-                                                const assignedDriver = reservationDetails.drivers?.find(driver => driver.assigned_vehicle?.vehicle_id === vehicle.vehicle_id);
+                                                // Find the driver assigned to this vehicle by reservation_vehicle_id (compare as strings)
+                                                const assignedDriver = reservationDetails.drivers?.find(driver => String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id));
                                                 return {
                                                     ...vehicle,
-                                                    driver: assignedDriver ? assignedDriver.name : 'No driver assigned'
+                                                    driver: assignedDriver ? assignedDriver.driver_name : 'No driver assigned'
                                                 };
                                             })} 
                                             columns={[

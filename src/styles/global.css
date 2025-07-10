@@ -19,6 +19,21 @@
   --modern-sage: #538c4c;
 }
 
+/* Loader Animation */
+.loader {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #548e54;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
 /* Enhanced Steps styling */
 .site-navigation-steps .ant-steps-item-icon {
   width: 36px;
@@ -144,4 +159,143 @@
   background-color: var(--light-cream);
   color: var(--primary-green-dark);
   border: 1px solid var(--accent-green);
+}
+
+.custom-responsive-modal .ant-modal-content {
+  max-width: 95vw;
+  width: 100%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.custom-responsive-modal .ant-modal-body {
+  overflow-y: auto;
+  max-height: 80vh;
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .custom-responsive-modal .ant-modal-content {
+    max-width: 100vw;
+    min-width: 0;
+    width: 100vw;
+    border-radius: 0;
+  }
+  .custom-responsive-modal .ant-modal-body {
+    max-height: 70vh;
+    padding: 0;
+  }
+  .custom-responsive-modal .ant-table {
+    font-size: 12px;
+  }
+}
+
+/* Make ant-table responsive: horizontal scroll on mobile */
+.custom-responsive-modal .ant-table-wrapper {
+  overflow-x: auto;
+}
+
+/* Remove extra modal padding on mobile */
+@media (max-width: 480px) {
+  .custom-responsive-modal .ant-modal-content {
+    padding: 0;
+  }
+  .custom-responsive-modal .ant-modal-body {
+    padding: 0;
+  }
+}
+
+.unique-modal .ant-modal-content {
+  max-width: 700px;
+  width: 100vw;
+  max-height: 90vh;
+  height: 90vh;
+  margin: 0 auto;
+  border-radius: 20px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+@media (max-width: 768px) {
+  .unique-modal .ant-modal-content {
+    max-width: 100vw;
+    width: 100vw;
+    min-width: 0;
+    height: 100vh;
+    max-height: 100vh;
+    border-radius: 0;
+    margin: 0;
+  }
+}
+
+.unique-modal .ant-modal-body {
+  padding: 0;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.modal-scroll-content {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  width: 100%;
+  height: 100%;
+  background: #f9fafb;
+  padding: 16px 8px;
+}
+
+.unique-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-top-left-radius: 20px;
+  border-top-right-radius: 20px;
+}
+
+.unique-modal-tabs {
+  position: sticky;
+  top: 56px;
+  z-index: 10;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+@media (max-width: 768px) {
+  .unique-modal-header {
+    border-radius: 0;
+  }
+  .unique-modal-tabs {
+    top: 48px;
+    border-radius: 0;
+  }
+}
+
+/* Card-like sections */
+.unique-modal .card-section {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  margin-bottom: 18px;
+  padding: 18px 14px;
+  border: 1px solid #e5e7eb;
+}
+
+/* Section header */
+.unique-modal .section-title {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: #22223b;
+  letter-spacing: 0.01em;
+}
+
+/* Divider */
+.unique-modal .divider {
+  border-bottom: 1px solid #e5e7eb;
+  margin: 18px 0;
 }

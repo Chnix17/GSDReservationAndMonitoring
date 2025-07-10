@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsFillGridFill, BsList, BsTools } from 'react-icons/bs';
@@ -8,13 +8,13 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
 
-const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, currentQuantity, onQuantityChange }) => {
+const EquipmentCard = React.forwardRef(({ equipment, isSelected, onClick, viewMode, isMobile, currentQuantity, onQuantityChange }, ref) => {
   // Force list view on mobile
   const effectiveViewMode = isMobile ? 'list' : viewMode;
   const availableQuantity = parseInt(equipment.available_quantity) || 0;
   const isAvailable = availableQuantity > 0;
   const [inputValue, setInputValue] = useState(currentQuantity || 0);
-  const [isFocused, setIsFocused] = useState(false);
+  
 
   // Update input value when currentQuantity changes
   useEffect(() => {
@@ -29,7 +29,7 @@ const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, cur
 
   const handleInputBlur = (e) => {
     e.stopPropagation();
-    setIsFocused(false);
+    
     const value = e.target.value === '' ? 0 : parseInt(e.target.value) || 0;
     const clampedValue = Math.min(Math.max(0, value), availableQuantity);
     setInputValue(clampedValue);
@@ -38,11 +38,12 @@ const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, cur
 
   const handleInputFocus = (e) => {
     e.stopPropagation();
-    setIsFocused(true);
+  
   };
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -171,7 +172,7 @@ const EquipmentCard = ({ equipment, isSelected, onClick, viewMode, isMobile, cur
       </Card>
     </motion.div>
   );
-};
+});
 
 const ResourceEquipment = ({ 
   equipmentQuantities,
@@ -186,6 +187,9 @@ const ResourceEquipment = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Ref for the first equipment card
+  const firstEquipmentRef = useRef(null);
 
   const handleEquipmentQuantityChange = (equipId, value) => {
     console.log('Equipment quantity change triggered:', {
@@ -313,10 +317,15 @@ const ResourceEquipment = ({
   const endIndex = startIndex + itemsPerPage;
   const currentEquipment = filteredEquipment.slice(startIndex, endIndex);
 
+  // Handle page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    // Scroll to top of equipment section
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // On mobile, scroll to the first equipment card/item
+    setTimeout(() => {
+      if (isMobile && firstEquipmentRef.current) {
+        firstEquipmentRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 0);
   };
 
   // Handle search
@@ -412,7 +421,7 @@ const ResourceEquipment = ({
               ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
               : 'flex flex-col gap-2'}
           `}>
-            {currentEquipment.map((item) => (
+            {currentEquipment.map((item, idx) => (
               <EquipmentCard
                 key={item.equipment_id}
                 equipment={item}
@@ -430,6 +439,7 @@ const ResourceEquipment = ({
                 isMobile={isMobile}
                 currentQuantity={equipmentQuantities[item.equipment_id] || 0}
                 onQuantityChange={handleEquipmentQuantityChange}
+                ref={idx === 0 ? firstEquipmentRef : undefined}
               />
             ))}
           </div>
@@ -467,20 +477,27 @@ const ResourceEquipment = ({
 
           {/* Pagination */}
           {filteredEquipment.length > 0 && (
-            <div className={`
-              flex justify-center mt-4 bg-white rounded-lg shadow-sm
-              ${isMobile ? 'p-2' : 'p-4'}
-            `}>
-              <Pagination
-                current={currentPage}
-                total={totalItems}
-                pageSize={itemsPerPage}
-                onChange={handlePageChange}
-                size={isMobile ? 'small' : 'default'}
-                showSizeChanger={false}
-                showQuickJumper={!isMobile}
-              />
-            </div>
+            <>
+              <div
+                className={`
+                  flex justify-center mt-4 bg-white rounded-lg shadow-sm
+                  ${isMobile ? 'p-2' : 'p-4'}
+                `}
+              >
+                <Pagination
+                  current={currentPage}
+                  total={totalItems}
+                  pageSize={itemsPerPage}
+                  onChange={handlePageChange}
+                  size={isMobile ? 'small' : 'default'}
+                  showSizeChanger={false}
+                  showQuickJumper={!isMobile}
+                  style={isMobile ? { width: '100%', textAlign: 'center' } : {}}
+                />
+              </div>
+              {/* Add extra padding at the bottom so the pagination and last item are not hidden by the footer */}
+              {isMobile && <div style={{ height: 80 }} />}
+            </>
           )}
         </AnimatePresence>
       )}

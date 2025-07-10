@@ -250,11 +250,19 @@ const ReservationDetails = ({
                                         <Table 
                                             title={() => "Vehicles"}
                                             dataSource={reservationDetails.vehicles.map(vehicle => {
-                                                // Find the driver assigned to this vehicle
-                                                const assignedDriver = reservationDetails.drivers?.find(driver => driver.assigned_vehicle?.vehicle_id === vehicle.vehicle_id);
+                                                let driverName = 'No driver assigned';
+                                                if (reservationDetails.drivers && reservationDetails.drivers.length > 0) {
+                                                    // Find drivers assigned to this vehicle by reservation_vehicle_id
+                                                    const assignedDrivers = reservationDetails.drivers.filter(driver =>
+                                                        String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
+                                                    );
+                                                    if (assignedDrivers.length > 0) {
+                                                        driverName = assignedDrivers.map(driver => driver.name).join(', ');
+                                                    }
+                                                }
                                                 return {
                                                     ...vehicle,
-                                                    driver: assignedDriver ? assignedDriver.name : 'No driver assigned'
+                                                    driver: driverName
                                                 };
                                             })} 
                                             columns={[

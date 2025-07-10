@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsFillGridFill, BsList, BsBuilding } from 'react-icons/bs';
@@ -8,12 +8,13 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
 
-const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
+const VenueCard = React.forwardRef(({ venue, isSelected, onClick, viewMode, isMobile }, ref) => {
   // Force list view on mobile
   const effectiveViewMode = isMobile ? 'list' : viewMode;
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -83,7 +84,7 @@ const VenueCard = ({ venue, isSelected, onClick, viewMode, isMobile }) => {
       </Card>
     </motion.div>
   );
-};
+});
 
 const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   const [viewMode, setViewMode] = useState('grid');
@@ -92,6 +93,9 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
+
+  // Ref for the first venue card
+  const firstVenueRef = useRef(null);
 
   // Filter venues based on search query
   const filteredVenues = venues.filter(venue =>
@@ -108,8 +112,12 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   // Handle page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    // Scroll to top of venue list
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // On mobile, scroll to the first venue card/item
+    setTimeout(() => {
+      if (isMobile && firstVenueRef.current) {
+        firstVenueRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 0);
   };
 
   // Handle search
@@ -242,7 +250,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
               ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
               : 'flex flex-col gap-2'}
           `}>
-            {currentVenues.map((venue) => (
+            {currentVenues.map((venue, idx) => (
               <VenueCard
                 key={venue.ven_id}
                 venue={venue}
@@ -250,6 +258,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                 onClick={() => onVenueSelect(venue.ven_id)}
                 viewMode={viewMode}
                 isMobile={isMobile}
+                ref={idx === 0 ? firstVenueRef : undefined}
               />
             ))}
           </div>
@@ -287,20 +296,27 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
 
           {/* Pagination */}
           {filteredVenues.length > 0 && (
-            <div className={`
-              flex justify-center mt-4 bg-white rounded-lg shadow-sm
-              ${isMobile ? 'p-2' : 'p-4'}
-            `}>
-              <Pagination
-                current={currentPage}
-                total={totalItems}
-                pageSize={itemsPerPage}
-                onChange={handlePageChange}
-                size={isMobile ? 'small' : 'default'}
-                showSizeChanger={false}
-                showQuickJumper={!isMobile}
-              />
-            </div>
+            <>
+              <div
+                className={`
+                  flex justify-center mt-4 bg-white rounded-lg shadow-sm
+                  ${isMobile ? 'p-2' : 'p-4'}
+                `}
+              >
+                <Pagination
+                  current={currentPage}
+                  total={totalItems}
+                  pageSize={itemsPerPage}
+                  onChange={handlePageChange}
+                  size={isMobile ? 'small' : 'default'}
+                  showSizeChanger={false}
+                  showQuickJumper={!isMobile}
+                  style={isMobile ? { width: '100%', textAlign: 'center' } : {}}
+                />
+              </div>
+              {/* Add extra padding at the bottom so the pagination and last item are not hidden by the footer */}
+              {isMobile && <div style={{ height: 80 }} />}
+            </>
           )}
         </AnimatePresence>
       )}

@@ -142,7 +142,7 @@ const Sidebar = () => {
 
   // Update the notifications Popover content
   const renderNotifications = () => {
-    const unreadCount = notifications.filter(n => n.is_read === "0").length;
+    const unreadCount = notifications.filter(n => n.is_read === 0).length;
     
     return (
       <Popover className="relative">
@@ -166,14 +166,20 @@ const Sidebar = () => {
               leaveFrom="opacity-100 translate-y-0"
               leaveTo="opacity-0 translate-y-1"
             >
-              <Popover.Panel className="absolute right-0 z-10 mt-2 w-80 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
+              <Popover.Panel
+                className="
+                  fixed left-1/2 top-20 z-50 w-[95vw] max-w-xs -translate-x-1/2
+                  sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-xs sm:left-auto sm:translate-x-0 sm:z-10
+                  origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5
+                "
+              >
                 <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
                   <h3 className="font-medium">Notifications</h3>
                   {unreadCount > 0 && (
                     <button 
                       onClick={() => {
                         const unreadIds = notifications
-                          .filter(n => n.is_read === "0")
+                          .filter(n => n.is_read === 0)
                           .map(n => n.notification_reservation_id);
                         markNotificationsAsRead(unreadIds);
                       }}
@@ -193,7 +199,7 @@ const Sidebar = () => {
                       <div 
                         key={notification.notification_reservation_id}
                         className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
-                          notification.is_read === "0" ? 'bg-green-50 dark:bg-green-900/20' : ''
+                          notification.is_read === 0 ? 'bg-green-50 dark:bg-green-900/20' : ''
                         }`}
                       >
                         <p className="text-sm font-medium">{notification.notification_message}</p>

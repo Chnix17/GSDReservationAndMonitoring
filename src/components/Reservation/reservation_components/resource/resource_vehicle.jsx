@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsFillGridFill, BsList } from 'react-icons/bs';
@@ -9,12 +9,13 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
 
-const VehicleCard = ({ vehicle, isSelected, onClick, viewMode, isMobile }) => {
+const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, viewMode, isMobile }, ref) => {
   // Force list view on mobile
   const effectiveViewMode = isMobile ? 'list' : viewMode;
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
@@ -91,9 +92,9 @@ const VehicleCard = ({ vehicle, isSelected, onClick, viewMode, isMobile }) => {
       </Card>
     </motion.div>
   );
-};
+});
 
-const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories, selectedCategory, onCategoryChange, isMobile }) => {
+const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
   const [viewMode, setViewMode] = useState('grid');
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -101,9 +102,11 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
 
-  // Filter vehicles based on search query and category
+  // Ref for the first vehicle card
+  const firstVehicleRef = useRef(null);
+
+  // Filter vehicles based on search query
   const filteredVehicles = vehicles.filter(vehicle =>
-    (selectedCategory === 'all' || vehicle.vehicle_category_id === selectedCategory) &&
     ((vehicle.vehicle_make_name + ' ' + vehicle.vehicle_model_name).toLowerCase().includes(searchQuery.toLowerCase()) ||
     vehicle.vehicle_license.toLowerCase().includes(searchQuery.toLowerCase()))
   );
@@ -117,8 +120,12 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
   // Handle page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    // Scroll to top of vehicle list
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // On mobile, scroll to the first vehicle card/item
+    setTimeout(() => {
+      if (isMobile && firstVehicleRef.current) {
+        firstVehicleRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 0);
   };
 
   // Handle search
@@ -195,7 +202,6 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
                 : 'Select vehicles to proceed'}
             </p>
           </div>
-          
           {/* View mode toggle for non-mobile */}
           {!isMobile && (
             <div className="flex items-center gap-2">
@@ -226,8 +232,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
             </div>
           )}
         </div>
-
-        {/* Search and Category Filter */}
+        {/* Search only, no category filter */}
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
             placeholder="Search vehicles by name or license..."
@@ -237,20 +242,6 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
             className="w-full sm:max-w-md"
             size={isMobile ? 'middle' : 'large'}
           />
-          <select
-            value={selectedCategory}
-            onChange={(e) => onCategoryChange(e.target.value)}
-            className={`
-              border rounded-md px-3 py-2 bg-white
-              focus:outline-none focus:ring-2 focus:ring-green-500
-              ${isMobile ? 'text-sm' : 'text-base'}
-            `}
-          >
-            <option value="all">All Categories</option>
-            {vehicleCategories.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -265,7 +256,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
               ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
               : 'flex flex-col gap-2'}
           `}>
-            {currentVehicles.map((vehicle) => (
+            {currentVehicles.map((vehicle, idx) => (
               <VehicleCard
                 key={vehicle.vehicle_id}
                 vehicle={vehicle}
@@ -273,6 +264,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
                 onClick={() => onVehicleSelect(vehicle.vehicle_id)}
                 viewMode={viewMode}
                 isMobile={isMobile}
+                ref={idx === 0 ? firstVehicleRef : undefined}
               />
             ))}
           </div>
@@ -310,20 +302,27 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, vehicleCategories,
 
           {/* Pagination */}
           {filteredVehicles.length > 0 && (
-            <div className={`
-              flex justify-center mt-4 bg-white rounded-lg shadow-sm
-              ${isMobile ? 'p-2' : 'p-4'}
-            `}>
-              <Pagination
-                current={currentPage}
-                total={totalItems}
-                pageSize={itemsPerPage}
-                onChange={handlePageChange}
-                size={isMobile ? 'small' : 'default'}
-                showSizeChanger={false}
-                showQuickJumper={!isMobile}
-              />
-            </div>
+            <>
+              <div
+                className={`
+                  flex justify-center mt-4 bg-white rounded-lg shadow-sm
+                  ${isMobile ? 'p-2' : 'p-4'}
+                `}
+              >
+                <Pagination
+                  current={currentPage}
+                  total={totalItems}
+                  pageSize={itemsPerPage}
+                  onChange={handlePageChange}
+                  size={isMobile ? 'small' : 'default'}
+                  showSizeChanger={false}
+                  showQuickJumper={!isMobile}
+                  style={isMobile ? { width: '100%', textAlign: 'center' } : {}}
+                />
+              </div>
+              {/* Add extra padding at the bottom so the pagination and last item are not hidden by the footer */}
+              {isMobile && <div style={{ height: 80 }} />}
+            </>
           )}
         </AnimatePresence>
       )}

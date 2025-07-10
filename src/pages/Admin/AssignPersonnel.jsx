@@ -4,7 +4,8 @@ import axios from 'axios';
 import Sidebar from '../Sidebar';
 import {  Button, Input, Tooltip, Empty, Pagination } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import { faSearch, faUserPlus, faEye, faSyncAlt } from '@fortawesome/free-solid-svg-icons';
+import { faUserPlus, faEye } from '@fortawesome/free-solid-svg-icons';
+import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import dayjs from 'dayjs';
 import { toast } from 'sonner';
 import AssignModal from './core/Assign_Modal';
@@ -25,8 +26,6 @@ const AssignPersonnel = () => {
   const [sortField, setSortField] = useState("createdAt");
   const [sortOrder, setSortOrder] = useState("desc");
 
-
-
   const handleAssignSuccess = (updatedReservation) => {
     setReservations(prev => 
       prev.map(res => 
@@ -39,12 +38,11 @@ const AssignPersonnel = () => {
     }
   };
 
-
   const fetchNotAssignedReservations = async () => {
     setLoading(true);
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
+      const response = await axios.post(`${encryptedUrl}user.php`, {
         operation: 'fetchNoAssignedReservation'
       }, {
         headers: {
@@ -321,19 +319,22 @@ const AssignPersonnel = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
-      <div className="flex-shrink-0">
+      {/* Fixed Sidebar */}
+      <div className="flex-none">
         <Sidebar />
       </div>
-      <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+      
+      {/* Scrollable Content Area */}
+      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
           <motion.div 
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-8"
+            className="mb-4 sm:mb-8"
           >
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <h2 className="text-2xl font-custom-font font-bold text-green-900 mt-5">
+            <div className="mb-2 sm:mb-4 mt-10">
+              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                 Assign Personnel
               </h2>
             </div>
@@ -389,126 +390,121 @@ const AssignPersonnel = () => {
           
           {/* Search & Controls */}
           <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex flex-col md:flex-row gap-4 flex-1">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search reservations by name"
-                    allowClear
-                    prefix={<FontAwesomeIcon icon={faSearch} className="text-gray-400" />}
-                    size="large"
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
+            <div className="flex flex-row items-center gap-2 w-full">
+              <div className="flex-grow">
+                <Input
+                  placeholder="Search reservations by name"
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  size="large"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full"
+                />
               </div>
-              <div className="flex gap-2">
-                <Tooltip title="Refresh data">
-                  <Button
-                    icon={<FontAwesomeIcon icon={faSyncAlt} spin={loading} />}
-                    onClick={handleRefresh}
-                    size="large"
-                    loading={loading}
-                  />
-                </Tooltip>
-              </div>
+              <Tooltip title="Refresh data">
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={handleRefresh}
+                  size="large"
+                  style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                />
+              </Tooltip>
             </div>
           </div>
 
           {/* Table */}
-          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
-            <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-              <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
-                <tr>
-                  {columns.map((column) => (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      className="px-6 py-3"
-                      onClick={() =>
-                        column.sorter && handleSort(column.dataIndex)
-                      }
-                    >
-                      <div className="flex items-center cursor-pointer hover:text-gray-900">
-                        {column.title}
-                        {sortField === column.dataIndex && (
-                          <span className="ml-1">
-                            {sortOrder === "asc" ? "↑" : "↓"}
-                          </span>
-                        )}
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {loading ? (
-                  <tr>
-                    <td colSpan={columns.length} className="px-6 py-24 text-center">
-                      <div className="flex justify-center items-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-900"></div>
-                        <span className="ml-3 text-gray-500">Loading...</span>
-                      </div>
-                    </td>
-                  </tr>
-                ) : filteredReservations.length > 0 ? (
-                  filteredReservations
-                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                    .map((record) => (
-                      <tr
-                        key={record.id}
-                        className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600"
-                      >
-                        {columns.map((column) => (
-                          <td
-                            key={`${record.id}-${column.key}`}
-                            className="px-6 py-4"
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
+            {loading ? (
+              <div className="flex justify-center items-center h-64">
+                <div className="loader"></div>
+              </div>
+            ) : (
+              <>
+                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                  <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
+                    <tr>
+                      {columns.map((column) => (
+                        <th
+                          key={column.key}
+                          scope="col"
+                          className="px-4 py-4"
+                          onClick={() =>
+                            column.sorter && handleSort(column.dataIndex)
+                          }
+                        >
+                          <div className="flex items-center cursor-pointer">
+                            {column.title}
+                            {sortField === column.dataIndex && (
+                              <span className="ml-1">
+                                {sortOrder === "asc" ? "↑" : "↓"}
+                              </span>
+                            )}
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredReservations.length > 0 ? (
+                      filteredReservations
+                        .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                        .map((record) => (
+                          <tr
+                            key={record.id}
+                            className="bg-white border-b last:border-b-0 border-gray-200"
                           >
-                            {column.render
-                              ? column.render(record[column.dataIndex], record)
-                              : record[column.dataIndex]}
-                          </td>
-                        ))}
+                            {columns.map((column) => (
+                              <td
+                                key={`${record.id}-${column.key}`}
+                                className="px-4 py-6"
+                              >
+                                {column.render
+                                  ? column.render(record[column.dataIndex], record)
+                                  : record[column.dataIndex]}
+                              </td>
+                            ))}
+                          </tr>
+                        ))
+                    ) : (
+                      <tr>
+                        <td
+                          colSpan={columns.length}
+                          className="px-2 py-12 sm:px-6 sm:py-24 text-center"
+                        >
+                          <Empty
+                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                            description={
+                              <span className="text-gray-500 dark:text-gray-400">
+                                No reservations found
+                              </span>
+                            }
+                          />
+                        </td>
                       </tr>
-                    ))
-                ) : (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      className="px-6 py-24 text-center"
-                    >
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={
-                          <span className="text-gray-500 dark:text-gray-400">
-                            No reservations found
-                          </span>
-                        }
-                      />
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
+                    )}
+                  </tbody>
+                </table>
 
-            {/* Pagination */}
-            <div className="p-4 border-t border-gray-200 dark:border-gray-700">
-              <Pagination
-                current={currentPage}
-                pageSize={pageSize}
-                total={filteredReservations.length}
-                onChange={(page, size) => {
-                  setCurrentPage(page);
-                  setPageSize(size);
-                }}
-                showSizeChanger={true}
-                showTotal={(total, range) =>
-                  `${range[0]}-${range[1]} of ${total} items`
-                }
-                className="flex justify-end"
-              />
-            </div>
+                {/* Pagination */}
+                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={filteredReservations.length}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    }}
+                    showSizeChanger={true}
+                    showTotal={(total, range) =>
+                      `${range[0]}-${range[1]} of ${total} items`
+                    }
+                    className="flex justify-end"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton, Input } from 'antd';
-import { UndoOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, DeleteOutlined, SearchOutlined, IdcardOutlined } from '@ant-design/icons';
+import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton, Input, Tooltip } from 'antd';
+import { UndoOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, DeleteOutlined, SearchOutlined, IdcardOutlined, ReloadOutlined } from '@ant-design/icons';
 import Sidebar from './Sidebar';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -17,6 +17,7 @@ const Archive = () => {
   const [drivers, setDrivers] = useState([]);
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
   const navigate = useNavigate();
   const encryptedUrl = SecureStorage.getLocalItem("url");
   const [selectedRowKeys, setSelectedRowKeys] = useState([]);
@@ -34,6 +35,7 @@ const Archive = () => {
 
   const handleChange = (newValue) => {
     setValue(newValue);
+    setCurrentPage(1); // Reset to first page when changing tabs
   };
 
   const convertUserType = (userType) => {
@@ -156,6 +158,7 @@ const Archive = () => {
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+  
   useEffect(() => {
     // Fetch data based on selected tab
     switch (value) {
@@ -404,6 +407,7 @@ const Archive = () => {
   // Add global search function
   const handleSearch = (value) => {
     setSearchText(value);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
   // Filter data based on search text
@@ -417,12 +421,37 @@ const Archive = () => {
     });
   };
 
+  const handleRefresh = () => {
+    switch (value) {
+      case 0:
+        fetchUsers();
+        break;
+      case 1:
+        fetchVehicles();
+        break;
+      case 2:
+        fetchVenues();
+        break;
+      case 3:
+        fetchEquipment();
+        break;
+      case 4:
+        fetchDrivers();
+        break;
+      default:
+        break;
+    }
+    setSearchText('');
+    setCurrentPage(1);
+  };
+
   const userColumns = [
     { 
       title: 'School ID', 
       dataIndex: 'users_school_id', 
       key: 'school_id',
       sorter: (a, b) => a.users_school_id.localeCompare(b.users_school_id),
+      responsive: ['md'],
     },
     {
       title: 'Name',
@@ -434,7 +463,8 @@ const Archive = () => {
       title: 'Email', 
       dataIndex: 'users_email', 
       key: 'email',
-      ellipsis: true, 
+      ellipsis: true,
+      responsive: ['lg'],
     },
     {
       title: 'Department',
@@ -450,6 +480,7 @@ const Archive = () => {
         value: dept,
       })),
       onFilter: (value, record) => record.departments_name === value,
+      responsive: ['md'],
     },
     {
       title: 'User Level',
@@ -476,7 +507,7 @@ const Archive = () => {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Popconfirm
             title="Restore this user?"
             description="This will move the user back to active status."
@@ -485,8 +516,9 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
-              Restore
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Restore</span>
+              <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
           <Popconfirm
@@ -498,8 +530,9 @@ const Archive = () => {
             placement="left"
             okButtonProps={{ danger: true }}
           >
-            <Button danger icon={<DeleteOutlined />}>
-              Delete
+            <Button danger icon={<DeleteOutlined />} size="small">
+              <span className="hidden sm:inline">Delete</span>
+              <span className="sm:hidden">D</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -523,11 +556,13 @@ const Archive = () => {
         value: make,
       })),
       onFilter: (value, record) => record.vehicle_make_name === value,
+      responsive: ['md'],
     },
     { 
       title: 'Model', 
       dataIndex: 'vehicle_model_name', 
       key: 'model',
+      responsive: ['lg'],
     },
     { 
       title: 'Category', 
@@ -538,18 +573,20 @@ const Archive = () => {
           {text}
         </Tag>
       ),
+      responsive: ['md'],
     },
     { 
       title: 'Year', 
       dataIndex: 'year', 
       key: 'year',
       sorter: (a, b) => a.year - b.year,
+      responsive: ['lg'],
     },
     {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Popconfirm
             title="Restore this vehicle?"
             description="This will move the vehicle back to active status."
@@ -558,8 +595,9 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
-              Restore
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Restore</span>
+              <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
           <Popconfirm
@@ -571,8 +609,9 @@ const Archive = () => {
             placement="left"
             okButtonProps={{ danger: true }}
           >
-            <Button danger icon={<DeleteOutlined />}>
-              Delete
+            <Button danger icon={<DeleteOutlined />} size="small">
+              <span className="hidden sm:inline">Delete</span>
+              <span className="sm:hidden">D</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -593,13 +632,13 @@ const Archive = () => {
       key: 'occupancy',
       sorter: (a, b) => a.ven_occupancy - b.ven_occupancy,
       render: (text) => `${text} people`,
+      responsive: ['md'],
     },
-    
     {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Popconfirm
             title="Restore this venue?"
             description="This will move the venue back to active status."
@@ -608,8 +647,9 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
-              Restore
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Restore</span>
+              <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
           <Popconfirm
@@ -621,8 +661,9 @@ const Archive = () => {
             placement="left"
             okButtonProps={{ danger: true }}
           >
-            <Button danger icon={<DeleteOutlined />}>
-              Delete
+            <Button danger icon={<DeleteOutlined />} size="small">
+              <span className="hidden sm:inline">Delete</span>
+              <span className="sm:hidden">D</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -642,12 +683,13 @@ const Archive = () => {
       dataIndex: 'serial_number',
       key: 'serial_number',
       render: (text) => text || 'Not Applicable',
+      responsive: ['md'],
     },
     {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Popconfirm
             title="Restore this equipment?"
             description="This will move the equipment back to active status."
@@ -656,8 +698,9 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
-              Restore
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Restore</span>
+              <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
           <Popconfirm
@@ -669,8 +712,9 @@ const Archive = () => {
             placement="left"
             okButtonProps={{ danger: true }}
           >
-            <Button danger icon={<DeleteOutlined />}>
-              Delete
+            <Button danger icon={<DeleteOutlined />} size="small">
+              <span className="hidden sm:inline">Delete</span>
+              <span className="sm:hidden">D</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -707,7 +751,7 @@ const Archive = () => {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
-        <Space>
+        <Space size="small">
           <Popconfirm
             title="Restore this driver?"
             description="This will move the driver back to active status."
@@ -716,8 +760,9 @@ const Archive = () => {
             cancelText="No"
             placement="left"
           >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900">
-              Restore
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Restore</span>
+              <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
           <Popconfirm
@@ -729,8 +774,9 @@ const Archive = () => {
             placement="left"
             okButtonProps={{ danger: true }}
           >
-            <Button danger icon={<DeleteOutlined />}>
-              Delete
+            <Button danger icon={<DeleteOutlined />} size="small">
+              <span className="hidden sm:inline">Delete</span>
+              <span className="sm:hidden">D</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -808,60 +854,115 @@ const Archive = () => {
     );
   };
 
+  const getCurrentData = () => {
+    const filteredData = getFilteredData(
+      value === 0 ? users :
+      value === 1 ? vehicles :
+      value === 2 ? venues :
+      value === 3 ? equipment :
+      value === 4 ? drivers : []
+    );
+    
+    const startIndex = (currentPage - 1) * pageSize;
+    const endIndex = startIndex + pageSize;
+    return filteredData.slice(startIndex, endIndex);
+  };
+
+  const getCurrentColumns = () => {
+    switch (value) {
+      case 0: return userColumns;
+      case 1: return vehicleColumns;
+      case 2: return venueColumns;
+      case 3: return equipmentColumns;
+      case 4: return driverColumns;
+      default: return [];
+    }
+  };
+
+  const getCurrentRowKey = () => {
+    switch (value) {
+      case 0: return 'users_id';
+      case 1: return 'vehicle_id';
+      case 2: return 'ven_id';
+      case 3: return 'equip_id';
+      case 4: return 'driver_id';
+      default: return 'id';
+    }
+  };
+
+  const getFilteredDataLength = () => {
+    return getFilteredData(
+      value === 0 ? users :
+      value === 1 ? vehicles :
+      value === 2 ? venues :
+      value === 3 ? equipment :
+      value === 4 ? drivers : []
+    ).length;
+  };
+
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
-      <div className="flex-shrink-0">
+      {/* Fixed Sidebar */}
+      <div className="flex-none">
         <Sidebar />
       </div>
       
-      <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-        <div className="p-[2.5rem] lg:p-12 min-h-screen">
+      {/* Scrollable Content Area */}
+      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
           <motion.div 
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-8"
+            className="mb-4 sm:mb-8"
           >
-            <div className="mb-4 mt-20">
-              <h2 className="text-2xl font-bold text-green-900 mt-5">
+            <div className="mb-2 sm:mb-4 mt-10">
+              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                 Archive   
               </h2>
             </div>
           </motion.div>
 
+          {/* Search and Filters */}
           <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-              <div className="flex flex-col md:flex-row gap-4 flex-1">
-                <div className="flex-1">
-                  <Input
-                    placeholder="Search across all fields..."
-                    allowClear
-                    prefix={<SearchOutlined />}
-                    size="large"
-                    value={searchText}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className="w-full"
-                  />
-                </div>
+            <div className="flex flex-row items-center gap-2 w-full">
+              <div className="flex-grow">
+                <Input
+                  placeholder="Search across all fields..."
+                  allowClear
+                  prefix={<SearchOutlined />}
+                  size="large"
+                  value={searchText}
+                  onChange={(e) => handleSearch(e.target.value)}
+                  className="w-full"
+                />
               </div>
+              <Tooltip title="Refresh data">
+                <Button
+                  icon={<ReloadOutlined />}
+                  onClick={handleRefresh}
+                  size="large"
+                  style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                />
+              </Tooltip>
             </div>
           </div>
 
+          {/* Tabs Navigation */}
           <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            {/* Tabs Navigation */}
             <div className="border-b border-gray-200 mb-4">
-              <nav className="flex -mb-px space-x-8">
+              <nav className="flex -mb-px space-x-2 sm:space-x-8 overflow-x-auto">
                 {tabItems.map((item) => (
                   <button
                     key={item.key}
                     onClick={() => handleChange(item.key)}
-                    className={`py-4 px-1 flex items-center space-x-2 font-medium text-sm border-b-2 transition-colors duration-200 ${
+                    className={`py-2 sm:py-4 px-1 flex items-center space-x-1 sm:space-x-2 font-medium text-xs sm:text-sm border-b-2 transition-colors duration-200 whitespace-nowrap ${
                       value === item.key 
                         ? 'border-green-900 text-green-900' 
                         : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                     }`}
                   >
-                    <span className="text-lg">{item.icon}</span>
+                    <span className="text-sm sm:text-lg">{item.icon}</span>
                     <span>{item.label}</span>
                   </button>
                 ))}
@@ -875,113 +976,82 @@ const Archive = () => {
               ) : (
                 <div>
                   {renderBulkActions()}
-                  {/* Users Tab */}
-                  {value === 0 && (
+                  
+                  {/* Table */}
+                  <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
                     <Table 
                       rowSelection={rowSelection}
-                      columns={userColumns} 
-                      dataSource={getFilteredData(users)}
-                      rowKey="users_id"
-                      pagination={{
-                        pageSize: pageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: ['10', '20', '50'],
-                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`,
-                        onChange: (page, pageSize) => {
-                          setPageSize(pageSize);
-                        }
-                      }}
-                      scroll={{ x: 1200 }}
+                      columns={getCurrentColumns()} 
+                      dataSource={getCurrentData()}
+                      rowKey={getCurrentRowKey()}
+                      pagination={false}
+                      scroll={{ x: 'max-content' }}
                       bordered
                       size="middle"
                       className="archive-table"
                       locale={{ emptyText: renderEmptyState() }}
                     />
-                  )}
-
-                  {/* Vehicles Tab */}
-                  {value === 1 && (
-                    <Table 
-                      rowSelection={rowSelection}
-                      columns={vehicleColumns} 
-                      dataSource={getFilteredData(vehicles)}
-                      rowKey="vehicle_id"
-                      pagination={{
-                        pageSize: pageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: ['10', '20', '50'],
-                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`
-                      }}
-                      scroll={{ x: 1000 }}
-                      bordered
-                      size="middle"
-                      className="archive-table"
-                      locale={{ emptyText: renderEmptyState() }}
-                    />
-                  )}
-
-                  {/* Venues Tab */}
-                  {value === 2 && (
-                    <Table 
-                      rowSelection={rowSelection}
-                      columns={venueColumns} 
-                      dataSource={getFilteredData(venues)}
-                      rowKey="ven_id"
-                      pagination={{
-                        pageSize: pageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: ['10', '20', '50'],
-                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`
-                      }}
-                      scroll={{ x: 800 }}
-                      bordered
-                      size="middle"
-                      className="archive-table"
-                      locale={{ emptyText: renderEmptyState() }}
-                    />
-                  )}
-
-                  {/* Equipment Tab */}
-                  {value === 3 && (
-                    <Table 
-                      rowSelection={rowSelection}
-                      columns={equipmentColumns} 
-                      dataSource={getFilteredData(equipment)}
-                      rowKey="equip_id"
-                      pagination={{
-                        pageSize: pageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: ['10', '20', '50'],
-                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`
-                      }}
-                      scroll={{ x: 800 }}
-                      bordered
-                      size="middle"
-                      className="archive-table"
-                      locale={{ emptyText: renderEmptyState() }}
-                    />
-                  )}
-
-                  {/* Drivers Tab */}
-                  {value === 4 && (
-                    <Table 
-                      rowSelection={rowSelection}
-                      columns={driverColumns} 
-                      dataSource={getFilteredData(drivers)}
-                      rowKey="driver_id"
-                      pagination={{
-                        pageSize: pageSize,
-                        showSizeChanger: true,
-                        pageSizeOptions: ['10', '20', '50'],
-                        showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} items`
-                      }}
-                      scroll={{ x: 800 }}
-                      bordered
-                      size="middle"
-                      className="archive-table"
-                      locale={{ emptyText: renderEmptyState() }}
-                    />
-                  )}
+                    
+                    {/* Custom Pagination */}
+                    <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                      <div className="flex justify-between items-center">
+                        <span className="text-sm text-gray-600">
+                          Showing {((currentPage - 1) * pageSize) + 1} to {Math.min(currentPage * pageSize, getFilteredDataLength())} of {getFilteredDataLength()} items
+                        </span>
+                        <div className="flex items-center space-x-2">
+                          <select
+                            value={pageSize}
+                            onChange={(e) => {
+                              setPageSize(Number(e.target.value));
+                              setCurrentPage(1);
+                            }}
+                            className="border border-gray-300 rounded px-2 py-1 text-sm"
+                          >
+                            <option value={10}>10</option>
+                            <option value={20}>20</option>
+                            <option value={50}>50</option>
+                          </select>
+                          <span className="text-sm text-gray-600">per page</span>
+                        </div>
+                      </div>
+                      <div className="flex justify-center mt-4">
+                        <div className="flex space-x-1">
+                          <Button
+                            onClick={() => setCurrentPage(currentPage - 1)}
+                            disabled={currentPage === 1}
+                            size="small"
+                          >
+                            Previous
+                          </Button>
+                          {Array.from({ length: Math.ceil(getFilteredDataLength() / pageSize) }, (_, i) => i + 1)
+                            .filter(page => page === 1 || page === Math.ceil(getFilteredDataLength() / pageSize) || Math.abs(page - currentPage) <= 1)
+                            .map((page, index, array) => (
+                              <React.Fragment key={page}>
+                                {index > 0 && array[index - 1] !== page - 1 && (
+                                  <span className="px-2 py-1">...</span>
+                                )}
+                                <Button
+                                  onClick={() => setCurrentPage(page)}
+                                  type={currentPage === page ? 'primary' : 'default'}
+                                  size="small"
+                                  className={currentPage === page ? 'bg-green-900 hover:bg-lime-900' : ''}
+                                >
+                                  {page}
+                                </Button>
+                              </React.Fragment>
+                            ))
+                          }
+                          <Button
+                            onClick={() => setCurrentPage(currentPage + 1)}
+                            disabled={currentPage >= Math.ceil(getFilteredDataLength() / pageSize)}
+                            size="small"
+                          >
+                            Next
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

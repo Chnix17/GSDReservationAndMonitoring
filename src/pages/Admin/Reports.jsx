@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Statistic, Table, Tag, Select, Button, Tabs, Input, Tooltip, Row, Col } from 'antd';
+import { Card, Statistic, Table, Tag, Button, Tabs, Input, Tooltip, Row, Col, Dropdown } from 'antd';
 import { motion } from 'framer-motion';
 import {
   CarOutlined,
@@ -10,7 +10,8 @@ import {
   ExclamationCircleOutlined,
   SearchOutlined,
   ReloadOutlined,
-  BarChartOutlined
+  BarChartOutlined,
+  FilterOutlined
 } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -30,7 +31,6 @@ const Reports = () => {
     equipments_in_use: 0
   });
   const [timeRange, setTimeRange] = useState('week');
- 
   const [searchTerm, setSearchTerm] = useState('');
 
   const baseUrl = SecureStorage.getLocalItem("url");
@@ -51,7 +51,6 @@ const Reports = () => {
       setLoading(false);
     }
   }, [baseUrl]);
-
 
   const fetchMaintenanceResources = useCallback(async () => {
     try {
@@ -130,10 +129,6 @@ const Reports = () => {
       </Card>
     </motion.div>
   );
-
-
-
-
 
   // Update the filter function to handle two statuses
   const filterResourcesByStatus = (resources, status) => {
@@ -237,25 +232,30 @@ const Reports = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
-      <Sidebar />
-      <div className="flex-grow p-4 sm:p-6 lg:p-8 overflow-y-auto">
-        <div className="max-w-7xl mx-auto">
+      {/* Fixed Sidebar */}
+      <div className="flex-none">
+        <Sidebar />
+      </div>
+      
+      {/* Scrollable Content Area */}
+      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
+            initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-8"
+            className="mb-4 sm:mb-8"
           >
-            <div className="flex items-center justify-between mb-8 mt-20">
-              <h2 className="text-3xl font-bold text-green-900">
+            <div className="mb-2 sm:mb-4 mt-10">
+              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                 Resource Reports
               </h2>
-
             </div>
           </motion.div>
 
-          <Row gutter={[24, 24]} className="mb-8">
-            <Col xs={24} md={8}>
+          {/* Statistics Cards */}
+          <Row gutter={[16, 16]} className="mb-6">
+            <Col xs={24} sm={12} lg={8}>
               <ResourceCard
                 title="Venues"
                 stats={{
@@ -267,7 +267,7 @@ const Reports = () => {
                 color="text-green-900"
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} sm={12} lg={8}>
               <ResourceCard
                 title="Vehicles"
                 stats={{
@@ -279,7 +279,7 @@ const Reports = () => {
                 color="text-green-900"
               />
             </Col>
-            <Col xs={24} md={8}>
+            <Col xs={24} sm={12} lg={8}>
               <ResourceCard
                 title="Equipment"
                 stats={{
@@ -293,56 +293,61 @@ const Reports = () => {
             </Col>
           </Row>
 
-          
-
-          <Card 
-            className="shadow-lg bg-[#fafff4] border-0 mb-8"
-            bodyStyle={{ padding: '1.5rem' }}
-          >
-            <div className="flex flex-col md:flex-row gap-4 items-center">
-              <div className="flex flex-1 gap-4 w-full">
+          {/* Search and Filters */}
+          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+            <div className="flex flex-row items-center gap-2 w-full">
+              <div className="flex-grow">
                 <Input
                   placeholder="Search resources by name"
                   allowClear
-                  prefix={<SearchOutlined className="text-gray-400" />}
+                  prefix={<SearchOutlined />}
                   size="large"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full"
                 />
+              </div>
+              <Dropdown
+                menu={{
+                  items: [
+                    { key: 'week', label: 'Last Week' },
+                    { key: 'month', label: 'Last Month' },
+                    { key: 'year', label: 'Last Year' }
+                  ],
+                  onClick: ({ key }) => setTimeRange(key),
+                  selectedKeys: [timeRange]
+                }}
+                trigger={["click"]}
+                placement="bottomRight"
+              >
+                <Button
+                  icon={<FilterOutlined />}
+                  size="large"
+                  style={{ background: 'white', border: '1px solid #d9d9d9', borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}
+                />
+              </Dropdown>
+              <div>
                 <Tooltip title="Refresh data">
                   <Button
                     icon={<ReloadOutlined />}
                     onClick={handleRefresh}
                     size="large"
-                    className="hover:scale-105 transition-transform"
+                    style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                   />
                 </Tooltip>
               </div>
-              <Select
-                defaultValue="week"
-                onChange={setTimeRange}
-                options={[
-                  { value: 'week', label: 'Last Week' },
-                  { value: 'month', label: 'Last Month' },
-                  { value: 'year', label: 'Last Year' }
-                ]}
-                className="w-full md:w-48"
-                size="large"
-              />
             </div>
-          </Card>
+          </div>
 
-          <Card 
-            title={
+          {/* Defective Resources Table */}
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
+            <div className="p-4 border-b border-gray-200">
               <div className="flex items-center text-xl font-bold text-green-900">
                 <BarChartOutlined className="mr-2" />
                 Defective Resources
               </div>
-            }
-            className="shadow-lg bg-[#fafff4] border-0"
-            bodyStyle={{ padding: '1.5rem' }}
-          >
+            </div>
+            
             <Tabs
               defaultActiveKey="unset"
               items={[
@@ -351,24 +356,29 @@ const Reports = () => {
                   label: (
                     <span className="flex items-center">
                       <CloseCircleOutlined className="mr-2 text-red-500" />
-                      Unset
+                      <span className="hidden sm:inline">Unset</span>
+                      <span className="sm:hidden">Unset</span>
                     </span>
                   ),
                   children: (
-                    <Table
-                      loading={loading}
-                      pagination={{ 
-                        pageSize: 10,
-                        showSizeChanger: true,
-                        showTotal: (total) => `Total ${total} items`
-                      }}
-                      columns={getColumnsForTab('unset')}
-                      dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset').map(resource => ({
-                        key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
-                        ...resource
-                      }))}
-                      className="maintenance-table"
-                    />
+                    <div className="overflow-x-auto">
+                      <Table
+                        loading={loading}
+                        pagination={{ 
+                          pageSize: 10,
+                          showSizeChanger: true,
+                          showTotal: (total) => `Total ${total} items`,
+                          responsive: true
+                        }}
+                        columns={getColumnsForTab('unset')}
+                        dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset').map(resource => ({
+                          key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                          ...resource
+                        }))}
+                        className="maintenance-table"
+                        scroll={{ x: 'max-content' }}
+                      />
+                    </div>
                   ),
                 },
                 {
@@ -376,33 +386,36 @@ const Reports = () => {
                   label: (
                     <span className="flex items-center">
                       <CheckCircleOutlined className="mr-2 text-green-500" />
-                      Done
+                      <span className="hidden sm:inline">Done</span>
+                      <span className="sm:hidden">Done</span>
                     </span>
                   ),
                   children: (
-                    <Table
-                      loading={loading}
-                      pagination={{ 
-                        pageSize: 10,
-                        showSizeChanger: true,
-                        showTotal: (total) => `Total ${total} items`
-                      }}
-                      columns={getColumnsForTab('done')}
-                      dataSource={maintenanceResourcesWithStatus.map(resource => ({
-                        key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
-                        ...resource
-                      }))}
-                      className="maintenance-table"
-                    />
+                    <div className="overflow-x-auto">
+                      <Table
+                        loading={loading}
+                        pagination={{ 
+                          pageSize: 10,
+                          showSizeChanger: true,
+                          showTotal: (total) => `Total ${total} items`,
+                          responsive: true
+                        }}
+                        columns={getColumnsForTab('done')}
+                        dataSource={maintenanceResourcesWithStatus.map(resource => ({
+                          key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                          ...resource
+                        }))}
+                        className="maintenance-table"
+                        scroll={{ x: 'max-content' }}
+                      />
+                    </div>
                   ),
                 }
               ]}
             />
-          </Card>
+          </div>
         </div>
       </div>
-
-   
     </div>
   );
 };

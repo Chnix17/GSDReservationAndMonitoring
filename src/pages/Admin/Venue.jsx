@@ -146,16 +146,15 @@ const VenueEntry = () => {
                 <Sidebar />
             </div>
             
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-                <div className="p-[2.5rem] lg:p-12 min-h-screen">
+            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-4 sm:mb-8"
                     >
-                        <div className="mb-4 mt-20">
-
+                        <div className="mb-2 sm:mb-4 mt-mt-10">
                             <h2 className="text-2xl font-bold text-green-900 mt-5">
                                 Venue 
                             </h2>
@@ -163,19 +162,17 @@ const VenueEntry = () => {
                     </motion.div>
 
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="flex-1">
-                                    <Input
-                                        placeholder="Search venues by name"
-                                        allowClear
-                                        prefix={<SearchOutlined />}
-                                        size="large"
-                                        value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
-                                        className="w-full"
-                                    />
-                                </div>
+                        <div className="flex flex-row items-center gap-2 w-full">
+                            <div className="flex-grow">
+                                <Input
+                                    placeholder="Search venues by name"
+                                    allowClear
+                                    prefix={<SearchOutlined />}
+                                    size="large"
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    className="w-full"
+                                />
                             </div>
                             <div className="flex gap-2">
                                 {selectedVenues.length > 0 && (
@@ -215,10 +212,10 @@ const VenueEntry = () => {
                             </div>
                         ) : (
                             <>
-                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     <input
                                                         type="checkbox"
@@ -230,12 +227,12 @@ const VenueEntry = () => {
                                                                 setSelectedVenues([]);
                                                             }
                                                         }}
-                                                        checked={selectedVenues.length === filteredVenues.length}
+                                                        checked={selectedVenues.length === filteredVenues.length && filteredVenues.length > 0}
                                                     />
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('ven_name')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4 cursor-pointer" onClick={() => handleSort('ven_name')}>
+                                                <div className="flex items-center">
                                                     Venue Name
                                                     {sortField === 'ven_name' && (
                                                         <span className="ml-1">
@@ -244,8 +241,8 @@ const VenueEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3" onClick={() => handleSort('ven_occupancy')}>
-                                                <div className="flex items-center cursor-pointer hover:text-gray-900">
+                                            <th scope="col" className="px-4 py-4 cursor-pointer" onClick={() => handleSort('ven_occupancy')}>
+                                                <div className="flex items-center">
                                                     Max Occupancy
                                                     {sortField === 'ven_occupancy' && (
                                                         <span className="ml-1">
@@ -254,12 +251,12 @@ const VenueEntry = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Status
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Actions
                                                 </div>
@@ -273,11 +270,11 @@ const VenueEntry = () => {
                                                 .map((venue) => (
                                                     <tr
                                                         key={venue.ven_id}
-                                                        className={`bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
-                                                            selectedVenues.includes(venue.ven_id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                                        className={`bg-white border-b last:border-b-0 border-gray-200 ${
+                                                            selectedVenues.includes(venue.ven_id) ? 'bg-blue-50' : ''
                                                         }`}
                                                     >
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             <input
                                                                 type="checkbox"
                                                                 className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
@@ -291,38 +288,38 @@ const VenueEntry = () => {
                                                                 }}
                                                             />
                                                         </td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             <div className="flex items-center">
                                                                 <FaBuilding className="mr-2 text-green-900" />
-                                                                <span className="font-medium">{venue.ven_name}</span>
+                                                                <span className="font-medium truncate block max-w-[140px]">{venue.ven_name}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             {venue.ven_occupancy && venue.ven_occupancy !== '0' ? venue.ven_occupancy : 'Not Specified'}
                                                         </td>
-                                                        <td className="px-6 py-4">
+                                                        <td className="px-4 py-4">
                                                             <Tag 
                                                                 value={
-                                                                    venue.status_availability_id === '1' ? 'Available' :
-                                                                    venue.status_availability_id === '5' ? 'In Use' :
-                                                                    venue.status_availability_id === '6' ? 'For Inspection' :
-                                                                    venue.status_availability_id === '7' ? 'Missing' :
-                                                                    venue.status_availability_id === '8' ? 'Damaged' :
+                                                                    venue.status_availability_id === 1 ? 'Available' :
+                                                                    venue.status_availability_id === 5 ? 'In Use' :
+                                                                    venue.status_availability_id === 6 ? 'For Inspection' :
+                                                                    venue.status_availability_id === 7 ? 'Missing' :
+                                                                    venue.status_availability_id === 8 ? 'Damaged' :
                                                                     'Not Available'
                                                                 }
                                                                 severity={
-                                                                    venue.status_availability_id === '1' ? 'success' :
-                                                                    venue.status_availability_id === '5' ? 'info' :
-                                                                    venue.status_availability_id === '6' ? 'warning' :
-                                                                    venue.status_availability_id === '7' ? 'danger' :
-                                                                    venue.status_availability_id === '8' ? 'danger' :
+                                                                    venue.status_availability_id === 1 ? 'success' :
+                                                                    venue.status_availability_id === 5 ? 'info' :
+                                                                    venue.status_availability_id === 6 ? 'warning' :
+                                                                    venue.status_availability_id === 7 ? 'danger' :
+                                                                    venue.status_availability_id === 8 ? 'danger' :
                                                                     'danger'
                                                                 }
                                                                 className="px-2 py-1 text-xs font-semibold"
                                                             />
                                                         </td>
-                                                        <td className="px-6 py-4">
-                                                            <div className="flex space-x-2">
+                                                        <td className="px-4 py-4">
+                                                            <div className="flex space-x-2 justify-center">
                                                                 <Button
                                                                     type="primary"
                                                                     icon={<EditOutlined />}
@@ -349,7 +346,7 @@ const VenueEntry = () => {
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-24 text-center">
+                                                <td colSpan={7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={

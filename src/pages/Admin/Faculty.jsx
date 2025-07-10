@@ -18,9 +18,9 @@ import { SecureStorage } from '../../utils/encryption';
 import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import CreateModal from './lib/Faculty/Create_Modal';
 import UpdateModal from './lib/Faculty/Update_Modal';
-import { Alert, Empty, Pagination, Select, Input, Tooltip } from 'antd';
+import { Alert, Empty, Pagination, Input, Tooltip, Dropdown, Space } from 'antd';
 import { Button as AntButton } from 'antd';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, DownOutlined } from '@ant-design/icons';
 
 // Add custom styles for checkboxes
 const customStyles = `
@@ -86,7 +86,6 @@ const Faculty = () => {
     const [modalState, setModalState] = useState({ isOpen: false, type: '', user: null });
     const [departments, setDepartments] = useState([]);
     const [userLevels, setUserLevels] = useState([]);
-    const [selectedRole, setSelectedRole] = useState('');
     const [viewImageModal, setViewImageModal] = useState(false);
 
     const [showConfirmArchive, setShowConfirmArchive] = useState(false);
@@ -294,9 +293,8 @@ const Faculty = () => {
         );
     };
 
-    // Modify the DataTable value prop to include role and search filtering
+    // Filter data based on search term only
     const filteredData = users.filter(user => {
-        const matchesRole = selectedRole ? user.user_level_name === selectedRole : true;
         const matchesSearch = searchTerm
             ? (
                 (user.users_fname && user.users_fname.toLowerCase().includes(searchTerm.toLowerCase())) ||
@@ -305,115 +303,131 @@ const Faculty = () => {
                 (user.users_school_id && user.users_school_id.toLowerCase().includes(searchTerm.toLowerCase())) ||
                 (user.departments_name && user.departments_name.toLowerCase().includes(searchTerm.toLowerCase()))
             ) : true;
-        return matchesRole && matchesSearch;
+        return matchesSearch;
     });
     // Pagination logic: slice filteredData for current page
     const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+    const handleMenuClick = (e) => {
+        switch (e.key) {
+            case 'add':
+                setModalState({ isOpen: true, type: 'add', user: null });
+                break;
+            case 'viewDepartments':
+                navigate('/departments');
+                break;
+            default:
+                break;
+        }
+    };
+
+    const items = [
+        {
+            key: 'add',
+            icon: <FontAwesomeIcon icon={faPlus} />,
+            label: 'Add Faculty',
+        },
+        {
+            key: 'viewDepartments',
+            icon: <i className="pi pi-building" />,
+            label: 'View Departments',
+        },
+    ];
+
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
             <style>{customStyles}</style>
-            <div className="flex-shrink-0">
+            {/* Fixed Sidebar */}
+            <div className="flex-none">
                 <Sidebar />
             </div>
-            <div className="flex-grow p-6 sm:p-8 overflow-y-auto">
-                <div className="p-[2.5rem] lg:p-12 min-h-screen">
+            
+            {/* Scrollable Content Area */}
+            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-20">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-8"
+                        className="mb-4 sm:mb-8"
                     >
-                        <div className="mb-4 mt-20">
-                           
-                            <h2 className="text-2xl font-bold text-green-900 mt-5">
+                        <div className="mb-2 sm:mb-4 mt-20">
+                            <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
                                 Faculty
                             </h2>
                         </div>
                     </motion.div>
 
+                    {/* Search and Filters */}
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                            <div className="flex flex-col md:flex-row gap-4 flex-1">
-                                <div className="flex-1">
-                                    <Input
-                                        placeholder="Search faculty..."
-                                        allowClear
-                                        prefix={<SearchOutlined className="text-gray-400" />}
-                                        size="large"
-                                        value={searchTerm}
-                                        onChange={e => {
-                                            setSearchTerm(e.target.value);
-                                            setCurrentPage(1); // Reset to first page on search
-                                        }}
-                                        className="w-full"
-                                    />
-                                </div>
-                                <div className="w-full md:w-48">
-                                    <Select
-                                        placeholder="Filter by role"
-                                        allowClear
-                                        value={selectedRole}
-                                        onChange={value => {
-                                            setSelectedRole(value);
-                                            setCurrentPage(1); // Reset to first page on filter
-                                        }}
-                                        className="w-full"
-                                        options={[
-                                            { value: '', label: 'All Roles' },
-                                            { value: 'Admin', label: 'Admin' },
-                                            { value: 'Dean', label: 'Dean' },
-                                            { value: 'Secretary', label: 'Secretary' },
-                                            { value: 'Personnel', label: 'Personnel' },
-                                            { value: 'user', label: 'User' }
-                                        ]}
-                                        size="large"
-                                    />
-                                </div>
+                        <div className="flex flex-row items-center gap-2 w-full">
+                            <div className="flex-grow">
+                                <Input
+                                    placeholder="Search faculty..."
+                                    allowClear
+                                    prefix={<SearchOutlined className="text-gray-400" />}
+                                    size="large"
+                                    value={searchTerm}
+                                    onChange={e => {
+                                        setSearchTerm(e.target.value);
+                                        setCurrentPage(1); // Reset to first page on search
+                                    }}
+                                    className="w-full"
+                                />
                             </div>
-                            <div className="flex gap-2">
-                                {selectedUsers.length > 0 && (
-                                    <AntButton
-                                        danger
-                                        icon={<DeleteOutlined />}
-                                        onClick={() => handleArchiveClick(selectedUsers)}
-                                        size="large"
-                                    >
-                                        Archive Selected ({selectedUsers.length})
-                                    </AntButton>
-                                )}
-                                <Tooltip title="Refresh data">
-                                    <AntButton
-                                        icon={<ReloadOutlined />}
-                                        onClick={fetchUsers}
-                                        size="large"
-                                        className="hover:scale-105 transition-transform"
-                                    />
-                                </Tooltip>
+                            {selectedUsers.length > 0 && (
+                                <AntButton
+                                    danger
+                                    icon={<DeleteOutlined />}
+                                    onClick={() => handleArchiveClick(selectedUsers)}
+                                    size="large"
+                                >
+                                    <span className="hidden sm:inline">Archive Selected ({selectedUsers.length})</span>
+                                    <span className="sm:hidden">Archive ({selectedUsers.length})</span>
+                                </AntButton>
+                            )}
+                            <Tooltip title="Refresh data">
+                                <AntButton
+                                    icon={<ReloadOutlined />}
+                                    onClick={fetchUsers}
+                                    size="large"
+                                    className="hover:scale-105 transition-transform"
+                                    style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                />
+                            </Tooltip>
+                            <Dropdown
+                                menu={{
+                                    items,
+                                    onClick: handleMenuClick,
+                                }}
+                            >
                                 <AntButton
                                     type="primary"
-                                    icon={<FontAwesomeIcon icon={faPlus} />}
                                     size="large"
-                                    onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
                                     className="bg-lime-900 hover:bg-green-600"
                                 >
-                                    Add Faculty
+                                    <Space>
+                                        <span className="hidden sm:inline">Add Faculty</span>
+                                        <span className="sm:hidden">Add</span>
+                                        <DownOutlined />
+                                    </Space>
                                 </AntButton>
-                            </div>
+                            </Dropdown>
                         </div>
                     </div>
 
-                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
+                    {/* Table */}
+                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
                         {loading ? (
                             <div className="flex justify-center items-center h-64">
                                 <div className="loader"></div>
                             </div>
                         ) : (
                             <>
-                                <table className="w-full text-sm text-left rtl:text-right text-gray-500 dark:text-gray-400">
-                                    <thead className="text-xs text-gray-700 uppercase bg-green-400/20 dark:bg-green-900/20 dark:text-green-900">
+                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     <input
                                                         type="checkbox"
@@ -429,32 +443,32 @@ const Faculty = () => {
                                                     />
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     School ID
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Full Name
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Department
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Role
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Contact
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-6 py-3">
+                                            <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
                                                     Actions
                                                 </div>
@@ -466,11 +480,11 @@ const Faculty = () => {
                                             paginatedData.map((user) => (
                                                 <tr
                                                     key={user.users_id}
-                                                    className={`bg-white border-b dark:bg-gray-800 dark:border-gray-700 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
+                                                    className={`bg-white border-b last:border-b-0 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
                                                         selectedUsers.includes(user.users_id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                                                     }`}
                                                 >
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 py-6">
                                                         <input
                                                             type="checkbox"
                                                             className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
@@ -484,52 +498,58 @@ const Faculty = () => {
                                                             }}
                                                         />
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 py-6">
                                                         <div className="flex items-center">
-                                                            <span className="font-medium">{user.users_school_id}</span>
+                                                            <span className="font-medium truncate block max-w-[120px]">{user.users_school_id}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 py-6">
                                                         <div className="flex items-center">
-                                                            <span className="font-medium">
+                                                            <span className="font-medium truncate block max-w-[200px]">
                                                                 {`${user.title_abbreviation ? user.title_abbreviation + ' ' : ''}${user.users_fname} ${user.users_mname ? user.users_mname + ' ' : ''}${user.users_lname}`}
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 py-6">
                                                         {departmentTemplate(user)}
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 py-6">
                                                         {userLevelTemplate(user)}
                                                     </td>
-                                                    <td className="px-6 py-4">
+                                                    <td className="px-4 py-6">
                                                         <div className="flex items-center gap-2">
                                                             <i className="pi pi-phone text-green-500" />
-                                                            {user.users_contact_number}
+                                                            <span className="truncate block max-w-[120px]">{user.users_contact_number}</span>
                                                         </div>
                                                     </td>
-                                                    <td className="px-6 py-4">
-                                                        <div className="flex space-x-2">
-                                                            <AntButton
-                                                                type="primary"
-                                                                icon={<EditOutlined />}
-                                                                onClick={() => handleEditClick(user)}
-                                                                size="middle"
-                                                                className="bg-green-900 hover:bg-lime-900"
-                                                            />
-                                                            <AntButton
-                                                                danger
-                                                                icon={<DeleteOutlined />}
-                                                                onClick={() => handleArchiveClick(user.users_id)}
-                                                                size="middle"
-                                                            />
+                                                    <td className="px-4 py-6">
+                                                        <div className="flex justify-center space-x-2">
+                                                            <Tooltip title="Edit Faculty">
+                                                                <AntButton
+                                                                    shape="circle"
+                                                                    icon={<EditOutlined />}
+                                                                    onClick={() => handleEditClick(user)}
+                                                                    size="large"
+                                                                    className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                                                                />
+                                                            </Tooltip>
+                                                            <Tooltip title="Archive Faculty">
+                                                                <AntButton
+                                                                    shape="circle"
+                                                                    danger
+                                                                    icon={<DeleteOutlined />}
+                                                                    onClick={() => handleArchiveClick(user.users_id)}
+                                                                    size="large"
+                                                                    className="shadow-lg flex items-center justify-center"
+                                                                />
+                                                            </Tooltip>
                                                         </div>
                                                     </td>
                                                 </tr>
                                             ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={7} className="px-6 py-24 text-center">
+                                                <td colSpan={7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={
@@ -544,6 +564,7 @@ const Faculty = () => {
                                     </tbody>
                                 </table>
 
+                                {/* Pagination */}
                                 <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                     <Pagination
                                         current={currentPage}
