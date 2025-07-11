@@ -2046,30 +2046,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     // Validate reservation dates
     if (!isValidDate(resStart) || !isValidDate(resEnd)) return false;
 
-    // Get the time window that should be checked each day
-    const timeWindowStart = resStart.getHours();
-    const timeWindowStartMinutes = resStart.getMinutes();
-    const timeWindowEnd = resEnd.getHours();
-    const timeWindowEndMinutes = resEnd.getMinutes();
-
-    // Get the attempted booking's time window
-    const attemptedTimeWindowStart = attemptedStart.getHours();
-    const attemptedTimeWindowStartMinutes = attemptedStart.getMinutes();
-    const attemptedTimeWindowEnd = attemptedEnd.getHours();
-    const attemptedTimeWindowEndMinutes = attemptedEnd.getMinutes();
-
-    // First check if the time windows overlap
-    const timeWindowsOverlap = (
-      (attemptedTimeWindowStart < timeWindowEnd || 
-       (attemptedTimeWindowStart === timeWindowEnd && attemptedTimeWindowStartMinutes < timeWindowEndMinutes)) &&
-      (attemptedTimeWindowEnd > timeWindowStart || 
-       (attemptedTimeWindowEnd === timeWindowStart && attemptedTimeWindowEndMinutes > timeWindowStartMinutes))
-    );
-
-    // If time windows don't overlap, there's no conflict
-    if (!timeWindowsOverlap) return false;
-
-    // Now check if any days overlap
+    // Check if date ranges overlap first
     const resStartDay = new Date(resStart);
     resStartDay.setHours(0, 0, 0, 0);
     const resEndDay = new Date(resEnd);
@@ -2083,7 +2060,37 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     // Check if date ranges overlap
     const datesOverlap = attemptedStartDay <= resEndDay && attemptedEndDay >= resStartDay;
 
-    return datesOverlap;
+    if (!datesOverlap) return false;
+
+    // For multi-day bookings, any overlap is a conflict
+    const isMultiDayAttempt = !isSameDay(attemptedStart, attemptedEnd);
+    const isMultiDayExisting = !isSameDay(resStart, resEnd);
+
+    if (isMultiDayAttempt || isMultiDayExisting) {
+      // If either booking is multi-day, any date overlap is a conflict
+      return true;
+    }
+
+    // For single-day bookings, check time window overlap
+    const timeWindowStart = resStart.getHours();
+    const timeWindowStartMinutes = resStart.getMinutes();
+    const timeWindowEnd = resEnd.getHours();
+    const timeWindowEndMinutes = resEnd.getMinutes();
+
+    const attemptedTimeWindowStart = attemptedStart.getHours();
+    const attemptedTimeWindowStartMinutes = attemptedStart.getMinutes();
+    const attemptedTimeWindowEnd = attemptedEnd.getHours();
+    const attemptedTimeWindowEndMinutes = attemptedEnd.getMinutes();
+
+    // Check if the time windows overlap
+    const timeWindowsOverlap = (
+      (attemptedTimeWindowStart < timeWindowEnd || 
+       (attemptedTimeWindowStart === timeWindowEnd && attemptedTimeWindowStartMinutes < timeWindowEndMinutes)) &&
+      (attemptedTimeWindowEnd > timeWindowStart || 
+       (attemptedTimeWindowEnd === timeWindowStart && attemptedTimeWindowEndMinutes > timeWindowStartMinutes))
+    );
+
+    return timeWindowsOverlap;
   }).map(res => ({
     ...res,
     conflictType: getConflictType(attemptedStart, attemptedEnd, new Date(res.startDate), new Date(res.endDate))
@@ -2707,11 +2714,54 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
   if (dateRange.start && dateRange.end) {
     const start = new Date(dateRange.start);
     const end = new Date(dateRange.end);
-    for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-      const daySlots = getBlockedTimeSlots(new Date(d));
-      if (daySlots.hours.length >= 9) {
+    
+    // Check if there are any existing reservations that completely block the selected range
+    if (selectedResource.type !== 'equipment' && reservations.length > 0) {
+      const hasCompleteConflict = reservations.some(res => {
+        if (!res.isReserved) return false;
+        
+        const resStart = new Date(res.startDate);
+        const resEnd = new Date(res.endDate);
+        
+        // Check if the existing reservation completely overlaps with the selected date range
+        const rangeStart = new Date(start);
+        rangeStart.setHours(0, 0, 0, 0);
+        const rangeEnd = new Date(end);
+        rangeEnd.setHours(23, 59, 59, 999);
+        
+        // Check if the existing reservation completely covers the selected range
+        return (resStart <= rangeStart && resEnd >= rangeEnd);
+      });
+      
+      if (hasCompleteConflict) {
         hasRangeConflict = true;
-        break;
+      }
+    }
+    
+    // For equipment, check if there's insufficient availability for the entire range
+    if (selectedResource.type === 'equipment' && equipmentAvailability.length > 0) {
+      const hasCompleteConflict = equipmentAvailability.some(item => {
+        const itemStart = new Date(item.startDate);
+        const itemEnd = new Date(item.endDate);
+        
+        // Check if the equipment reservation completely overlaps with the selected date range
+        const rangeStart = new Date(start);
+        rangeStart.setHours(0, 0, 0, 0);
+        const rangeEnd = new Date(end);
+        rangeEnd.setHours(23, 59, 59, 999);
+        
+        if (itemStart <= rangeStart && itemEnd >= rangeEnd) {
+          // Check if there's insufficient availability for the entire range
+          const available = parseInt(item.totalAvailable);
+          const requested = parseInt(item.requestedQuantity);
+          return available < requested;
+        }
+        
+        return false;
+      });
+      
+      if (hasCompleteConflict) {
+        hasRangeConflict = true;
       }
     }
   }
@@ -3391,51 +3441,60 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
               }
             }
           }
-        } else if (isSameDay(resStart, compareDate)) {
-          // First day of multi-day reservation - block from start time onwards
-          const startHour = resStart.getHours();
-          const startMinute = resStart.getMinutes();
-          
-          for (let hour = startHour; hour < 17; hour++) {
-            if (!blockedSlots.hours.includes(hour)) {
-              blockedSlots.hours.push(hour);
-            }
-          }
-          if (startMinute > 0) {
-            if (!blockedSlots.minutes[startHour]) {
-              blockedSlots.minutes[startHour] = [];
-            }
-            for (let minute = startMinute; minute < 60; minute += 30) {
-              if (!blockedSlots.minutes[startHour].includes(minute)) {
-                blockedSlots.minutes[startHour].push(minute);
-              }
-            }
-          }
-        } else if (isSameDay(resEnd, compareDate)) {
-          // Last day of multi-day reservation - block from start of business day to end time
-          const endHour = resEnd.getHours();
-          const endMinute = resEnd.getMinutes();
-          
-          for (let hour = 8; hour <= endHour; hour++) {
-            if (!blockedSlots.hours.includes(hour)) {
-              blockedSlots.hours.push(hour);
-            }
-          }
-          if (endMinute > 0 && endMinute < 60) {
-            if (!blockedSlots.minutes[endHour]) {
-              blockedSlots.minutes[endHour] = [];
-            }
-            for (let minute = 0; minute < endMinute; minute += 30) {
-              if (!blockedSlots.minutes[endHour].includes(minute)) {
-                blockedSlots.minutes[endHour].push(minute);
-              }
-            }
-          }
         } else {
-          // Middle day of multi-day reservation - block all business hours
-          for (let hour = 8; hour < 17; hour++) {
-            if (!blockedSlots.hours.includes(hour)) {
-              blockedSlots.hours.push(hour);
+          // Multi-day reservation - block specific time ranges based on the actual reservation
+          if (isSameDay(resStart, compareDate)) {
+            // First day of multi-day reservation - block from start time to end of business day
+            const startHour = resStart.getHours();
+            const startMinute = resStart.getMinutes();
+            
+            // Block all hours from startHour to end of business day (17)
+            for (let hour = startHour; hour < 17; hour++) {
+              if (!blockedSlots.hours.includes(hour)) {
+                blockedSlots.hours.push(hour);
+              }
+            }
+            
+            // Handle minutes for the start hour
+            if (startMinute > 0) {
+              if (!blockedSlots.minutes[startHour]) {
+                blockedSlots.minutes[startHour] = [];
+              }
+              for (let minute = startMinute; minute < 60; minute += 30) {
+                if (!blockedSlots.minutes[startHour].includes(minute)) {
+                  blockedSlots.minutes[startHour].push(minute);
+                }
+              }
+            }
+          } else if (isSameDay(resEnd, compareDate)) {
+            // Last day of multi-day reservation - block from start of business day to end time
+            const endHour = resEnd.getHours();
+            const endMinute = resEnd.getMinutes();
+            
+            // Block all hours from start of business day (8) to endHour
+            for (let hour = 8; hour <= endHour; hour++) {
+              if (!blockedSlots.hours.includes(hour)) {
+                blockedSlots.hours.push(hour);
+              }
+            }
+            
+            // Handle minutes for the end hour
+            if (endMinute > 0 && endMinute < 60) {
+              if (!blockedSlots.minutes[endHour]) {
+                blockedSlots.minutes[endHour] = [];
+              }
+              for (let minute = 0; minute < endMinute; minute += 30) {
+                if (!blockedSlots.minutes[endHour].includes(minute)) {
+                  blockedSlots.minutes[endHour].push(minute);
+                }
+              }
+            }
+          } else {
+            // Middle day of multi-day reservation - block full business hours
+            for (let hour = 8; hour < 17; hour++) {
+              if (!blockedSlots.hours.includes(hour)) {
+                blockedSlots.hours.push(hour);
+              }
             }
           }
         }
@@ -3476,7 +3535,65 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     return getBlockedTimeSlots(startDate);
   }
   
-  // For multi-day selection, collect blocked slots from each day
+  // For multi-day selection, check for overbooking conflicts
+  // If any existing reservation falls within the selected range, block all times
+  if (selectedResource.type !== 'equipment' && reservations.length > 0) {
+    const hasConflict = reservations.some(res => {
+      if (!res.isReserved) return false;
+      
+      const resStart = new Date(res.startDate);
+      const resEnd = new Date(res.endDate);
+      
+      // Check if the existing reservation overlaps with the selected date range
+      const rangeStart = new Date(startDate);
+      rangeStart.setHours(0, 0, 0, 0);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setHours(23, 59, 59, 999);
+      
+      return (resStart <= rangeEnd && resEnd >= rangeStart);
+    });
+    
+    if (hasConflict) {
+      // Block all business hours for the entire range due to overbooking
+      for (let hour = 8; hour < 17; hour++) {
+        blockedSlots.hours.push(hour);
+      }
+      return blockedSlots;
+    }
+  }
+  
+  // For equipment resources, check availability across the range
+  if (selectedResource.type === 'equipment' && equipmentAvailability.length > 0) {
+    const hasConflict = equipmentAvailability.some(item => {
+      const itemStart = new Date(item.startDate);
+      const itemEnd = new Date(item.endDate);
+      
+      // Check if the equipment reservation overlaps with the selected date range
+      const rangeStart = new Date(startDate);
+      rangeStart.setHours(0, 0, 0, 0);
+      const rangeEnd = new Date(endDate);
+      rangeEnd.setHours(23, 59, 59, 999);
+      
+      if (itemStart <= rangeEnd && itemEnd >= rangeStart) {
+        // Check if there's insufficient availability
+        const available = parseInt(item.totalAvailable);
+        const requested = parseInt(item.requestedQuantity);
+        return available < requested;
+      }
+      
+      return false;
+    });
+    
+    if (hasConflict) {
+      // Block all business hours for the entire range due to insufficient equipment
+      for (let hour = 8; hour < 17; hour++) {
+        blockedSlots.hours.push(hour);
+      }
+      return blockedSlots;
+    }
+  }
+  
+  // If no conflicts, collect blocked slots from each day normally
   const allBlockedHours = new Set();
   const allBlockedMinutes = {};
   

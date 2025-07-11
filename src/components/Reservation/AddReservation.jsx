@@ -734,15 +734,15 @@ const renderSuccessState = () => (
       title="Reservation Successfully Created!"
       subTitle="Your reservation has been submitted and is pending approval. You'll receive a notification once it's approved."
       extra={[
-        <AntButton 
-          type="primary" 
-          key="dashboard"
-          onClick={() => navigate('/dean/reservation')}
-          icon={<DashboardOutlined />}
-          className="bg-green-500 hover:bg-green-600 border-green-500"
-        >
-          View All Reservations
-        </AntButton>,
+        // <AntButton 
+        //   type="primary" 
+        //   key="dashboard"
+        //   onClick={() => navigate('/dean/reservation')}
+        //   icon={<DashboardOutlined />}
+        //   className="bg-green-500 hover:bg-green-600 border-green-500"
+        // >
+        //   View All Reservations
+        // </AntButton>,
         <AntButton 
           key="new" 
           onClick={resetForm}
