@@ -1,13 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { Tabs, Table, Button, Card, Space, Typography, Modal, Select, Input, List, message } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Tabs,  Button,  Space,  Modal, Select, Input, List, message, Tooltip, Pagination } from 'antd';
+import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
+
+import { motion } from 'framer-motion';
 import Sidebar from './Sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { useNavigate } from 'react-router-dom';
 
 function Checklist() {
+  const storedUrl = SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/";
+
   const [currentTab, setCurrentTab] = useState('1');
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [isEditMode, setIsEditMode] = useState(false);
+  const [currentEditItem, setCurrentEditItem] = useState(null);
   const [resourceType, setResourceType] = useState(null);
   const [selectedResource, setSelectedResource] = useState(null);
   const [resources, setResources] = useState([]);
@@ -18,21 +24,29 @@ function Checklist() {
   const [vehicleData, setVehicleData] = useState([]);
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
   const [viewChecklistItems, setViewChecklistItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortField, setSortField] = useState("checklistCount");
+  const [sortOrder, setSortOrder] = useState("desc");
   const navigate = useNavigate();
 
   useEffect(() => {
-            const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
-            console.log("this is encryptedUserLevel", encryptedUserLevel);
-            if (encryptedUserLevel !== '1' && encryptedUserLevel !== '2' && encryptedUserLevel !== '4') {
-                localStorage.clear();
-                navigate('/gsd');
-            }
-        }, [navigate]);
+    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const decryptedUserLevel = parseInt(encryptedUserLevel);
+    console.log("this is encryptedUserLevel", encryptedUserLevel);
+    if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
+        localStorage.clear();
+        navigate('/gsd');
+    }
+  }, [navigate]);
 
   useEffect(() => {
     const fetchChecklists = async () => {
+      setLoading(true);
       try {
-        const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+        const response = await fetch(`${storedUrl}fetch2.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -45,7 +59,7 @@ function Checklist() {
           // Transform data for venues
           const venueList = Object.values(result.data.venues || {}).map(item => ({
             key: `v${item.id}`,
-            id: item.id, // Use id from API response
+            id: item.id,
             name: item.name,
             checklistCount: item.count
           }));
@@ -54,7 +68,7 @@ function Checklist() {
           // Transform data for equipment
           const equipmentList = Object.values(result.data.equipment || {}).map(item => ({
             key: `e${item.id}`,
-            id: item.id, // Use id from API response
+            id: item.id,
             name: item.name,
             checklistCount: item.count
           }));
@@ -63,7 +77,7 @@ function Checklist() {
           // Transform data for vehicles
           const vehicleList = Object.values(result.data.vehicles || {}).map(item => ({
             key: `vh${item.id}`,
-            id: item.id, // Use id from API response
+            id: item.id,
             name: item.name,
             checklistCount: item.count
           }));
@@ -72,17 +86,19 @@ function Checklist() {
       } catch (error) {
         console.error('Error fetching checklists:', error);
         message.error('Failed to fetch checklists');
+      } finally {
+        setLoading(false);
       }
     };
 
     fetchChecklists();
-  }, []);
+  }, [storedUrl]);
 
   const fetchChecklistById = async (type, id) => {
     try {
-      console.log('Sending request with:', { type, id }); // Log request parameters
+      console.log('Sending request with:', { type, id });
       
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -96,58 +112,132 @@ function Checklist() {
       });
       
       const result = await response.json();
-      console.log('Response received:', result); // Log full response
-
-      if (result.status === 'success') {
-        console.log('Checklist items:', result.data); // Log checklist items
-        setViewChecklistItems(result.data.map(item => item.checklist_name));
+      console.log('Response received:', result);      if (result.status === 'success') {
+        console.log('Checklist items:', result.data);
+        setViewChecklistItems(result.data);
+        setSelectedResource(id); // Store the resource ID
         setIsViewModalVisible(true);
       } else {
-        console.error('Error response:', result); // Log error response
+        console.error('Error response:', result);
         message.error('Failed to fetch checklist items');
       }
     } catch (error) {
-      console.error('Error details:', error); // Log detailed error
+      console.error('Error details:', error);
       message.error('Failed to fetch checklist items');
     }
   };
+  const handleEditChecklist = async (item, resourceId) => {
+    console.log('Editing checklist item:', item, 'Resource ID:', resourceId); // Debug log
+    if (!item || !resourceId) {
+      message.error('Missing required information for editing checklist');
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'updateChecklist',
+          data: {
+            checklist_updates: [{
+              type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
+              id: item.checklist_id,
+              checklist_name: newItem,
+              resource_id: resourceId // Add resource_id to the request
+            }]
+          }
+        })
+      });
 
-  const columns = [
-    {
-      title: 'Name of Resource',
-      dataIndex: 'name',
-      key: 'name',
-    },
-    {
-      title: 'No. Checklist',
-      dataIndex: 'checklistCount',
-      key: 'checklistCount',
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => (
-        <Space>
-          <Button 
-            type="primary" 
-            size="small" 
-            onClick={() => fetchChecklistById(
-              currentTab === '1' ? 'venue' : 
-              currentTab === '2' ? 'equipment' : 
-              'vehicle',
-              record.id
-            )}
-          >
-            View
-          </Button>
-        </Space>
-      ),
-    },
-  ];
+      const result = await response.json();
+      if (result.status === 'success') {
+        message.success('Checklist item updated successfully');
+        setNewItem('');
+        setIsEditMode(false);
+        setCurrentEditItem(null);
+        // Refresh the checklist view with the correct resource ID
+        const type = currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle';
+        await fetchChecklistById(type, resourceId);
+      } else {
+        message.error(result.message || 'Failed to update checklist item');
+      }
+    } catch (error) {
+      console.error('Error updating checklist:', error);
+      message.error('Failed to update checklist item. Please try again.');
+    }
+  };
+
+  const startEdit = (item) => {
+    setIsEditMode(true);
+    setCurrentEditItem(item);
+    setNewItem(item.checklist_name);
+  };
+
+  const cancelEdit = () => {
+    setIsEditMode(false);
+    setCurrentEditItem(null);
+    setNewItem('');
+  };
+
+  const handleSort = (field) => {
+    if (sortField === field) {
+      setSortOrder(sortOrder === "asc" ? "desc" : "asc");
+    } else {
+      setSortField(field);
+      setSortOrder("asc");
+    }
+  };
+
+  // const columns = [
+  //   {
+  //     title: 'Name of Resource',
+  //     dataIndex: 'name',
+  //     key: 'name',
+  //     sorter: true,
+  //     sortOrder: sortField === 'name' ? sortOrder : null,
+  //     render: (text) => <span className="font-medium">{text}</span>
+  //   },
+  //   {
+  //     title: 'No. Checklist',
+  //     dataIndex: 'checklistCount',
+  //     key: 'checklistCount',
+  //     sorter: true,
+  //     sortOrder: sortField === 'checklistCount' ? sortOrder : null,
+  //           render: (count) => <span className="font-medium">{count}</span>
+  //   },
+  //   {
+  //     title: 'Action',
+  //     key: 'action',
+  //     render: (_, record) => (
+  //       <Space>
+  //         <Tooltip title="View Checklist">
+  //           <Button
+  //             type="primary"
+  //             icon={<EyeOutlined />}
+  //             onClick={() => {
+  //               const type = currentTab === '1' ? 'venue' : 
+  //                           currentTab === '2' ? 'equipment' : 
+  //                           'vehicle';
+  //               console.log('View Checklist - Type:', type);
+  //               console.log('View Checklist - ID:', record.id);
+  //               fetchChecklistById(type, record.id);
+  //             }}
+  //             size="small"
+  //             className="bg-green-900 hover:bg-lime-900"
+  //           />
+  //         </Tooltip>
+  //       </Space>
+  //     ),
+  //   },
+  // ];
 
   const fetchResources = async (type) => {
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -213,7 +303,7 @@ function Checklist() {
     }
 
     try {
-      const response = await fetch('http://localhost/coc/gsd/fetch2.php', {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -251,30 +341,383 @@ function Checklist() {
     }
   };
 
-  const renderTabContent = (data) => (
-    <Card>
-      <div style={{ marginBottom: 50, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>Resources List</Typography.Title>
-        <Button type="primary" icon={<PlusOutlined />} onClick={() => setIsModalVisible(true)}>
-          Add Checklist
-        </Button>
+  const handleRefresh = () => {
+    const fetchChecklists = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(`${storedUrl}fetch2.php`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify({ operation: 'fetchChecklist' })
+        });
+        const result = await response.json();
+        if (result.status === 'success') {
+          // Transform data for venues
+          const venueList = Object.values(result.data.venues || {}).map(item => ({
+            key: `v${item.id}`,
+            id: item.id,
+            name: item.name,
+            checklistCount: item.count
+          }));
+          setVenueData(venueList);
+
+          // Transform data for equipment
+          const equipmentList = Object.values(result.data.equipment || {}).map(item => ({
+            key: `e${item.id}`,
+            id: item.id,
+            name: item.name,
+            checklistCount: item.count
+          }));
+          setEquipmentData(equipmentList);
+
+          // Transform data for vehicles
+          const vehicleList = Object.values(result.data.vehicles || {}).map(item => ({
+            key: `vh${item.id}`,
+            id: item.id,
+            name: item.name,
+            checklistCount: item.count
+          }));
+          setVehicleData(vehicleList);
+          
+          message.success('Data refreshed successfully');
+        }
+      } catch (error) {
+        console.error('Error fetching checklists:', error);
+        message.error('Failed to refresh data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChecklists();
+  };
+
+  const handleAddToExistingChecklist = async () => {
+    if (!newItem.trim() || !selectedResource) {
+      message.error('Please enter a checklist item');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'saveMasterChecklist',
+          checklistNames: [newItem.trim()],
+          type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
+          id: selectedResource
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        message.success('New checklist item added successfully');
+        setNewItem('');
+        // Refresh the checklist view
+        const type = currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle';
+        await fetchChecklistById(type, selectedResource);
+      } else {
+        message.error(result.message || 'Failed to add checklist item');
+      }
+    } catch (error) {
+      console.error('Error adding checklist item:', error);
+      message.error('Failed to add checklist item. Please try again.');
+    }
+  };
+
+  const filteredVenueData = venueData.filter(venue => 
+    venue.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  const filteredEquipmentData = equipmentData.filter(equipment => 
+    equipment.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  
+  const filteredVehicleData = vehicleData.filter(vehicle => 
+    vehicle.name.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const renderTabContent = (data) => {
+    let sortedData = [...data];
+    if (sortField) {
+      sortedData.sort((a, b) => {
+        let compareA = a[sortField];
+        let compareB = b[sortField];
+        
+        if (typeof compareA === 'string') {
+          compareA = compareA.toLowerCase();
+          compareB = compareB.toLowerCase();
+          return sortOrder === 'asc' ? compareA.localeCompare(compareB) : compareB.localeCompare(compareA);
+        } else {
+          return sortOrder === 'asc' ? compareA - compareB : compareB - compareA;
+        }
+      });
+    }
+    
+    const paginatedData = sortedData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        {/* Search and Filters */}
+        <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
+          <div className="flex flex-row items-center gap-2 w-full">
+            <div className="flex-grow">
+              <Input
+                placeholder="Search resources..."
+                allowClear
+                prefix={<SearchOutlined />}
+                size="large"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full"
+              />
+            </div>
+            <Tooltip title="Refresh data">
+              <Button
+                icon={<ReloadOutlined />}
+                onClick={handleRefresh}
+                size="large"
+                style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              />
+            </Tooltip>
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              size="large"
+              onClick={() => setIsModalVisible(true)}
+              className="bg-lime-900 hover:bg-green-600"
+            >
+              <span className="hidden sm:inline">Add Checklist</span>
+              <span className="sm:hidden">Add</span>
+            </Button>
+          </div>
+        </div>
+        
+        <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
+          {loading ? (
+            <div className="flex justify-center items-center h-64">
+              <div className="loader"></div>
+            </div>
+          ) : (
+            <>
+              <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
+                  <tr>
+                    <th scope="col" className="px-4 py-4" onClick={() => handleSort('name')}>
+                      <div className="flex items-center cursor-pointer">
+                        NAME OF RESOURCE
+                        {sortField === 'name' && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-4" onClick={() => handleSort('checklistCount')}>
+                      <div className="flex items-center cursor-pointer">
+                        NO. CHECKLIST
+                        {sortField === 'checklistCount' && (
+                          <span className="ml-1">
+                            {sortOrder === "asc" ? "↑" : "↓"}
+                          </span>
+                        )}
+                      </div>
+                    </th>
+                    <th scope="col" className="px-4 py-4">
+                      <div className="flex items-center">
+                        ACTIONS
+                      </div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {paginatedData.length > 0 ? (
+                    paginatedData.map((record) => (
+                      <tr key={record.key} className="bg-white border-b last:border-b-0 border-gray-200">
+                        <td className="px-4 py-6">
+                          <div className="flex items-center">
+                            <span className="font-bold truncate block max-w-[140px]">{record.name}</span>
+                          </div>
+                        </td>
+                        <td className="px-4 py-6 font-medium">
+                          {record.checklistCount || 0}
+                        </td>
+                        <td className="px-4 py-6">
+                          <div className="flex justify-center space-x-2">
+                            <Tooltip title="View Checklist">
+                              <Button
+                                shape="circle"
+                                icon={<EyeOutlined />}
+                                onClick={() => {
+                                  const type = currentTab === '1' ? 'venue' : 
+                                              currentTab === '2' ? 'equipment' : 
+                                              'vehicle';
+                                  console.log('View Checklist - Type:', type);
+                                  console.log('View Checklist - ID:', record.id);
+                                  fetchChecklistById(type, record.id);
+                                }}
+                                size="large"
+                                className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                              />
+                            </Tooltip>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={3} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                        <div className="text-center py-6">
+                          <PlusOutlined className="text-5xl text-gray-300 mb-4" />
+                          <p className="text-xl text-gray-500">No checklists found</p>
+                        </div>
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+              
+              <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex justify-end">
+                  <Pagination
+                    current={currentPage}
+                    pageSize={pageSize}
+                    total={data.length}
+                    onChange={(page, size) => {
+                      setCurrentPage(page);
+                      setPageSize(size);
+                    }}
+                    showSizeChanger={true}
+                    showTotal={(total, range) =>
+                      `${range[0]}-${range[1]} of ${total} items`
+                    }
+                  />
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </motion.div>
+    );
+  };
+
+  const items = [
+    {
+      key: '1',
+      label: <span className="text-lg font-medium">Venue</span>,
+      children: renderTabContent(filteredVenueData),
+    },
+    {
+      key: '2',
+      label: <span className="text-lg font-medium">Equipment</span>,
+      children: renderTabContent(filteredEquipmentData),
+    },
+    {
+      key: '3',
+      label: <span className="text-lg font-medium">Vehicle</span>,
+      children: renderTabContent(filteredVehicleData),
+    },
+  ];
+
+  const handleDeleteChecklist = async (item) => {
+    try {
+      const response = await fetch(`${storedUrl}fetch2.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'deleteChecklist',
+          type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
+          id: item.checklist_id
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        message.success('Checklist item deleted successfully');
+        // Refresh the checklist view
+        const type = currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle';
+        await fetchChecklistById(type, selectedResource);
+      } else {
+        message.error(result.message || 'Failed to delete checklist item');
+      }
+    } catch (error) {
+      console.error('Error deleting checklist:', error);
+      message.error('Failed to delete checklist item');
+    }
+  };
+
+  // Add Checklist Modal
+  return (
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+      {/* Fixed Sidebar */}        
+      <div className="flex-shrink-0">     
+        <Sidebar />
       </div>
-      <Table columns={columns} dataSource={data} pagination={false} bordered />
-      
+
+      {/* Scrollable Content Area */}
+      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
+        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
+          <motion.div 
+            initial={{ opacity: 0, y: -50 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5 }}
+            className="mb-4 sm:mb-8"
+          >
+            <div className="mb-2 sm:mb-4 mt-10">
+              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
+                Checklist 
+              </h2>
+            </div>
+          </motion.div>
+
+          <Tabs
+            activeKey={currentTab}
+            onChange={setCurrentTab}
+            items={items}
+            type="card"
+            className="checklist-tabs"
+            size="large"
+            tabBarStyle={{ marginBottom: '1rem', fontWeight: 'bold' }}
+          />
+        </div>
+      </div>
+
+      {/* Add Checklist Modal */}
       <Modal
-        title="Add Checklist"
+        title={
+          <div className="text-green-700 font-bold">
+            Add Checklist
+          </div>
+        }
         open={isModalVisible}
         onCancel={() => setIsModalVisible(false)}
         onOk={handleSaveChecklist}
         okButtonProps={{
-          disabled: !resourceType || !selectedResource || checklistItems.length === 0
+          disabled: !resourceType || !selectedResource || checklistItems.length === 0,
+          className: 'bg-green-900 hover:bg-lime-900'
         }}
+        okText="Save Checklist"
       >
         <Space direction="vertical" style={{ width: '100%' }} size="large">
           <Select
             style={{ width: '100%' }}
             placeholder="Select Type"
             onChange={handleTypeChange}
+            className="rounded-md"
             options={[
               { value: 'venue', label: 'Venue' },
               { value: 'equipment', label: 'Equipment' },
@@ -289,6 +732,7 @@ function Checklist() {
             onChange={setSelectedResource}
             options={resources}
             disabled={!resourceType}
+            className="rounded-md"
           />
           
           <Space.Compact style={{ width: '100%' }}>
@@ -297,75 +741,152 @@ function Checklist() {
               onChange={(e) => setNewItem(e.target.value)}
               placeholder="Add checklist item"
               onPressEnter={handleAddItem}
+              className="rounded-l-md"
             />
-            <Button type="primary" onClick={handleAddItem}>Add</Button>
+            <Button type="primary" onClick={handleAddItem} className="bg-green-900 hover:bg-lime-900">Add</Button>
           </Space.Compact>
           
           <List
             bordered
+            className="rounded-md max-h-60 overflow-y-auto bg-[#fafff4]"
             dataSource={checklistItems}
-            renderItem={(item) => (
-              <List.Item>
-                • {item}
+            renderItem={(item, index) => (
+              <List.Item className="flex justify-between items-center border-b border-green-100">
+                <div className="flex items-center">
+                  <span className="bg-green-500 text-white rounded-full w-6 h-6 inline-flex items-center justify-center mr-3 text-xs font-bold">
+                    {index + 1}
+                  </span>
+                  <span className="text-green-800">{item}</span>
+                </div>
+                <Button 
+                  type="text" 
+                  danger 
+                  size="small" 
+                  onClick={() => setChecklistItems(checklistItems.filter((_, i) => i !== index))}
+                >
+                  Remove
+                </Button>
               </List.Item>
             )}
+            locale={{ emptyText: 'No items added yet' }}
           />
         </Space>
       </Modal>
 
+      {/* View Checklist Modal */}
       <Modal
-        title="View Checklist"
+        title={
+          <div className="flex items-center text-green-700 font-bold">
+            <EyeOutlined className="mr-2" />
+            <span>View Checklist</span>
+          </div>
+        }
         open={isViewModalVisible}
         onCancel={() => setIsViewModalVisible(false)}
         footer={[
-          <Button key="close" onClick={() => setIsViewModalVisible(false)}>
+          <Button key="close" onClick={() => setIsViewModalVisible(false)} className="bg-green-900 hover:bg-lime-900 text-white">
             Close
           </Button>
         ]}
+        width={600}
       >
-        <List
-          bordered
-          dataSource={viewChecklistItems}
-          renderItem={(item) => (
-            <List.Item>
-              • {item}
-            </List.Item>
-          )}
-        />
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          <Space.Compact style={{ width: '100%' }}>
+            <Input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              placeholder="Add new checklist item"
+              onPressEnter={() => {
+                if (newItem.trim()) {
+                  handleAddToExistingChecklist();
+                }
+              }}
+              className="rounded-l-md"
+            />
+            <Button 
+              type="primary" 
+              onClick={handleAddToExistingChecklist}
+              disabled={!newItem.trim() || loading} 
+              className="bg-green-900 hover:bg-lime-900"
+            >
+              {loading ? 'Adding...' : 'Add'}
+            </Button>
+          </Space.Compact>
+        </Space>
+
+        {loading ? (
+          <div className="flex justify-center items-center p-8">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-900"></div>
+          </div>
+        ) : (
+          <List
+            bordered
+            className="mt-4 rounded-md bg-[#fafff4]"
+            dataSource={viewChecklistItems}
+            renderItem={(item, index) => (
+              <List.Item className="border-b border-green-100 py-3">
+                <div className="flex items-center w-full">
+                  <span className="bg-green-500 text-white rounded-full w-7 h-7 inline-flex items-center justify-center mr-3 text-sm font-bold">
+                    {index + 1}
+                  </span>
+                  <span className="text-green-800">{item.checklist_name}</span>
+                  <div className="ml-auto flex gap-2">
+                    <Button 
+                      type="link" 
+                      icon={<EditOutlined />} 
+                      onClick={() => startEdit(item)} 
+                      className="text-green-700 hover:text-green-900"
+                      disabled={loading}
+                    />
+                    <Button 
+                      type="link" 
+                      danger
+                      icon={<DeleteOutlined />} 
+                      onClick={() => {
+                        Modal.confirm({
+                          title: 'Delete Checklist Item',
+                          content: 'Are you sure you want to delete this checklist item?',
+                          okText: 'Yes',
+                          okType: 'danger',
+                          cancelText: 'No',
+                          onOk() {
+                            handleDeleteChecklist(item);
+                          },
+                        });
+                      }}
+                      disabled={loading}
+                    />
+                  </div>
+                </div>
+              </List.Item>
+            )}
+            locale={{
+              emptyText: (
+                <div className="text-center py-6">
+                  <p className="text-gray-500">No checklist items found</p>
+                </div>
+              )
+            }}
+          />
+        )}
+        {isEditMode && (
+          <div className="mt-4">
+            <Input
+              value={newItem}
+              onChange={(e) => setNewItem(e.target.value)}
+              placeholder="Edit checklist item"
+              className="rounded-md mb-2"
+            />
+            <Space>              <Button type="primary" onClick={() => handleEditChecklist(currentEditItem, selectedResource)} className="bg-green-900 hover:bg-lime-900">
+                Save
+              </Button>
+              <Button onClick={cancelEdit} className="bg-gray-300 hover:bg-gray-400">
+                Cancel
+              </Button>
+            </Space>
+          </div>
+        )}
       </Modal>
-    </Card>
-  );
-
-  const items = [
-    {
-      key: '1',
-      label: 'Venue',
-      children: renderTabContent(venueData),
-    },
-    {
-      key: '2',
-      label: 'Equipment',
-      children: renderTabContent(equipmentData),
-    },
-    {
-      key: '3',
-      label: 'Vehicle',
-      children: renderTabContent(vehicleData),
-    },
-  ];
-
-  return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
-      <Sidebar />
-      <div style={{ flex: 1, padding: '24px', backgroundColor: '#f5f5f5' }}>
-        <Tabs
-          activeKey={currentTab}
-          onChange={setCurrentTab}
-          items={items}
-          type="card"
-          style={{ background: '#fff', padding: '16px', borderRadius: '8px' }}
-        />
-      </div>
     </div>
   );
 }

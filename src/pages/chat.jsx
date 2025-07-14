@@ -5,17 +5,14 @@ import {
   FiMessageCircle, FiMoreVertical, FiPaperclip, 
   FiSend, FiX, FiChevronLeft, 
   FiSmile, FiImage, FiVideo, FiFile,
-  FiSearch, FiPhone, FiVideo as FiVideoCall,
-  FiMoreHorizontal, FiShare, FiBookmark, FiEdit,
-  FiArchive, FiFolder, FiStar, FiChevronDown,
+  FiSearch, 
+  FiMoreHorizontal,  FiEdit,
+  FiArchive,  FiStar, 
   FiCheck, FiCheckCircle, FiUserPlus, FiRefreshCw,
   FiAlertCircle, FiHeart, FiThumbsUp, FiCornerUpRight,
-  FiChevronRight, FiTrash, FiArrowLeft, FiMessageSquare, FiPlus,
-  FiMenu
+ FiTrash,  FiPlus
 } from 'react-icons/fi';
-import { FaComments, FaLock, FaRegLaughBeam, FaShieldAlt } from 'react-icons/fa';
-import { debounce } from 'lodash';
-import { Virtuoso } from 'react-virtuoso';
+import {  FaRegLaughBeam} from 'react-icons/fa';
 import { useInView } from 'react-intersection-observer';
 import Sidebar from './Sidebar';
 import {SecureStorage} from '../utils/encryption';
@@ -28,7 +25,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
 
   // Get the appropriate avatar URL based on whether it's own message or not
   const getAvatarUrl = (picture) => {
-    if (!picture) return 'default-avatar.svg';
+    if (!picture || picture === undefined || picture === null) return 'default-avatar.svg';
     return `http://localhost/coc/gsd/${picture}`;
   };
   
@@ -42,7 +39,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
     } else if (message.status === 'delivered') {
       return <FiCheckCircle className="w-3.5 h-3.5 text-gray-400" />;
     } else if (message.status === 'read') {
-      return <FiCheckCircle className="w-3.5 h-3.5 text-blue-500" />;
+      return <FiCheckCircle className="w-3.5 h-3.5 text-primary" />;
     }
     return null;
   };
@@ -70,22 +67,22 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
         </div>
       )}
       <div 
-        className={`max-w-[70%] ${isSelected ? 'bg-blue-50 ring-2 ring-blue-200' : ''} rounded-2xl p-1 relative group`}
+        className={`max-w-[70%] ${isSelected ? 'bg-primary/5 ring-2 ring-primary/20' : ''} rounded-2xl p-1 relative group`}
       >
         <div
           className={`rounded-2xl px-4 py-3 backdrop-blur-sm ${
             isOwn 
-              ? 'bg-gradient-to-br from-indigo-500 to-indigo-600 text-white shadow-md' 
+              ? 'bg-gradient-to-br from-primary to-primary-dark text-white shadow-md' 
               : 'bg-white border border-gray-100 shadow-sm'
           }`}
         >
           {!isOwn && (
-            <p className="text-xs font-medium text-indigo-600 mb-1">{message.senderName}</p>
+            <p className="text-xs font-medium text-primary mb-1">{message.senderName}</p>
           )}
           
           {/* Reply info if this message is a reply */}
           {message.replyTo && (
-            <div className={`mb-2 px-3 py-2 rounded-lg text-xs font-medium ${isOwn ? 'bg-indigo-400/30 text-white' : 'bg-gray-100 text-gray-600'}`}>
+            <div className={`mb-2 px-3 py-2 rounded-lg text-xs font-medium ${isOwn ? 'bg-primary-dark/30 text-white' : 'bg-gray-100 text-gray-600'}`}>
               <p className="flex items-center gap-1 mb-1">
                 <FiCornerUpRight className="w-3 h-3" />
                 <span>{isOwn && message.replyTo.senderName === currentUser.name ? 'Replying to yourself' : `Replying to ${message.replyTo.senderName}`}</span>
@@ -157,7 +154,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             onClick={() => onReaction('👍')}
             className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
           >
-            <FiThumbsUp className="w-3.5 h-3.5 text-blue-500" />
+            <FiThumbsUp className="w-3.5 h-3.5 text-primary" />
           </button>
           <button 
             onClick={() => onReaction('😂')}
@@ -193,11 +190,8 @@ const Chat = () => {
     const url = SecureStorage.getLocalItem("url");
     return url || "http://localhost/coc/gsd/";
   });
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
-  const [isOpen, setIsOpen] = useState(false);
-  const [isVisible, setIsVisible] = useState(true);
   const messagesEndRef = useRef(null);
   const [conversations, setConversations] = useState([]);
   const [activeConversation, setActiveConversation] = useState(null);
@@ -213,8 +207,7 @@ const Chat = () => {
   });
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [reactions] = useState({});
+
   const fileInputRef = useRef(null);
   
   // Remove these states related to voice recording
@@ -222,35 +215,23 @@ const Chat = () => {
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef(null);
 
-  // Add new states for enhanced features
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [messageToReply, setMessageToReply] = useState(null);
-  const [isTyping, setIsTyping] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const typingTimeoutRef = useRef(null);
-
-  // Add new states for Telegram-like features
   const [selectedMessages, setSelectedMessages] = useState([]);
-  const [showForwardDialog, setShowForwardDialog] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
-  const [pinnedMessages, setPinnedMessages] = useState([]);
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [chatFilter, setChatFilter] = useState('all'); // all, unread, personal, groups
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
-  
-  // Add state for view mode (list or conversation)
+  const [selectedMessageId, setSelectedMessageId] = useState(null);
+
   const [viewMode, setViewMode] = useState('list');
-  
-  // Track previous conversations for back navigation
-  const [conversationHistory, setConversationHistory] = useState([]);
-
-  // Add state for conversation search
   const [conversationSearch, setConversationSearch] = useState('');
-
-  // Track mobile view state
   const [isMobile, setIsMobile] = useState(false);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
+
+  const wsRef = useRef(null);
 
   // Set up responsive design
   useEffect(() => {
@@ -271,16 +252,25 @@ const Chat = () => {
   // Listen for sidebar collapsed state changes from Sidebar component
   useEffect(() => {
     // Add event listener for sidebar toggle
-    const handleSidebarToggle = (e) => {
-      if (e.detail && typeof e.detail.collapsed !== 'undefined') {
-        setIsSidebarCollapsed(e.detail.collapsed);
+
+    // Add event listener for mobile sidebar toggle
+    const handleMobileSidebarToggle = (e) => {
+      if (e.detail && typeof e.detail.open !== 'undefined') {
+        const mobileContainer = document.querySelector('.mobile-chat-container');
+        if (mobileContainer) {
+          if (e.detail.open) {
+            mobileContainer.classList.add('sidebar-open');
+          } else {
+            mobileContainer.classList.remove('sidebar-open');
+          }
+        }
       }
     };
 
-    window.addEventListener('sidebar-toggle', handleSidebarToggle);
+
     
     return () => {
-      window.removeEventListener('sidebar-toggle', handleSidebarToggle);
+      window.removeEventListener('mobile-sidebar-toggle', handleMobileSidebarToggle);
     };
   }, []);
 
@@ -302,7 +292,7 @@ const Chat = () => {
     });
   }, [conversations, chatFilter, conversationSearch]);
 
-  // Remove memoizedFetchChatHistory and replace with memorizeFetchAllChats
+  // Modify the memorizeFetchAllChats function to use get_message
   const memorizeFetchAllChats = useCallback(async () => {
     try {
       const requestBody = {
@@ -317,8 +307,6 @@ const Chat = () => {
         },
         body: JSON.stringify(requestBody)
       });
-
-      console.log('Response:', response);
 
       if (!response.ok) {
         throw new Error('Network response was not ok');
@@ -339,9 +327,20 @@ const Chat = () => {
           receiverId: msg.receiver_id
         }));
         
-        setMessages(formattedMessages);
+        // Only update messages if we have an active conversation
+        if (activeConversation) {
+          // Filter messages for current conversation
+          const conversationMessages = formattedMessages.filter(msg => 
+            (msg.senderId === currentUser.id && msg.receiverId === activeConversation.id) ||
+            (msg.receiverId === currentUser.id && msg.senderId === activeConversation.id)
+          );
+          
+          setMessages(
+            conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+          );
+        }
 
-        // Group messages by conversation
+        // Update conversations list
         const conversations = data.data.reduce((acc, msg) => {
           const otherId = msg.sender_id === currentUser.id ? msg.receiver_id : msg.sender_id;
           const otherName = msg.sender_id === currentUser.id ? msg.receiver_name : msg.sender_name;
@@ -372,76 +371,7 @@ const Chat = () => {
     } catch (error) {
       console.error('Error fetching chat history:', error);
     }
-  }, [currentUser.id, apiUrl]);
-
-  // Memoize fetchAllChats function
-  const memoizedFetchAllChats = useCallback(async () => {
-    try {
-      const formData = new URLSearchParams();
-      formData.append('operation', 'fetchChatHistory');
-      formData.append('userId', currentUser.id);
-
-      const response = await fetch(`${apiUrl}fetchMaster.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        body: formData
-      });
-
-      if (!response.ok) {
-        throw new Error('Network response was not ok');
-      }
-
-      const data = await response.json();
-      if (data.status === 'success') {
-        const chatsByConversation = (data.data || []).reduce((acc, msg) => {
-          const otherId = msg.sender_id === currentUser.id ? msg.receiver_id : msg.sender_id;
-          const otherName = msg.sender_id === currentUser.id 
-            ? `${msg.receiver_fname} ${msg.receiver_lname}`
-            : `${msg.sender_fname} ${msg.sender_lname}`;
-            
-          if (!acc[otherId]) {
-            acc[otherId] = {
-              messages: [],
-              name: otherName
-            };
-          }
-          acc[otherId].messages.push({
-            id: msg.chat_id,
-            text: msg.message,
-            timestamp: new Date(msg.created_at),
-            status: 'delivered',
-            isOwn: msg.sender_id === currentUser.id,
-            senderPic: msg.sender_pic,
-            receiverPic: msg.receiver_pic
-          });
-          return acc;
-        }, {});
-
-        const newConversations = Object.entries(chatsByConversation).map(([userId, data]) => {
-          const lastMessage = data.messages[0];
-          const otherUserPic = lastMessage.isOwn ? lastMessage.receiverPic : lastMessage.senderPic;
-          return {
-            id: userId,
-            name: data.name,
-            lastMessage: lastMessage.text,
-            timestamp: lastMessage.timestamp,
-            unread: data.messages.filter(m => !m.isOwn && !m.read).length,
-            picture: otherUserPic
-          };
-        });
-
-        setConversations(newConversations);
-
-        if (activeConversation) {
-          setMessages(chatsByConversation[activeConversation.id]?.messages || []);
-        }
-      }
-    } catch (error) {
-      console.error('Error fetching chats:', error);
-    }
-  }, [currentUser.id, activeConversation, apiUrl]); // Add dependencies used inside the function
+  }, [currentUser.id, activeConversation, apiUrl]);
 
   useEffect(() => {
     if (activeConversation) {
@@ -460,149 +390,131 @@ const Chat = () => {
     return () => clearInterval(intervalId);
   }, [memorizeFetchAllChats]);
 
-  const toggleChat = () => {
-    setIsOpen(!isOpen);
-  };
-
-  const closeChat = () => {
-    setIsVisible(false);
-  };
 
   // Helper function to get avatar URL
   const getAvatarUrl = (picture) => {
-    if (!picture) return 'default-avatar.svg';
-    return `http://localhost/coc/gsd/${picture}`;
+    if (!picture || picture === undefined || picture === null) return 'default-avatar.svg';
+    return `${apiUrl}${picture}`;
   };
 
-  const renderChatHeader = () => (
-    <div className="sticky top-0 z-10 border-b bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-md">
-      <div className="container mx-auto">
-        <div className="flex items-center justify-between p-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setActiveConversation(null)}
+  const renderChatHeader = () => {
+    if (!activeConversation || !currentUser) return null;
+    
+    return (
+      <div className="sticky top-0 z-10 border-b bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md pt-6">
+        <div className="container mx-auto">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">              <button
+              onClick={handleBackClick}
               className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
               aria-label="Back"
             >
-              <FiChevronLeft className="w-5 h-5 text-white" />
-            </button>
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <img 
-                  src={getAvatarUrl(activeConversation.picture)}
-                  className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
-                  alt="avatar"
-                  onError={(e) => { e.target.src = 'default-avatar.svg' }}
-                />
-                <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
-                  <div className="w-2 h-2 bg-white rounded-full"></div>
+                <FiChevronLeft className="w-5 h-5 text-white" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <img 
+                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
+                    className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
+                    alt={activeConversation?.name || 'User'}
+                    onError={(e) => { e.target.src = 'default-avatar.svg' }}
+                  />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
+                 
                 </div>
               </div>
-              <div>
-                <h4 className="font-semibold text-white">{activeConversation.name}</h4>
-                <p className="text-sm text-white/80 flex items-center gap-1">
-                  {isTyping ? (
-                    <>
-                      <span className="relative flex h-2 w-2">
-                        <span className="absolute inline-flex h-full w-full rounded-full bg-white opacity-75 animate-ping"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                      </span>
-                      <span className="text-xs">typing a message...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span className="text-xs">Active now</span>
-                    </>
-                  )}
-                </p>
-              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button 
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
+                aria-label="Search"
+                onClick={() => setShowSearch(!showSearch)}
+              >
+                <FiSearch className="w-4 h-4 text-white" />
+              </button>
+              <button 
+                onClick={() => setShowChatMenu(!showChatMenu)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
+                aria-label="More options"
+              >
+                <FiMoreVertical className="w-4 h-4 text-white" />
+                {showChatMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
+                    <div className="py-1">
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiUserPlus className="w-4 h-4" /> Add members
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiEdit className="w-4 h-4" /> Edit chat
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiStar className="w-4 h-4" /> Pin conversation
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiArchive className="w-4 h-4" /> Archive chat
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
+                        <FiTrash className="w-4 h-4" /> Delete chat
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </button>
             </div>
           </div>
           
-          <div className="flex items-center gap-2">
-            <button 
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
-              aria-label="Search"
-              onClick={() => setShowSearch(!showSearch)}
-            >
-              <FiSearch className="w-4 h-4 text-white" />
-            </button>
-            <button 
-              onClick={() => setShowChatMenu(!showChatMenu)}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
-              aria-label="More options"
-            >
-              <FiMoreVertical className="w-4 h-4 text-white" />
-              {showChatMenu && (
-                <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
-                  <div className="py-1">
-                    <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                      <FiUserPlus className="w-4 h-4" /> Add members
+          {/* Search bar - conditionally rendered */}
+          <AnimatePresence>
+            {showSearch && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="px-4 pb-4"
+              >
+                <div className="relative">
+                  <input
+                    type="text"
+                    placeholder="Search in conversation..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
+                  />
+                  <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+                  {searchQuery && (
+                    <button 
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+                    >
+                      <FiX className="w-4 h-4" />
                     </button>
-                    <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                      <FiEdit className="w-4 h-4" /> Edit chat
-                    </button>
-                    <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                      <FiStar className="w-4 h-4" /> Pin conversation
-                    </button>
-                    <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                      <FiArchive className="w-4 h-4" /> Archive chat
-                    </button>
-                    <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
-                      <FiTrash className="w-4 h-4" /> Delete chat
-                    </button>
-                  </div>
+                  )}
                 </div>
-              )}
-            </button>
-          </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
-        
-        {/* Search bar - conditionally rendered */}
-        <AnimatePresence>
-          {showSearch && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-4 pb-4"
-            >
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search in conversation..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
-                />
-                <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-                {searchQuery && (
-                  <button 
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
-                  >
-                    <FiX className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderInputArea = () => (
-    <div className="px-4 py-3 border-t border-gray-200 bg-white/95 backdrop-blur-md">
+    <div className="z-10 px-4 py-3 border-t border-gray-200 bg-white/95 backdrop-blur-md shadow-md sticky bottom-0">
       {messageToReply && (
         <motion.div 
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="mb-3 p-3 bg-indigo-50 rounded-xl flex items-center justify-between border-l-4 border-indigo-400"
+          className="mb-3 p-3 bg-slate-50 rounded-xl flex items-center justify-between border-l-4 border-primary"
         >
           <div className="pl-2">
-            <p className="text-xs text-indigo-500 flex items-center gap-1">
+            <p className="text-xs text-slate-600 flex items-center gap-1">
               <FiCornerUpRight className="w-3 h-3" />
               Replying to {messageToReply.senderName}
             </p>
@@ -610,9 +522,9 @@ const Chat = () => {
           </div>
           <button 
             onClick={() => setMessageToReply(null)}
-            className="p-1.5 hover:bg-indigo-100 rounded-full transition-colors"
+            className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"
           >
-            <FiX className="w-4 h-4 text-indigo-500" />
+            <FiX className="w-4 h-4 text-slate-500" />
           </button>
         </motion.div>
       )}
@@ -631,12 +543,12 @@ const Chat = () => {
                 className="h-16 w-16 object-cover rounded-lg"
               />
             ) : attachmentPreview.type.startsWith('video/') ? (
-              <div className="h-16 w-16 bg-indigo-100 rounded-lg flex items-center justify-center">
-                <FiVideo className="w-6 h-6 text-indigo-500" />
+              <div className="h-16 w-16 bg-primary/20 rounded-lg flex items-center justify-center">
+                <FiVideo className="w-6 h-6 text-primary" />
               </div>
             ) : (
-              <div className="h-16 w-16 bg-blue-100 rounded-lg flex items-center justify-center">
-                <FiFile className="w-6 h-6 text-blue-500" />
+              <div className="h-16 w-16 bg-primary/20 rounded-lg flex items-center justify-center">
+                <FiFile className="w-6 h-6 text-primary" />
               </div>
             )}
             <div>
@@ -659,7 +571,7 @@ const Chat = () => {
         <div className="relative">
           <button
             onClick={() => setShowAttachMenu(!showAttachMenu)}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-100 hover:bg-gray-200 transition-all text-gray-600"
+            className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary"
             aria-label="Attach file"
           >
             <FiPaperclip className="w-5 h-5" />
@@ -681,7 +593,7 @@ const Chat = () => {
                     }} 
                     className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
                   >
-                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-500">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                       <FiImage className="w-4 h-4" />
                     </div>
                     <span className="text-sm font-medium">Photo or Video</span>
@@ -694,7 +606,7 @@ const Chat = () => {
                     }}
                     className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
                   >
-                    <div className="w-8 h-8 rounded-full bg-green-100 flex items-center justify-center text-green-500">
+                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
                       <FiFile className="w-4 h-4" />
                     </div>
                     <span className="text-sm font-medium">Document</span>
@@ -711,7 +623,7 @@ const Chat = () => {
             onChange={handleInputChange}
             onKeyPress={(e) => e.key === 'Enter' && handleSend()}
             placeholder="Write a message..."
-            className="w-full px-4 py-3 rounded-full bg-gray-100 focus:bg-white border border-gray-200 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 transition-all text-sm placeholder:text-gray-400"
+            className="w-full px-4 py-3 rounded-full bg-gray-100 focus:bg-white border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-sm placeholder:text-gray-400"
           />
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
@@ -749,7 +661,7 @@ const Chat = () => {
         </div>
         <button
           onClick={handleSend}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-indigo-500 to-indigo-600 text-white shadow-md hover:shadow-lg transition-all"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-primary to-primary-dark text-white shadow-md hover:shadow-lg transition-all"
           aria-label="Send message"
         >
           <FiSend className="w-5 h-5" />
@@ -759,19 +671,35 @@ const Chat = () => {
         <input
           type="file"
           ref={fileInputRef}
+          className="hidden"
           onChange={(e) => {
             if (e.target.files?.[0]) {
-              setAttachmentPreview(e.target.files[0]);
+              const file = e.target.files[0];
+              // Check file size (max 10MB)
+              if (file.size > 10 * 1024 * 1024) {
+                setErrorMessage('File size exceeds 10MB limit');
+                return;
+              }
+              
+              // Check file type
+              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'audio/mp3', 'application/pdf'];
+              if (!allowedTypes.includes(file.type)) {
+                setErrorMessage('Unsupported file type');
+                return;
+              }
+              
+  
+              setAttachmentPreview(file);
             }
           }}
-          className="hidden"
+          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
         />
       </div>
     </div>
   );
 
   const handleSend = async () => {
-    if ((!newMessage.trim() && !attachmentPreview) || !activeConversation || !ws || ws.readyState !== WebSocket.OPEN) return;
+    if ((!newMessage.trim() && !attachmentPreview) || !activeConversation?.id || !currentUser?.id) return;
 
     const messageText = newMessage.trim();
     setNewMessage('');
@@ -789,28 +717,29 @@ const Chat = () => {
     };
 
     try {
-      // Send through WebSocket
-      ws.send(JSON.stringify(messageData));
+      // Send message via fetch
+      const formData = new URLSearchParams();
+      formData.append('operation', 'sendMessage');
+      formData.append('sender_id', currentUser.id);
+      formData.append('receiver_id', activeConversation.id);
+      formData.append('message', messageText);
 
-      // Add message to UI immediately but only once
-      const newMsg = {
-        id: tempMessageId,
-        text: messageText,
-        timestamp: new Date(),
-        status: 'sending',
-        isOwn: true,
-        senderPic: currentUser.picture,
-        senderName: currentUser.name
-      };
-
-      // Update messages using function form to ensure latest state
-      setMessages(prev => {
-        // Check if message already exists
-        if (prev.some(msg => msg.id === tempMessageId)) {
-          return prev;
-        }
-        return [...prev, newMsg];
+      const response = await fetch(`${apiUrl}fetchMaster.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        body: formData
       });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      // Try to send through WebSocket if available
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        ws.send(JSON.stringify(messageData));
+      }
 
       // Reset states
       setSelectedMessages([]);
@@ -818,22 +747,17 @@ const Chat = () => {
       setAttachmentPreview(null);
     } catch (error) {
       console.error('Error sending message:', error);
+      // Optionally, show error to user
+      setErrorMessage('Failed to send message');
     }
   };
 
-  // Add debounced typing indicator
-  const debouncedSetTyping = useCallback(
-    debounce((value) => {
-      setIsTyping(value);
-    }, 1000),
-    []
-  );
+
 
   const handleInputChange = (e) => {
     const value = e.target.value;
     setNewMessage(value);
-    debouncedSetTyping(true);
-    setTimeout(() => debouncedSetTyping(false), 2000);
+  
   };
 
   const handleNewConversation = (user) => {
@@ -958,7 +882,11 @@ const Chat = () => {
     }
 
     try {
-      const socket = new WebSocket('ws://localhost:8080');
+      const apiUrl = SecureStorage.getLocalItem("url");
+      // Convert http:// to ws:// for WebSocket connection
+      const wsUrl = apiUrl.replace('http://', 'ws://').replace('/coc/gsd/', '');
+      const socket = new WebSocket(`${wsUrl}:8080`);
+      wsRef.current = socket;
       setConnectionStatus('connecting');
 
       socket.onopen = () => {
@@ -989,17 +917,15 @@ const Chat = () => {
       socket.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data);
+          console.log('Received WebSocket message:', data);
           
-          // Only add the message if it's relevant to the current conversation
-          // and hasn't been added yet
-          if (activeConversation && 
-              (data.sender_id === parseInt(activeConversation.id) || 
-               data.receiver_id === parseInt(activeConversation.id))) {
-            
+          // Process the incoming message
+          if (data.message && (data.sender_id || data.receiver_id)) {
             const messageId = data.message_id || Date.now().toString();
             
-            // Check if message already exists
+            // Add the message to state if it doesn't exist already
             setMessages(prev => {
+              // Check if message already exists
               if (prev.some(msg => msg.id === messageId)) {
                 return prev;
               }
@@ -1011,14 +937,14 @@ const Chat = () => {
                 status: 'received',
                 isOwn: data.sender_id === parseInt(currentUser.id),
                 senderPic: data.sender_pic,
-                senderName: data.sender_name
+                senderName: data.sender_name || (data.sender_id === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
+                senderId: data.sender_id,
+                receiverId: data.receiver_id
               };
               
               return [...prev, newMessage];
             });
           }
-          // Refresh conversations list to update last messages
-          memoizedFetchAllChats();
         } catch (error) {
           console.error('Error processing message:', error);
         }
@@ -1043,8 +969,8 @@ const Chat = () => {
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.close();
+        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+          wsRef.current.close();
         }
       };
     } catch (error) {
@@ -1054,14 +980,14 @@ const Chat = () => {
       const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
       reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
     }
-  }, [activeConversation, currentUser.id, memoizedFetchAllChats, reconnectAttempts]);
+  }, [activeConversation?.name, currentUser.id, currentUser.name, reconnectAttempts]);
 
   useEffect(() => {
     const cleanup = connectWebSocket();
     return () => {
       if (cleanup) cleanup();
-      if (ws) {
-        ws.close();
+      if (wsRef.current) {
+        wsRef.current.close();
       }
     };
   }, [connectWebSocket]);
@@ -1086,12 +1012,17 @@ const Chat = () => {
   const handleConversationClick = (conversation) => {
     setActiveConversation(conversation);
     setViewMode('conversation');
+    setShouldAutoScroll(true); // Trigger auto-scroll when conversation opens
   };
 
   // Add a handler for back button click
   const handleBackClick = () => {
+    setSearchQuery('');
+    setShowSearch(false);
+    setShowChatMenu(false);
     setViewMode('list');
     setActiveConversation(null);
+    setMessages([]); // Clear current conversation messages
   };
 
   // Render connection status indicator
@@ -1100,7 +1031,7 @@ const Chat = () => {
     
     const statusConfig = {
       connected: { 
-        color: "bg-green-500", 
+        color: "bg-emerald-500", 
         icon: <FiCheck className="w-3 h-3" />, 
         text: "Connected" 
       },
@@ -1151,150 +1082,131 @@ const Chat = () => {
         ? prev.filter(id => id !== message.id) 
         : [...prev, message.id]
     );
+    setSelectedMessageId(message.id);
+    setShowReactionPicker(true);
   };
 
   const handleReaction = (messageId, emoji) => {
-    // Handle reaction logic here
-    console.log(`Reaction ${emoji} added to message ${messageId}`);
-    // You would normally update the message with the reaction
+    setShowReactionPicker(false);
+    setSelectedMessageId(null);
+    // Add reaction to message
+    setMessages(prev => 
+      prev.map(msg => 
+        msg.id === messageId 
+          ? { ...msg, reactions: [...(msg.reactions || []), { emoji, userId: currentUser.id }] }
+          : msg
+      )
+    );
   };
 
-  if (!isVisible) {
-    return null;
-  }
+  // Add a useEffect for polling new messages
+  useEffect(() => {
+    if (!activeConversation || !currentUser.id) return;
+    
+    // Poll for new messages every second
+    const pollingInterval = setInterval(() => {
+      // Use the existing memorizeFetchAllChats function to update messages
+      memorizeFetchAllChats();
+    }, 1000); // Poll every second
+    
+    // Clean up on unmount or when conversation changes
+    return () => clearInterval(pollingInterval);
+  }, [activeConversation, currentUser.id, memorizeFetchAllChats]);
+
+  // Auto-scroll to bottom only when conversation is first opened
+  useEffect(() => {
+    if (shouldAutoScroll && messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: 'smooth',
+        block: 'end'
+      });
+      setShouldAutoScroll(false); // Reset the flag after scrolling
+    }
+  }, [shouldAutoScroll, messages]);
+
+  // Add error handling component
+  const ErrorMessage = ({ message, onClose }) => (
+    <motion.div
+      initial={{ opacity: 0, y: -10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10 }}
+      className="fixed top-4 right-4 z-50 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2"
+    >
+      <FiAlertCircle className="w-5 h-5" />
+      <p>{message}</p>
+      <button onClick={onClose} className="ml-2 hover:text-white/80">
+        <FiX className="w-4 h-4" />
+      </button>
+    </motion.div>
+  );
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50">
-      {/* Mobile top navbar - always visible on mobile */}
-      {isMobile && (
-        <div className="bg-gradient-to-r from-indigo-600 to-blue-500 py-3 px-4 flex items-center justify-between sticky top-0 z-20 shadow-md">
-          <div className="flex items-center gap-2">
-            <FiMessageCircle className="text-white w-6 h-6" />
-            <h1 className="font-semibold text-lg text-white">Messages</h1>
-          </div>
-          <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setShowSearch(!showSearch)}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
-            >
-              <FiSearch className="w-4 h-4 text-white" />
-            </button>
-            <button 
-              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
-            >
-              <FiMenu className="w-4 h-4 text-white" />
-            </button>
-          </div>
-        </div>
-      )}
+    <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
+      {/* Fixed Sidebar */}
+      <div className="flex-shrink-0">
+        <Sidebar />
+      </div>
       
-      {/* Search bar - conditionally rendered (mobile) */}
-      {isMobile && (
-        <AnimatePresence>
-          {showSearch && (
-            <motion.div 
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              exit={{ opacity: 0, height: 0 }}
-              className="px-4 py-3 bg-gradient-to-r from-indigo-500/95 to-blue-500/95 shadow-md backdrop-blur-sm"
-            >
-              <div className="relative">
-                <input
-                  type="text"
-                  placeholder="Search conversations..."
-                  value={conversationSearch}
-                  onChange={(e) => setConversationSearch(e.target.value)}
-                  className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
-                />
-                <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-                {conversationSearch && (
-                  <button 
-                    onClick={() => setConversationSearch('')}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
-                  >
-                    <FiX className="w-4 h-4" />
-                  </button>
-                )}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      )}
+      <div className="flex-1 flex flex-col h-full mb-4 mt-20">
+        {renderConnectionStatus()}
       
-      {/* Main layout with proper mobile ordering */}
-      <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
-        {/* Sidebar */}
-        {!isMobile ? (
-          <div className={`${isSidebarCollapsed ? 'w-16' : 'w-64'} border-r border-gray-200 bg-white transition-all duration-300 ease-in-out`}>
-            <Sidebar onClose={() => {}} />
-          </div>
-        ) : mobileMenuOpen && (
-          <div className="w-full h-64 overflow-y-auto z-20 border-b border-gray-200 bg-white">
-            <Sidebar onClose={() => setMobileMenuOpen(false)} />
-          </div>
-        )}
-        
-        {/* Main Content Area */}
-        <div className="flex flex-col flex-1 overflow-hidden transition-all duration-300 ease-in-out">
-          {renderConnectionStatus()}
-          {viewMode === 'list' ? (
-            <>
-              {/* List View */}
-              <div className="bg-gradient-to-r from-indigo-600 to-blue-500 text-white shadow-md">
-                {!isMobile && ( // Only show this header on desktop, mobile has its own header
-                  <div className="flex items-center justify-between px-6 py-4">
-                    <h3 className="font-semibold text-white text-lg">Chats</h3>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={() => setShowSearch(!showSearch)}
-                        className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                      >
-                        <FiSearch className="w-4 h-4 text-white" />
-                      </button>
-                      <button 
-                        onClick={() => setShowNewChat(true)}
-                        className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                      >
-                        <FiPlus className="w-4 h-4 text-white" />
-                      </button>
-                    </div>
+        {viewMode === 'list' ? (
+          // List View
+          <div className="flex flex-col h-full overflow-hidden">
+            <div className="bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md">
+              {!isMobile && (
+                <div className="flex items-center justify-between px-6 py-4">
+                  <h3 className="font-semibold text-white text-lg">Chats</h3>
+                  <div className="flex items-center gap-2">
+                    <button 
+                      onClick={() => setShowSearch(!showSearch)}
+                      className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
+                    >
+                      <FiSearch className="w-4 h-4 text-white" />
+                    </button>
+                    <button 
+                      onClick={() => setShowNewChat(true)}
+                      className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
+                    >
+                      <FiPlus className="w-4 h-4 text-white" />
+                    </button>
                   </div>
-                )}
-                
-                {/* Desktop Search bar - conditionally rendered */}
-                {!isMobile && (
-                  <AnimatePresence>
-                    {showSearch && (
-                      <motion.div 
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
-                        exit={{ opacity: 0, height: 0 }}
-                        className="px-6 pb-4"
-                      >
-                        <div className="relative">
-                          <input
-                            type="text"
-                            placeholder="Search conversations..."
-                            value={conversationSearch}
-                            onChange={(e) => setConversationSearch(e.target.value)}
-                            className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
-                          />
-                          <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-                          {conversationSearch && (
-                            <button 
-                              onClick={() => setConversationSearch('')}
-                              className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
-                            >
-                              <FiX className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                )}
-              </div>
+                </div>
+              )}
+              
+              {/* Desktop Search bar - conditionally rendered */}
+              {!isMobile && (
+                <AnimatePresence>
+                  {showSearch && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="px-6 pb-4"
+                    >
+                      <div className="relative">
+                        <input
+                          type="text"
+                          placeholder="Search conversations..."
+                          value={conversationSearch}
+                          onChange={(e) => setConversationSearch(e.target.value)}
+                          className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
+                        />
+                        <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+                        {conversationSearch && (
+                          <button 
+                            onClick={() => setConversationSearch('')}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+                          >
+                            <FiX className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              )}
+
 
               {/* Chat filter tabs */}
               <div className="bg-white border-b border-gray-200 px-2 overflow-x-auto">
@@ -1303,7 +1215,7 @@ const Chat = () => {
                     onClick={() => setChatFilter('all')}
                     className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-all ${
                       chatFilter === 'all' 
-                        ? 'bg-indigo-50 text-indigo-600' 
+                        ? 'bg-slate-100 text-slate-800' 
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -1313,7 +1225,7 @@ const Chat = () => {
                     onClick={() => setChatFilter('unread')}
                     className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-all ${
                       chatFilter === 'unread' 
-                        ? 'bg-indigo-50 text-indigo-600' 
+                        ? 'bg-slate-100 text-slate-800' 
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -1323,7 +1235,7 @@ const Chat = () => {
                     onClick={() => setChatFilter('groups')}
                     className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-all ${
                       chatFilter === 'groups' 
-                        ? 'bg-indigo-50 text-indigo-600' 
+                        ? 'bg-slate-100 text-slate-800' 
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
@@ -1333,16 +1245,16 @@ const Chat = () => {
               </div>
 
               {/* Chat list */}
-              <div className="flex-1 overflow-y-auto bg-white">
+              <div className="flex-1 overflow-y-auto bg-white max-h-[calc(100vh-200px)]">
                 {isLoading ? (
                   <div className="flex flex-col items-center justify-center h-32 py-6">
-                    <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p className="text-sm text-gray-500">Loading conversations...</p>
                   </div>
                 ) : filteredConversations.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-4">
-                    <div className="w-16 h-16 bg-indigo-100 rounded-full flex items-center justify-center mb-4">
-                      <FiMessageCircle className="w-8 h-8 text-indigo-500" />
+                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+                      <FiMessageCircle className="w-8 h-8 text-slate-500" />
                     </div>
                     <h4 className="text-lg font-semibold text-gray-900 mb-2 text-center">No conversations found</h4>
                     <p className="text-sm text-gray-500 text-center mb-6">
@@ -1352,7 +1264,7 @@ const Chat = () => {
                     </p>
                     <button
                       onClick={() => setShowNewChat(true)}
-                      className="px-5 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-lg transition-colors flex items-center gap-2"
+                      className="px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors flex items-center gap-2"
                     >
                       <FiPlus className="w-4 h-4" />
                       New Conversation
@@ -1365,17 +1277,17 @@ const Chat = () => {
                         key={chat.id}
                         onClick={() => handleConversationClick(chat)}
                         whileTap={{ scale: 0.98 }}
-                        className="px-4 py-3 hover:bg-gray-50 cursor-pointer transition-colors"
+                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors"
                       >
                         <div className="flex items-center space-x-3">
                           <div className="relative flex-shrink-0">
                             <img 
-                              src={getAvatarUrl(chat.picture)}
+                              src={chat && getAvatarUrl(chat.picture)}
                               className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" 
-                              alt={chat.name}
+                              alt={chat?.name || 'User'}
                               onError={(e) => { e.target.src = 'default-avatar.svg' }}
                             />
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-green-500 rounded-full ring-2 ring-white" />
+                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white" />
                           </div>
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between">
@@ -1387,7 +1299,7 @@ const Chat = () => {
                             <div className="flex items-center justify-between">
                               <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
                               {chat.unread > 0 && (
-                                <div className="min-w-[1.5rem] h-6 bg-indigo-500 text-white text-xs font-medium rounded-full flex items-center justify-center">
+                                <div className="min-w-[1.5rem] h-6 bg-primary text-white text-xs font-medium rounded-full flex items-center justify-center">
                                   {chat.unread}
                                 </div>
                               )}
@@ -1399,51 +1311,49 @@ const Chat = () => {
                   </div>
                 )}
               </div>
-            </>
-          ) : (
-            <>
-              {/* Conversation View */}
-              <div className="flex-1 flex flex-col bg-white h-full">
-                {/* Chat Header */}
-                {renderChatHeader()}
-                
-                {/* Messages container */}
-                <div className="flex-1 overflow-y-auto px-4 py-6 bg-gray-50">
-                  {/* Messages will be displayed here */}
-                  {messages
-                    .filter(msg => {
-                      // Filter messages for the active conversation
-                      const isSenderOrReceiver = 
-                        (msg.senderId === currentUser.id && msg.receiverId === activeConversation.id) ||
-                        (msg.senderId === activeConversation.id && msg.receiverId === currentUser.id);
-                      
-                      // Also filter by search query if present
-                      const matchesSearch = !searchQuery || 
-                        msg.text.toLowerCase().includes(searchQuery.toLowerCase());
-                      
-                      return isSenderOrReceiver && matchesSearch;
-                    })
-                    .map((message) => (
-                      <MessageItem 
-                        key={message.id}
-                        message={message}
-                        isOwn={message.senderId === currentUser.id}
-                        onSelect={() => handleSelectMessage(message)}
-                        isSelected={selectedMessages.includes(message.id)}
-                        showReactionPicker={showReactionPicker === message.id}
-                        onReaction={(emoji) => handleReaction(message.id, emoji)}
-                        currentUser={currentUser}
-                      />
-                    ))}
-                  <div ref={messagesEndRef} />
-                </div>
-                
-                {/* Input area */}
-                {renderInputArea()}
-              </div>
-            </>
-          )}
-        </div>
+            </div>
+          </div>
+        ) : (
+          // Conversation View
+          <div className="flex flex-col h-full bg-gradient-to-br from-white via-gray-50/50 to-green-100/20">
+            {/* Chat Header - only show on desktop */}
+            {!isMobile && renderChatHeader()}
+            
+            {/* Messages container */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 pb-24 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50">
+              {/* Messages will be displayed here */}
+              {messages
+                .filter(msg => {
+                  // Filter messages for the active conversation
+                  const isSenderOrReceiver = 
+                    (msg.senderId === currentUser.id && msg.receiverId === activeConversation.id) ||
+                    (msg.senderId === activeConversation.id && msg.receiverId === currentUser.id);
+                  
+                  // Also filter by search query if present
+                  const matchesSearch = !searchQuery || 
+                    msg.text.toLowerCase().includes(searchQuery.toLowerCase());
+                  
+                  return isSenderOrReceiver && matchesSearch;
+                })
+                .map((message) => (
+                  <MessageItem 
+                    key={message.id}
+                    message={message}
+                    isOwn={message.senderId === currentUser.id}
+                    onSelect={() => handleSelectMessage(message)}
+                    isSelected={selectedMessages.includes(message.id)}
+                    showReactionPicker={showReactionPicker === message.id}
+                    onReaction={(emoji) => handleReaction(message.id, emoji)}
+                    currentUser={currentUser}
+                  />
+                ))}
+              <div ref={messagesEndRef} />
+            </div>
+            
+            {/* Input area - fixed at bottom */}
+            {renderInputArea()}
+          </div>
+        )}
       </div>
       
       {/* New Chat Modal */}
@@ -1461,7 +1371,7 @@ const Chat = () => {
               exit={{ scale: 0.95, y: 20 }}
               className="bg-white rounded-2xl shadow-2xl w-full max-w-lg m-4 overflow-hidden"
             >
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-indigo-500 to-indigo-600 text-white">
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white">
                 <h3 className="text-lg font-medium">New Message</h3>
                 <button
                   onClick={() => setShowNewChat(false)}
@@ -1483,7 +1393,7 @@ const Chat = () => {
                       value={searchEmail}
                       onChange={handleSearchInputChange}
                       placeholder="Search by name or email..."
-                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-200 text-sm placeholder:text-gray-400"
+                      className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-50 border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 text-sm placeholder:text-gray-400"
                       autoFocus
                     />
                   </div>
@@ -1492,7 +1402,7 @@ const Chat = () => {
                 <div className="max-h-80 overflow-y-auto custom-scrollbar rounded-xl">
                   {isLoading ? (
                     <div className="py-10 flex flex-col items-center justify-center text-gray-500 space-y-3">
-                      <div className="w-8 h-8 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                      <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin"></div>
                       <p className="text-sm">Searching...</p>
                     </div>
                   ) : searchResults.length > 0 ? (
@@ -1518,7 +1428,7 @@ const Chat = () => {
                               <h4 className="font-medium text-gray-900">{user.name}</h4>
                               <p className="text-sm text-gray-500">{user.email}</p>
                             </div>
-                            <button className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-full transition-colors">
+                            <button className="p-2 text-primary hover:bg-primary/10 rounded-full transition-colors">
                               <FiMessageCircle className="w-5 h-5" />
                             </button>
                           </div>
@@ -1533,7 +1443,7 @@ const Chat = () => {
                       <p className="text-sm">No results found for "{searchEmail}"</p>
                       <button
                         onClick={() => setSearchEmail('')}
-                        className="text-xs text-indigo-500 font-medium"
+                        className="text-xs text-primary font-medium"
                       >
                         Clear search
                       </button>
@@ -1553,22 +1463,84 @@ const Chat = () => {
         )}
       </AnimatePresence>
 
-      <input
-        type="file"
-        ref={fileInputRef}
-        className="hidden"
-        onChange={(e) => {
-          const file = e.target.files[0];
-          if (file) {
-            setAttachmentPreview(file);
-            setSelectedFile(file);
-          }
-        }}
-        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
-      />
-      
       {/* Add style for hiding scrollbar on the conversation list */}
       <style jsx global>{`
+        :root {
+          --color-primary: #10B981;
+          --color-primary-dark: #059669;
+        }
+        
+        html, body {
+          height: 100%;
+          margin: 0;
+          padding: 0;
+          overflow: hidden;
+        }
+        
+        #root {
+          height: 100%;
+        }
+        
+        .primary {
+          color: var(--color-primary);
+        }
+        
+        .bg-primary {
+          background-color: var(--color-primary);
+        }
+        
+        .bg-primary-dark {
+          background-color: var(--color-primary-dark);
+        }
+        
+        .text-primary {
+          color: var(--color-primary);
+        }
+        
+        .from-primary {
+          --tw-gradient-from: var(--color-primary);
+        }
+        
+        .to-primary-dark {
+          --tw-gradient-to: var(--color-primary-dark);
+        }
+        
+        .border-primary {
+          border-color: var(--color-primary);
+        }
+        
+        .focus\\:border-primary:focus {
+          border-color: var(--color-primary);
+        }
+        
+        .focus\\:ring-primary:focus {
+          --tw-ring-color: var(--color-primary);
+        }
+        
+        .hover\\:bg-primary\\/10:hover {
+          background-color: rgba(16, 185, 129, 0.1);
+        }
+        
+        .hover\\:bg-primary\\/20:hover {
+          background-color: rgba(16, 185, 129, 0.2);
+        }
+        
+        .bg-primary\\/10 {
+          background-color: rgba(16, 185, 129, 0.1);
+        }
+        
+        .bg-primary\\/20 {
+          background-color: rgba(16, 185, 129, 0.2);
+        }
+        
+        .bg-primary\\/5 {
+          background-color: rgba(16, 185, 129, 0.05);
+        }
+        
+        .ring-primary\\/20 {
+          --tw-ring-color: rgba(16, 185, 129, 0.2);
+        }
+        
         .hide-scrollbar::-webkit-scrollbar {
           display: none;
         }
@@ -1597,7 +1569,74 @@ const Chat = () => {
           transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
           transition-duration: 300ms;
         }
+        
+        /* Responsive improvements */
+        @media (max-width: 640px) {
+          .rounded-2xl {
+            border-radius: 1rem;
+          }
+          .p-4 {
+            padding: 0.875rem;
+          }
+        }
+        
+        /* Mobile chat container responsiveness */
+        @media (max-width: 768px) {
+          .mobile-chat-container {
+            width: 100%;
+            height: calc(100vh - 60px);
+            position: relative;
+            display: flex;
+            flex-direction: column;
+          }
+          
+          .mobile-chat-container.sidebar-open {
+            transform: translateX(80%);
+          }
+        }
       `}</style>
+
+      {/* Add error handling component */}
+      <AnimatePresence>
+        {errorMessage && (
+          <ErrorMessage 
+            message={errorMessage} 
+            onClose={() => setErrorMessage('')} 
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Update WebSocket connection status display */}
+      {!isConnected && (
+        <div className="fixed bottom-4 right-4 z-50 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <FiAlertCircle className="w-5 h-5" />
+          <p>Connection lost. Attempting to reconnect...</p>
+        </div>
+      )}
+
+      {/* Update reaction picker */}
+      <AnimatePresence>
+        {showReactionPicker && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95 }}
+            className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 z-50"
+          >
+            <div className="grid grid-cols-6 gap-1">
+              {['❤️', '👍', '😂', '😊', '😍', '🎉'].map(emoji => (
+                <button
+                  key={emoji}
+                  onClick={() => handleReaction(selectedMessageId, emoji)}
+                  className="w-8 h-8 hover:bg-gray-100 rounded-lg flex items-center justify-center text-xl"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

@@ -2,9 +2,14 @@
 import { toast } from 'sonner';
 
 export const sanitizeInput = (input) => {
-  // normalize null/undefined
+  // Handle null/undefined
   if (input == null) {
     return '';
+  }
+
+  // If input is a number, return it as is
+  if (typeof input === 'number') {
+    return input;
   }
 
   let sanitized = String(input);
@@ -28,9 +33,8 @@ export const sanitizeInput = (input) => {
     sanitized = sanitized.replace(rx, '');
   });
 
-  // 3) remove everything *except* alphanumerics, spaces, dots and hyphens
-  //    this avoids having to list & escape every single “bad” character
-  const whitelist = /[^0-9A-Za-z .-]/g;
+  // 3) Allow alphanumerics, spaces, dots, hyphens, and common symbols
+  const whitelist = /[^0-9A-Za-z #@.,\-_/]/g;
   const cleaned = sanitized.replace(whitelist, '');
 
   // 4) if anything more than whitespace changed, notify user
@@ -43,6 +47,11 @@ export const sanitizeInput = (input) => {
 
 export const validateInput = (input) => {
   if (!input) return true; // empty is fine
+
+  // Convert to string if number
+  if (typeof input === 'number') {
+    input = String(input);
+  }
 
   // 1) fail on any of these dangerous substrings
   const dangerous = [
