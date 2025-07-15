@@ -1641,74 +1641,91 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
     // Validate reservation dates
     if (!isValidDate(resStart) || !isValidDate(resEnd)) return false;
 
+    // Check if any days overlap first
+    const resStartDay = new Date(resStart);
+    resStartDay.setHours(0, 0, 0, 0);
+    const resEndDay = new Date(resEnd);
+    resEndDay.setHours(23, 59, 59, 999);
+
+    const attemptedStartDay = new Date(attemptedStart);
+    attemptedStartDay.setHours(0, 0, 0, 0);
+    const attemptedEndDay = new Date(attemptedEnd);
+    attemptedEndDay.setHours(23, 59, 59, 999);
+
+    // Check if date ranges overlap
+    const datesOverlap = attemptedStartDay <= resEndDay && attemptedEndDay >= resStartDay;
+
+    if (!datesOverlap) return false;
+
+    // If dates overlap, check time windows for each day
     // For multi-day reservations, we need to check each day's time slots
-    const attemptedStartDay = new Date(attemptedStart).setHours(0, 0, 0, 0);
-    const attemptedEndDay = new Date(attemptedEnd).setHours(23, 59, 59, 999);
-    const resStartDay = new Date(resStart).setHours(0, 0, 0, 0);
-    const resEndDay = new Date(resEnd).setHours(23, 59, 59, 999);
+    const isAttemptedMultiDay = !isSameDay(attemptedStart, attemptedEnd);
+    const isExistingMultiDay = !isSameDay(resStart, resEnd);
 
-    // First check if the days overlap at all
-    const daysOverlap = !(attemptedEndDay < resStartDay || attemptedStartDay > resEndDay);
-
-    if (!daysOverlap) return false;
-
-    // If days overlap, check time slots
-    // Case 1: Same day reservation
-    if (isSameDay(attemptedStart, attemptedEnd) && isSameDay(resStart, resEnd)) {
-      return (
-        (attemptedStart < resEnd && attemptedEnd > resStart) ||
-        (resStart < attemptedEnd && resEnd > attemptedStart)
+    // If both are single day reservations, use simple time overlap check
+    if (!isAttemptedMultiDay && !isExistingMultiDay) {
+      const timeWindowsOverlap = (
+        (attemptedStart < resEnd && attemptedEnd > resStart)
       );
+      return timeWindowsOverlap;
     }
 
-    // Case 2: Multi-day reservation
-    // Check each day's business hours (5 AM - 7 PM)
-    // const startTimeOnDay = (date) => {
-    //   const dayStart = new Date(date);
-    //   dayStart.setHours(5, 0, 0, 0);
-    //   return dayStart;
-    // };
-
-    // const endTimeOnDay = (date) => {
-    //   const dayEnd = new Date(date);
-    //   dayEnd.setHours(19, 0, 0, 0);
-    //   return dayEnd;
-    // };
-
-    // For the start day, check from the attempted/reserved start time until 7 PM
-    // For the end day, check from 5 AM until the attempted/reserved end time
-    // For days in between, the entire business hours (5 AM - 7 PM) are considered
-
-    // Check start day overlap
-    if (isSameDay(attemptedStart, resStart)) {
-      if (attemptedStart < resEnd && attemptedEnd > resStart) return true;
-    }
-
-    // Check end day overlap
-    if (isSameDay(attemptedEnd, resEnd)) {
-      if (resStart < attemptedEnd && resEnd > attemptedStart) return true;
-    }
-
-    // Check if any full day is overlapping
-    const isFullDayOverlap = () => {
-      const start = new Date(Math.max(attemptedStartDay, resStartDay));
-      const end = new Date(Math.min(attemptedEndDay, resEndDay));
+    // For multi-day reservations, check each day's business hours (5 AM - 7 PM)
+    // Generate all dates in the overlap range
+    const overlapStart = new Date(Math.max(attemptedStartDay, resStartDay));
+    const overlapEnd = new Date(Math.min(attemptedEndDay, resEndDay));
+    
+    for (let day = new Date(overlapStart); day <= overlapEnd; day.setDate(day.getDate() + 1)) {
+      const currentDay = new Date(day);
       
-      // Iterate through each day between start and end
-      for (let day = new Date(start); day <= end; day.setDate(day.getDate() + 1)) {
-        if (!isSameDay(day, attemptedStart) && !isSameDay(day, attemptedEnd) &&
-            !isSameDay(day, resStart) && !isSameDay(day, resEnd)) {
-          // If we find a day that's fully within both reservations, it's a conflict
-          return true;
-        }
+      // Determine the time range for the attempted booking on this day
+      let attemptedDayStart, attemptedDayEnd;
+      if (isSameDay(currentDay, attemptedStart)) {
+        // First day of attempted booking
+        attemptedDayStart = attemptedStart;
+        attemptedDayEnd = isAttemptedMultiDay ? 
+          new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 19, 0, 0, 0) : // 7 PM
+          attemptedEnd;
+      } else if (isSameDay(currentDay, attemptedEnd)) {
+        // Last day of attempted booking
+        attemptedDayStart = isAttemptedMultiDay ? 
+          new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 5, 0, 0, 0) : // 5 AM
+          attemptedStart;
+        attemptedDayEnd = attemptedEnd;
+      } else {
+        // Middle day of attempted booking - full business hours
+        attemptedDayStart = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 5, 0, 0, 0); // 5 AM
+        attemptedDayEnd = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 19, 0, 0, 0); // 7 PM
       }
-      return false;
-    };
 
-    if (isFullDayOverlap()) return true;
+      // Determine the time range for the existing reservation on this day
+      let existingDayStart, existingDayEnd;
+      if (isSameDay(currentDay, resStart)) {
+        // First day of existing reservation
+        existingDayStart = resStart;
+        existingDayEnd = isExistingMultiDay ? 
+          new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 19, 0, 0, 0) : // 7 PM
+          resEnd;
+      } else if (isSameDay(currentDay, resEnd)) {
+        // Last day of existing reservation
+        existingDayStart = isExistingMultiDay ? 
+          new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 5, 0, 0, 0) : // 5 AM
+          resStart;
+        existingDayEnd = resEnd;
+      } else {
+        // Middle day of existing reservation - full business hours
+        existingDayStart = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 5, 0, 0, 0); // 5 AM
+        existingDayEnd = new Date(currentDay.getFullYear(), currentDay.getMonth(), currentDay.getDate(), 19, 0, 0, 0); // 7 PM
+      }
 
-    return false;
-  }).filter(Boolean).map(res => ({
+      // Check if the time ranges overlap on this day
+      if (attemptedDayStart < existingDayEnd && attemptedDayEnd > existingDayStart) {
+        return true; // Conflict found
+      }
+    }
+
+    return false; // No conflict found
+  }).map(res => ({
     ...res,
     conflictType: getConflictType(attemptedStart, attemptedEnd, new Date(res.startDate), new Date(res.endDate))
   }));

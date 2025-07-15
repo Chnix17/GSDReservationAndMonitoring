@@ -377,13 +377,13 @@ const Reports = () => {
                   key: 'unset',
                   label: (
                     <span className="flex items-center">
-                      <CloseCircleOutlined className="mr-2 text-red-500" />
+                      <CloseCircleOutlined className="ml-4 text-red-500" />
                       <span className="hidden sm:inline">Unset</span>
                       <span className="sm:hidden">Unset</span>
                     </span>
                   ),
                   children: (
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto pr-8">
                       <Table
                         loading={loading}
                         pagination={{ 

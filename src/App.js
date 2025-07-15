@@ -54,7 +54,7 @@ import VenueSchedule from './page_dean/VenueSchedule'
 export const ThemeContext = createContext();
 
 const App = () => {
-    const defaultUrl = "http://192.168.110.245/coc/gsd/";
+    const defaultUrl = "http://localhost/coc/gsd/";
     const storedUrl = SecureStorage.getLocalItem("url");
     
     if (!storedUrl || storedUrl !== defaultUrl) {

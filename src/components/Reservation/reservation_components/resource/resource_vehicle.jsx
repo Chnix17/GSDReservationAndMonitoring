@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
-import { BsFillGridFill, BsList } from 'react-icons/bs';
 import { CarOutlined } from '@ant-design/icons';
 import { MdPeople } from 'react-icons/md';
 import { SearchOutlined } from '@ant-design/icons';
@@ -9,10 +8,7 @@ import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
 
-const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, viewMode, isMobile }, ref) => {
-  // Force list view on mobile
-  const effectiveViewMode = isMobile ? 'list' : viewMode;
-
+const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, isMobile }, ref) => {
   return (
     <motion.div
       ref={ref}
@@ -23,37 +19,39 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, viewMode, 
       whileHover={{ scale: 1.02 }}
       whileTap={{ scale: 0.98 }}
       transition={{ duration: 0.2 }}
+      className={`${isMobile ? 'mx-1' : 'mx-2'}`}
     >
       <Card
         className={`
-          overflow-hidden border-0 shadow-sm hover:shadow-md transition-all
-          ${isSelected ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
-          ${effectiveViewMode === 'list' ? 'flex' : ''}
-          ${isMobile ? 'py-2 px-3' : 'p-4'}
+          overflow-hidden border border-gray-50/20 hover:border-gray-100 
+          shadow-sm hover:shadow-md transition-all
+          ${isSelected ? 'ring-2 ring-green-500 bg-green-50/30' : 'bg-white/80 hover:bg-gray-50/50'}
+          flex
+          ${isMobile ? 'py-1 px-2' : 'p-2'}
+          backdrop-blur-sm
+          h-[100px]
         `}
         onClick={onClick}
+        bodyStyle={{ padding: 0 }}
       >
         <div className={`
-          flex ${effectiveViewMode === 'list' ? 'flex-row items-center' : 'flex-col'}
-          ${isMobile ? 'gap-2' : 'gap-3'} w-full
+          flex flex-row items-center
+          ${isMobile ? 'gap-1' : 'gap-2'} w-full h-full
         `}>
-          {/* Vehicle Icon/Placeholder */}
           <div className={`
-            flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50
-            ${effectiveViewMode === 'list' 
-              ? (isMobile ? 'w-12 h-12' : 'w-16 h-16') 
-              : 'w-full h-24'}
+            flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100/80 to-green-50/80
+            ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}
             flex-shrink-0
+            border border-gray-100/30
           `}>
-            <CarOutlined className={`text-green-500 ${isMobile ? 'text-xl' : 'text-3xl'}`} />
+            <CarOutlined className={`text-green-500 ${isMobile ? 'text-sm' : 'text-lg'}`} />
           </div>
 
-          {/* Content */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex-1 min-w-0 h-full flex flex-col justify-center">
+            <div className="flex items-center justify-between gap-1 mb-0">
               <h3 className={`
                 font-medium text-gray-800 truncate
-                ${isMobile ? 'text-sm' : 'text-base'}
+                ${isMobile ? 'text-xs' : 'text-sm'}
               `}>
                 {vehicle.vehicle_make_name} {vehicle.vehicle_model_name}
               </h3>
@@ -62,27 +60,28 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, viewMode, 
                   color="green"
                   className={`
                     flex items-center font-medium whitespace-nowrap
-                    ${isMobile ? 'text-[10px] px-1.5 py-0' : 'text-xs px-2 py-0.5'}
+                    ${isMobile ? 'text-[8px] px-1 py-0' : 'text-xs px-1 py-0'}
+                    bg-green-100/80 border border-green-200/50
                   `}
                 >
                   Selected
                 </Tag>
               )}
             </div>
-
+            
             <div className={`
               flex flex-wrap
-              ${isMobile ? 'gap-2' : 'gap-3'}
+              ${isMobile ? 'gap-1' : 'gap-2'}
             `}>
               <div className="flex items-center gap-1 text-gray-600">
-                <CarOutlined className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
-                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
+                <CarOutlined className={`text-green-500 ${isMobile ? 'text-xs' : 'text-sm'}`} />
+                <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>
                   {vehicle.vehicle_license}
                 </span>
               </div>
               <div className="flex items-center gap-1 text-gray-600">
-                <MdPeople className={`text-green-500 ${isMobile ? 'text-sm' : 'text-base'}`} />
-                <span className={`${isMobile ? 'text-xs' : 'text-sm'}`}>
+                <MdPeople className={`text-green-500 ${isMobile ? 'text-xs' : 'text-sm'}`} />
+                <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>
                   {vehicle.vehicle_capacity || 'N/A'}
                 </span>
               </div>
@@ -95,43 +94,39 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, viewMode, 
 });
 
 const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
-  const [viewMode, setViewMode] = useState('grid');
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 10;
+  const itemsPerPage = 8;
 
-  // Ref for the first vehicle card
   const firstVehicleRef = useRef(null);
+  const scrollContainerRef = useRef(null);
 
-  // Filter vehicles based on search query
   const filteredVehicles = vehicles.filter(vehicle =>
     ((vehicle.vehicle_make_name + ' ' + vehicle.vehicle_model_name).toLowerCase().includes(searchQuery.toLowerCase()) ||
     vehicle.vehicle_license.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  // Calculate pagination
   const totalItems = filteredVehicles.length;
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
   const currentVehicles = filteredVehicles.slice(startIndex, endIndex);
 
-  // Handle page change
   const handlePageChange = (page) => {
     setCurrentPage(page);
-    // On mobile, scroll to the first vehicle card/item
     setTimeout(() => {
       if (isMobile && firstVehicleRef.current) {
-        firstVehicleRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        firstVehicleRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } else if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTo({ top: 0, behavior: 'smooth' });
       }
-    }, 0);
+    }, 50);
   };
 
-  // Handle search
   const handleSearch = (value) => {
     setSearchQuery(value);
-    setCurrentPage(1); // Reset to first page when searching
+    setCurrentPage(1);
   };
 
   const fetchVehicles = async () => {
@@ -175,18 +170,20 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
     <motion.div 
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className={`space-y-3 ${isMobile ? 'p-2' : 'p-4'}`}
+      className={`flex flex-col h-full ${isMobile ? 'p-1' : 'p-3'}`}
     >
-      {/* Header with Search and Filters */}
+      {/* Fixed Header Section */}
       <div className={`
         flex flex-col gap-3
-        bg-white rounded-lg shadow-sm
-        ${isMobile ? 'p-3' : 'p-4'}
+        bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
+        ${isMobile ? 'p-3 mb-2' : 'p-4 mb-3'}
+        sticky top-0 z-10
+        border border-gray-100/20
       `}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
           <div className="flex-1">
             <h2 className={`
-              font-semibold text-gray-800
+              font-semibold text-gray-900
               ${isMobile ? 'text-base' : 'text-lg'}
             `}>
               {selectedVehicles.length > 0
@@ -194,7 +191,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
                 : 'Available Vehicles'}
             </h2>
             <p className={`
-              text-gray-500 mt-0.5
+              text-gray-600 mt-0.5
               ${isMobile ? 'text-xs' : 'text-sm'}
             `}>
               {selectedVehicles.length > 0
@@ -202,129 +199,108 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
                 : 'Select vehicles to proceed'}
             </p>
           </div>
-          {/* View mode toggle for non-mobile */}
-          {!isMobile && (
-            <div className="flex items-center gap-2">
-              <div className="bg-gray-100 p-1 rounded-lg flex gap-1">
-                <button
-                  onClick={() => setViewMode('grid')}
-                  className={`
-                    p-2 rounded-md transition-all
-                    ${viewMode === 'grid' 
-                      ? 'bg-white text-green-600 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-200'}
-                  `}
-                >
-                  <BsFillGridFill size={16} />
-                </button>
-                <button
-                  onClick={() => setViewMode('list')}
-                  className={`
-                    p-2 rounded-md transition-all
-                    ${viewMode === 'list' 
-                      ? 'bg-white text-green-600 shadow-sm' 
-                      : 'text-gray-600 hover:bg-gray-200'}
-                  `}
-                >
-                  <BsList size={16} />
-                </button>
-              </div>
-            </div>
-          )}
         </div>
-        {/* Search only, no category filter */}
-        <div className="flex flex-col sm:flex-row gap-2">
+
+        {/* Search Input */}
+        <div className={`${isMobile ? 'mt-1' : 'mt-2'}`}>
           <Input
             placeholder="Search vehicles by name or license..."
             prefix={<SearchOutlined className="text-gray-400" />}
             onChange={(e) => handleSearch(e.target.value)}
             value={searchQuery}
-            className="w-full sm:max-w-md"
+            className="w-full"
             size={isMobile ? 'middle' : 'large'}
+            bordered
+            allowClear
           />
         </div>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center py-8">
-          <Spin size={isMobile ? "default" : "large"} />
-        </div>
-      ) : (
-        <AnimatePresence>
-          <div className={`
-            ${!isMobile && viewMode === 'grid'
-              ? 'grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4'
-              : 'flex flex-col gap-2'}
-          `}>
-            {currentVehicles.map((vehicle, idx) => (
-              <VehicleCard
-                key={vehicle.vehicle_id}
-                vehicle={vehicle}
-                isSelected={selectedVehicles.includes(vehicle.vehicle_id)}
-                onClick={() => onVehicleSelect(vehicle.vehicle_id)}
-                viewMode={viewMode}
-                isMobile={isMobile}
-                ref={idx === 0 ? firstVehicleRef : undefined}
-              />
-            ))}
+      {/* Scrollable Content Section */}
+      <div 
+        ref={scrollContainerRef}
+        className="flex-1 overflow-y-auto px-1"
+        style={{ 
+          maxHeight: 'calc(100vh - 180px)',
+          scrollBehavior: 'smooth',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
+        {loading ? (
+          <div className="flex justify-center items-center h-full">
+            <Spin size={isMobile ? "default" : "large"} />
           </div>
-
-          {filteredVehicles.length === 0 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-            >
-              <Empty
-                description={
-                  <div className="text-center">
-                    <h3 className={`
-                      font-medium text-gray-800 mb-1
-                      ${isMobile ? 'text-sm' : 'text-base'}
-                    `}>
-                      {searchQuery 
-                        ? 'No vehicles match your search'
-                        : 'No Vehicles Available'}
-                    </h3>
-                    <p className={`
-                      text-gray-500
-                      ${isMobile ? 'text-xs' : 'text-sm'}
-                    `}>
-                      {searchQuery 
-                        ? 'Try different keywords or clear the search'
-                        : 'Check back later for available vehicles'}
-                    </p>
-                  </div>
-                }
-                className={`bg-white rounded-lg shadow-sm ${isMobile ? 'p-6' : 'p-8'}`}
-              />
-            </motion.div>
-          )}
-
-          {/* Pagination */}
-          {filteredVehicles.length > 0 && (
-            <>
-              <div
-                className={`
-                  flex justify-center mt-4 bg-white rounded-lg shadow-sm
-                  ${isMobile ? 'p-2' : 'p-4'}
-                `}
-              >
-                <Pagination
-                  current={currentPage}
-                  total={totalItems}
-                  pageSize={itemsPerPage}
-                  onChange={handlePageChange}
-                  size={isMobile ? 'small' : 'default'}
-                  showSizeChanger={false}
-                  showQuickJumper={!isMobile}
-                  style={isMobile ? { width: '100%', textAlign: 'center' } : {}}
+        ) : (
+          <AnimatePresence>
+            <div className={`flex flex-col ${isMobile ? 'gap-1.5' : 'gap-2.5'}`}>
+              {currentVehicles.map((vehicle, idx) => (
+                <VehicleCard
+                  key={vehicle.vehicle_id}
+                  vehicle={vehicle}
+                  isSelected={selectedVehicles.includes(vehicle.vehicle_id)}
+                  onClick={() => onVehicleSelect(vehicle.vehicle_id)}
+                  isMobile={isMobile}
+                  ref={idx === 0 ? firstVehicleRef : undefined}
                 />
-              </div>
-              {/* Add extra padding at the bottom so the pagination and last item are not hidden by the footer */}
-              {isMobile && <div style={{ height: 80 }} />}
-            </>
-          )}
-        </AnimatePresence>
+              ))}
+            </div>
+
+            {filteredVehicles.length === 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="flex items-center justify-center h-full"
+              >
+                <Empty
+                  description={
+                    <div className="text-center">
+                      <h3 className={`
+                        font-medium text-gray-800 mb-1
+                        ${isMobile ? 'text-sm' : 'text-base'}
+                      `}>
+                        {searchQuery 
+                          ? 'No vehicles match your search'
+                          : 'No Vehicles Available'}
+                      </h3>
+                      <p className={`
+                        text-gray-500
+                        ${isMobile ? 'text-xs' : 'text-sm'}
+                      `}>
+                        {searchQuery 
+                          ? 'Try different keywords or clear the search'
+                          : 'Check back later for available vehicles'}
+                      </p>
+                    </div>
+                  }
+                  className={`bg-white/80 backdrop-blur-sm rounded-lg shadow-sm ${isMobile ? 'p-4' : 'p-6'} border border-gray-100/20`}
+                />
+              </motion.div>
+            )}
+          </AnimatePresence>
+        )}
+      </div>
+
+      {/* Fixed Pagination Section */}
+      {filteredVehicles.length > 0 && (
+        <div className={`
+          bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
+          ${isMobile ? 'p-2 mt-1' : 'p-3 mt-2'}
+          sticky bottom-0 z-10
+          border border-gray-100/20
+        `}>
+          <Pagination
+            current={currentPage}
+            total={totalItems}
+            pageSize={itemsPerPage}
+            onChange={handlePageChange}
+            size={isMobile ? "small" : "default"}
+            showSizeChanger={false}
+            showQuickJumper={!isMobile}
+            className="flex justify-center"
+            responsive
+            simple={isMobile}
+          />
+        </div>
       )}
     </motion.div>
   );
