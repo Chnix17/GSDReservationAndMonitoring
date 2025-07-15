@@ -89,10 +89,10 @@ const Calendar = () => {
 
   const fetchReservations = useCallback(async () => {
     try {
-      console.log('Fetching reservations from:', `${encryptedUrl}/records&reports.php`);
+      console.log('Fetching reservations from:', `${encryptedUrl}/user.php`);
       const response = await axios({
         method: 'POST',
-        url: `${encryptedUrl}/records&reports.php`,
+        url: `${encryptedUrl}/user.php`,
         data: JSON.stringify({ operation: 'fetchRecord' }),
         headers: {
           'Content-Type': 'application/json'
@@ -127,7 +127,7 @@ const Calendar = () => {
     } catch (error) {
       console.error('Error fetching reservations:', error);
       console.error('Error details:', error.response?.data);
-      console.error('Error status:', error.response?.status);
+      console.error('Error status:', error.response?.status); 
     }
   }, [encryptedUrl]);
 
@@ -161,7 +161,7 @@ const Calendar = () => {
     console.log('Getting reservations for date:', date);
     const filteredReservations = reservations.filter(reservation => {
       // Check if reservation is active and has "Reserved" status
-      if (reservation.reservation_status_name !== "Reserved" || reservation.reservation_active !== "1") {
+      if (reservation.reservation_status_name !== "Reserved" || reservation.reservation_active !== 1) {
         return false;
       }
 
@@ -364,7 +364,7 @@ const Calendar = () => {
                       const allEvents = dayReservations.map(r => ({
                         title: r.displayInfo.title,
                         user: r.displayInfo.user,
-                        time: `${format(r.displayInfo.startDate, 'HH:mm')} - ${format(r.displayInfo.endDate, 'HH:mm')}`
+                        time: `${format(r.displayInfo.startDate, 'h:mm a')} - ${format(r.displayInfo.endDate, 'h:mm a')}`
                       }));
                       alert(JSON.stringify(allEvents, null, 2));
                     }}

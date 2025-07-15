@@ -54,12 +54,25 @@ import VenueSchedule from './page_dean/VenueSchedule'
 export const ThemeContext = createContext();
 
 const App = () => {
-    const defaultUrl = "http://localhost/coc/gsd/";
+    const defaultUrl = "http://192.168.110.245/coc/gsd/";
     const storedUrl = SecureStorage.getLocalItem("url");
     
     if (!storedUrl || storedUrl !== defaultUrl) {
         SecureStorage.setLocalItem("url", defaultUrl);
     }
+
+    // Register service worker
+    useEffect(() => {
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('/sw.js')
+                .then(registration => {
+                    console.log('Service Worker registered successfully:', registration);
+                })
+                .catch(error => {
+                    console.log('Service Worker registration failed:', error);
+                });
+        }
+    }, []);
 
     // Add state for the current theme
     const [theme, setTheme] = useState(() => {

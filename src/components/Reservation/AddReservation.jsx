@@ -84,6 +84,11 @@ const AddReservation = () => {
     driverName: '',
     tripTicketDriver: null,
     ownDrivers: [],
+    mixedDrivers: [], // New field for mixed driver mode
+    forceOwnDrivers: false, // New field to force own drivers when insufficient
+    forceMixedDrivers: false, // New field to force mixed drivers when partially insufficient
+    availableDrivers: 0, // Number of available drivers
+    totalVehicles: 0, // Total number of vehicles
   });
 
   
@@ -336,6 +341,8 @@ const handleBack = () => {
         driverName: '',
         tripTicketDriver: null,
         ownDrivers: [],
+        mixedDrivers: [], // New field for mixed driver mode
+        forceOwnDrivers: false, // New field to force own drivers when insufficient
       });
       
       // Reset resource selection state
@@ -406,23 +413,37 @@ const renderResources = () => (
 
 // Replace the renderBasicInformation function with:
 const renderBasicInformation = () => {
+  console.log('renderBasicInformation: selectedModels', selectedModels);
   return (
-    <BasicInformationForm
-      formData={formData}
-      handleInputChange={handleInputChange}
-      isMobile={isMobile}
-      showEquipmentModal={showEquipmentModal}
-      setShowEquipmentModal={(show) => {
-        if (show) setLocalEquipmentQuantities({ ...equipmentQuantities });
-        setShowEquipmentModal(show);
-      }}
-      selectedVenueEquipment={selectedVenueEquipment}
-      equipment={equipment}
-      showPassengerModal={showPassengerModal}
-      setShowPassengerModal={setShowPassengerModal}
-      handleRemovePassenger={handleRemovePassenger}
-      renderDriverDropdown={renderDriverDropdown}
-    />
+    <>
+      {formData.resourceType === 'vehicle' && selectedModels.length === 0 && (
+        <div style={{ color: 'red', marginBottom: 16 }}>
+          <b>Warning:</b> No vehicles selected. Please select at least one vehicle to see driver options.
+        </div>
+      )}
+      <BasicInformationForm
+        formData={formData}
+        handleInputChange={handleInputChange}
+        isMobile={isMobile}
+        showEquipmentModal={showEquipmentModal}
+        setShowEquipmentModal={(show) => {
+          if (show) setLocalEquipmentQuantities({ ...equipmentQuantities });
+          setShowEquipmentModal(show);
+        }}
+        selectedVenueEquipment={selectedVenueEquipment}
+        equipment={equipment}
+        showPassengerModal={showPassengerModal}
+        setShowPassengerModal={setShowPassengerModal}
+        handleRemovePassenger={handleRemovePassenger}
+        renderDriverDropdown={(sm, v, setFD) => {
+          console.log('Calling renderDriverDropdown with:', sm, v);
+          return renderDriverDropdown(sm, v, setFD);
+        }}
+        selectedModels={selectedModels}
+        vehicles={vehicles}
+        setFormData={setFormData}
+      />
+    </>
   );
 };
 
@@ -494,11 +515,53 @@ const handleAddReservation = async () => {
         toast.error('Please add at least one passenger');
         return false;
       }
+      // If forceOwnDrivers is true, ensure driver type is 'own'
+      if (formData.forceOwnDrivers && formData.driverType !== 'own') {
+        toast.error('You must provide your own drivers for this reservation');
+        return false;
+      }
+
+      // If forceMixedDrivers is true, ensure driver type is 'mixed'
+      if (formData.forceMixedDrivers && formData.driverType !== 'mixed') {
+        toast.error('You must use mixed driver mode for this reservation');
+        return false;
+      }
+
       if (formData.driverType === 'own') {
         // Validation: each selected vehicle must have a driver name
         if (!formData.ownDrivers || formData.ownDrivers.length !== selectedModels.length || formData.ownDrivers.some(d => !d.name.trim())) {
           toast.error('Please enter a driver name for each selected vehicle');
           return false;
+        }
+      } else if (formData.driverType === 'mixed') {
+        // Validation: each vehicle must have proper driver configuration
+        if (!formData.mixedDrivers || formData.mixedDrivers.length !== selectedModels.length) {
+          toast.error('Please configure driver assignments for all vehicles');
+          return false;
+        }
+        
+        // Check that own drivers have names
+        const ownDriversWithoutNames = formData.mixedDrivers.filter(d => d.driverType === 'own' && !d.name.trim());
+        if (ownDriversWithoutNames.length > 0) {
+          toast.error('Please enter driver names for vehicles marked as "Own Driver"');
+          return false;
+        }
+        
+        // Additional validation for forced mixed drivers
+        if (formData.forceMixedDrivers) {
+          const availableDrivers = formData.availableDrivers || 0;
+          const defaultDrivers = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+          
+          if (defaultDrivers > availableDrivers) {
+            toast.error(`Cannot assign more than ${availableDrivers} default drivers. Please adjust your assignments.`);
+            return false;
+          }
+          
+          // Ensure at least one vehicle has a driver assigned
+          if (formData.mixedDrivers.length === 0) {
+            toast.error('Please configure driver assignments for all vehicles');
+            return false;
+          }
         }
       }
 
@@ -508,7 +571,14 @@ const handleAddReservation = async () => {
         drivers = formData.ownDrivers.map(d => ({
           vehicle_id: d.vehicle_id,
           name: d.name.trim(),
+          driver_type: 'own'
           // user_id: (optional, if you have it)
+        }));
+      } else if (formData.driverType === 'mixed') {
+        drivers = formData.mixedDrivers.map(d => ({
+          vehicle_id: d.vehicle_id,
+          name: d.driverType === 'own' ? d.name.trim() : null,
+          driver_type: d.driverType
         }));
       }
 
@@ -522,7 +592,7 @@ const handleAddReservation = async () => {
           user_id: userId,
           vehicles: selectedModels,
           passengers: formData.passengers.map(p => p.name.trim()),
-          ...(formData.driverType === 'own' ? { drivers } : {}),
+          ...(formData.driverType === 'own' || formData.driverType === 'mixed' ? { drivers } : {}),
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
@@ -627,7 +697,7 @@ const resetForm = () => {
     eventTitle: '',
     description: '',
     participants: '',
-    venues: [],
+    venues: [], 
     purpose: '',
     destination: '',
     passengers: [],
@@ -635,6 +705,11 @@ const resetForm = () => {
     driverName: '',
     tripTicketDriver: null,
     ownDrivers: [],
+    mixedDrivers: [],
+    forceOwnDrivers: false,
+    forceMixedDrivers: false,
+    availableDrivers: 0,
+    totalVehicles: 0,
   });
   
   // Reset resource selection state
@@ -713,11 +788,11 @@ const renderReviewSection = () => {
 
 const handleVehicleSelect = (vehicleId) => {
   setSelectedModels(prevSelected => {
-    if (prevSelected.includes(vehicleId)) {
-      return prevSelected.filter(id => id !== vehicleId);
-    } else {
-      return [...prevSelected, vehicleId];
-    }
+    const updated = prevSelected.includes(vehicleId)
+      ? prevSelected.filter(id => id !== vehicleId)
+      : [...prevSelected, vehicleId];
+    console.log('Vehicle selection changed:', updated);
+    return updated;
   });
 };
 
@@ -807,11 +882,19 @@ const renderStepContent = () => {
             // Handle both object format and separate parameters for backward compatibility
             const startDate = dateData.startDate || dateData;
             const endDate = dateData.endDate || endDateParam;
+            const forceOwnDrivers = dateData.forceOwnDrivers || false;
+            const forceMixedDrivers = dateData.forceMixedDrivers || false;
+            const availableDrivers = dateData.availableDrivers || 0;
+            const totalVehicles = dateData.totalVehicles || 0;
             
             console.log('Date selection received:', {
               dateData,
               startDate,
               endDate,
+              forceOwnDrivers,
+              forceMixedDrivers,
+              availableDrivers,
+              totalVehicles,
               startDateType: typeof startDate,
               endDateType: typeof endDate,
               startDateInstance: startDate instanceof Date,
@@ -822,6 +905,13 @@ const renderStepContent = () => {
               ...prev,
               startDate: startDate,
               endDate: endDate,
+              forceOwnDrivers: forceOwnDrivers,
+              forceMixedDrivers: forceMixedDrivers,
+              availableDrivers: availableDrivers,
+              totalVehicles: totalVehicles,
+              // If forcing own drivers, set driver type to own
+              // If forcing mixed drivers, set driver type to mixed
+              driverType: forceOwnDrivers ? 'own' : forceMixedDrivers ? 'mixed' : prev.driverType,
             }));
             // Automatically advance to step 3 (details step) when date is selected successfully
             setCurrentStep(3);
@@ -845,7 +935,22 @@ const renderStepContent = () => {
         />
       </div>
     ),
-    3: renderBasicInformation,
+    3: () => renderBasicInformation({
+      formData,
+      handleInputChange,
+      isMobile,
+      showEquipmentModal,
+      setShowEquipmentModal,
+      selectedVenueEquipment,
+      equipment,
+      showPassengerModal,
+      setShowPassengerModal,
+      handleRemovePassenger,
+      renderDriverDropdown: () => renderDriverDropdown(selectedModels, vehicles, setFormData),
+      selectedModels,
+      vehicles,
+      setFormData
+    }),
     4: renderReviewSection,
     5: renderSuccessState,
   };
@@ -1744,40 +1849,113 @@ const EquipmentSelectionModal = ({
 };
 
 // Add this with other function declarations
-const renderDriverDropdown = () => {
+const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
+  console.log('renderDriverDropdown: selectedModels', selectedModels);
+  // Add null checks and default values
+  const safeSelectedModels = selectedModels || [];
+  const safeVehicles = vehicles || [];
+  
+  // Debug logging
+  console.log('renderDriverDropdown called with:', {
+    selectedModels: safeSelectedModels,
+    vehiclesCount: safeVehicles.length,
+    formData: {
+      driverType: formData.driverType,
+      forceOwnDrivers: formData.forceOwnDrivers,
+      forceMixedDrivers: formData.forceMixedDrivers,
+      availableDrivers: formData.availableDrivers,
+      totalVehicles: formData.totalVehicles,
+      mixedDrivers: formData.mixedDrivers
+    }
+  });
+
+  // Check if we need to force own drivers or mixed drivers due to insufficient drivers
+  const shouldForceOwnDrivers = formData.forceOwnDrivers;
+  const shouldForceMixedDrivers = formData.forceMixedDrivers;
+  
+  // Don't render driver dropdown if no vehicles selected and not forcing drivers
+  if (safeSelectedModels.length === 0 && !shouldForceOwnDrivers && !shouldForceMixedDrivers) {
+    return null;
+  }
+
   return (
     <Form.Item
       label={<span className="text-sm">Driver Information <span className="text-red-500">*</span></span>}
       required
     >
       <div className="space-y-3">
+        {shouldForceOwnDrivers && (
+          <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4 text-amber-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z" />
+              </svg>
+              <span className="text-xs font-medium text-amber-800">No Drivers Available</span>
+            </div>
+            <p className="text-xs text-amber-700">
+              You must provide your own drivers for this reservation due to no available drivers.
+            </p>
+          </div>
+        )}
+
+        {shouldForceMixedDrivers && (
+          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+            <div className="flex items-center gap-2 mb-2">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4 text-blue-600">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 004 6v2.25A2.25 2.25 0 006 10.5zm9 0h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H15A2.25 2.25 0 0013.5 6v2.25A2.25 2.25 0 0015 10.5z" />
+              </svg>
+              <span className="text-xs font-medium text-blue-800">Partial Driver Availability</span>
+            </div>
+            <p className="text-xs text-blue-700">
+              Some drivers are available. You can use default drivers for some vehicles and provide your own drivers for the rest.
+            </p>
+          </div>
+        )}
+
         <Radio.Group
           value={formData.driverType}
           onChange={(e) => {
             setFormData(prev => ({
               ...prev,
               driverType: e.target.value,
-              ownDrivers: e.target.value === 'own' ? selectedModels.map(vehicle_id => {
+              ownDrivers: e.target.value === 'own' ? safeSelectedModels.map(vehicle_id => {
                 // Try to preserve existing names if switching back and forth
                 const existing = prev.ownDrivers?.find(d => d.vehicle_id === vehicle_id);
                 return { vehicle_id, name: existing ? existing.name : '' };
               }) : [],
+              mixedDrivers: e.target.value === 'mixed' ? safeSelectedModels.map(vehicle_id => {
+                // Try to preserve existing mixed driver settings
+                const existing = prev.mixedDrivers?.find(d => d.vehicle_id === vehicle_id);
+                return { 
+                  vehicle_id, 
+                  driverType: existing ? existing.driverType : 'default',
+                  name: existing ? existing.name : '' 
+                };
+              }) : [],
             }));
           }}
           className="mb-4"
+          disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}
         >
-          <Radio value="default">Default Driver</Radio>
+          <Radio value="default" disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}>Default Driver</Radio>
           <Radio value="own">Own Driver</Radio>
+          <Radio value="mixed">Mixed (Default + Own)</Radio>
         </Radio.Group>
 
         {formData.driverType === 'own' && (
           <div className="space-y-2">
-            {selectedModels.length === 0 && (
-              <div className="text-xs text-gray-500">Select vehicles first to enter driver names.</div>
+            {safeSelectedModels.length === 0 && (
+              <div className="text-xs text-gray-500">
+                {shouldForceOwnDrivers ? 
+                  "You must provide your own drivers for this reservation." : 
+                  
+                  "Select vehicles first to enter driver names."
+                }
+              </div>
             )}
-            {selectedModels.map((vehicle_id, idx) => {
+            {safeSelectedModels.length > 0 ? safeSelectedModels.map((vehicle_id, idx) => {
               // Find vehicle info
-              const vehicle = vehicles.find(v => v.vehicle_id === vehicle_id);
+              const vehicle = safeVehicles.find(v => v.vehicle_id === vehicle_id);
               const driverObj = formData.ownDrivers?.find(d => d.vehicle_id === vehicle_id) || { name: '' };
               return (
                 <div key={vehicle_id} className="flex items-center gap-2">
@@ -1802,10 +1980,199 @@ const renderDriverDropdown = () => {
                   />
                 </div>
               );
-            })}
+            }) : shouldForceOwnDrivers && (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-700">You must provide your own drivers for this reservation.</div>
+                <Input
+                  placeholder="Enter driver name"
+                  value={formData.ownDrivers?.[0]?.name || ''}
+                  onChange={e => {
+                    const newName = e.target.value;
+                    setFormData(prev => ({
+                      ...prev,
+                      ownDrivers: [{ vehicle_id: 'forced', name: newName }]
+                    }));
+                  }}
+                  className="rounded"
+                  size={isMobile ? 'middle' : 'large'}
+                  required
+                />
+              </div>
+            )}
           </div>
         )}
-        {formData.driverType === 'default' && (
+
+        {formData.driverType === 'mixed' && (
+          <div className="space-y-2">
+            {safeSelectedModels.length === 0 && (
+              <div className="text-xs text-gray-500">
+                {shouldForceMixedDrivers ? 
+                  "Some drivers are available but not enough for all vehicles." : 
+                  "Select vehicles first to configure driver assignments."
+                }
+              </div>
+            )}
+           
+            
+            {/* Show current assignment summary */}
+            {formData.driverType === 'mixed' && formData.mixedDrivers.length > 0 && (
+              <div
+                className={
+                  [
+                    'p-2 bg-gray-50 border border-gray-200 rounded-lg',
+                    (() => {
+                      const defaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+                      const availableDrivers = formData.availableDrivers || 0;
+                      return defaultCount > availableDrivers ? 'border-red-400 bg-red-50' : '';
+                    })()
+                  ].join(' ')
+                }
+              >
+                <p className="text-xs text-gray-700">
+                 
+                  {(() => {
+                    const defaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+                    const ownCount = formData.mixedDrivers.filter(d => d.driverType === 'own').length;
+                    const availableDrivers = formData.availableDrivers || 0;
+                    const remainingDefault = Math.max(0, availableDrivers - defaultCount);
+                    let summary = `${defaultCount} default driver(s), ${ownCount} own driver(s)`;
+                    if (shouldForceMixedDrivers && availableDrivers > 0) {
+                      summary += ` (${remainingDefault} default driver(s) remaining)`;
+                    }
+                    if (defaultCount > availableDrivers) {
+                      summary += ' — Too many default drivers! Reduce to match available.';
+                    }
+                    return summary;
+                  })()}
+                </p>
+              </div>
+            )}
+            {safeSelectedModels.length > 0 ? safeSelectedModels.map((vehicle_id, idx) => {
+              // Find vehicle info
+              const vehicle = safeVehicles.find(v => v.vehicle_id === vehicle_id);
+              const mixedDriverObj = formData.mixedDrivers?.find(d => d.vehicle_id === vehicle_id) || { 
+                driverType: 'default', 
+                name: '' 
+              };
+              return (
+                <div key={vehicle_id} className={`border rounded-lg p-3 space-y-2 ${
+                  mixedDriverObj.driverType === 'default' ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'
+                }`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-700">
+                        {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
+                      </span>
+                      {mixedDriverObj.driverType === 'default' && (
+                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                          Default Driver
+                        </span>
+                      )}
+                      {mixedDriverObj.driverType === 'own' && (
+                        <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
+                          Own Driver
+                        </span>
+                      )}
+                    </div>
+                    <Radio.Group
+                      value={mixedDriverObj.driverType}
+                      onChange={(e) => {
+                        const newDriverType = e.target.value;
+                        
+                        // If trying to assign default driver, check if we have enough available
+                        if (newDriverType === 'default' && shouldForceMixedDrivers) {
+                          const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+                          const availableDrivers = formData.availableDrivers || 0;
+                          
+                          if (currentDefaultCount >= availableDrivers && mixedDriverObj.driverType !== 'default') {
+                            toast.error(`Cannot assign more than ${availableDrivers} default drivers.`);
+                            return;
+                          }
+                        }
+                        
+                        setFormData(prev => ({
+                          ...prev,
+                          mixedDrivers: prev.mixedDrivers.map(d =>
+                            d.vehicle_id === vehicle_id ? { ...d, driverType: newDriverType } : d
+                          ),
+                        }));
+                      }}
+                      size="small"
+                    >
+                      <Radio 
+                        value="default" 
+                        disabled={shouldForceMixedDrivers && (() => {
+                          const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+                          const availableDrivers = formData.availableDrivers || 0;
+                          // Only disable if the limit is reached and this vehicle is not currently default
+                          return currentDefaultCount >= availableDrivers && mixedDriverObj.driverType !== 'default';
+                        })()}
+                      >
+                        Default Driver
+                      </Radio>
+                      <Radio value="own">Own Driver</Radio>
+                    </Radio.Group>
+                  </div>
+                  {mixedDriverObj.driverType === 'own' && (
+                    <Input
+                      placeholder="Enter driver name"
+                      value={mixedDriverObj.name}
+                      onChange={e => {
+                        const newName = e.target.value;
+                        setFormData(prev => ({
+                          ...prev,
+                          mixedDrivers: prev.mixedDrivers.map(d =>
+                            d.vehicle_id === vehicle_id ? { ...d, name: newName } : d
+                          ),
+                        }));
+                      }}
+                      className="rounded"
+                      size={isMobile ? 'middle' : 'large'}
+                      required
+                    />
+                  )}
+                </div>
+              );
+            }) : shouldForceMixedDrivers && (
+              <div className="space-y-2">
+                <div className="text-sm text-gray-700">Some drivers are available but not enough for all vehicles.</div>
+                <div className="border rounded-lg p-3 space-y-2 border-orange-200 bg-orange-50">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium text-gray-700">Vehicle (Forced Assignment)</span>
+                      <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
+                        Own Driver
+                      </span>
+                    </div>
+                    <Radio.Group
+                      value="own"
+                      size="small"
+                      disabled
+                    >
+                      <Radio value="own">Own Driver</Radio>
+                    </Radio.Group>
+                  </div>
+                  <Input
+                    placeholder="Enter driver name"
+                    value={formData.mixedDrivers?.[0]?.name || ''}
+                    onChange={e => {
+                      const newName = e.target.value;
+                      setFormData(prev => ({
+                        ...prev,
+                        mixedDrivers: [{ vehicle_id: 'forced', driverType: 'own', name: newName }]
+                      }));
+                    }}
+                    className="rounded"
+                    size={isMobile ? 'middle' : 'large'}
+                    required
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {formData.driverType === 'default' && !shouldForceOwnDrivers && (
           <div className="p-3 bg-gray-50 rounded-lg text-gray-600 text-sm">Default driver will be assigned by admin.</div>
         )}
       </div>
@@ -1962,6 +2329,52 @@ useEffect(() => {
   }
 }, [formData.startDate, formData.endDate, resourceType, fetchEquipment]);
 
+// Add useEffect to handle forceOwnDrivers and forceMixedDrivers flags
+useEffect(() => {
+  if (formData.forceOwnDrivers && selectedModels.length > 0) {
+    // Automatically populate own drivers when forceOwnDrivers is true
+    setFormData(prev => ({
+      ...prev,
+      driverType: 'own',
+      ownDrivers: selectedModels.map(vehicle_id => {
+        // Try to preserve existing names if switching back and forth
+        const existing = prev.ownDrivers?.find(d => d.vehicle_id === vehicle_id);
+        return { vehicle_id, name: existing ? existing.name : '' };
+      })
+    }));
+  } else if (formData.forceMixedDrivers && selectedModels.length > 0) {
+    // Set up mixed drivers when forceMixedDrivers is true, but don't auto-assign
+    // Let users choose which vehicles get default vs own drivers
+    setFormData(prev => ({
+      ...prev,
+      driverType: 'mixed',
+      mixedDrivers: selectedModels.map((vehicle_id) => {
+        // Try to preserve existing mixed driver settings
+        const existing = prev.mixedDrivers?.find(d => d.vehicle_id === vehicle_id);
+        
+        // If we have existing settings, use them
+        if (existing) {
+          return existing;
+        }
+        
+        // Otherwise, start with default (user can change)
+        return { 
+          vehicle_id, 
+          driverType: 'default',
+          name: '' // Will be filled in if user chooses 'own'
+        };
+      })
+    }));
+    
+    // Show a toast message to inform the user about manual assignment
+    const availableDrivers = formData.availableDrivers || 0;
+    const totalVehicles = selectedModels.length;
+    if (availableDrivers > 0 && availableDrivers < totalVehicles) {
+      toast.success(`Mixed driver mode enabled. You can assign up to ${availableDrivers} default driver(s) and provide your own drivers for the rest.`);
+    }
+  }
+}, [formData.forceOwnDrivers, formData.forceMixedDrivers, selectedModels, formData.availableDrivers]);
+
 // Add useEffect to handle calendar data fetching
 useEffect(() => {
   if (currentStep === 2) { // Calendar step
@@ -2096,10 +2509,10 @@ return (
         </section>
 
         {/* Main Content */}
-        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden${isMobile && currentStep !== 5 ? ' pb-24' : ''}`}>
+        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible${isMobile && currentStep !== 5 ? ' pb-32' : ' pb-8'}`}>
           {/* Step Header */}
-          <header className={`px-4 py-3 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100 ${isMobile ? 'p-3' : 'px-6 py-4'}`}>
-            <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl'}`}>
+          <header className={`px-3 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100`}>
+            <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl md:text-2xl'}`}>
               {currentStep === 0 && "Select Resource Type"}
               {currentStep === 1 && `Select ${resourceType === 'venue' ? 'Venue' : resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
               {currentStep === 2 && "Choose Date & Time"}
@@ -2110,23 +2523,23 @@ return (
           </header>
 
           {/* Step Content */}
-          <article className={isMobile ? 'p-3' : 'p-6'}>
-            <div className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-4xl'}`}>
+          <article className={isMobile ? 'p-2' : 'p-4 md:p-6'}>
+            <div className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-2xl md:max-w-3xl lg:max-w-4xl'}`}>
               {renderStepContent()}
             </div>
           </article>
 
-          {/* Step Navigation - Desktop */}
+          {/* Step Navigation - Desktop & Tablet */}
           {currentStep !== 5 && !isMobile && (
-            <footer className="px-6 py-4 bg-gray-50 border-t border-gray-100">
-              <nav className="flex justify-between items-center">
-                <div className="flex gap-2">
+            <footer className="sticky bottom-0 left-0 right-0 px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-t border-gray-100 z-30">
+              <nav className="flex flex-col md:flex-row justify-between items-center gap-2 md:gap-0">
+                <div className="flex gap-2 w-full md:w-auto">
                   <AntButton
                     type="default"
                     icon={<i className="pi pi-arrow-left" />}
                     onClick={handleBack}
                     size="large"
-                    className="p-button-outlined"
+                    className="p-button-outlined w-full md:w-auto"
                     disabled={currentStep === 0}
                   >
                     Previous
@@ -2137,7 +2550,7 @@ return (
                       icon={<i className="pi pi-refresh" />}
                       onClick={resetForm}
                       size="large"
-                      className="p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50"
+                      className="p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50 w-full md:w-auto"
                     >
                       Reset Form
                     </AntButton>
@@ -2149,7 +2562,7 @@ return (
                     icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
                     onClick={handleAddReservation}
                     size="large"
-                    className="p-button-success bg-green-500 hover:bg-green-600 border-green-500"
+                    className="p-button-success bg-green-500 hover:bg-green-600 border-green-500 w-full md:w-auto"
                     disabled={loading}
                   >
                     {loading ? 'Submitting...' : 'Submit'}
@@ -2160,7 +2573,7 @@ return (
                     icon={<i className="pi pi-arrow-right" />}
                     onClick={handleNext}
                     size="large"
-                    className="p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white"
+                    className="p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white w-full md:w-auto"
                   >
                     Next
                   </AntButton>
@@ -2188,9 +2601,9 @@ return (
 
     {/* Fixed Mobile Navigation */}
     {currentStep !== 5 && isMobile && (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-40 p-3">
-        <nav className="flex flex-col gap-2">
-          <div className="flex gap-2">
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 p-2 flex flex-col gap-2" style={{minHeight:'70px'}}>
+        <nav className="flex flex-col gap-2 w-full">
+          <div className="flex gap-2 w-full">
             <AntButton
               type="default"
               icon={<i className="pi pi-arrow-left" />}

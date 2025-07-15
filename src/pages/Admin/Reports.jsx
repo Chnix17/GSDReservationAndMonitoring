@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Statistic, Table, Tag, Button, Tabs, Input, Tooltip, Row, Col, Dropdown } from 'antd';
+import { Card, Statistic, Table, Tag, Button, Tabs, Input, Tooltip, Row, Col, Dropdown, Modal } from 'antd';
 import { motion } from 'framer-motion';
 import {
   CarOutlined,
@@ -32,6 +32,8 @@ const Reports = () => {
   });
   const [timeRange, setTimeRange] = useState('week');
   const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedResource, setSelectedResource] = useState(null);
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
@@ -81,12 +83,31 @@ const Reports = () => {
   }, [baseUrl]);
 
   const handleScheduleMaintenance = (record) => {
-    // Ensure we have the record_id from the maintenance resources
     const resourceWithRecordId = {
       ...record,
-      record_id: record.record_id || record.maintenance_id // fallback to maintenance_id if record_id is not present
+      record_id: record.record_id || record.maintenance_id
     };
-    console.log('Resource being passed to modal:', resourceWithRecordId);
+    setSelectedResource(resourceWithRecordId);
+    setIsModalOpen(true);
+  };
+
+  const handleUpdateResourceStatus = async (isFixed) => {
+    if (!selectedResource) return;
+    try {
+      await axios.post(`${baseUrl}/get_totals.php`, {
+        operation: "updateResourceStatusAndCondition",
+        type: selectedResource.resource_type,
+        resourceId: selectedResource.resource_id, // or the correct field for your resource
+        recordId: selectedResource.record_id || selectedResource.maintenance_id,
+        isFixed: isFixed
+      });
+      toast.success(isFixed ? "Resource marked as fixed." : "Resource marked as cannot be fixed.");
+      setIsModalOpen(false);
+      fetchMaintenanceResources();
+      fetchMaintenanceResourcesWithStatus();
+    } catch (error) {
+      toast.error("Failed to update resource status.");
+    }
   };
 
   // Enhanced Resource Card Component
@@ -133,12 +154,11 @@ const Reports = () => {
   // Update the filter function to handle two statuses
   const filterResourcesByStatus = (resources, status) => {
     if (status === 'unset') {
-      return resources.filter(resource => 
-        !resource.condition_name || 
-        resource.condition_name === '' || 
-        resource.condition_name.toLowerCase() === 'damaged' ||
-        resource.condition_name.toLowerCase() === 'for maintenance'
-      );
+      // Show all resources that are not 'good' or 'completed' (case-insensitive), or missing/empty
+      return resources.filter(resource => {
+        const cond = resource.condition_name ? resource.condition_name.toLowerCase() : '';
+        return !cond || (cond !== 'good' && cond !== 'completed');
+      });
     }
     return [];
   };
@@ -181,11 +201,6 @@ const Reports = () => {
             {status || 'Unset'}
           </Tag>
         )
-      },
-      {
-        title: 'Remarks',
-        dataIndex: 'remarks',
-        key: 'remarks',
       }
     ];
 
@@ -229,6 +244,13 @@ const Reports = () => {
     fetchMaintenanceResources();
     fetchMaintenanceResourcesWithStatus();
   }, [timeRange, fetchAvailabilityStats, fetchMaintenanceResources, fetchMaintenanceResourcesWithStatus]);
+
+  // Add debugging logs to help verify filtering
+  useEffect(() => {
+    console.log("maintenanceResources:", maintenanceResources);
+    console.log("filteredMaintenanceResources:", filteredMaintenanceResources);
+    console.log("Defective resources:", filterResourcesByStatus(filteredMaintenanceResources, 'unset'));
+  }, [maintenanceResources, filteredMaintenanceResources]);
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
@@ -413,6 +435,30 @@ const Reports = () => {
                 }
               ]}
             />
+            {/* Modal for Fixed/Cannot be Fixed */}
+            <Modal
+              title={selectedResource ? selectedResource.resource_name : 'Resource Details'}
+              open={isModalOpen}
+              onCancel={() => setIsModalOpen(false)}
+              footer={[
+                <Button
+                  key="fixed"
+                  type="primary"
+                  onClick={() => handleUpdateResourceStatus(true)}
+                >
+                  Fixed
+                </Button>,
+                <Button
+                  key="cannot"
+                  danger
+                  onClick={() => handleUpdateResourceStatus(false)}
+                >
+                  Cannot be Fixed
+                </Button>
+              ]}
+            >
+              <p>Choose an action for this resource.</p>
+            </Modal>
           </div>
         </div>
       </div>

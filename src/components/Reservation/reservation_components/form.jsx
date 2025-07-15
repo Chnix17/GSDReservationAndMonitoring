@@ -18,8 +18,26 @@ const BasicInformationForm = ({
   showPassengerModal,
   setShowPassengerModal,
   handleRemovePassenger,
-  renderDriverDropdown
-}) => (
+  renderDriverDropdown,
+  selectedModels,
+  vehicles,
+  setFormData
+}) => {
+  // Debug logging
+  console.log('BasicInformationForm props:', {
+    formData: {
+      driverType: formData.driverType,
+      forceOwnDrivers: formData.forceOwnDrivers,
+      forceMixedDrivers: formData.forceMixedDrivers,
+      availableDrivers: formData.availableDrivers,
+      totalVehicles: formData.totalVehicles,
+      mixedDrivers: formData.mixedDrivers
+    },
+    selectedModels: selectedModels || [],
+    vehicles: vehicles || []
+  });
+
+  return (
   <motion.div
     initial={{ opacity: 0, y: 20 }}
     animate={{ opacity: 1, y: 0 }}
@@ -176,7 +194,7 @@ const BasicInformationForm = ({
                 />
               </Form.Item>
 
-              {renderDriverDropdown()}
+              {renderDriverDropdown(selectedModels || [], vehicles || [], setFormData)}
             </section>
 
             <section className="space-y-4 mt-6">
@@ -332,6 +350,7 @@ const BasicInformationForm = ({
       </Form>
     </Card>
   </motion.div>
-);
+  );
+};
 
 export default BasicInformationForm;

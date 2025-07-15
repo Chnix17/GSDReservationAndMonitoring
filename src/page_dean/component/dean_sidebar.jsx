@@ -5,7 +5,7 @@ import {
   FaBars,  FaUserCircle, FaCar, FaTimes,
   FaComments,  FaBell, 
   FaAngleRight, FaAngleLeft,
-  FaCalendarAlt
+  FaCalendarAlt, FaCheck
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -23,8 +23,14 @@ const Sidebar = () => {
 
   const [notifications, setNotifications] = useState([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState({
+    supported: false,
+    subscribed: false,
+    permission: 'default'
+  });
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
-  const name = SecureStorage.getSessionItem('name') || 'Admin User';
+  const name = SecureStorage.getSessionItem('name') || 'Dean User';
   const departmentName = SecureStorage.getSessionItem('Department Name');
   const userLevelName = SecureStorage.getSessionItem('user_level');
 
@@ -128,8 +134,6 @@ const Sidebar = () => {
       const regularNotificationIds = [];
       const approvalNotificationIds = [];
 
-      console.log(approvalNotificationIds);
-
       notifications.forEach(notification => {
         if (notification.notification_reservation_id) {
           regularNotificationIds.push(notification.notification_reservation_id);
@@ -185,6 +189,114 @@ const Sidebar = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Check subscription status on component mount
+  useEffect(() => {
+    const checkSubscriptionStatus = async () => {
+      const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+      const permission = Notification.permission;
+      
+      let subscribed = false;
+      if (supported && permission === 'granted') {
+        try {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration) {
+            const subscription = await registration.pushManager.getSubscription();
+            subscribed = !!subscription;
+          }
+        } catch (error) {
+          console.error('Error checking subscription:', error);
+        }
+      }
+
+      setSubscriptionStatus({
+        supported,
+        subscribed,
+        permission
+      });
+    };
+
+    checkSubscriptionStatus();
+  }, []);
+
+  // Subscribe to push notifications
+  const subscribeToNotifications = async () => {
+    if (!subscriptionStatus.supported) {
+      alert('Push notifications are not supported in your browser.');
+      return;
+    }
+
+    setIsSubscribing(true);
+    try {
+      // Request permission
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Notification permission denied. Please enable notifications in your browser settings.');
+        return;
+      }
+
+      // Register service worker
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      // Subscribe to push manager
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array('BELqHYNGLPs3EIxn6y7lMopZIpyXAKWY84Kci2FvTIW_bBSBj2l7d6e8Hp1kFKYhwF2miGYrjj9kDSX_oUfa070')
+      });
+
+      // Send subscription to server
+      const userId = SecureStorage.getSessionItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem("url");
+      
+      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'save',
+          user_id: userId,
+          subscription: {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
+              auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
+            }
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+        alert('Successfully subscribed to push notifications!');
+      } else {
+        throw new Error(result.message || 'Failed to save subscription');
+      }
+    } catch (error) {
+      console.error('Error subscribing to notifications:', error);
+      alert('Failed to subscribe to notifications: ' + error.message);
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  // Convert VAPID key to Uint8Array
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
+  };
+
   // Update the notifications Popover content
   const renderNotifications = () => {
     const unreadCount = notifications.filter(n => n.is_read === 0).length;
@@ -225,7 +337,7 @@ const Sidebar = () => {
                       onClick={() => {
                         const unreadIds = notifications
                           .filter(n => n.is_read === 0)
-                          .map(n => n.notification_reservation_id);
+                          .map(n => n.notification_reservation_id || n.notification_id);
                         markNotificationsAsRead(unreadIds);
                       }}
                       className="text-xs text-green-600 dark:text-green-400 hover:underline"
@@ -242,7 +354,7 @@ const Sidebar = () => {
                   ) : (
                     notifications.map((notification) => (
                       <div 
-                        key={notification.notification_reservation_id}
+                        key={notification.notification_reservation_id || notification.notification_id}
                         className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
                           notification.is_read === 0 ? 'bg-green-50 dark:bg-green-900/20' : ''
                         }`}
@@ -255,10 +367,73 @@ const Sidebar = () => {
                     ))
                   )}
                 </div>
-                <div className="p-2 text-center">
+                <div className="p-2 text-center border-t border-gray-100 dark:border-gray-700">
                   <Link to="/Department/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
                     View all notifications
                   </Link>
+                </div>
+                
+                {/* Subscription Section */}
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-100 dark:border-gray-600">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Push Notifications</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {subscriptionStatus.subscribed 
+                          ? 'Enabled' 
+                          : subscriptionStatus.permission === 'denied' 
+                            ? 'Blocked' 
+                            : 'Not enabled'}
+                      </p>
+                    </div>
+                    {!subscriptionStatus.subscribed && subscriptionStatus.supported && (
+                      <button
+                        onClick={subscribeToNotifications}
+                        disabled={isSubscribing}
+                        className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isSubscribing ? 'Enabling...' : 'Enable'}
+                      </button>
+                    )}
+                    {subscriptionStatus.subscribed && (
+                      <div className="flex items-center text-xs text-green-600 dark:text-green-400">
+                        <FaCheck className="w-3 h-3 mr-1" />
+                        Enabled
+                      </div>
+                    )}
+                  </div>
+                  {!subscriptionStatus.supported && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Not supported in this browser
+                    </p>
+                  )}
+                  {subscriptionStatus.permission === 'denied' && (
+                    <p className="text-xs text-yellow-500 mt-1">
+                      Please enable notifications in browser settings
+                    </p>
+                  )}
+                  {/* Test Notification Button */}
+                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const pushManager = new (await import('../../utils/pushNotificationManager.js')).default();
+                          const result = await pushManager.testSimpleNotification();
+                          if (result) {
+                            alert('Test notification sent! Check your notifications.');
+                          } else {
+                            alert('Failed to send test notification. Check console for details.');
+                          }
+                        } catch (error) {
+                          console.error('Test notification error:', error);
+                          alert('Error testing notification: ' + error.message);
+                        }
+                      }}
+                      className="w-full px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                    >
+                      Test Notification
+                    </button>
+                  </div>
                 </div>
               </Popover.Panel>
             </Transition>
@@ -279,8 +454,6 @@ const Sidebar = () => {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [location]);
-
-
 
   const toggleDesktopSidebar = () => {
     const newState = !isDesktopSidebarOpen;
@@ -303,8 +476,6 @@ const Sidebar = () => {
     });
     window.dispatchEvent(event);
   };
-
-  
 
   const handleLogout = () => {
     // Save loginAttempts
@@ -335,6 +506,9 @@ const Sidebar = () => {
             {/* Welcome Message */}
             <div className="hidden lg:block">
               <p className="text-green-600 dark:text-green-400 font-medium">Welcome! <span className="font-bold">{name}</span></p>
+              {departmentName && (
+                <p className="text-xs text-gray-500 dark:text-gray-400">{departmentName} • {userLevelName}</p>
+              )}
             </div>
             
             {/* Notifications */}
@@ -361,7 +535,10 @@ const Sidebar = () => {
                     <Popover.Panel className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                         <p className="font-medium text-sm">{name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{userLevelName || 'Dean'}</p>
+                        {departmentName && (
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{departmentName}</p>
+                        )}
                       </div>
                       <div className="p-2">
                         <button 
@@ -397,7 +574,7 @@ const Sidebar = () => {
             <button onClick={toggleMobileSidebar} className="text-[#145414] dark:text-[#d4f4dc] p-2 rounded-lg hover:bg-[#d4f4dc] dark:hover:bg-[#145414]">
               <FaBars size={20} />
             </button>
-                          <div className="flex items-center">
+            <div className="flex items-center">
               <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
               <span className="ml-2 font-bold text-black dark:text-white">GSD Portal</span>
             </div>
@@ -428,7 +605,10 @@ const Sidebar = () => {
                     <Popover.Panel className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                         <p className="font-medium text-sm">{name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">{userLevelName || 'Dean'}</p>
+                        {departmentName && (
+                          <p className="text-xs text-gray-400 dark:text-gray-500">{departmentName}</p>
+                        )}
                       </div>
                       <div className="p-2">
                         <button 
@@ -501,8 +681,6 @@ const Sidebar = () => {
               )}
             </div>
 
-           
-            
             {/* Navigation */}
             <nav className={`flex-grow overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`}>
               {/* Main Menu Items */}
@@ -522,7 +700,7 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-{isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
+              {isDesktopSidebarOpen && <SectionLabel text="Reservation Management" />}
 
               <MiniSidebarItem 
                 icon={FaCar} 
@@ -551,7 +729,7 @@ const Sidebar = () => {
               {/* Venue Management Section - Only for REGISTRAR Department Head */}
               {(departmentName === 'REGISTRAR' && userLevelName === 'Department Head') && (
                 <>
-                  <SectionLabel text="Venue Management" />
+                  {isDesktopSidebarOpen && <SectionLabel text="Venue Management" />}
                   <MiniSidebarItem 
                     icon={FaCalendarAlt} 
                     text="Venue Schedule" 
@@ -561,11 +739,7 @@ const Sidebar = () => {
                   />
                 </>
               )}
-
             </nav>
-
-            {/* User Profile - Show only icon when collapsed */}
-            
           </div>
 
           {/* Mobile Sidebar */}
@@ -583,16 +757,14 @@ const Sidebar = () => {
               </button>
             </div>
 
-            
-
             {/* Navigation - Same as desktop but separate instance */}
             <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
-            <MiniSidebarItem 
+              <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
                 link="/Department/Dashboard" 
                 active={activeItem === '/Department/Dashboard'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -600,17 +772,17 @@ const Sidebar = () => {
                 text="Chat" 
                 link="/Department/Chat" 
                 active={activeItem === '/Department/Chat'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
-              {isDesktopSidebarOpen && <SectionLabel text="Reservation" />}
+              <SectionLabel text="Reservation Management" />
 
               <MiniSidebarItem 
                 icon={FaCar} 
                 text="Make Reservation" 
                 link="/addReservation" 
                 active={activeItem === '/addReservation'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -618,7 +790,7 @@ const Sidebar = () => {
                 text="My Reservation" 
                 link="/Department/Myreservation" 
                 active={activeItem === '/Department/Myreservation'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -626,7 +798,7 @@ const Sidebar = () => {
                 text="View Approvals" 
                 link="/Department/ViewApproval" 
                 active={activeItem === '/Department/ViewApproval'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               {/* Venue Management Section - Only for REGISTRAR Department Head (Mobile) */}
@@ -638,11 +810,10 @@ const Sidebar = () => {
                     text="Venue Schedule" 
                     link="/Department/VenueSchedule" 
                     active={activeItem === '/Department/VenueSchedule'}
-                    isExpanded={isDesktopSidebarOpen}
+                    isExpanded={true}
                   />
                 </>
               )}
-
             </nav>
           </div>
 

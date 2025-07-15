@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Worker Debug</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { margin: 10px; padding: 10px; background: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        button:hover { background: #0056b3; }
+        .log { background: #f8f9fa; padding: 10px; margin: 10px 0; border-radius: 5px; font-family: monospace; }
+    </style>
+</head>
+<body>
+    <h1>Service Worker Debug</h1>
+    
+    <button onclick="registerSW()">Register Service Worker</button>
+    <button onclick="checkSW()">Check Service Worker Status</button>
+    <button onclick="testNotification()">Test Notification</button>
+    <button onclick="testPush()">Test Push Event</button>
+    <button onclick="clearLogs()">Clear Logs</button>
+    
+    <div id="logs"></div>
+
+    <script>
+        function log(message) {
+            const logs = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = 'log';
+            logEntry.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            logs.appendChild(logEntry);
+        }
+
+        function clearLogs() {
+            document.getElementById('logs').innerHTML = '';
+        }
+
+        async function registerSW() {
+            try {
+                log('Registering service worker...');
+                const registration = await navigator.serviceWorker.register('/sw.js');
+                log('Service worker registered: ' + registration.scope);
+                
+                if (registration.active) {
+                    log('Service worker is active');
+                } else if (registration.installing) {
+                    log('Service worker is installing...');
+                    registration.installing.addEventListener('statechange', () => {
+                        log('Service worker state changed to: ' + registration.installing.state);
+                    });
+                } else if (registration.waiting) {
+                    log('Service worker is waiting');
+                }
+            } catch (error) {
+                log('Error registering service worker: ' + error.message);
+            }
+        }
+
+        async function checkSW() {
+            try {
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (registration) {
+                    log('Service worker found: ' + registration.scope);
+                    log('Active: ' + !!registration.active);
+                    log('Installing: ' + !!registration.installing);
+                    log('Waiting: ' + !!registration.waiting);
+                } else {
+                    log('No service worker registration found');
+                }
+            } catch (error) {
+                log('Error checking service worker: ' + error.message);
+            }
+        }
+
+        async function testNotification() {
+            try {
+                log('Testing notification...');
+                const permission = await Notification.requestPermission();
+                log('Notification permission: ' + permission);
+                
+                if (permission === 'granted') {
+                    const registration = await navigator.serviceWorker.getRegistration();
+                    if (registration) {
+                        await registration.showNotification('Test Notification', {
+                            body: 'This is a test notification',
+                            icon: '/images/assets/phinma.png',
+                            badge: '/images/assets/phinma.png'
+                        });
+                        log('Test notification sent');
+                    } else {
+                        log('No service worker registration found');
+                    }
+                } else {
+                    log('Notification permission denied');
+                }
+            } catch (error) {
+                log('Error testing notification: ' + error.message);
+            }
+        }
+
+        async function testPush() {
+            try {
+                log('Testing push event...');
+                const registration = await navigator.serviceWorker.getRegistration();
+                if (registration && registration.active) {
+                    registration.active.postMessage({
+                        type: 'TEST_PUSH',
+                        data: {
+                            title: 'Test Push Notification',
+                            body: 'This is a test push notification',
+                            icon: '/images/assets/phinma.png',
+                            badge: '/images/assets/phinma.png',
+                            data: {
+                                url: '/',
+                                timestamp: Date.now()
+                            }
+                        }
+                    });
+                    log('Test push message sent to service worker');
+                } else {
+                    log('No active service worker found');
+                }
+            } catch (error) {
+                log('Error testing push: ' + error.message);
+            }
+        }
+
+        // Listen for service worker messages
+        navigator.serviceWorker.addEventListener('message', (event) => {
+            log('Received message from service worker: ' + JSON.stringify(event.data));
+        });
+
+        // Check if service workers are supported
+        if ('serviceWorker' in navigator) {
+            log('Service workers are supported');
+        } else {
+            log('Service workers are NOT supported');
+        }
+
+        // Check if notifications are supported
+        if ('Notification' in window) {
+            log('Notifications are supported');
+        } else {
+            log('Notifications are NOT supported');
+        }
+    </script>
+</body>
+</html> 

@@ -7,8 +7,10 @@ import { SecureStorage } from '../../utils/encryption';
 import ChecklistModal from './core/checklist_modal';
 import { Input, Button, Tag, Empty, Pagination, Tooltip } from 'antd';
 import { SearchOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons';
-import { FaEye } from 'react-icons/fa';
+
 import { useLocation } from 'react-router-dom';
+import dayjs from 'dayjs';
+
 
 // Add custom styles for animations
 const styles = `
@@ -51,6 +53,7 @@ const ViewPersonnelTask = () => {
   const [sortField, setSortField] = useState('reservation_id');
   const [sortOrder, setSortOrder] = useState('desc');
   const [highlightedId, setHighlightedId] = useState(null);
+  const [releasingAll, setReleasingAll] = useState(false);
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
@@ -101,31 +104,114 @@ const ViewPersonnelTask = () => {
     }
   }, [baseUrl]);
 
-  const handleModalOpen = (task) => {
-    console.log('Opening modal with task:', task);
-    // Transform data structure to match the code's expectations
-    const transformedTask = {
-      ...task,
-      venues: task.venues?.map(venue => ({
-        ...venue,
-        availability_status: venue.availability_status
-      })) || [],
-      vehicles: task.vehicles?.map(vehicle => ({
-        ...vehicle,
-        availability_status: vehicle.availability_status
-      })) || [],
-      equipments: task.equipments?.map(equipment => ({
-        ...equipment,
-        availability_status: equipment.availability_status,
-        units: equipment.units?.map(unit => ({
-          ...unit,
-          availability_status: unit.availability_status
-        }))
-      })) || []
-    };
-    console.log('Transformed task:', transformedTask);
-    setSelectedTask(transformedTask);
-    setIsModalOpen(true);
+  // Helper to release all resources for a task
+  const releaseAllResources = async (task) => {
+    setReleasingAll(true);
+    try {
+      // Helper to call release API for a resource
+      const releaseResource = async (type, reservation_id, resource_id, quantity) => {
+        const payload = {
+          operation: 'updateRelease',
+          type,
+          reservation_id,
+          resource_id,
+        };
+        if (quantity) payload.quantity = quantity;
+        await axios.post(`${baseUrl}personnel.php`, payload, {
+          headers: { 'Content-Type': 'application/json' }
+        });
+      };
+      // Venues
+      if (task.venues && Array.isArray(task.venues)) {
+        for (const venue of task.venues) {
+          if (venue.availability_status !== 'In Use' && venue.active !== -1) {
+            await releaseResource('venue', venue.reservation_venue_id, venue.reservation_venue_venue_id);
+          }
+        }
+      }
+      // Vehicles
+      if (task.vehicles && Array.isArray(task.vehicles)) {
+        for (const vehicle of task.vehicles) {
+          if (vehicle.availability_status !== 'In Use' && vehicle.active !== -1) {
+            await releaseResource('vehicle', vehicle.reservation_vehicle_id, vehicle.reservation_vehicle_vehicle_id);
+          }
+        }
+      }
+      // Equipments
+      if (task.equipments && Array.isArray(task.equipments)) {
+        for (const equipment of task.equipments) {
+          // Consumable equipment (no units)
+          if ((!equipment.units || equipment.units.length === 0) && equipment.availability_status !== 'In Use' && equipment.active !== -1) {
+            await releaseResource('equipment_consumable', equipment.reservation_equipment_id, equipment.quantity_id, equipment.quantity);
+          }
+          // Equipment with units
+          if (equipment.units && Array.isArray(equipment.units)) {
+            for (const unit of equipment.units) {
+              if (unit.availability_status !== 'In Use' && unit.active !== -1) {
+                await releaseResource('equipment', unit.reservation_unit_id, unit.unit_id);
+              }
+            }
+          }
+        }
+      }
+      
+    } catch (err) {
+      toast.error('Failed to release all resources');
+      console.error('Release all error:', err);
+    } finally {
+      setReleasingAll(false);
+    }
+  };
+
+  const handleModalOpen = async (task) => {
+    setReleasingAll(true);
+    await releaseAllResources(task);
+    // Refetch the latest data for the task
+    try {
+      const response = await axios.post(`${baseUrl}personnel.php`, {
+        operation: 'fetchAssignedRelease',
+        personnel_id: SecureStorage.getSessionItem('user_id')
+      }, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      let updatedTask = null;
+      if (response.data.status === 'success') {
+        updatedTask = response.data.data.find(t => String(t.reservation_id) === String(task.reservation_id));
+        if (updatedTask) {
+          updatedTask = {
+            ...updatedTask,
+            formattedStartDate: formatDateTime(updatedTask.reservation_start_date),
+            formattedEndDate: formatDateTime(updatedTask.reservation_end_date),
+          };
+        }
+      }
+      // Transform data structure to match the code's expectations
+      const transformedTask = {
+        ...updatedTask,
+        venues: updatedTask?.venues?.map(venue => ({
+          ...venue,
+          availability_status: venue.availability_status
+        })) || [],
+        vehicles: updatedTask?.vehicles?.map(vehicle => ({
+          ...vehicle,
+          availability_status: vehicle.availability_status
+        })) || [],
+        equipments: updatedTask?.equipments?.map(equipment => ({
+          ...equipment,
+          availability_status: equipment.availability_status,
+          units: equipment.units?.map(unit => ({
+            ...unit,
+            availability_status: unit.availability_status
+          }))
+        })) || []
+      };
+      setSelectedTask(transformedTask);
+      setIsModalOpen(true);
+    } catch (err) {
+      toast.error('Failed to refresh task after release');
+    } finally {
+      setReleasingAll(false);
+    }
   };
 
   const handleRefresh = () => {
@@ -222,6 +308,14 @@ const ViewPersonnelTask = () => {
     }
   };
 
+  // Helper: Only allow opening from 5 minutes before start date (Asia/Manila) and onwards
+  const canOpenTask = (task) => {
+    if (!task || !task.reservation_start_date) return false;
+    const now = dayjs().tz('Asia/Manila');
+    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(5, 'minute');
+    return now.isAfter(openTime) || now.isSame(openTime);
+  };
+
   return (
     <div className="flex min-h-screen bg-gradient-to-br from-green-50 to-white">
       <style>{styles}</style>
@@ -294,9 +388,10 @@ const ViewPersonnelTask = () => {
 
           {/* Table Section */}
           <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
-            {loading ? (
+            {loading || releasingAll ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
+                {releasingAll && <span className="ml-3 text-green-700 font-semibold">Releasing all resources...</span>}
               </div>
             ) : (
               <>
@@ -366,7 +461,7 @@ const ViewPersonnelTask = () => {
                             </td>
                             <td className="px-6 py-4">
                               <div className="flex items-center">
-                                <FaEye className="mr-2 text-green-700" />
+                              
                                 <span className="font-semibold">{task.reservation_title}</span>
                               </div>
                             </td>
@@ -436,7 +531,20 @@ const ViewPersonnelTask = () => {
                                   onClick={() => handleModalOpen(task)}
                                   size="middle"
                                   className="bg-green-700 hover:bg-green-800 border-none"
-                                />
+                                  disabled={filter === 'completed' || !canOpenTask(task)}
+                                >
+                                </Button>
+                                {filter === 'completed' ? (
+                                  <Tooltip title="Actions are locked for completed tasks">
+                                    <span className="text-xs text-gray-400 ml-2">Locked</span>
+                                  </Tooltip>
+                                ) : (
+                                  !canOpenTask(task) && (
+                                    <Tooltip title="You can only open this task within 5 minutes before its start time (Asia/Manila)">
+                                      <span className="text-xs text-gray-400 ml-2">Locked</span>
+                                    </Tooltip>
+                                  )
+                                )}
                               </div>
                             </td>
                           </tr>

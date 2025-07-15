@@ -4,41 +4,60 @@ import axios from 'axios';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../../../utils/encryption';
 import { FaList, FaMapMarkerAlt, FaCar, FaTools } from 'react-icons/fa';
+import { Progress, Tooltip } from 'antd';
 
 const BASE_URL = SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/";
 
 const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, type }) => {
   const [selectedCondition, setSelectedCondition] = useState('');
   const [badQuantity, setBadQuantity] = useState('');
+  const [remarks, setRemarks] = useState('');
   const totalQuantity = parseInt(item?.quantity || 0);
   const isEquipmentConsumable = type === 'equipment_consumable';
+  const isVenue = type === 'venue';
+
+  // Venue-specific options
+  const venueConditions = [
+    { value: 'good', label: 'Good Condition', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { value: 'other', label: 'Other', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' }
+  ];
+  // Default options for other types
+  const defaultConditions = [
+    { value: 'good', label: 'Good', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
+    { value: 'damage', label: 'Damage', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
+    { value: 'missing', label: 'Missing', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' }
+  ];
+  const conditionOptions = isVenue ? venueConditions : defaultConditions;
 
   const handleSubmit = () => {
     if (!selectedCondition) {
       toast.error('Please select a return condition');
       return;
     }
-
+    if (isVenue) {
+      if (selectedCondition === 'other' && !remarks.trim()) {
+        toast.error('Please enter remarks for "Other" condition');
+        return;
+      }
+      onSubmit(selectedCondition, null, null, remarks); // Pass remarks
+      return;
+    }
     if (isEquipmentConsumable && selectedCondition !== 'good') {
       if (!badQuantity) {
         toast.error('Please specify the quantity of damaged/missing items');
         return;
       }
-      
       // Calculate good quantity as remaining items
       const badQty = parseInt(badQuantity);
       const goodQty = totalQuantity - badQty;
-      
       if (badQty > totalQuantity) {
         toast.error(`Bad quantity cannot exceed total quantity (${totalQuantity})`);
         return;
       }
-
       if (badQty < 0) {
         toast.error('Bad quantity cannot be negative');
         return;
       }
-
       onSubmit(selectedCondition, goodQty, badQty);
     } else if (isEquipmentConsumable) {
       // For 'good' condition, all items are in good condition
@@ -92,13 +111,8 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
 
           <div className="space-y-4">
             <p className="text-sm text-gray-600">Please select the condition of the returned item:</p>
-            
             <div className="grid grid-cols-1 gap-3">
-              {[
-                { value: 'good', label: 'Good', icon: 'M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z' },
-                { value: 'damage', label: 'Damage', icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z' },
-                { value: 'missing', label: 'Missing', icon: 'M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z' }
-              ].map((condition) => (
+              {conditionOptions.map((condition) => (
                 <button
                   key={condition.value}
                   onClick={() => setSelectedCondition(condition.value)}
@@ -127,7 +141,20 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
                 </button>
               ))}
             </div>
-
+            {isVenue && selectedCondition === 'other' && (
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Remarks
+                </label>
+                <textarea
+                  value={remarks}
+                  onChange={e => setRemarks(e.target.value)}
+                  placeholder="Enter remarks"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                  rows={2}
+                />
+              </div>
+            )}
             {isEquipmentConsumable && selectedCondition !== 'good' && (
               <div className="mt-4 space-y-3">
                 <div>
@@ -422,7 +449,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         operation: 'updateTask',
         type: type,
         id: reservationChecklistId,
-        isActive: newValue === 1 ? 1 : 0
+        isActive: Number(newValue)
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -802,7 +829,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     setShowReturnModal(true);
   };
 
-  const handleReturn = async (condition, goodQuantity, badQuantity) => {
+  const handleReturn = async (condition, goodQuantity, badQuantity, remarks) => {
     if (!selectedItemForReturn) return;
 
     const { type, item } = selectedItemForReturn;
@@ -817,9 +844,9 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         case 'venue':
           reservation_id = item.reservation_venue_id;
           resource_id = item.reservation_venue_venue_id;
-          setVenueCondition(condition);
-          if (condition === 'Other') {
-            setOtherVenueCondition(condition);
+          setVenueCondition(condition === 'good' ? 'Good Condition' : 'Other');
+          if (condition === 'other') {
+            setOtherVenueCondition(remarks);
           }
           break;
         case 'vehicle':
@@ -856,20 +883,16 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
         return;
       }
 
+      const isOther = (condition === 'other' || condition === 'Other');
       const payload = {
         operation: 'updateReturn',
         type: type,
         reservation_id: reservation_id,
         resource_id: resource_id,
-        condition: condition,
-        user_personnel_id: SecureStorage.getSessionItem('user_id')
+        condition: isOther ? null : condition,
+        user_personnel_id: SecureStorage.getSessionItem('user_id'),
+        remarks: isOther ? remarks : null
       };
-
-      // Add good and bad quantities for consumable equipment
-      if (type === 'equipment_consumable') {
-        payload.good_quantity = goodQuantity;
-        payload.bad_quantity = badQuantity;
-      }
 
       console.log('Return payload:', payload);
 
@@ -1373,7 +1396,40 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
     }
   }, [isOpen, selectedTask]);
 
+
+  // --- Add helper functions for per-resource progress ---
+  const calculateResourceProgress = (items, checklistKey = 'checklists') => {
+    if (!items || !Array.isArray(items)) return { total: 0, completed: 0, percent: 0 };
+    let total = 0;
+    let completed = 0;
+    for (const item of items) {
+      if (item[checklistKey] && Array.isArray(item[checklistKey])) {
+        total += item[checklistKey].length;
+        completed += item[checklistKey].filter(c => c.isChecked === '1' || c.isChecked === 1).length;
+      }
+      // For equipment, also check units
+      if (item.units && Array.isArray(item.units)) {
+        for (const unit of item.units) {
+          if (unit.checklists && Array.isArray(unit.checklists)) {
+            total += unit.checklists.length;
+            completed += unit.checklists.filter(c => c.isChecked === '1' || c.isChecked === 1).length;
+          }
+        }
+      }
+    }
+    return { total, completed, percent: total > 0 ? (completed / total) * 100 : 0 };
+  };
+
   if (!isOpen || !selectedTask) return null;
+
+  // Remove the old single progress bar section
+  // Add new progress section below header
+  const venueProgress = calculateResourceProgress(selectedTask.venues);
+  const vehicleProgress = calculateResourceProgress(selectedTask.vehicles);
+  const equipmentProgress = calculateResourceProgress(selectedTask.equipments);
+  const overallTotal = venueProgress.total + vehicleProgress.total + equipmentProgress.total;
+  const overallCompleted = venueProgress.completed + vehicleProgress.completed + equipmentProgress.completed;
+  const overallPercent = overallTotal > 0 ? (overallCompleted / overallTotal) * 100 : 0;
 
   return (
     <>
@@ -1414,7 +1470,34 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                   </button>
                 </div>
               </div>
-
+              {/* --- Enhanced Progress Section --- */}
+              <div className="w-full flex flex-col items-center justify-center mb-4 mt-6 px-4">
+                <div className="w-full max-w-2xl bg-white/80 rounded-xl shadow border border-lime-100 p-4 sticky top-0 z-20">
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                    <div className="flex items-center gap-4 flex-1">
+                      <Tooltip title="Overall Progress">
+                        <Progress
+                          type="circle"
+                          percent={Math.round(overallPercent)}
+                          width={70}
+                          strokeColor="#84cc16"
+                          trailColor="#e5f9e0"
+                          format={percent => <span className="text-lime-700 font-bold">{percent}%</span>}
+                        />
+                      </Tooltip>
+                      <div className="flex flex-col gap-1">
+                        <span className="text-lg font-semibold text-lime-700">Overall Progress</span>
+                        <span className="text-xs text-gray-500">{overallCompleted} of {overallTotal} items completed</span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col md:flex-row gap-3 flex-1 justify-end">
+                      
+                     
+                    </div>
+                  </div>
+                </div>
+              </div>
+              {/* --- End Enhanced Progress Section --- */}
               <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-120px)]">
                 {renderSection('Event Information', (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

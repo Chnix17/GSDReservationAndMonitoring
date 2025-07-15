@@ -511,6 +511,23 @@ function Logins() {
 
                         refreshSessionCookie('userSession');
                 
+                        // --- PUSH NOTIFICATION SUBSCRIPTION ---
+                        console.log("[DEBUG] About to check push notification manager block");
+                        if (window.pushNotificationManager) {
+                            const userId = SecureStorage.getSessionItem("user_id");
+                            console.log("[DEBUG] pushNotificationManager exists, subscribing for user:", userId);
+                            window.pushNotificationManager.subscribe(userId)
+                                .then(() => {
+                                    console.log("[DEBUG] Push subscription successful for user:", userId);
+                                })
+                                .catch((err) => {
+                                    console.error("[DEBUG] Push subscription failed:", err);
+                                });
+                        } else {
+                            console.warn("[DEBUG] Push notification manager not available (window.pushNotificationManager is falsy)");
+                        }
+                        // --- END PUSH NOTIFICATION SUBSCRIPTION ---
+                
                         // Handle "Remember Me" functionality
                         if (rememberMe) {
                             localStorage.setItem("rememberedUsername", username);

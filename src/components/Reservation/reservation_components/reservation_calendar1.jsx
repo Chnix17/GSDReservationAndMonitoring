@@ -277,16 +277,7 @@ const handleDateClick = (date) => {
     return;
   }
   
-  // Check if it's a weekend (Saturday = 6, Sunday = 0)
-  const dayOfWeek = date.getDay();
-  if (dayOfWeek === 0 || dayOfWeek === 6) {
-    toast.error('Reservations can only be made on working days (Monday to Friday)', {
-      position: 'top-center',
-      icon: '📅',
-      className: 'font-medium'
-    });
-    return;
-  }
+
   
   // Check if it's today but after business hours
   if (compareDate.getTime() === today.getTime()) {
@@ -619,10 +610,10 @@ const renderCalendarGrid = () => {
         const currentTime = now.getHours();
         const isAfterBusinessHours = isPresentDate && currentTime >= 17;
         // const isBeforeBusinessHours = isPresentDate && currentTime < 5;
-        const isUnavailable = isPastDate || isAfterBusinessHours || isWeekend;
+        const isUnavailable = isPastDate || isAfterBusinessHours;
         const isSelected = dateRange.start && day >= dateRange.start && 
                          (dateRange.end ? day <= dateRange.end : day === dateRange.start);
-        let status = isPastDate || isWeekend ? 'past' : getAvailabilityStatus(day, reservations);
+        let status = isPastDate ? 'past' : getAvailabilityStatus(day, reservations);
         
         if (isPresentDate && isAfterBusinessHours) {
           status = 'past';
@@ -668,7 +659,7 @@ const renderCalendarGrid = () => {
               ${isCurrentMonth ? statusStyle.className : 'opacity-40 bg-gray-50 dark:bg-gray-800/40'}
               ${!isUnavailable ? statusStyle.hoverClass : 'cursor-not-allowed select-none'}
               ${isSelected ? 'ring-2 ring-blue-500 dark:ring-blue-400' : ''}
-              ${isWeekend ? 'bg-gray-100 dark:bg-gray-800 opacity-50' : ''}
+
               transition-all duration-200
               ${isSameDay(day, today) ? 'ring-2 ring-blue-500 dark:ring-blue-400 ring-offset-2 dark:ring-offset-gray-900' : ''}
               overflow-hidden
@@ -725,7 +716,7 @@ const renderCalendarGrid = () => {
                           text-blue-800 dark:text-blue-300 border border-blue-200 dark:border-blue-800/30
                         `}
                       >
-                        {format(new Date(res.startDate), 'HH:mm')} - {res.venueName || (res.vehicleMake ? `${res.vehicleMake} ${res.vehicleModel}` : res.equipName)}
+                        {format(new Date(res.startDate), 'h:mm a')} - {res.venueName || (res.vehicleMake ? `${res.vehicleMake} ${res.vehicleModel}` : res.equipName)}
                       </div>
                     ))}
                   </>
@@ -832,7 +823,7 @@ const DayDetailsModal = () => {
                       </span>
                     </div>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                      {format(new Date(item.startDate), 'HH:mm')} - {format(new Date(item.endDate), 'HH:mm')}
+                                              {format(new Date(item.startDate), 'h:mm a')} - {format(new Date(item.endDate), 'h:mm a')}
                     </div>
                   </div>
                 ))}
@@ -853,7 +844,7 @@ const DayDetailsModal = () => {
                         {res.venueName || (res.vehicleMake ? `${res.vehicleMake} ${res.vehicleModel}` : res.equipName)}
                       </span>
                       <span className="text-xs text-gray-600 dark:text-gray-400">
-                        {format(new Date(res.startDate), 'HH:mm')} - {format(new Date(res.endDate), 'HH:mm')}
+                        {format(new Date(res.startDate), 'h:mm a')} - {format(new Date(res.endDate), 'h:mm a')}
                       </span>
                     </div>
                     {res.venueOccupancy && (
@@ -1054,7 +1045,7 @@ const DayDetailsModal = () => {
                 className={`
                   py-3 px-1 sm:px-2 
                   ${isToday ? 'bg-blue-100 dark:bg-blue-900/40' : ''}
-                  ${isWeekend ? 'bg-gray-100 dark:bg-gray-800/40' : ''}
+
                   ${isHoliday ? 'bg-violet-100 dark:bg-violet-900/40' : ''}
                   ${isPastDate ? 'bg-gray-100 dark:bg-gray-800/40 opacity-60' : ''}
                 `}
@@ -1062,7 +1053,7 @@ const DayDetailsModal = () => {
                 <div className={`
                   text-center rounded-lg py-1
                   ${isToday ? 'bg-blue-200 dark:bg-blue-900/60' : ''}
-                  ${isWeekend ? 'bg-gray-200 dark:bg-gray-800/60' : ''}
+
                   ${isPastDate ? 'bg-gray-200 dark:bg-gray-800/60' : ''}
                 `}>
                   <div className={`
@@ -1078,7 +1069,6 @@ const DayDetailsModal = () => {
                     text-xs sm:text-sm mt-0.5
                     ${isToday ? 'text-blue-600 dark:text-blue-400 font-medium' : ''}
                     ${isPastDate ? 'text-gray-400 dark:text-gray-500' : 'text-gray-600 dark:text-gray-400'}
-                    ${isWeekend ? 'text-gray-500 dark:text-gray-400' : ''}
                   `}>
                     {format(day, 'MMM d')}
                   </div>
@@ -1122,7 +1112,7 @@ const DayDetailsModal = () => {
               return (
                 <div key={dayIndex} className={`
                   relative
-                  ${isWeekend || isPastDate ? 'bg-gray-100 dark:bg-gray-800/40' : ''}
+                  ${isPastDate ? 'bg-gray-100 dark:bg-gray-800/40' : ''}
                 `}>
                   {businessHours.map((hour) => {
                     const isPastHour = isBefore(
@@ -1132,7 +1122,7 @@ const DayDetailsModal = () => {
                     const currentHour = new Date().getHours() === hour && isToday;
                     
                     // Get the availability status for this time slot
-                    const status = isWeekend || isPastDate ? 'past' : getTimeSlotAvailability(day, hour);
+                    const status = isPastDate ? 'past' : getTimeSlotAvailability(day, hour);
                     const statusStyle = availabilityStatus[status];
                     
                     // Get reservations for this time slot
@@ -1307,7 +1297,7 @@ const DayDetailsModal = () => {
         <div className={`
           p-4 border-b dark:border-gray-700/50
           ${isToday ? 'bg-blue-100 dark:bg-blue-900/40' : ''}
-          ${isWeekend || isPastDay ? 'bg-gray-100 dark:bg-gray-800/60' : ''}
+                            ${isPastDay ? 'bg-gray-100 dark:bg-gray-800/60' : ''}
           ${holidayInfo ? 'bg-violet-100 dark:bg-violet-900/40' : ''}
         `}>
           <div className="flex items-center justify-between">
@@ -2385,7 +2375,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                   <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">Start Time</label>
                   <TimePicker
                     className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
-                    format="HH:mm"
+                    format="h:mm a"
                     minuteStep={30}
                     popupClassName="text-xs sm:text-sm"
                     value={selectedTimes.startTime ? 
@@ -2450,7 +2440,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                   <label className="block text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">End Time</label>
                   <TimePicker
                     className="w-full border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-white rounded-lg"
-                    format="HH:mm"
+                    format="h:mm a"
                     minuteStep={30}
                     popupClassName="text-xs sm:text-sm"
                     value={selectedTimes.endTime ? 
@@ -2559,8 +2549,8 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
                     setConflictDetails({
                       conflicts,
                       attemptedBooking: {
-                        start: dayjs(startDateTime).format('MMM DD, YYYY HH:mm'),
-                        end: dayjs(endDateTime).format('MMM DD, YYYY HH:mm')
+                        start: dayjs(startDateTime).format('MMM DD, YYYY h:mm a'),
+                        end: dayjs(endDateTime).format('MMM DD, YYYY h:mm a')
                       }
                     });
                     setShowConflictModal(true);
@@ -2602,7 +2592,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">Start Time</label>
               <TimePicker
                 className="w-full"
-                format="HH:mm"
+                format="h:mm a"
                 minuteStep={30}
                 value={selectedTimes.startTime ? 
                   dayjs().hour(selectedTimes.startTime).minute(selectedTimes.startMinute || 0) : 
@@ -2623,7 +2613,7 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
               <label className="block text-sm font-medium text-gray-700 mb-2">End Time</label>
               <TimePicker
                 className="w-full"
-                format="HH:mm"
+                format="h:mm a"
                 minuteStep={30}
                 value={selectedTimes.endTime ? 
                   dayjs().hour(selectedTimes.endTime).minute(selectedTimes.endMinute || 0) : 
