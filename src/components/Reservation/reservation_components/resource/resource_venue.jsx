@@ -184,7 +184,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
               ${isMobile ? 'text-xs' : 'text-sm'}
             `}>
               {selectedVenues.length > 0
-                ? 'Click to deselect venues'
+                ? 'Click to de  s'
                 : 'Select venues to proceed'}
             </p>
           </div>
