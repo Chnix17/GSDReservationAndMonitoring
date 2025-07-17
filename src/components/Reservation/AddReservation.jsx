@@ -2483,7 +2483,8 @@ return (
     <section className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3 pb-24' : 'p-6'}`}>
       <article className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-6xl'}`}>
         {/* Header */}
-        <header className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
+        <header className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100  
+         ${isMobile ? 'mb-2' : 'mb-6'}`}>
           <Button
             onClick={() => navigate(-1)}
             className="p-button-text flex items-center gap-2 hover:bg-green-50 transition-colors"
@@ -2509,9 +2510,10 @@ return (
         </section>
 
         {/* Main Content */}
-        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible${isMobile && currentStep !== 5 ? ' pb-32' : ' pb-8'}`}>
+        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible`
+}>
           {/* Step Header */}
-          <header className={`px-3 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100`}>
+          <header className={`px-3 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100 rounded-t-md`}>
             <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl md:text-2xl'}`}>
               {currentStep === 0 && "Select Resource Type"}
               {currentStep === 1 && `Select ${resourceType === 'venue' ? 'Venue' : resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
@@ -2531,55 +2533,63 @@ return (
 
           {/* Step Navigation - Desktop & Tablet */}
           {currentStep !== 5 && !isMobile && (
-            <footer className="sticky bottom-0 left-0 right-0 px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-t border-gray-100 z-30">
-              <nav className="flex flex-col md:flex-row justify-between items-center gap-2 md:gap-0">
-                <div className="flex gap-2 w-full md:w-auto">
-                  <AntButton
-                    type="default"
-                    icon={<i className="pi pi-arrow-left" />}
-                    onClick={handleBack}
-                    size="large"
-                    className="p-button-outlined w-full md:w-auto"
-                    disabled={currentStep === 0}
-                  >
-                    Previous
-                  </AntButton>
-                  {currentStep > 0 && (
-                    <AntButton
-                      type="default"
-                      icon={<i className="pi pi-refresh" />}
-                      onClick={resetForm}
-                      size="large"
-                      className="p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50 w-full md:w-auto"
-                    >
-                      Reset Form
-                    </AntButton>
-                  )}
-                </div>
-                {currentStep === 4 ? (
-                  <AntButton
-                    type="primary"
-                    icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
-                    onClick={handleAddReservation}
-                    size="large"
-                    className="p-button-success bg-green-500 hover:bg-green-600 border-green-500 w-full md:w-auto"
-                    disabled={loading}
-                  >
-                    {loading ? 'Submitting...' : 'Submit'}
-                  </AntButton>
-                ) : (
-                  <AntButton
-                    type="primary"
-                    icon={<i className="pi pi-arrow-right" />}
-                    onClick={handleNext}
-                    size="large"
-                    className="p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white w-full md:w-auto"
-                  >
-                    Next
-                  </AntButton>
-                )}
-              </nav>
-            </footer>
+          <footer className="sticky bottom-0 left-0 right-0 z-30 px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-t border-gray-100 rounded-b-xl shadow-sm">
+  <nav className="flex flex-col md:flex-row justify-between items-center gap-4 w-full">
+    
+    {/* Left Side: Previous and Next/Submit */}
+    <div className="flex flex-col md:flex-row items-center gap-2 w-full md:w-auto">
+      <AntButton
+        type="default"
+        icon={<i className="pi pi-arrow-left" />}
+        onClick={handleBack}
+        size="large"
+        className="p-button-outlined w-full md:w-auto"
+        disabled={currentStep === 0}
+      >
+        Previous
+      </AntButton>
+
+      {currentStep === 4 ? (
+        <AntButton
+          type="primary"
+          icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
+          onClick={handleAddReservation}
+          size="large"
+          className="p-button-success bg-green-500 hover:bg-green-600 border-green-500 w-full md:w-auto"
+          disabled={loading}
+        >
+          {loading ? 'Submitting...' : 'Submit'}
+        </AntButton>
+      ) : (
+        <AntButton
+          type="primary"
+          icon={<i className="pi pi-arrow-right" />}
+          onClick={handleNext}
+          size="large"
+          className="p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white w-full md:w-auto"
+        >
+          Next
+        </AntButton>
+      )}
+    </div>
+
+    {/* Reset Button always below on small screens */}
+    {currentStep > 0 && (
+      <div className="w-full md:w-auto">
+        <AntButton
+          type="default"
+          icon={<i className="pi pi-refresh" />}
+          onClick={resetForm}
+          size="large"
+          className="p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50 w-full md:w-auto"
+        >
+          Reset Form
+        </AntButton>
+      </div>
+    )}
+  </nav>
+</footer>
+
           )}
         </section>
       </article>
