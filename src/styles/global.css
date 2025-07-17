@@ -1,5 +1,12 @@
+<<<<<<< HEAD
+*{
+  background-color:  --light-cream #d4f4dc;
+}
+
+=======
 /* Remove or fix the invalid universal background-color rule */
 /* *{ background-color:  --light-cream #d4f4dc; } */
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
 
 /* Color Palette */
 :root {
@@ -12,6 +19,7 @@
   --primary-green-light: #83b383;
   --accent-green-dark: #538c4c;
   --accent-green-light: #d4f4dc;
+  
   
   /* Modern theme colors */
   --modern-green: #d4f4dc;

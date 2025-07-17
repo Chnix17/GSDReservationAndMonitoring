@@ -705,16 +705,21 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaCar} 
                 text="Make Reservation" 
-                link="/addReservation" 
-                active={activeItem === '/addReservation'}
+                link="/deanAddReservation" 
+                active={activeItem === '/deanAddReservation'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="My Reservation" 
+<<<<<<< HEAD
+                link="/deanViewReserve" 
+                active={activeItem === '/deanViewReserve'}
+=======
                 link="/Department/Myreservation" 
                 active={activeItem === '/Department/Myreservation'}
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -788,9 +793,18 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="My Reservation" 
+<<<<<<< HEAD
+                link="/viewReserve" 
+                active={activeItem === '/viewReserve'} 
+=======
                 link="/Department/Myreservation" 
                 active={activeItem === '/Department/Myreservation'}
+<<<<<<< HEAD
                 isExpanded={true}
+=======
+                isExpanded={isDesktopSidebarOpen}
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
+>>>>>>> 179ab6393eb8963b1048fa6f9592cef7e7ba8928
               />
 
               <MiniSidebarItem 

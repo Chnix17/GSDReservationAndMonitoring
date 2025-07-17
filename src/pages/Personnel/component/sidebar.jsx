@@ -21,7 +21,11 @@ const Sidebar = () => {
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+<<<<<<< HEAD
+  const [notifications] = useState(5);
+=======
   const [notifications] = useState('');
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
   const [showProfileModal, setShowProfileModal] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
@@ -101,7 +105,11 @@ const Sidebar = () => {
             <Popover className="relative">
               {({ open }) => (
                 <>
+<<<<<<< HEAD
+                  <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-green-900 dark:bg-green-800 hover:bg-lime-900 dark:hover:bg-lime-800/50">
+=======
                   <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
                     <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
                     {notifications > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
@@ -201,7 +209,11 @@ const Sidebar = () => {
         </header>
 
         {/* Mobile Header */}
+<<<<<<< HEAD
+        <header className="bg-white dark:bg-gray-900 border-b border-green-900 dark:border-gray-800 px-4 py-3 fixed top-0 left-0 right-0 z-30 lg:hidden flex items-center justify-between">
+=======
         <header className="bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800 px-4 py-3 fixed top-0 left-0 right-0 z-30 lg:hidden flex items-center justify-between">
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
           <div className="flex items-center space-x-3">
             <button onClick={toggleMobileSidebar} className="text-[#145414] dark:text-[#d4f4dc] p-2 rounded-lg hover:bg-[#d4f4dc] dark:hover:bg-[#145414]">
               <FaBars size={20} />
@@ -217,7 +229,11 @@ const Sidebar = () => {
             <Popover className="relative">
               {({ open }) => (
                 <>
+<<<<<<< HEAD
+                  <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-green-900 dark:bg-green-800 hover:bg-lime-700 dark:hover:bg-green-800/50">
+=======
                   <Popover.Button className="relative flex items-center justify-center h-9 w-9 rounded-full bg-gray-100 dark:bg-gray-800 hover:bg-green-100 dark:hover:bg-green-800/50">
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
                     <FaBell size={18} className="text-gray-600 dark:text-gray-300" />
                     {notifications > 0 && (
                       <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
@@ -368,8 +384,11 @@ const Sidebar = () => {
                 active={activeItem === '/Personnel/ViewTask'}
                 isExpanded={isDesktopSidebarOpen}
               />
+<<<<<<< HEAD
+=======
 
      
+>>>>>>> 294454d12d475aa03ab70fb2fdcf3dc49afb995f
             </nav>
 
             {/* User Profile - Show only icon when collapsed */}
