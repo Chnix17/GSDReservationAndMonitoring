@@ -469,11 +469,17 @@ const ViewPersonnelTask = () => {
                             <td className="px-6 py-4">{task.formattedEndDate}</td>
                             <td className="px-6 py-4">
                               <div className="flex flex-col gap-1">
-                                <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
-                                  {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
-                                </Tag>
-                                {task.is_returned === 1 && (
-                                  <Tag color="success">Returned</Tag>
+                                {filter === 'completed' ? (
+                                  <Tag color="success">Completed</Tag>
+                                ) : (
+                                  <>
+                                    <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
+                                      {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
+                                    </Tag>
+                                    {task.is_returned === 1 && (
+                                      <Tag color="success">Returned</Tag>
+                                    )}
+                                  </>
                                 )}
                               </div>
                             </td>

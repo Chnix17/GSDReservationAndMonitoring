@@ -45,7 +45,7 @@ const Holiday = () => {
         setLoading(true);
         try {
             const response = await axios.post(`${baseUrl}user.php`, 
-                new URLSearchParams({ operation: 'fetchHolday' })
+                new URLSearchParams({ operation: 'fetchHoliday' })
             );
             if (response.data.status === 'success') {
                 setHolidays(response.data.data);

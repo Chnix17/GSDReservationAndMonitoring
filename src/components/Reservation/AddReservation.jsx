@@ -10,7 +10,7 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import {  TeamOutlined,  DashboardOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
+import {  TeamOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
 import {  Form, Input, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
 import { format } from 'date-fns';
 import { BsTools,  } from 'react-icons/bs';
@@ -89,6 +89,7 @@ const AddReservation = () => {
     forceMixedDrivers: false, // New field to force mixed drivers when partially insufficient
     availableDrivers: 0, // Number of available drivers
     totalVehicles: 0, // Total number of vehicles
+    additionalNote: '', // Add this line for additional note
   });
 
   
@@ -289,6 +290,14 @@ const validateCurrentStep = () => {
           toast.error('Please fill in all required venue reservation fields');
           return false;
         }
+        // Calculate total capacity of selected venues
+        const selectedVenueObjs = venues.filter(v => formData.venues.includes(v.ven_id));
+        const totalCapacity = selectedVenueObjs.reduce((sum, v) => sum + (parseInt(v.ven_occupancy) || 0), 0);
+        const participants = parseInt(formData.participants) || 0;
+        if (participants > 0 && totalCapacity > 0 && participants > totalCapacity) {
+          toast.error(`Number of participants (${participants}) exceeds total venue capacity (${totalCapacity})`);
+          return false;
+        }
         return true;
       } else if (resourceType === 'equipment') {
         if (!formData.eventTitle || !formData.description) {
@@ -442,6 +451,7 @@ const renderBasicInformation = () => {
         selectedModels={selectedModels}
         vehicles={vehicles}
         setFormData={setFormData}
+        venues={venues} // Pass venues here
       />
     </>
   );
@@ -479,7 +489,8 @@ const handleAddReservation = async () => {
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
-          })).filter(item => item.quantity > 0)
+          })).filter(item => item.quantity > 0),
+          additional_note: formData.additionalNote || '', // Add this line
         }
       };
 
@@ -596,7 +607,8 @@ const handleAddReservation = async () => {
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
-          })).filter(item => item.quantity > 0)
+          })).filter(item => item.quantity > 0),
+          additional_note: formData.additionalNote || '', // Add this line
         }
       };
 
@@ -650,7 +662,8 @@ const handleAddReservation = async () => {
           end_date: format(new Date(formData.endDate), 'yyyy-MM-dd HH:mm:ss'),
           user_id: userId,
           participants: formData.participants ? formData.participants.toString() : "0",
-          equipment: selectedEquipment
+          equipment: selectedEquipment,
+          additional_note: formData.additionalNote || '', // Add this line
         }
       };
 
@@ -710,6 +723,7 @@ const resetForm = () => {
     forceMixedDrivers: false,
     availableDrivers: 0,
     totalVehicles: 0,
+    additionalNote: '', // Add this line for reset
   });
   
   // Reset resource selection state
@@ -809,15 +823,7 @@ const renderSuccessState = () => (
       title="Reservation Successfully Created!"
       subTitle="Your reservation has been submitted and is pending approval. You'll receive a notification once it's approved."
       extra={[
-        <AntButton 
-          type="primary" 
-          key="dashboard"
-          onClick={() => navigate('/dean/reservation')}
-          icon={<DashboardOutlined />}
-          className="bg-green-500 hover:bg-green-600 border-green-500"
-        >
-          View All Reservations
-        </AntButton>,
+       
         <AntButton 
           key="new" 
           onClick={resetForm}
@@ -1403,7 +1409,7 @@ const PassengerModal = ({ visible, onHide }) => {
   );
 };
 
-// Enhanced Equipment Selection Modal with search, filtering and better UI
+// --- EquipmentSelectionModal: Enhanced for mobile and cleanliness ---
 const EquipmentSelectionModal = ({ 
   localEquipmentQuantities, 
   setLocalEquipmentQuantities,
@@ -1416,12 +1422,61 @@ const EquipmentSelectionModal = ({
   formData
 }) => {
   const [equipmentSearch, setEquipmentSearch] = useState('');
-  // Remove selectedCategory state and all category filtering
-  // const [selectedCategory, setSelectedCategory] = useState('all');
   const [localState, setLocalState] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 12;
-  
+  const isMobile = window.innerWidth <= 600;
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  // Responsive modal width and height
+  const modalStyle = {
+    width: isMobile ? '100vw' : '90vw',
+    maxWidth: isMobile ? '100vw' : '700px',
+    padding: 0,
+    top: isMobile ? 0 : 24,
+    height: isMobile ? '100vh' : 'auto',
+    borderRadius: isMobile ? 0 : 16,
+  };
+
+  // Sticky header/footer styles
+  const stickyHeaderStyle = {
+    position: 'sticky',
+    top: 0,
+    zIndex: 2,
+    background: '#fff',
+    borderBottom: '1px solid #f0f0f0',
+    padding: isMobile ? '12px 12px 8px 12px' : '16px 24px',
+  };
+  const stickyFooterStyle = {
+    position: 'sticky',
+    bottom: 0,
+    zIndex: 2,
+    background: '#fafafa',
+    borderTop: '1px solid #f0f0f0',
+    padding: isMobile ? '10px 12px' : '12px 24px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: isMobile ? 8 : 16,
+  };
+
+  // Only the equipment list is scrollable
+  const scrollableListStyle = {
+    maxHeight: isMobile ? 'calc(100vh - 180px)' : '350px',
+    overflowY: 'auto',
+    padding: isMobile ? '10px 12px' : '16px 24px',
+    background: '#fff',
+    scrollbarWidth: 'thin',
+    scrollbarColor: '#b5e0b5 #f0f0f0',
+  };
+
+  // Custom scrollbar for webkit
+  const customScrollbar = `
+    ::-webkit-scrollbar { width: 8px; }
+    ::-webkit-scrollbar-thumb { background: #b5e0b5; border-radius: 4px; }
+    ::-webkit-scrollbar-track { background: #f0f0f0; }
+  `;
+
   // Reset local state when modal opens - use a ref to track if modal was just opened
   const modalJustOpenedRef = useRef(false);
   const modalOpenRef = useRef(false);
@@ -1543,17 +1598,13 @@ const EquipmentSelectionModal = ({
       setTempInputValue(currentQuantity?.toString() || '');
     }, [currentQuantity]);
 
-    console.log('Equipment item:', item);
-
     const handleInputChange = (e) => {
       e.stopPropagation();
       const inputValue = e.target.value;
-      
       if (inputValue === '' || /^\d+$/.test(inputValue)) {
         setTempInputValue(inputValue);
       }
     };
-
     const handleInputBlur = () => {
       if (tempInputValue === '') {
         onQuantityChange(item.equip_id, 0);
@@ -1566,21 +1617,20 @@ const EquipmentSelectionModal = ({
         }
       }
     };
-
     return (
       <Card
         className={`
-          overflow-hidden border-0 shadow-sm hover:shadow-md transition-all
+          transition-all duration-200 border-0 shadow-md hover:shadow-lg
           ${currentQuantity > 0 ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
-          flex h-full p-4
+          flex h-full p-4 rounded-xl mb-2 cursor-pointer
         `}
+        style={{ boxShadow: isSelected ? '0 4px 16px #b5e0b5aa' : undefined, borderRadius: 16, border: '1px solid #e0e0e0' }}
         onClick={onClick}
       >
         <div className="flex flex-row items-center gap-3 w-full">
           <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50 w-16 h-16 flex-shrink-0">
             <BsTools className="text-green-500 text-3xl" />
           </div>
-
           <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
             <div>
               <div className="flex items-start justify-between gap-2 mb-1">
@@ -1596,7 +1646,6 @@ const EquipmentSelectionModal = ({
                   </Tag>
                 )}
               </div>
-
               <div className="flex flex-wrap gap-3">
                 <div className="flex items-center gap-1 text-gray-600">
                   <MdInventory className="text-green-500 text-base" />
@@ -1613,7 +1662,6 @@ const EquipmentSelectionModal = ({
                 )}
               </div>
             </div>
-
             {/* Quantity Controls */}
             {isAvailable && (
               <div className="flex items-center justify-center gap-2 mt-auto pt-2">
@@ -1621,17 +1669,17 @@ const EquipmentSelectionModal = ({
                   onClick={(e) => {
                     e.stopPropagation();
                     const newQty = Math.max(0, currentQuantity - 1);
-                    console.log('Decreasing quantity for equipment:', item.equip_id, 'from', currentQuantity, 'to', newQty);
                     onQuantityChange(item.equip_id, newQty);
                   }}
                   disabled={currentQuantity === 0}
                   className={`
-                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    w-8 h-8 rounded-full flex items-center justify-center text-base font-bold
                     ${currentQuantity > 0 
                       ? 'bg-green-500 text-white hover:bg-green-600' 
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                     transition-colors
                   `}
+                  style={{ fontSize: isMobile ? 18 : 16 }}
                 >
                   -
                 </button>
@@ -1644,24 +1692,25 @@ const EquipmentSelectionModal = ({
                   onFocus={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   placeholder="0"
-                  className="w-16 h-6 text-center border border-gray-300 rounded text-xs font-medium
+                  className="w-16 h-8 text-center border border-gray-300 rounded text-base font-medium
                     focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  style={{ background: '#f8fff8', fontSize: isMobile ? 18 : 16 }}
                 />
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
                     const newQty = Math.min(currentQuantity + 1, availableQuantity);
-                    console.log('Increasing quantity for equipment:', item.equip_id, 'from', currentQuantity, 'to', newQty);
                     onQuantityChange(item.equip_id, newQty);
                   }}
                   disabled={currentQuantity >= availableQuantity}
                   className={`
-                    w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold
+                    w-8 h-8 rounded-full flex items-center justify-center text-base font-bold
                     ${currentQuantity < availableQuantity 
                       ? 'bg-green-500 text-white hover:bg-green-600' 
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                     transition-colors
                   `}
+                  style={{ fontSize: isMobile ? 18 : 16 }}
                 >
                   +
                 </button>
@@ -1673,6 +1722,11 @@ const EquipmentSelectionModal = ({
     );
   };
   
+  // Get unique categories from equipment
+  const equipmentCategories = Array.from(
+    new Set((Array.isArray(equipment) ? equipment : []).map(e => e.category_name).filter(Boolean))
+  );
+
   // Filter equipment by search term and category
   const filteredEquipment = Array.isArray(equipment) ? equipment.filter(item => {
     if (!item) return false;
@@ -1681,7 +1735,8 @@ const EquipmentSelectionModal = ({
     const searchTerm = equipmentSearch?.toLowerCase() || '';
     const itemName = (item.equip_name || item.equipment_name || '').toLowerCase();
     const matchesSearch = itemName.includes(searchTerm);
-    return matchesSearch;
+    const matchesCategory = selectedCategory === 'all' || item.category_name === selectedCategory;
+    return matchesSearch && matchesCategory;
   }) : [];
 
   // Calculate pagination
@@ -1710,41 +1765,45 @@ const EquipmentSelectionModal = ({
       }
       open={showEquipmentModal}
       onCancel={handleCancel}
-      width={1000}
+      footer={null}
+      style={modalStyle}
+      bodyStyle={{ padding: 0, height: isMobile ? '100vh' : undefined, overflow: 'hidden' }}
       zIndex={1000}
-      footer={[
-        <AntButton key="cancel" onClick={handleCancel}>
-          Cancel
-        </AntButton>,
-        <AntButton
-          key="confirm"
-          type="primary"
-          onClick={handleConfirm}
-          className="bg-green-500 hover:bg-green-600 border-green-500"
-        >
-          Confirm Selection
-        </AntButton>
-      ]}
+      destroyOnClose
+      maskClosable
+      className={isMobile ? 'equipment-modal-mobile' : ''}
     >
-      <div className="space-y-4">
-        {/* Header with Search and Controls */}
-        <div className="bg-white rounded-lg shadow-sm p-4">
-          <div className="flex flex-col sm:flex-row sm:items-center gap-2">
-            <div className="flex-1">
-              <h2 className="font-semibold text-gray-800 text-lg">
-                {Object.values(localState).filter(qty => qty > 0).length > 0
-                  ? `Selected Equipment (${Object.values(localState).filter(qty => qty > 0).length})`
-                  : 'Available Equipment'}
-              </h2>
-              <p className="text-gray-500 mt-0.5 text-sm">
-                {Object.values(localState).filter(qty => qty > 0).length > 0
-                  ? 'Equipment availability is calculated based on existing reservations'
-                  : 'Select equipment to proceed'}
-              </p>
-            </div>
+      {/* Custom scrollbar style */}
+      <style>{customScrollbar}</style>
+      {/* Sticky Header */}
+      <div style={stickyHeaderStyle}>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+          <div className="flex-1">
+            <h2 className="font-semibold text-gray-800 text-lg">
+              {Object.values(localState).filter(qty => qty > 0).length > 0
+                ? `Selected Equipment (${Object.values(localState).filter(qty => qty > 0).length})`
+                : 'Available Equipment'}
+            </h2>
+            <p className="text-gray-500 mt-0.5 text-sm">
+              {Object.values(localState).filter(qty => qty > 0).length > 0
+                ? 'Equipment availability is calculated based on existing reservations'
+                : 'Select equipment to proceed'}
+            </p>
           </div>
-          {/* Search Control Only */}
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-4 mt-4">
+        </div>
+        <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-row gap-4'} justify-between items-center mt-4`}>
+          <div className="flex-1 flex gap-2 items-center">
+            <select
+              value={selectedCategory}
+              onChange={e => setSelectedCategory(e.target.value)}
+              className="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
+              style={{ minWidth: 120 }}
+            >
+              <option value="all">All Categories</option>
+              {equipmentCategories.map(cat => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
             <Input.Search
               placeholder="Search equipment by name..."
               prefix={<SearchOutlined className="text-gray-400" />}
@@ -1752,96 +1811,87 @@ const EquipmentSelectionModal = ({
               value={equipmentSearch}
               className="w-full max-w-md"
               size="large"
+              style={{ borderRadius: 8 }}
             />
           </div>
         </div>
-
-        {/* Equipment List */}
-        <div className="max-h-[500px] overflow-y-auto">
-          <div className="flex flex-col gap-2">
-            {currentEquipment.map((item) => {
-              const equipmentKey = String(item.equip_id);
-              const currentQty = localState[equipmentKey] || 0;
-              
-              console.log('Rendering equipment card:', {
-                equipmentId: equipmentKey,
-                equipmentName: item.equip_name || item.equipment_name || item.name || 'Equipment Name Not Available',
-                currentQty: currentQty,
-                localState: localState
-              });
-              
-              return (
-                <EquipmentCard
-                  key={equipmentKey}
-                  item={item}
-                  isSelected={currentQty > 0}
-                  onClick={() => {
-                    const availableQty = parseInt(item.available_quantity || item.available) || 0;
-                    if (currentQty === 0 && availableQty > 0) {
-                      console.log('Clicking to add equipment:', equipmentKey);
-                      handleLocalQuantityChange(equipmentKey, 1);
-                    } else if (currentQty > 0) {
-                      console.log('Clicking to remove equipment:', equipmentKey);
-                      handleLocalQuantityChange(equipmentKey, 0);
-                    }
-                  }}
-                  currentQuantity={currentQty}
-                  onQuantityChange={handleLocalQuantityChange}
-                />
-              );
-            })}
-          </div>
-
-          {filteredEquipment.length === 0 && (
-            <div className="text-center p-8">
-              <Empty
-                description={
-                  <div className="text-center">
-                    <h3 className="font-medium text-gray-800 mb-1 text-base">
-                      {equipmentSearch 
-                        ? 'No equipment matches your search'
-                        : 'No Equipment Available'}
-                    </h3>
-                    <p className="text-gray-500 text-sm">
-                      {equipmentSearch 
-                        ? 'Try different keywords or clear the search'
-                        : 'Check back later for available equipment'}
-                    </p>
-                  </div>
-                }
-                className="bg-white rounded-lg shadow-sm p-8"
+      </div>
+      {/* Scrollable Equipment List */}
+      <div style={scrollableListStyle}>
+        <div className="flex flex-col gap-2">
+          {currentEquipment.map((item) => {
+            const equipmentKey = String(item.equip_id);
+            const currentQty = localState[equipmentKey] || 0;
+            return (
+              <EquipmentCard
+                key={equipmentKey}
+                item={item}
+                isSelected={currentQty > 0}
+                onClick={() => {
+                  const availableQty = parseInt(item.available_quantity || item.available) || 0;
+                  if (currentQty === 0 && availableQty > 0) {
+                    handleLocalQuantityChange(equipmentKey, 1);
+                  } else if (currentQty > 0) {
+                    handleLocalQuantityChange(equipmentKey, 0);
+                  }
+                }}
+                currentQuantity={currentQty}
+                onQuantityChange={handleLocalQuantityChange}
               />
-            </div>
-          )}
-
-          {/* Pagination */}
-          {filteredEquipment.length > 0 && (
-            <div className="flex justify-center mt-4 bg-white rounded-lg shadow-sm p-4">
-              <Pagination
-                current={currentPage}
-                total={totalItems}
-                pageSize={itemsPerPage}
-                onChange={handlePageChange}
-                size="default"
-                showSizeChanger={false}
-                showQuickJumper={true}
-              />
-            </div>
-          )}
+            );
+          })}
         </div>
+        {filteredEquipment.length === 0 && (
+          <div className="text-center p-8">
+            <Empty
+              description={
+                <div className="text-center">
+                  <h3 className="font-medium text-gray-800 mb-1 text-base">
+                    {equipmentSearch 
+                      ? 'No equipment matches your search'
+                      : 'No Equipment Available'}
+                  </h3>
+                  <p className="text-gray-500 text-sm">
+                    {equipmentSearch 
+                      ? 'Try different keywords or clear the search'
+                      : 'Check back later for available equipment'}
+                  </p>
+                </div>
+              }
+              className="bg-white rounded-lg shadow-sm p-8"
+            />
+          </div>
+        )}
+        {/* Pagination */}
+        {filteredEquipment.length > 0 && (
+          <div className="flex justify-center mt-4">
+            <Pagination
+              current={currentPage}
+              total={totalItems}
+              pageSize={itemsPerPage}
+              onChange={handlePageChange}
+              size="default"
+              showSizeChanger={false}
+              showQuickJumper={true}
+            />
+          </div>
+        )}
+      </div>
+      {/* Sticky Footer */}
+      <div style={stickyFooterStyle}>
         
-        {/* Summary Footer */}
-        <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
-          <div className="text-sm font-medium">
-            Selected Items: <span className="text-green-500">
-              {Object.values(localState).filter(qty => qty > 0).length}
-            </span>
-          </div>
-          <div className="text-sm font-medium">
-            Total Quantity: <span className="text-green-500">
-              {Object.values(localState).reduce((sum, qty) => sum + qty, 0)}
-            </span>
-          </div>
+        <div className="flex gap-2">
+          <AntButton key="cancel" onClick={handleCancel} className={isMobile ? 'text-base px-4 py-2' : ''}>
+            Cancel
+          </AntButton>
+          <AntButton
+            key="confirm"
+            type="primary"
+            onClick={handleConfirm}
+            className={`bg-green-500 hover:bg-green-600 border-green-500 ${isMobile ? 'text-base px-4 py-2' : ''}`}
+          >
+            Confirm Selection
+          </AntButton>
         </div>
       </div>
     </Modal>
@@ -2054,42 +2104,57 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                 driverType: 'default', 
                 name: '' 
               };
+              // Calculate current default driver count
+              const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+              const availableDrivers = formData.availableDrivers || 0;
+              // If forceMixedDrivers and default slots are full, auto-select 'own' for this vehicle
+              let effectiveDriverType = mixedDriverObj.driverType;
+              if (shouldForceMixedDrivers && mixedDriverObj.driverType === 'default' && currentDefaultCount > availableDrivers) {
+                effectiveDriverType = 'own';
+                // Update formData to reflect this change
+                setTimeout(() => {
+                  setFormData(prev => ({
+                    ...prev,
+                    mixedDrivers: prev.mixedDrivers.map(d =>
+                      d.vehicle_id === vehicle_id ? { ...d, driverType: 'own' } : d
+                    ),
+                  }));
+                }, 0);
+              }
               return (
                 <div key={vehicle_id} className={`border rounded-lg p-3 space-y-2 ${
-                  mixedDriverObj.driverType === 'default' ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'
+                  effectiveDriverType === 'default' ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'
                 }`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-gray-700">
                         {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
                       </span>
-                      {mixedDriverObj.driverType === 'default' && (
+                      {effectiveDriverType === 'default' && (
                         <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
                           Default Driver
                         </span>
                       )}
-                      {mixedDriverObj.driverType === 'own' && (
+                      {effectiveDriverType === 'own' && (
                         <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
                           Own Driver
                         </span>
                       )}
                     </div>
                     <Radio.Group
-                      value={mixedDriverObj.driverType}
+                      value={effectiveDriverType}
                       onChange={(e) => {
                         const newDriverType = e.target.value;
-                        
                         // If trying to assign default driver, check if we have enough available
                         if (newDriverType === 'default' && shouldForceMixedDrivers) {
                           const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
                           const availableDrivers = formData.availableDrivers || 0;
-                          
                           if (currentDefaultCount >= availableDrivers && mixedDriverObj.driverType !== 'default') {
                             toast.error(`Cannot assign more than ${availableDrivers} default drivers.`);
                             return;
                           }
                         }
-                        
+                        // If trying to assign own driver, always allow
                         setFormData(prev => ({
                           ...prev,
                           mixedDrivers: prev.mixedDrivers.map(d =>
@@ -2113,7 +2178,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                       <Radio value="own">Own Driver</Radio>
                     </Radio.Group>
                   </div>
-                  {mixedDriverObj.driverType === 'own' && (
+                  {effectiveDriverType === 'own' && (
                     <Input
                       placeholder="Enter driver name"
                       value={mixedDriverObj.name}

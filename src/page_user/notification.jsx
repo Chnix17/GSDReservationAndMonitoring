@@ -2,13 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FaBell, 
-  FaCheck, 
   FaClock, 
   FaTimes, 
-  FaTrash, 
   FaCheckCircle, 
-  FaFilter,
-  FaEye 
+  FaFilter
 } from 'react-icons/fa';
 import Sidebar from './component/user_sidebar';
 import { SecureStorage } from '../utils/encryption';
@@ -106,16 +103,7 @@ const NotificationPage = () => {
     });
   };
 
-  const markAsRead = (id) => {
-    setNotifications(notifications.map(notif =>
-      notif.id === id ? { ...notif, isRead: true } : notif
-    ));
-  };
 
-  const deleteNotification = (id) => {
-    setNotifications(notifications.filter(notif => notif.id !== id));
-    setSelectedNotification(null);
-  };
 
   const filteredNotifications = notifications.filter(
     (notif) => filter === 'all' || notif.type === filter
@@ -216,31 +204,7 @@ const NotificationPage = () => {
                             </span>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          {!notification.isRead && (
-                            <button
-                              onClick={() => markAsRead(notification.id)}
-                              className="p-2 text-gray-400 hover:text-gray-500"
-                              title="Mark as read"
-                            >
-                              <FaCheck className="w-4 h-4" />
-                            </button>
-                          )}
-                          <button
-                            onClick={() => setSelectedNotification(notification)}
-                            className="p-2 text-gray-400 hover:text-gray-500"
-                            title="View details"
-                          >
-                            <FaEye className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => deleteNotification(notification.id)}
-                            className="p-2 text-gray-400 hover:text-red-500"
-                            title="Delete"
-                          >
-                            <FaTrash className="w-4 h-4" />
-                          </button>
-                        </div>
+
                       </div>
                     </div>
                   </div>

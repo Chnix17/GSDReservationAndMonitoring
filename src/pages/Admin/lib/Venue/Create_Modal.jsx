@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Modal, Form, Input, Button } from 'antd';
+import { Modal, Form, Input, Button, Select } from 'antd';
 import { FaBuilding } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
@@ -12,6 +12,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
     const [venueName, setVenueName] = useState('');
     const [maxOccupancy, setMaxOccupancy] = useState('');
     const [venueExists, setVenueExists] = useState(false);
+    const [eventType, setEventType] = useState('Big Event');
 
     const checkVenueExists = async () => {
         const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({
@@ -42,13 +43,14 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
     const validateVenueData = () => {
         const sanitizedName = sanitizeInput(venueName);
         const sanitizedOccupancy = sanitizeInput(maxOccupancy);
+        const sanitizedEventType = sanitizeInput(eventType);
 
-        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy)) {
+        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy) || !validateInput(sanitizedEventType)) {
             toast.error("Invalid input detected. Please check your entries.");
             return false;
         }
 
-        if (!sanitizedName || !sanitizedOccupancy) {
+        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType) {
             toast.error("Please fill in all required fields!");
             return false;
         }
@@ -60,7 +62,8 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
 
         return {
             name: sanitizedName,
-            occupancy: sanitizedOccupancy
+            occupancy: sanitizedOccupancy,
+            event_type: sanitizedEventType
         };
     };
 
@@ -74,6 +77,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                 operation: 'saveVenue',
                 name: validatedData.name,
                 occupancy: validatedData.occupancy,
+                event_type: validatedData.event_type,
                 user_admin_id: SecureStorage.getSessionItem('user_id')
             };
 
@@ -92,6 +96,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                 form.resetFields();
                 setVenueName('');
                 setMaxOccupancy('');
+                setEventType('Big Event');
                 onSuccess();
                 onCancel();
             } else {
@@ -149,6 +154,23 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                         onChange={handleOccupancyChange}
                         placeholder="Enter maximum occupancy"
                         min="1"
+                    />
+                </Form.Item>
+                <Form.Item 
+                    label="Event Type"
+                    name="event_type"
+                    initialValue={eventType}
+                    rules={[
+                        { required: true, message: 'Please select event type!' },
+                    ]}
+                >
+                    <Select
+                        value={eventType}
+                        onChange={value => setEventType(value)}
+                        options={[
+                            { value: 'Big Event', label: 'Big Event' },
+                            { value: 'Small Event', label: 'Small Event' }
+                        ]}
                     />
                 </Form.Item>
                 <div className="flex justify-end gap-2 mt-4">

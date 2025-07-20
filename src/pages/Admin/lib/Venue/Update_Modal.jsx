@@ -13,6 +13,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     const [maxOccupancy, setMaxOccupancy] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('1');
     const [statusOptions, setStatusOptions] = useState([]);
+    const [eventType, setEventType] = useState('Big Event');
 
     const baseUrl = SecureStorage.getLocalItem("url");
 
@@ -62,11 +63,13 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 setVenueName(venue.ven_name);
                 setMaxOccupancy(venue.ven_occupancy);
                 setSelectedStatus(venue.status_availability_id);
+                setEventType(venue.event_type || 'Big Event');
                 
                 form.setFieldsValue({
                     name: venue.ven_name,
                     occupancy: venue.ven_occupancy,
-                    status: venue.status_availability_id
+                    status: venue.status_availability_id,
+                    event_type: venue.event_type || 'Big Event',
                 });
                 
             } else {
@@ -99,13 +102,14 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     const validateVenueData = () => {
         const sanitizedName = sanitizeInput(venueName);
         const sanitizedOccupancy = sanitizeInput(maxOccupancy);
+        const sanitizedEventType = sanitizeInput(eventType);
 
-        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy)) {
+        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy) || !validateInput(sanitizedEventType)) {
             toast.error("Invalid input detected. Please check your entries.");
             return false;
         }
 
-        if (!sanitizedName || !sanitizedOccupancy) {
+        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType) {
             toast.error("Please fill in all required fields!");
             return false;
         }
@@ -117,7 +121,8 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
 
         return {
             name: sanitizedName,
-            occupancy: sanitizedOccupancy
+            occupancy: sanitizedOccupancy,
+            event_type: sanitizedEventType
         };
     };
 
@@ -132,7 +137,8 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 venue_id: venueId,
                 venue_name: validatedData.name,
                 max_occupancy: validatedData.occupancy,
-                status_availability_id: parseInt(selectedStatus)
+                status_availability_id: parseInt(selectedStatus),
+                event_type: validatedData.event_type
             };
 
             const response = await axios.post(
@@ -226,6 +232,23 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                             </Select.Option>
                         ))}
                     </Select>
+                </Form.Item>
+                <Form.Item 
+                    label="Event Type"
+                    name="event_type"
+                    initialValue={eventType}
+                    rules={[
+                        { required: true, message: 'Please select event type!' },
+                    ]}
+                >
+                    <Select
+                        value={eventType}
+                        onChange={value => setEventType(value)}
+                        options={[
+                            { value: 'Big Event', label: 'Big Event' },
+                            { value: 'Small Event', label: 'Small Event' }
+                        ]}
+                    />
                 </Form.Item>
                 <div className="flex justify-end gap-2 mt-4">
                     <Button onClick={onCancel}>

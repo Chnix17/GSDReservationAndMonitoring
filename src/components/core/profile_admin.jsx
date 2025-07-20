@@ -149,7 +149,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       
       // Check if user is admin
       const userLevelId = SecureStorage.getSessionItem('user_level_id');
-      setIsAdmin(userLevelId === '1');
+      setIsAdmin(userLevelId === 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, fetchUserData, fetchDepartments, fetch2FAStatus]);
@@ -738,29 +738,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                     <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-green-500"></div>
                   </div>
                 ) : (
-                  <div className="flex flex-col md:flex-row gap-6">
-                    {/* Avatar Section */}
-                    <div className="md:w-1/3">
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 rounded-xl flex flex-col items-center">
-                        <div className="w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 rounded-full flex items-center justify-center text-white shadow-lg mb-4 ring-4 ring-white dark:ring-gray-700">
-                          <FaUser size={60} />
-                        </div>
-                        <h4 className="text-xl font-bold text-gray-800 dark:text-white mb-1">
-                          {`${userData.users_fname || ''} ${userData.users_mname || ''} ${userData.users_lname || ''}`.trim()}
-                        </h4>
-                        <p className="text-green-600 dark:text-green-400 font-medium">{userData.user_level_name || 'Administrator'}</p>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{userData.users_school_id || ''}</div>
-                        <div className="mt-4 w-full pt-4 border-t border-gray-200 dark:border-gray-600">
-                          <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                            <FaBuilding size={14} />
-                            <span>{userData.departments_name || ''}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
+                  <div className="w-full">
                     {/* Profile Details */}
-                    <div className="md:w-2/3 space-y-4">
+                    <div className="space-y-4">
                       <div className="bg-gray-50 dark:bg-gray-700/40 p-6 rounded-xl shadow-sm">
                         <div className="space-y-4">
                           {/* Full Name Fields - split into first, middle, last when editing */}

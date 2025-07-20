@@ -919,7 +919,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
             case 'vehicle':
               updatedTask.vehicles = updatedTask.vehicles.map(vehicle => 
                 vehicle.reservation_vehicle_id === reservation_id 
-                  ? { ...vehicle, is_returned: '1', return_condition: condition }
+                  ? { ...vehicle, is_returned: 1, return_condition: condition }
                   : vehicle
               );
               break;
@@ -1443,7 +1443,7 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
           initial={{ scale: 0.95, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
           exit={{ scale: 0.95, opacity: 0 }}
-          className="bg-[#fafff4] border border-gray-100 rounded-xl shadow-sm w-full max-w-3xl max-h-[95vh] overflow-hidden"
+          className="bg-[#fafff4] border border-gray-100 rounded-xl shadow-sm w-full max-w-3xl max-h-[95vh] overflow-hidden flex flex-col"
         >
           {isReleasing ? (
             <div className="flex flex-col items-center justify-center p-8">
@@ -1470,35 +1470,35 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                   </button>
                 </div>
               </div>
-              {/* --- Enhanced Progress Section --- */}
-              <div className="w-full flex flex-col items-center justify-center mb-4 mt-6 px-4">
-                <div className="w-full max-w-2xl bg-white/80 rounded-xl shadow border border-lime-100 p-4 sticky top-0 z-20">
-                  <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                    <div className="flex items-center gap-4 flex-1">
-                      <Tooltip title="Overall Progress">
-                        <Progress
-                          type="circle"
-                          percent={Math.round(overallPercent)}
-                          width={70}
-                          strokeColor="#84cc16"
-                          trailColor="#e5f9e0"
-                          format={percent => <span className="text-lime-700 font-bold">{percent}%</span>}
-                        />
-                      </Tooltip>
-                      <div className="flex flex-col gap-1">
-                        <span className="text-lg font-semibold text-lime-700">Overall Progress</span>
-                        <span className="text-xs text-gray-500">{overallCompleted} of {overallTotal} items completed</span>
+              <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3" style={{background: 'transparent'}}>
+                {/* --- Enhanced Progress Section --- */}
+                <div className="w-full flex flex-col items-center justify-center mb-4 px-4">
+                  <div className="w-full max-w-2xl bg-white/80 rounded-xl shadow border border-lime-100 p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                      <div className="flex items-center gap-4 flex-1">
+                        <Tooltip title="Overall Progress">
+                          <Progress
+                            type="circle"
+                            percent={Math.round(overallPercent)}
+                            width={70}
+                            strokeColor="#84cc16"
+                            trailColor="#e5f9e0"
+                            format={percent => <span className="text-lime-700 font-bold">{percent}%</span>}
+                          />
+                        </Tooltip>
+                        <div className="flex flex-col gap-1">
+                          <span className="text-lg font-semibold text-lime-700">Overall Progress</span>
+                          <span className="text-xs text-gray-500">{overallCompleted} of {overallTotal} items completed</span>
+                        </div>
                       </div>
-                    </div>
-                    <div className="flex flex-col md:flex-row gap-3 flex-1 justify-end">
-                      
-                     
+                      <div className="flex flex-col md:flex-row gap-3 flex-1 justify-end">
+                        {/* (empty for now) */}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-              {/* --- End Enhanced Progress Section --- */}
-              <div className="p-4 space-y-3 overflow-y-auto max-h-[calc(95vh-120px)]">
+                {/* --- End Enhanced Progress Section --- */}
+
                 {renderSection('Event Information', (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2.5">
@@ -1778,34 +1778,37 @@ const ChecklistModal = ({ isOpen, onClose, selectedTask, onTaskUpdate, refreshTa
                 ), 'equipment')}
               </div>
 
-              <div className="sticky bottom-0 bg-white/70 backdrop-blur-sm px-4 py-3 border-t border-gray-100/80">
-                <div className="flex justify-end gap-2">
+              <div className="w-full flex justify-center mt-10">
+                <div className="flex gap-4 bg-white/90 border border-gray-100 rounded-2xl shadow-lg px-8 py-5">
                   <button
                     onClick={onClose}
-                    className="px-3 py-1.5 text-xs sm:text-sm font-medium text-gray-600 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+                    className="flex items-center gap-2 px-6 py-2.5 rounded-full border border-gray-300 bg-white text-gray-700 font-medium text-base shadow-sm hover:bg-gray-50 hover:text-lime-700 transition-all focus:outline-none focus:ring-2 focus:ring-lime-200"
                   >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
                     Cancel
                   </button>
                   <button
                     onClick={handleSubmitTask}
                     disabled={isSubmitting || !isTaskInProgress(selectedTask) || !isAllChecklistsCompleted(selectedTask) || !areAllResourcesDone(selectedTask)}
-                    className={`px-3 py-1.5 text-xs sm:text-sm font-medium text-white rounded-lg flex items-center gap-2 transition-colors
+                    className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-base shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-lime-400
                       ${isTaskInProgress(selectedTask) && isAllChecklistsCompleted(selectedTask) && areAllResourcesDone(selectedTask)
-                        ? 'bg-lime-500 hover:bg-lime-600'
-                        : 'bg-gray-300 cursor-not-allowed'}
-                      disabled:opacity-50`}
+                        ? 'bg-lime-600 text-white hover:bg-lime-700'
+                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
+                    `}
                   >
                     {isSubmitting ? (
                       <>
-                        <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
-                        <span>Submitting...</span>
+                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+                        Submitting...
                       </>
                     ) : (
                       <>
-                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        <span>Mark Reservation As Done</span>
+                        Mark Reservation As Done
                       </>
                     )}
                   </button>

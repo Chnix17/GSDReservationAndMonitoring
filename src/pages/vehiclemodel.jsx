@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty, Alert } from 'antd';
+import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty } from 'antd';
 import { toast } from 'sonner';
 import Sidebar from './Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -9,7 +9,7 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined,  EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
@@ -24,8 +24,8 @@ const VehicleModels = () => {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ id: '', name: '', makeId: '', categoryId: '' });
   const [showModal, setShowModal] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [selectedModelId, setSelectedModelId] = useState(null);
+  // const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  // const [selectedModelId, setSelectedModelId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -160,40 +160,40 @@ const VehicleModels = () => {
     fetchVehicleModelById(id);
   };
 
-  const handleDelete = (id) => {
-    setSelectedModelId(id);
-    setShowConfirmDelete(true);
-  };
+// const handleDelete = (id) => {
+//   setSelectedModelId(id);
+//   setShowConfirmDelete(true);
+// };
 
-  const confirmDelete = async () => {
-    try {
-      const response = await axios.post(`${encryptedUrl}delete_master.php`, 
-        {
-          operation: 'deleteModel',
-          modelId: selectedModelId
-        },
-        {
-          headers: {
-            'Content-Type': 'application/json'
-          }
-        }
-      );
-      if (response.data.status === 'success') {
-        setModels(models.filter(model => model.vehicle_model_id !== selectedModelId));
-        setFilteredModels(filteredModels.filter(model => model.vehicle_model_id !== selectedModelId));
-        toast.dismiss();
-        toast.success('Vehicle model deleted successfully!');
-      } else {
-        toast.dismiss();
-        toast.error(response.data.message || 'Failed to delete vehicle model.');
-      }
-    } catch (error) {
-      toast.dismiss();
-      toast.error('Error deleting vehicle model.');
-    } finally {
-      setShowConfirmDelete(false);
-    }
-  };
+// const confirmDelete = async () => {
+//   try {
+//     const response = await axios.post(`${encryptedUrl}delete_master.php`, 
+//       {
+//         operation: 'deleteModel',
+//         modelId: selectedModelId
+//       },
+//       {
+//         headers: {
+//           'Content-Type': 'application/json'
+//         }
+//       }
+//     );
+//     if (response.data.status === 'success') {
+//       setModels(models.filter(model => model.vehicle_model_id !== selectedModelId));
+//       setFilteredModels(filteredModels.filter(model => model.vehicle_model_id !== selectedModelId));
+//       toast.dismiss();
+//       toast.success('Vehicle model deleted successfully!');
+//     } else {
+//       toast.dismiss();
+//       toast.error(response.data.message || 'Failed to delete vehicle model.');
+//     }
+//   } catch (error) {
+//     toast.dismiss();
+//     toast.error('Error deleting vehicle model.');
+//   } finally {
+//     setShowConfirmDelete(false);
+//   }
+// };
 
   const handleSave = async () => {
     const sanitizedName = sanitizeInput(formData.name);
@@ -436,6 +436,8 @@ const VehicleModels = () => {
                                     className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
                                   />
                                 </Tooltip>
+                                {/* Delete button is disabled/commented out to prevent deletion */}
+                                {/*
                                 <Tooltip title="Delete Model">
                                   <Button
                                     shape="circle"
@@ -446,6 +448,7 @@ const VehicleModels = () => {
                                     className="shadow-lg flex items-center justify-center"
                                   />
                                 </Tooltip>
+                                */}
                               </div>
                             </td>
                           </tr>
@@ -552,7 +555,8 @@ const VehicleModels = () => {
         </Form>
       </Modal>
 
-      {/* Confirm Delete Modal */}
+      {/* Confirm Delete Modal is disabled/commented out */}
+      {/*
       <Modal
         title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
         open={showConfirmDelete}
@@ -581,6 +585,7 @@ const VehicleModels = () => {
           icon={<ExclamationCircleOutlined />}
         />
       </Modal>
+      */}
 
     </div>
   );

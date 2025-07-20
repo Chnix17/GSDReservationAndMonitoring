@@ -169,7 +169,7 @@ const ReservationDetails = ({
                         <div>
                             <div className="flex items-center gap-2">
                                 <Tag color={reservationDetails.active === "0" ? "gold" : "blue"} className="text-sm px-3 py-1">
-                                    {reservationDetails.active === "0" ? "Final Confirmation" : "Waiting for Approval"}
+                                    {reservationDetails.active === "0" ? "Final Confirmation" : "Pending Department Approval"}
                                 </Tag>
                             </div>
                         </div>

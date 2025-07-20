@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
 import axios from 'axios';
-import { format, isSameDay, isPast, endOfDay, isBefore, differenceInCalendarDays, isWithinInterval } from 'date-fns';
+import { format, isSameDay, isPast, endOfDay, isBefore, isWithinInterval } from 'date-fns';
 import { toast } from 'react-toastify';
 import { DatePicker, TimePicker, Spin } from 'antd';
 import dayjs from 'dayjs';
@@ -66,7 +66,6 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   const [driverAvailability, setDriverAvailability] = useState([]);
   const [showDriverWarningModal, setShowDriverWarningModal] = useState(false);
   const [pendingDateSelection, setPendingDateSelection] = useState(null);
-  const [showDriverAvailability, setShowDriverAvailability] = useState(false);
   const userLevel = SecureStorage.getSessionItem('user_level');
   const userDepartment = SecureStorage.getSessionItem('Department Name');
 
@@ -93,8 +92,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-  // Business hours from 8 AM to 5 PM
-  const businessHours = [...Array(9)].map((_, i) => i + 8); // 8 to 16 (8 AM to 5 PM)
+  // Business hours from 8 AM to 10 PM
+  const businessHours = [...Array(14)].map((_, i) => i + 8); // 8 to 21 (8 AM to 10 PM)
 
   const [isLoading, setIsLoading] = useState(false);
   const [conflictDetails, setConflictDetails] = useState(null);
@@ -304,12 +303,6 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
 
 
 
-  const isWithinSevenDays = (date, startDate) => {
-    if (!startDate || !date) return false;
-    const diffInDays = differenceInCalendarDays(date, startDate);
-    return diffInDays >= 0 && diffInDays <= 6; // 0 to 6 = 7 days total
-  };
-
   const isHoliday = (date) => {
     if (!date || !holidays.length) return false;
     // Format both dates consistently as 'YYYY-MM-DD' for comparison
@@ -317,11 +310,23 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
     return holidays.some(holiday => holiday.date === formattedDate);
   };
 
+  // Helper to get the max selectable date (today + 7 days)
+
+
+  // Helper to get the minimum selectable date (today + 7 days)
+  const getMinSelectableDate = () => {
+    const minDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    minDate.setDate(minDate.getDate() + 7);
+    return minDate;
+  };
+
   const handleDateClick = (date) => {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-    
+    const minSelectableDate = getMinSelectableDate();
+
     // Check if it's a holiday first
     if (isHoliday(date)) {
       const holiday = holidays.find(h => h.date === format(date, 'yyyy-MM-dd'));
@@ -333,9 +338,9 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
       return;
     }
   
-    // Check if date is in the past
-    if (compareDate < today) {
-      toast.error('Cannot select past dates', {
+    // Check if date is before min selectable date
+    if (compareDate < minSelectableDate) {
+      toast.error('You must book at least 1 week in advance', {
         position: 'top-center',
         icon: '⏰',
         className: 'font-medium'
@@ -348,8 +353,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
     // Check if it's today but after business hours
     if (compareDate.getTime() === today.getTime()) {
       const currentHour = now.getHours();
-      if (currentHour >= 17) {
-        toast.error('Bookings for today are closed (after 5:00 PM)', {
+      if (currentHour >= 22) {
+        toast.error('Bookings for today are closed (after 10:00 PM)', {
           position: 'top-center',
           icon: '⏱️',
           className: 'font-medium'
@@ -360,15 +365,6 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   
     // If we already have a start date selected
     if (dateRange.start && !dateRange.end) {
-      // Check if the new date is within 7 days of the start date
-      if (!isWithinSevenDays(date, dateRange.start)) {
-        toast.error('End date must be within 7 days of start date', {
-          position: 'top-center',
-          icon: '📅',
-          className: 'font-medium'
-        });
-        return;
-      }
       // Check if the new date is before start date
       if (isBefore(date, dateRange.start)) {
         toast.error('End date cannot be before start date', {
@@ -420,7 +416,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
       const currentHour = now.getHours();
       const defaultStartHour = Math.max(currentHour + 1, 8); // Start at next hour, minimum 8 AM
       
-      if (defaultStartHour < 17) { // Only set if within business hours
+      if (defaultStartHour < 22) { // Only set if within business hours
         setSelectedTimes(prev => ({
           ...prev,
           startTime: defaultStartHour,
@@ -488,10 +484,11 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
       return 'holiday';
     }
 
-    // Check if date is in the past
+    // Check if date is before min selectable date
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    if (compareDate < today) {
+    const minSelectableDate = getMinSelectableDate();
+    if (compareDate < minSelectableDate) {
       return 'past';
     }
 
@@ -513,10 +510,10 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
         const itemStart = new Date(item.startDate);
         const itemEnd = new Date(item.endDate);
         
-        // Check if the reservation spans the whole business day (8AM to 5PM)
+        // Check if the reservation spans the whole business day (8AM to 10PM)
         const startsBeforeOrAt8AM = itemStart.getHours() <= 8;
-        const endsAtOrAfter5PM = itemEnd.getHours() >= 17;
-        const spansWholeDay = startsBeforeOrAt8AM && endsAtOrAfter5PM;
+        const endsAtOrAfter10PM = itemEnd.getHours() >= 22;
+        const spansWholeDay = startsBeforeOrAt8AM && endsAtOrAfter10PM;
         
         return spansWholeDay && (
           parseInt(item.totalAvailable) < parseInt(item.requestedQuantity) ||
@@ -579,8 +576,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
       if (isSameDay(resStart, resEnd) && isSameDay(resStart, compareDate)) {
         // Single day reservation - check if it spans the entire business day
         const startsBeforeOrAt8AM = resStart.getHours() <= 8;
-        const endsAtOrAfter5PM = resEnd.getHours() >= 17;
-        const spansWholeDay = startsBeforeOrAt8AM && endsAtOrAfter5PM;
+        const endsAtOrAfter10PM = resEnd.getHours() >= 22;
+        const spansWholeDay = startsBeforeOrAt8AM && endsAtOrAfter10PM;
         console.log(`Availability check - Single day ${format(compareDate, 'yyyy-MM-dd')}: ${spansWholeDay ? 'FULL DAY BLOCKED' : 'PARTIAL'} (${resStart.getHours()}:${resStart.getMinutes()}-${resEnd.getHours()}:${resEnd.getMinutes()})`);
         return spansWholeDay;
       } else if (isSameDay(resStart, compareDate)) {
@@ -589,8 +586,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
         console.log(`Availability check - First day ${format(compareDate, 'yyyy-MM-dd')}: ${isFullDay ? 'FULL DAY BLOCKED' : 'PARTIAL'} (start hour: ${resStart.getHours()})`);
         return isFullDay;
       } else if (isSameDay(resEnd, compareDate)) {
-        // Last day of multi-day reservation - check if it ends at or after 5 PM
-        const isFullDay = resEnd.getHours() >= 17;
+        // Last day of multi-day reservation - check if it ends at or after 10 PM
+        const isFullDay = resEnd.getHours() >= 22;
         console.log(`Availability check - Last day ${format(compareDate, 'yyyy-MM-dd')}: ${isFullDay ? 'FULL DAY BLOCKED' : 'PARTIAL'} (end hour: ${resEnd.getHours()})`);
         return isFullDay;
       } else {
@@ -612,14 +609,14 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
       if (isSameDay(resStart, resEnd) && isSameDay(resStart, compareDate)) {
         // Single day reservation - check if it doesn't span the entire business day
         const startsAfter8AM = resStart.getHours() > 8;
-        const endsBefore5PM = resEnd.getHours() < 17;
-        return startsAfter8AM || endsBefore5PM;
+        const endsBefore10PM = resEnd.getHours() < 22;
+        return startsAfter8AM || endsBefore10PM;
       } else if (isSameDay(resStart, compareDate)) {
         // First day - check if it starts after 8 AM
         return resStart.getHours() > 8;
       } else if (isSameDay(resEnd, compareDate)) {
-        // Last day - check if it ends before 5 PM
-        return resEnd.getHours() < 17;
+        // Last day - check if it ends before 10 PM
+        return resEnd.getHours() < 22;
       } else {
         // Middle day - should not happen if we already checked for full day block
         return false;
@@ -795,10 +792,10 @@ const renderCalendarGrid = () => {
           // If this is the first day of the reservation
           if (isSameDay(resStart, currentDate)) {
             dayStartTime = resStart;
-            // If it's a multi-day reservation, end at business hours (5 PM)
+            // If it's a multi-day reservation, end at business hours (10 PM)
             if (!isSameDay(resStart, resEnd)) {
               dayEndTime = new Date(currentDate);
-              dayEndTime.setHours(17, 0, 0, 0);
+              dayEndTime.setHours(22, 0, 0, 0);
             } else {
               // Single day reservation - use actual end time
               dayEndTime = resEnd;
@@ -813,7 +810,7 @@ const renderCalendarGrid = () => {
             dayStartTime = new Date(currentDate);
             dayStartTime.setHours(8, 0, 0, 0); // Start at business hours (8 AM)
             dayEndTime = new Date(currentDate);
-            dayEndTime.setHours(17, 0, 0, 0); // End at business hours (5 PM)
+            dayEndTime.setHours(22, 0, 0, 0); // End at business hours (10 PM)
           }
           
           return {
@@ -972,7 +969,7 @@ const renderCalendarGrid = () => {
               </div>
 
               {/* Driver availability indicator - only show for vehicle resources when enabled */}
-              {selectedResource.type === 'vehicle' && showDriverAvailability && (
+              {selectedResource.type === 'vehicle' && (
                 <div className="absolute top-2 right-2">
                   {(() => {
                     const driverInfo = getDriverAvailabilityForDate(day);
@@ -1134,6 +1131,14 @@ const DayDetailsModal = () => {
     // Check if it's a holiday
     if (holidays.some(holiday => format(date, 'yyyy-MM-dd') === holiday.date)) {
       return 'holiday';
+    }
+
+    // Check if date is before min selectable date
+    const minSelectableDate = getMinSelectableDate();
+    const slotDate = new Date(date);
+    slotDate.setHours(0, 0, 0, 0);
+    if (slotDate < minSelectableDate) {
+      return 'past';
     }
 
     // If user is Department Head from COO, all slots are available
@@ -1441,9 +1446,9 @@ const DayDetailsModal = () => {
                           // First day of reservation - use actual start time
                           dayStartTime = resStart;
                           if (!isSameDay(resStart, resEnd)) {
-                            // Multi-day reservation - end at business hours (5 PM)
+                            // Multi-day reservation - end at business hours (10 PM)
                             dayEndTime = new Date(day);
-                            dayEndTime.setHours(17, 0, 0, 0);
+                            dayEndTime.setHours(22, 0, 0, 0);
                           } else {
                             // Single day reservation - use actual end time
                             dayEndTime = resEnd;
@@ -1458,7 +1463,7 @@ const DayDetailsModal = () => {
                           dayStartTime = new Date(day);
                           dayStartTime.setHours(8, 0, 0, 0);
                           dayEndTime = new Date(day);
-                          dayEndTime.setHours(17, 0, 0, 0);
+                          dayEndTime.setHours(22, 0, 0, 0);
                         }
                         
                         // Check if the time slot overlaps with the actual reserved window for that day
@@ -1476,7 +1481,7 @@ const DayDetailsModal = () => {
                         dayStartTime = resStart;
                         if (!isSameDay(resStart, resEnd)) {
                           dayEndTime = new Date(day);
-                          dayEndTime.setHours(17, 0, 0, 0);
+                          dayEndTime.setHours(22, 0, 0, 0);
                         } else {
                           dayEndTime = resEnd;
                         }
@@ -1488,7 +1493,7 @@ const DayDetailsModal = () => {
                         dayStartTime = new Date(day);
                         dayStartTime.setHours(8, 0, 0, 0);
                         dayEndTime = new Date(day);
-                        dayEndTime.setHours(17, 0, 0, 0);
+                        dayEndTime.setHours(22, 0, 0, 0);
                       }
                       
                       return {
@@ -1639,7 +1644,7 @@ const DayDetailsModal = () => {
                         )}
 
                         {/* Driver availability indicator for weekly view */}
-                        {selectedResource.type === 'vehicle' && showDriverAvailability && !isPastHour && !isHoliday && !isWeekend && !isPastDate && (
+                        {selectedResource.type === 'vehicle' && (
                           <div className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             {(() => {
                               const driverInfo = getDriverAvailabilityForTimeSlot(day, hour);
@@ -1672,7 +1677,7 @@ const DayDetailsModal = () => {
   };
 
   const renderDayView = () => {
-    const timeSlots = Array.from({ length: 10 }, (_, i) => i + 8); // 8 AM to 5 PM
+    const timeSlots = Array.from({ length: 14 }, (_, i) => i + 8); // 8 AM to 10 PM
     const now = new Date();
     const isPastDay = isPast(endOfDay(currentDate));
     const isToday = isSameDay(currentDate, new Date());
@@ -1797,9 +1802,9 @@ const DayDetailsModal = () => {
                   // First day of reservation - use actual start time
                   dayStartTime = resStart;
                   if (!isSameDay(resStart, resEnd)) {
-                    // Multi-day reservation - end at business hours (5 PM)
+                    // Multi-day reservation - end at business hours (10 PM)
                     dayEndTime = new Date(currentDate);
-                    dayEndTime.setHours(17, 0, 0, 0);
+                    dayEndTime.setHours(22, 0, 0, 0);
                   } else {
                     // Single day reservation - use actual end time
                     dayEndTime = resEnd;
@@ -1814,7 +1819,7 @@ const DayDetailsModal = () => {
                   dayStartTime = new Date(currentDate);
                   dayStartTime.setHours(8, 0, 0, 0);
                   dayEndTime = new Date(currentDate);
-                  dayEndTime.setHours(17, 0, 0, 0);
+                  dayEndTime.setHours(22, 0, 0, 0);
                 }
                 
                 // Check if the time slot overlaps with the actual reserved window for that day
@@ -1832,7 +1837,7 @@ const DayDetailsModal = () => {
                 dayStartTime = resStart;
                 if (!isSameDay(resStart, resEnd)) {
                   dayEndTime = new Date(currentDate);
-                  dayEndTime.setHours(17, 0, 0, 0);
+                  dayEndTime.setHours(22, 0, 0, 0);
                 } else {
                   dayEndTime = resEnd;
                 }
@@ -1844,7 +1849,7 @@ const DayDetailsModal = () => {
                 dayStartTime = new Date(currentDate);
                 dayStartTime.setHours(8, 0, 0, 0);
                 dayEndTime = new Date(currentDate);
-                dayEndTime.setHours(17, 0, 0, 0);
+                dayEndTime.setHours(22, 0, 0, 0);
               }
               
               return {
@@ -2008,7 +2013,7 @@ const DayDetailsModal = () => {
                   )}
 
                   {/* Driver availability indicator for daily view */}
-                  {selectedResource.type === 'vehicle' && showDriverAvailability && !isPastHour && !holidayInfo && (
+                  {selectedResource.type === 'vehicle' && (
                     <div className="mt-2">
                       {(() => {
                         const driverInfo = getDriverAvailabilityForTimeSlot(currentDate, hour);
@@ -2640,7 +2645,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
           
           <div className="flex items-center gap-1.5 px-2 py-1 bg-red-50 dark:bg-red-900/20 rounded-lg">
             <div className="w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full bg-red-400"></div>
-            <span className="text-red-700 dark:text-red-300">No Drivers</span>
+            <span className="text-red-700 dark:text-red-300">Insufficient Drivers</span>
           </div>
         </>
       )}
@@ -2682,13 +2687,14 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
 
   // Add new handler for weekly/daily time slot clicks
   const handleTimeSlotClick = (day, hour) => {
-    const now = new Date();
+   
     const selectedDateTime = new Date(day);
     selectedDateTime.setHours(hour, 0, 0, 0);
-  
-    // Check if the selected time is in the past
-    if (selectedDateTime < now) {
-      toast.error('Cannot select past dates and times');
+    const minSelectableDate = getMinSelectableDate();
+
+    // Check if the selected time is before min selectable date
+    if (selectedDateTime < minSelectableDate) {
+      toast.error('You must book at least 1 week in advance');
       return;
     }
   
@@ -3103,7 +3109,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     }
     
     // Check if all business hours are blocked
-    const businessHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
+    const businessHours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
     const availableHours = businessHours.filter(hour => !blockedSlots.hours.includes(hour));
     allHoursBlocked = availableHours.length === 0;
     
@@ -3132,7 +3138,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   const presetConfigs = [
     { label: 'Morning', startHour: 8, endHour: 12 },
     { label: 'Afternoon', startHour: 13, endHour: 17 },
-    { label: 'Full Day', startHour: 8, endHour: 17 },
+    { label: 'Full Day', startHour: 8, endHour: 22 },
   ];
 
   const getPresetDisabled = (preset) => {
@@ -3168,6 +3174,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
 
   // Check if all hours are disabled for start time
   const startTimeDisabledHours = (() => {
+    // Only allow 8am to 4pm (start time cannot be 5pm or later)
     const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 8 || h > 16);
     if (blockedSlots && blockedSlots.hours) {
       blockedSlots.hours.forEach(h => {
@@ -3186,15 +3193,16 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
 
   // Check if all hours are disabled for end time
   const endTimeDisabledHours = (() => {
-    const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 9 || h > 17);
+    // Allow end time up to 10pm (22:00)
+    const baseDisabled = [...Array(24)].map((_, i) => i).filter(h => h < 9 || h > 22);
     if (blockedSlots && blockedSlots.hours) {
       blockedSlots.hours.forEach(h => {
-        if (!baseDisabled.includes(h) && h >= 9 && h <= 17) baseDisabled.push(h);
+        if (!baseDisabled.includes(h) && h >= 9 && h <= 22) baseDisabled.push(h);
       });
     }
     if (isToday) {
       for (let h = 9; h < Math.max(currentHour+1, 9); h++) {
-        if (h <= 17 && !baseDisabled.includes(h)) {
+        if (h <= 22 && !baseDisabled.includes(h)) {
           baseDisabled.push(h);
         }
       }
@@ -3295,10 +3303,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                     return true;
                   }
                   
-                  // Check if date is more than 7 days from start date
-                  if (dateRange.start && !isWithinSevenDays(current.toDate(), dateRange.start)) {
-                    return true;
-                  }
+               
                   
                   // Check if the date has full-day reservations (for non-COO users)
                   if (userLevel !== 'Department Head' || userDepartment !== 'COO') {
@@ -3774,7 +3779,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   // Add this new function before the return statement
   const renderTimeSelectionModal = () => {
   // Define business hours
-  const businessHours = Array.from({ length: 9 }, (_, i) => i + 8); // 8 to 16
+  const businessHours = Array.from({ length: 14 }, (_, i) => i + 8); // 8 to 21 (8 AM to 10 PM)
 
   // Helper to render hour buttons
   const renderHourButtons = (type) => (
@@ -3919,13 +3924,14 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     return blockedSlots;
   }
 
-  // Check if date is in the past
+  // Check if date is before min selectable date
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const compareDate = new Date(date);
   compareDate.setHours(0, 0, 0, 0);
-  if (compareDate < today) {
-    // Block all hours for past dates (0-23)
+  const minSelectableDate = getMinSelectableDate();
+  if (compareDate < minSelectableDate) {
+    // Block all hours for past or not allowed dates (0-23)
     for (let hour = 0; hour < 24; hour++) {
       blockedSlots.hours.push(hour);
     }
@@ -3954,10 +3960,10 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
         const itemStart = new Date(item.startDate);
         const itemEnd = new Date(item.endDate);
         
-        // Check if the reservation spans the whole business day (8AM to 5PM)
+        // Check if the reservation spans the whole business day (8AM to 10PM)
         const startsBeforeOrAt8AM = itemStart.getHours() <= 8;
-        const endsAtOrAfter5PM = itemEnd.getHours() >= 17;
-        const spansWholeDay = startsBeforeOrAt8AM && endsAtOrAfter5PM;
+        const endsAtOrAfter10PM = itemEnd.getHours() >= 22;
+        const spansWholeDay = startsBeforeOrAt8AM && endsAtOrAfter10PM;
         
         return spansWholeDay && (
           parseInt(item.totalAvailable) < parseInt(item.requestedQuantity) ||
@@ -3974,7 +3980,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
       }
 
       // Check for partial availability - block hours where equipment is insufficient
-      for (let hour = 8; hour < 17; hour++) {
+      for (let hour = 8; hour < 22; hour++) {
         const hourEquipment = dayEquipment.filter(item => {
           const itemStart = new Date(item.startDate);
           const itemEnd = new Date(item.endDate);
@@ -4391,6 +4397,16 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   // Enhanced calendar view with loading state
   return (
     <div className="mt-16 p-1.5 sm:p-4 space-y-2 sm:space-y-4 bg-white dark:bg-gray-900 rounded-lg shadow-sm">
+      {/* Unique advance booking reminder */}
+      <div className="mb-3 p-3 rounded-lg bg-yellow-100 border-l-4 border-yellow-400 flex items-center gap-3 shadow-sm">
+        <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />
+        </svg>
+        <div>
+          <div className="font-semibold text-yellow-800">Advance Booking Required</div>
+          <div className="text-yellow-700 text-sm">Reservations must be submitted at least <span className="font-bold">1 week before the start date of your event</span>. Dates within 7 days from today are not available for booking.</div>
+        </div>
+      </div>
       <div className="relative">
         <AnimatePresence>
           {isLoading && (
@@ -4443,26 +4459,6 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                 {viewType.charAt(0).toUpperCase() + viewType.slice(1)}
               </button>
             ))}
-            
-            {/* Driver availability toggle - only show for vehicle resources */}
-            {selectedResource.type === 'vehicle' && (
-              <button
-                onClick={() => setShowDriverAvailability(!showDriverAvailability)}
-                className={`px-2 py-1 text-[10px] sm:text-xs font-medium rounded-md transition-colors
-                  ${showDriverAvailability 
-                    ? 'bg-green-500 text-white' : 
-                    'bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700'
-                  }`}
-                title="Toggle driver availability display"
-              >
-                <span className="flex items-center gap-1">
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                  Drivers
-                </span>
-              </button>
-            )}
           </div>
         </div>
 

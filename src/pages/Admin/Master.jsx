@@ -455,12 +455,12 @@ const Master = () => {
               action: () => setIsAddHolidayModalOpen(true),
               viewPath: "/Holiday",
             },
-            {
-              title: "Drivers",
-              icon: <FaUserTie />,
-              action: () => setIsAddDriverModalOpen(true),
-              viewPath: "/drivers",
-            },
+            // {
+            //   title: "Drivers",
+            //   icon: <FaUserTie />,
+            //   action: () => setIsAddDriverModalOpen(true),
+            //   viewPath: "/drivers",
+            // },
             {
               title: "Venues",
               icon: <FaBuilding />,

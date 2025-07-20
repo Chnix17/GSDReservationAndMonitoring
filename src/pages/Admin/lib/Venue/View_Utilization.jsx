@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
+import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag, Table } from 'antd';
 import { HomeOutlined, ToolOutlined, ClockCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import {
@@ -29,6 +29,8 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
     const [loading, setLoading] = useState(true);
     const [utilizationData, setUtilizationData] = useState(null);
     const [venueDetails, setVenueDetails] = useState(null);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [reservationHistory, setReservationHistory] = useState([]);
     const COLORS = ['#548e54', '#83b383'];
 
     const calculateAverageUsageTime = useCallback((reservations) => {
@@ -199,17 +201,29 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
         );
     };
 
-    const items = [
-        {
-            key: '1',
-            label: <span className="text-base font-medium">Monthly Overview</span>,
-            children: (
-                <div className="p-4" style={{ minHeight: '500px' }}>
-                    {renderMonthlyUtilizationChart()}
-                </div>
-            ),
+    const fetchReservationHistory = useCallback(async () => {
+        if (open && venue?.ven_id) {
+            setHistoryLoading(true);
+            try {
+                const response = await axios.post(
+                    `${encryptedUrl}/user.php`,
+                    new URLSearchParams({
+                        operation: 'fetchVenueHistory',
+                        venue_id: venue.ven_id
+                    })
+                );
+                if (response.data.status === 'success') {
+                    setReservationHistory(response.data.data || []);
+                } else {
+                    setReservationHistory([]);
+                }
+            } catch (error) {
+                setReservationHistory([]);
+            } finally {
+                setHistoryLoading(false);
+            }
         }
-    ];
+    }, [open, venue, encryptedUrl]);
 
     useEffect(() => {
         const fetchUtilizationData = async () => {
@@ -238,6 +252,65 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
 
         fetchUtilizationData();
     }, [open, venue, encryptedUrl, processUtilizationData]);
+
+    useEffect(() => {
+        if (open) {
+            fetchReservationHistory();
+        }
+    }, [open, fetchReservationHistory]);
+
+    const historyColumns = [
+        {
+            title: 'Venue Name',
+            dataIndex: 'venue_name',
+            key: 'venue_name',
+        },
+        {
+            title: 'Requester',
+            dataIndex: 'requester',
+            key: 'requester',
+        },
+        {
+            title: 'Start Date',
+            dataIndex: 'reservation_start_date',
+            key: 'reservation_start_date',
+            render: (text) => moment(text).format('MMMM D h:mm a'),
+        },
+        {
+            title: 'End Date',
+            dataIndex: 'reservation_end_date',
+            key: 'reservation_end_date',
+            render: (text) => moment(text).format('MMMM D h:mm a'),
+        },
+    ];
+
+    const items = [
+        {
+            key: '1',
+            label: <span className="text-base font-medium">Monthly Overview</span>,
+            children: (
+                <div className="p-4" style={{ minHeight: '500px' }}>
+                    {renderMonthlyUtilizationChart()}
+                </div>
+            ),
+        },
+        {
+            key: '2',
+            label: <span className="text-base font-medium">Reservation History</span>,
+            children: (
+                <div className="p-4" style={{ minHeight: '500px' }}>
+                    <Table
+                        columns={historyColumns}
+                        dataSource={reservationHistory.map((item, idx) => ({ ...item, key: idx }))}
+                        loading={historyLoading}
+                        pagination={{ pageSize: 8 }}
+                        bordered
+                        size="small"
+                    />
+                </div>
+            ),
+        }
+    ];
 
     return (
         <Modal

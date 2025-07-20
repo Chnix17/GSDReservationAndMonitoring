@@ -253,6 +253,11 @@ const VenueEntry = () => {
                                             </th>
                                             <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
+                                                    Event Type
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-4 py-4">
+                                                <div className="flex items-center">
                                                     Status
                                                 </div>
                                             </th>
@@ -296,6 +301,9 @@ const VenueEntry = () => {
                                                         </td>
                                                         <td className="px-4 py-4">
                                                             {venue.ven_occupancy && venue.ven_occupancy !== '0' ? venue.ven_occupancy : 'Not Specified'}
+                                                        </td>
+                                                        <td className="px-4 py-4">
+                                                            {venue.event_type ? venue.event_type : 'Not Specified'}
                                                         </td>
                                                         <td className="px-4 py-4">
                                                             <Tag 

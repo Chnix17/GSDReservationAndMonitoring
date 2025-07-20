@@ -13,14 +13,13 @@ import {
     BuildOutlined, 
     ToolOutlined,
     UserOutlined,
-    CalendarOutlined,
+   
     CheckCircleOutlined,
     CloseCircleOutlined,
     EyeOutlined,
     InfoCircleOutlined,
     ReloadOutlined,
-    SearchOutlined,
-    ClockCircleOutlined
+    SearchOutlined
 } from '@ant-design/icons';
 import { SecureStorage } from '../../utils/encryption';
 import AssignModal from './core/Assign_Modal';
@@ -41,7 +40,7 @@ const ReservationRequests = () => {
     const [startDate, endDate] = dateRange;
     const [isAccepting, setIsAccepting] = useState(false);
     const [isDeclining, setIsDeclining] = useState(false);
-    const [activeTab, setActiveTab] = useState('1');
+  
     const [sortField, setSortField] = useState('reservation_created_at');
     const [sortOrder, setSortOrder] = useState('desc');
     const [setStats] = useState({
@@ -556,13 +555,21 @@ const ReservationRequests = () => {
             const finalReason = declineReason === 'other' ? customReason : 
                 declineReasons.find(r => r.value === declineReason)?.label || '';
 
+            // Use user_id or reservation_user_id as fallback
+            const notificationUserId = reservationDetails.user_id || reservationDetails.reservation_user_id;
+            console.log('Declining reservation:', {
+                reservation_id: currentRequest.reservation_id,
+                notification_user_id: notificationUserId,
+                reservationDetails
+            });
+
             const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'handleRequest',
                 reservation_id: currentRequest.reservation_id,
                 is_accepted: false,
                 user_id: SecureStorage.getSessionItem('user_id'),
                 notification_message: `Your reservation request has been declined. Reason: ${finalReason}`,
-                notification_user_id: reservationDetails.user_id
+                notification_user_id: notificationUserId
             }, {
                 headers: {
                     'Content-Type': 'application/json'
@@ -644,60 +651,9 @@ const ReservationRequests = () => {
         }
     }, [updateStats, encryptedUrl]);
 
-    const fetchReviewRequests = async () => {
-        try {
-            const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
-                operation: 'fetchRequestReservation'
-            }, {
-                headers: { 'Content-Type': 'application/json' }
-            });
 
-            if (response.data?.status === 'success') {
-                // Filter for active === "1"
-                const reviewRequests = response.data.data.filter(request => request.active === 1);
-                setReservations(reviewRequests);
-                updateStats(response.data.data);
-            }
-        } catch (error) {
-        }
-    };
 
-    const fetchHistoryRequests = async () => {
-        try {
-            const response = await axios.post(`${encryptedUrl}/process_reservation.php`, {
-                operation: 'fetchHistoryRequests'
-            }, {
-                headers: { 'Content-Type': 'application/json' }
-            });
 
-            if (response.data?.status === 'success') {
-                setReservations(response.data.data);
-                updateStats(response.data.data);
-            }
-        } catch (error) {
-            toast.error('Error fetching history');
-        }
-    };
-
-    // Update tab change handler
-    const handleTabChange = (key) => {
-        setActiveTab(key);
-        setReservations([]);
-        setCurrentPage(1);
-        switch (key) {
-            case '1':
-                fetchPendingRequests();
-                break;
-            case '2':
-                fetchReviewRequests();
-                break;
-            case '3':
-                fetchHistoryRequests();
-                break;
-            default:
-                break;
-        }
-    };
 
 
     useEffect(() => {
@@ -712,6 +668,8 @@ const ReservationRequests = () => {
   
     // Add this new Table component
     const RequestTable = ({ data, onView }) => {
+
+        
         const columns = [
             {
                 title: 'Title',
@@ -743,11 +701,14 @@ const ReservationRequests = () => {
                 key: 'reservation_start_date',
                 sorter: true,
                 sortOrder: sortField === 'reservation_start_date' ? sortOrder : null,
-                render: (text) => (
-                    <span className="whitespace-nowrap">
-                        {new Date(text).toLocaleDateString()}
-                    </span>
-                ),
+                render: (text) => {
+                    const date = new Date(text);
+                    return (
+                        <span className="whitespace-nowrap">
+                            {date.toLocaleDateString()} {formatTime(text)}
+                        </span>
+                    );
+                },
             },
             {
                 title: 'End Date',
@@ -755,11 +716,14 @@ const ReservationRequests = () => {
                 key: 'reservation_end_date',
                 sorter: true,
                 sortOrder: sortField === 'reservation_end_date' ? sortOrder : null,
-                render: (text) => (
-                    <span className="whitespace-nowrap">
-                        {new Date(text).toLocaleDateString()}
-                    </span>
-                ),
+                render: (text) => {
+                    const date = new Date(text);
+                    return (
+                        <span className="whitespace-nowrap">
+                            {date.toLocaleDateString()} {formatTime(text)}
+                        </span>
+                    );
+                },
             },
             {
                 title: 'Requester',
@@ -802,7 +766,7 @@ const ReservationRequests = () => {
                         className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center whitespace-nowrap"
                         >
                         {isExpired ? "Expired" :
-                         (record.active === 1) ? "Final Confirmation" : "Waiting for Approval"}
+                         (record.active === 1) ? "Final Confirmation" : "Pending Department Approval"}
                         </Tag>
                     );
                 },
@@ -947,54 +911,6 @@ const ReservationRequests = () => {
                         </div>
                     </motion.div>
                     
-                    {/* Tabs */}
-                    <div className="mb-6">
-                        <div className="bg-white rounded-lg shadow-sm">
-                            <div className="flex">
-                                {[
-                                    {
-                                        key: '1',
-                                        label: 'Waiting',
-                                        icon: <ClockCircleOutlined />,
-                                        count: reservations.filter(r => r.active === 0 || r.active == null).length,
-                                        color: 'blue'
-                                    },
-                                    {
-                                        key: '2',
-                                        label: 'Final',
-                                        icon: <CheckCircleOutlined />,
-                                        count: reservations.filter(r => r.active === 1).length,
-                                        color: 'amber'
-                                    }
-                                ].map((tab) => (
-                                    <button
-                                        key={tab.key}
-                                        onClick={() => handleTabChange(tab.key)}
-                                        className={`flex-1 flex items-center justify-center gap-1 sm:gap-2 px-2 sm:px-4 py-3 border-b-2 transition-colors duration-200 ${
-                                            activeTab === tab.key
-                                                ? 'border-green-600 text-green-600'
-                                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-200'
-                                        }`}
-                                    >
-                                        <span className={`text-sm sm:text-base ${activeTab === tab.key ? 'text-green-600' : `text-${tab.color}-500`}`}>
-                                            {tab.icon}
-                                        </span>
-                                        <span className="font-medium text-xs sm:text-sm">
-                                            {tab.label}
-                                        </span>
-                                        <span className={`px-1 sm:px-2 py-0.5 rounded-full text-xs font-medium ${
-                                            activeTab === tab.key
-                                                ? 'bg-green-100 text-green-600'
-                                                : `bg-${tab.color}-50 text-${tab.color}-600`
-                                        }`}>
-                                            {tab.count}
-                                        </span>
-                                    </button>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                    
                     {/* Search & Controls */}
                     <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
                         <div className="flex flex-row items-center gap-2 w-full">
@@ -1134,6 +1050,21 @@ const ReservationRequests = () => {
 };
 
 // Add this utility function before the DetailModal component
+// Utility function to format time as '8am' or '10:30pm'
+function formatTime(dateInput) {
+    const date = new Date(dateInput);
+    let hours = date.getHours();
+    let minutes = date.getMinutes();
+    let ampm = hours >= 12 ? 'P.M.' : 'A.M.';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    // If minutes are zero, omit them
+    let strTime = minutes === 0
+        ? `${hours}${ampm}`
+        : `${hours}:${minutes.toString().padStart(2, '0')}${ampm}`;
+    return strTime;
+}
+
 const formatDateRange = (startDate, endDate) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
@@ -1142,14 +1073,6 @@ const formatDateRange = (startDate, endDate) => {
     const monthNames = ["January", "February", "March", "April", "May", "June",
         "July", "August", "September", "October", "November", "December"
     ];
-
-    const formatTime = (date) => {
-        return date.toLocaleTimeString('en-US', {
-            hour: 'numeric',
-            minute: '2-digit',
-            hour12: true
-        });
-    };
 
     if (isSameDay) {
         return `${monthNames[start.getMonth()]} ${start.getDate()} ${formatTime(start)} to ${formatTime(end)}`;
@@ -1605,7 +1528,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     disabled={!!driverError || !priorityCheck.hasPriority || isDisabled || anyVenueNotAvailable}
                     className="bg-green-900 hover:bg-lime-900"
                 >
-                    Accept
+                    Approve
                 </Button>,
             ];
         }
@@ -1979,10 +1902,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
                                 {/* Requester Information */}
                                 <div className="space-y-4">
-                                    <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
-                                        <UserOutlined className="text-blue-500" />
-                                        Requester Details
-                                    </h3>
+                                   
                                     <div className="space-y-3">
                                         <div>
                                             <p className="text-sm text-gray-500">Name</p>
@@ -1996,16 +1916,21 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                             <p className="text-sm text-gray-500">Department</p>
                                             <p className="font-medium break-words">{reservationDetails.department_name}</p>
                                         </div>
+                                        <div>
+                                            <p className="text-sm font-bold text-green-700">Additional Note</p>
+                                            <p className="font-semibold break-words bg-yellow-100 text-green-900 rounded px-2 py-1 shadow-sm border border-yellow-300">hello</p>
+                                        </div>
                                     </div>
                                 </div>
 
                                 {/* Schedule and Details */}
                                 <div className="space-y-4">
-                                    <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
-                                        <CalendarOutlined className="text-orange-500" />
-                                        Schedule & Details
-                                    </h3>
+                                    
                                     <div className="space-y-3">
+                                        <div>
+                                            <p className="text-sm text-gray-500">Title</p>
+                                            <p className="font-medium break-words">{reservationDetails.reservation_title}</p>
+                                        </div>
                                         <div>
                                             <p className="text-sm text-gray-500">Description</p>
                                             <p className="font-medium break-words">{reservationDetails.reservation_description}</p>
@@ -2022,45 +1947,44 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             </div>
 
                             {/* Resources Section */}
-                            <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm mt-6">
-                                <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
-                                <div className="space-y-4">
-                                    {/* Venues */}
-                                    {reservationDetails.venues?.length > 0 && (
-                                        <Table 
-                                            title={() => "Venues"}
-                                            dataSource={reservationDetails.venues} 
-                                            columns={columns.venue}
-                                            pagination={false}
-                                            size="small"
-                                        />
-                                    )}
+                            <br />
+                            <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
+                            <div className="space-y-4">
+                                {/* Venues */}
+                                {reservationDetails.venues?.length > 0 && (
+                                    <Table 
+                                      
+                                        dataSource={reservationDetails.venues} 
+                                        columns={columns.venue}
+                                        pagination={false}
+                                        size="small"
+                                    />
+                                )}
 
-                                    {/* Vehicles */}
-                                    {reservationDetails.vehicles?.length > 0 && (
-                                        <Table 
-                                            title={() => "Vehicles"}
-                                            dataSource={reservationDetails.vehicles.map(vehicle => ({
-                                                ...vehicle,
-                                                driver: vehicleDriverAssignments[vehicle.vehicle_id] || null
-                                            }))} 
-                                            columns={vehicleColumns}
-                                            pagination={false}
-                                            size="small"
-                                        />
-                                    )}
+                                {/* Vehicles */}
+                                {reservationDetails.vehicles?.length > 0 && (
+                                    <Table 
+                                    
+                                        dataSource={reservationDetails.vehicles.map(vehicle => ({
+                                            ...vehicle,
+                                            driver: vehicleDriverAssignments[vehicle.vehicle_id] || null
+                                        }))} 
+                                        columns={vehicleColumns}
+                                        pagination={false}
+                                        size="small"
+                                    />
+                                )}
 
-                                    {/* Equipment */}
-                                    {reservationDetails.equipment?.length > 0 && (
-                                        <Table 
-                                            title={() => "Equipment"}
-                                            dataSource={reservationDetails.equipment} 
-                                            columns={columns.equipment}
-                                            pagination={false}
-                                            size="small"
-                                        />
-                                    )}
-                                </div>
+                                {/* Equipment */}
+                                {reservationDetails.equipment?.length > 0 && (
+                                    <Table 
+                                      
+                                        dataSource={reservationDetails.equipment} 
+                                        columns={columns.equipment}
+                                        pagination={false}
+                                        size="small"
+                                    />
+                                )}
                             </div>
                         </div>
                     </div>
@@ -2090,6 +2014,13 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                     operation: 'handleCancelReservation',
                     reservation_id: reservation.reservation_id,
                     user_id: SecureStorage.getSessionItem('user_id')
+                });
+                // Send notification to the cancelled reservation's requester
+                await axios.post(`${encryptedUrl}/user.php`, {
+                    operation: 'insertNotificationTouser',
+                    notification_message: 'Your reservation has been cancelled due to a higher-priority override.',
+                    notification_user_id: reservation.user_id,
+                    reservation_id: reservation.reservation_id
                 });
             }
             

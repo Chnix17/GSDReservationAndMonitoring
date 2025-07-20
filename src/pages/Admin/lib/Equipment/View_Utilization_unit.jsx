@@ -30,6 +30,7 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
     const [loading, setLoading] = useState(true);
     const [utilizationData, setUtilizationData] = useState(null);
     const [equipmentDetails, setEquipmentDetails] = useState(null);
+    const [reservationHistory, setReservationHistory] = useState([]); // NEW
     const encryptedUrl = SecureStorage.getLocalItem("url");
 
     const COLORS = ['#548e54', '#83b383'];
@@ -112,7 +113,30 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
             }
         };
 
+        // Fetch reservation history
+        const fetchReservationHistory = async () => {
+            if (open && equipment?.unit_id) {
+                try {
+                    const response = await axios.post(
+                        `${encryptedUrl}/user.php`,
+                        new URLSearchParams({
+                            operation: "fetchEquipmentUnitHistory",
+                            unit_id: equipment.unit_id
+                        })
+                    );
+                    if (response.data.status === 'success') {
+                        setReservationHistory(response.data.data);
+                    } else {
+                        setReservationHistory([]);
+                    }
+                } catch (error) {
+                    setReservationHistory([]);
+                }
+            }
+        };
+
         fetchUtilizationData();
+        fetchReservationHistory(); // NEW
     }, [open, equipment, encryptedUrl, processUtilizationData]);
 
     const calculateAverageUsageTime = (reservations) => {
@@ -232,6 +256,39 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
         );
     };
 
+    // Render reservation history table
+    const renderReservationHistory = () => {
+        if (!reservationHistory || reservationHistory.length === 0) {
+            return <div className="p-4 text-center text-gray-500">No reservation history found.</div>;
+        }
+        return (
+            <div className="overflow-x-auto p-2">
+                <table className="min-w-full border border-gray-200 rounded-lg">
+                    <thead className="bg-green-100">
+                        <tr>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Serial Number</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Equipment Name</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Requester</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Start Date</th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">End Date</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {reservationHistory.map((item, idx) => (
+                            <tr key={idx} className="border-t border-gray-100 hover:bg-green-50">
+                                <td className="px-3 py-2 text-sm">{item.serial_number}</td>
+                                <td className="px-3 py-2 text-sm">{item.equip_name}</td>
+                                <td className="px-3 py-2 text-sm">{item.requester}</td>
+                                <td className="px-3 py-2 text-sm">{moment(item.reservation_start_date).format('MMMM D h:mm A')}</td>
+                                <td className="px-3 py-2 text-sm">{moment(item.reservation_end_date).format('MMMM D h:mm A')}</td>
+                            </tr>
+                        ))}
+                    </tbody>
+                </table>
+            </div>
+        );
+    };
+
     const items = [
         {
             key: '1',
@@ -239,6 +296,16 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
             children: (
                 <div className="p-4" style={{ minHeight: '500px' }}>
                     {renderMonthlyUtilizationChart()}
+                </div>
+            ),
+        },
+        // NEW TAB
+        {
+            key: '2',
+            label: <span className="text-base font-medium">Reservation History</span>,
+            children: (
+                <div className="p-4" style={{ minHeight: '500px' }}>
+                    {renderReservationHistory()}
                 </div>
             ),
         }

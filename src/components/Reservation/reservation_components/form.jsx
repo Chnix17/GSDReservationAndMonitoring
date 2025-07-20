@@ -21,7 +21,8 @@ const BasicInformationForm = ({
   renderDriverDropdown,
   selectedModels,
   vehicles,
-  setFormData
+  setFormData,
+  venues = [], // Add venues as a prop (default empty array)
 }) => {
   // Debug logging
   console.log('BasicInformationForm props:', {
@@ -34,8 +35,17 @@ const BasicInformationForm = ({
       mixedDrivers: formData.mixedDrivers
     },
     selectedModels: selectedModels || [],
-    vehicles: vehicles || []
+    vehicles: vehicles || [],
+    venues: venues || []
   });
+
+  // Calculate max capacity for selected venues
+  let maxCapacity = 0;
+  if (formData.resourceType === 'venue' && Array.isArray(formData.venues) && venues.length > 0) {
+    maxCapacity = venues
+      .filter(v => formData.venues.includes(v.ven_id))
+      .reduce((sum, v) => sum + (parseInt(v.ven_occupancy) || 0), 0);
+  }
 
   return (
   <motion.div
@@ -85,17 +95,42 @@ const BasicInformationForm = ({
             </Form.Item>
 
             <Form.Item
-              label={<span className="text-sm">Number of Participants</span>}
+              label={<span className="text-sm">Number of Participants <span className="text-red-500">*</span></span>}
+              required
+              validateStatus={
+                formData.participants === '' ||
+                (maxCapacity > 0 && parseInt(formData.participants) > maxCapacity)
+                  ? 'error'
+                  : undefined
+              }
+              help={
+                maxCapacity > 0
+                  ? `Maximum allowed: ${maxCapacity} participant${maxCapacity > 1 ? 's' : ''}`
+                  : 'Select venue(s) to see capacity.'
+              }
             >
               <Input
                 name="participants"
                 value={formData.participants}
-                onChange={handleInputChange}
+                onChange={e => {
+                  let val = e.target.value.replace(/[^0-9]/g, '');
+                  if (maxCapacity > 0 && val !== '' && parseInt(val) > maxCapacity) {
+                    val = maxCapacity.toString();
+                  }
+                  handleInputChange({
+                    target: {
+                      name: 'participants',
+                      value: val
+                    }
+                  });
+                }}
                 type="number"
-                min="0"
+                min="1"
+                max={maxCapacity > 0 ? maxCapacity : undefined}
                 className="rounded"
                 size={isMobile ? 'middle' : 'large'}
-                placeholder="Enter number of participants (optional)"
+                placeholder={maxCapacity > 0 ? `Up to ${maxCapacity}` : 'Enter number of participants'}
+                required
               />
             </Form.Item>
 
@@ -159,6 +194,18 @@ const BasicInformationForm = ({
                   }
                 />
               )}
+            </Form.Item>
+            <Form.Item
+              label={<span className="text-sm">Additional Note</span>}
+            >
+              <Input
+                name="additionalNote"
+                value={formData.additionalNote}
+                onChange={handleInputChange}
+                className="rounded"
+                size={isMobile ? 'middle' : 'large'}
+                placeholder="Enter any additional notes (optional)"
+              />
             </Form.Item>
           </>
         ) : formData.resourceType === 'vehicle' ? (
@@ -315,6 +362,18 @@ const BasicInformationForm = ({
                 )}
               </Form.Item>
             </section>
+            <Form.Item
+              label={<span className="text-sm">Additional Note</span>}
+            >
+              <Input
+                name="additionalNote"
+                value={formData.additionalNote}
+                onChange={handleInputChange}
+                className="rounded"
+                size={isMobile ? 'middle' : 'large'}
+                placeholder="Enter any additional notes (optional)"
+              />
+            </Form.Item>
           </>
         ) : (
           <>
@@ -343,6 +402,18 @@ const BasicInformationForm = ({
                 rows={isMobile ? 3 : 4}
                 className="rounded"
                 placeholder="Describe how you will use the equipment"
+              />
+            </Form.Item>
+            <Form.Item
+              label={<span className="text-sm">Additional Note</span>}
+            >
+              <Input
+                name="additionalNote"
+                value={formData.additionalNote}
+                onChange={handleInputChange}
+                className="rounded"
+                size={isMobile ? 'middle' : 'large'}
+                placeholder="Enter any additional notes (optional)"
               />
             </Form.Item>
           </>
