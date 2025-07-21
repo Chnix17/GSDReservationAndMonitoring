@@ -317,17 +317,17 @@ const ViewPersonnelTask = () => {
   };
 
   return (
-    <div className="flex min-h-screen bg-gradient-to-br from-green-50 to-white">
+    <div className="flex min-h-screen ">
       <style>{styles}</style>
       <Sidebar />
       <div className="flex-1 p-3 sm:p-8 overflow-x-hidden">
         <div className="max-w-7xl mx-auto">
           {/* Header Section */}
-          <div className="mb-8 mt-20 sticky top-0 z-10 backdrop-blur-md pt-8 pb-6 rounded-xl shadow-md rounded-xl">
+          <div className="mb-8 mt-20 sticky top-0 z-10  ">
             <div className="flex flex-col gap-4 sm:gap-6">
-              <h1 className="text-3xl font-extrabold text-green-900 tracking-tight">My Tasks</h1>
+              <h1 className="text-3xl font-extrabold text-green-900 tracking-tight pt-4">My Tasks</h1>
               <div className="flex justify-start">
-                <div className="flex p-1 bg-green-50 rounded-lg shadow border border-green-100">
+                <div className="flex p-1 bg-green-50 rounded-lg ">
                   <button
                     onClick={() => setFilter('ongoing')}
                     className={`flex-1 px-5 py-2 rounded-md text-base font-semibold transition-all focus:outline-none focus:ring-2 focus:ring-green-400/50 ${
@@ -351,7 +351,7 @@ const ViewPersonnelTask = () => {
                 </div>
               </div>
             </div>
-            <div className="mt-4 border-t border-green-100" />
+            
           </div>
 
           {/* Search Bar Section */}
@@ -366,7 +366,7 @@ const ViewPersonnelTask = () => {
                     size="large"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full !bg-green-50 !border-green-200 !rounded-lg focus:!border-green-400"
+                    className="w-full  !border-green-200 !rounded-lg focus:!border-green-500"
                   />
                   <Tooltip title="Refresh data">
                     <Button
@@ -387,7 +387,7 @@ const ViewPersonnelTask = () => {
           </div>
 
           {/* Table Section */}
-          <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
+          <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl">
             {loading || releasingAll ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
@@ -455,7 +455,7 @@ const ViewPersonnelTask = () => {
                           >
                             <td className="px-6 py-4 relative">
                               {String(task.reservation_id) === String(highlightedId) && (
-                                <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-500 rounded-full animate-ping"></div>
+                                <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-9          00 rounded-full animate-ping"></div>
                               )}
                               {task.reservation_id}
                             </td>
