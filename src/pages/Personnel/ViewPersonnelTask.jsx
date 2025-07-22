@@ -387,7 +387,7 @@ const ViewPersonnelTask = () => {
           </div>
 
           {/* Table Section */}
-          <div className="relative overflow-x-auto shadow-lg rounded-md    sm:rounded-2xl">
+          <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
             {loading || releasingAll ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
