@@ -980,8 +980,9 @@ const Chat = () => {
       const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
       reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
     }
-  }, [activeConversation?.name, currentUser.id, currentUser.name, reconnectAttempts]);
+  }, []); // <-- empty dependency array ensures only runs on mount/unmount
 
+  // Only connect WebSocket on mount/unmount
   useEffect(() => {
     const cleanup = connectWebSocket();
     return () => {
@@ -990,7 +991,7 @@ const Chat = () => {
         wsRef.current.close();
       }
     };
-  }, [connectWebSocket]);
+  }, []); // <-- empty dependency array ensures only runs on mount/unmount
 
   // Add connection status indicator in the UI
   useEffect(() => {

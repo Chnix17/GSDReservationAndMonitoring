@@ -32,68 +32,55 @@ self.addEventListener('activate', event => {
 
 // Push event - SHOW the notification
 self.addEventListener('push', event => {
-  console.log('[Service Worker] Push Received:', event);
+    console.log('[Service Worker] Push Received:', event);
 
-  let defaultData = {
-    title: 'GSD Notification',
-    body: 'You have a new notification.',
-    icon: '/images/assets/phinma.png',
-    badge: '/images/assets/phinma.png',
-    tag: `gsd-notification-${Date.now()}-${Math.random()}`,
-    data: {
-      url: '/viewRequest',
-      timestamp: Date.now()
+    let title = 'GSD Notification';
+    let body = 'You have a new notification.';
+    let icon = '/images/assets/phinma.png';
+    let badge = '/images/assets/phinma.png';
+    let data = {
+        url: '/viewRequest',
+        timestamp: Date.now()
+    };
+
+    if (event.data) {
+        try {
+            const payload = event.data.json();
+            title = payload.title || title;
+            body = payload.body || body;
+            if (payload.data) {
+                data = { ...data, ...payload.data };
+            }
+        } catch (e) {
+            console.error('Push data is not valid JSON, treating as plain text.', e);
+            body = event.data.text();
+        }
     }
-  };
+    
+    const options = {
+        body: body,
+        icon: icon,
+        badge: badge,
+        tag: `gsd-notification-${Date.now()}`, // Using a timestamp tag helps prevent duplicate notifications
+        data: data,
+        renotify: true,
+        actions: [
+            {
+                action: 'view',
+                title: 'View',
+                icon: '/images/assets/phinma.png'
+            },
+            {
+                action: 'dismiss',
+                title: 'Dismiss',
+                icon: '/images/assets/phinma.png'
+            }
+        ]
+    };
 
-  if (event.data) {
-    try {
-      const payload = event.data.json();
-      defaultData = {
-        ...defaultData,
-        ...payload,
-        tag: `gsd-notification-${Date.now()}-${Math.random()}`
-      };
-    } catch (err) {
-      console.error('Failed to parse push data JSON:', err);
-      try {
-        const fallbackText = event.data.text();
-        defaultData.body = fallbackText;
-      } catch (fallbackErr) {
-        console.error('Fallback text parse failed:', fallbackErr);
-      }
-    }
-  }
-
-  const options = {
-    body: defaultData.body,
-    icon: defaultData.icon,
-    badge: defaultData.badge,
-    tag: defaultData.tag,
-    data: defaultData.data,
-    renotify: true, // Added to ensure notification pops up again
-    actions: [
-      {
-        action: 'view',
-        title: 'View',
-        icon: '/images/assets/phinma.png'
-      },
-      {
-        action: 'dismiss',
-        title: 'Dismiss',
-        icon: '/images/assets/phinma.png'
-      }
-    ]
-    // Removed requireInteraction: true for better compatibility
-  };
-
-  // Close all old notifications before showing a new one
-  event.waitUntil(
-    self.registration.getNotifications().then(notifications => {
-      notifications.forEach(notification => notification.close());
-      return self.registration.showNotification(defaultData.title, options);
-    })
-  );
+    event.waitUntil(
+        self.registration.showNotification(title, options)
+    );
 });
 
 // Notification click handler
