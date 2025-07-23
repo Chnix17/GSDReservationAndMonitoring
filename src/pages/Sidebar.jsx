@@ -5,7 +5,8 @@ import {
   FaBars,  FaUserCircle, FaFolder,
  FaChartBar, FaArchive, FaTimes,
   FaComments, FaBell, 
-  FaAngleRight, FaAngleLeft, FaCalendarAlt, FaCheck
+  FaAngleRight, FaAngleLeft, FaCalendarAlt, FaCheck,
+  FaCar, FaListAlt, FaBuilding, FaUsers, FaPlus
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -195,32 +196,41 @@ const Sidebar = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Check subscription status on component mount
+  // Add this function to fetch subscription status from backend
+  const fetchPushSubscriptionStatus = async () => {
+    try {
+      const userId = SecureStorage.getSessionItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem('url');
+      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'get',
+          user_id: userId
+        })
+      });
+      const result = await response.json();
+      if (result.status === 'success' && result.data && result.data.is_active === 1) {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+      } else {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+      }
+    } catch (error) {
+      console.error('Error fetching push subscription status:', error);
+      setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+    }
+  };
+
+  // In useEffect, call fetchPushSubscriptionStatus on mount
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
       const supported = 'serviceWorker' in navigator && 'PushManager' in window;
       const permission = Notification.permission;
-      
-      let subscribed = false;
-      if (supported && permission === 'granted') {
-        try {
-          const registration = await navigator.serviceWorker.getRegistration();
-          if (registration) {
-            const subscription = await registration.pushManager.getSubscription();
-            subscribed = !!subscription;
-          }
-        } catch (error) {
-          console.error('Error checking subscription:', error);
-        }
-      }
-
-      setSubscriptionStatus({
-        supported,
-        subscribed,
-        permission
-      });
+      setSubscriptionStatus(prev => ({ ...prev, supported, permission }));
+      await fetchPushSubscriptionStatus();
     };
-
     checkSubscriptionStatus();
   }, []);
 
@@ -274,7 +284,7 @@ const Sidebar = () => {
 
       const result = await response.json();
       if (result.status === 'success') {
-        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+        await fetchPushSubscriptionStatus();
         alert('Successfully subscribed to push notifications!');
       } else {
         throw new Error(result.message || 'Failed to save subscription');
@@ -418,28 +428,12 @@ const Sidebar = () => {
                       Please enable notifications in browser settings
                     </p>
                   )}
-                  {/* Test Notification Button */}
-                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                    <button
-                      onClick={async () => {
-                        try {
-                          const pushManager = new (await import('../utils/pushNotificationManager.js')).default();
-                          const result = await pushManager.testSimpleNotification();
-                          if (result) {
-                            alert('Test notification sent! Check your notifications.');
-                          } else {
-                            alert('Failed to send test notification. Check console for details.');
-                          }
-                        } catch (error) {
-                          console.error('Test notification error:', error);
-                          alert('Error testing notification: ' + error.message);
-                        }
-                      }}
-                      className="w-full px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Test Notification
-                    </button>
-                  </div>
+                  {/* Recommendation/Reminder for enabling push notifications */}
+                  {(!subscriptionStatus.subscribed && subscriptionStatus.supported && subscriptionStatus.permission !== 'denied') && (
+                    <div className="mt-2 text-xs text-blue-600 dark:text-blue-300">
+                      For real-time updates, enabling push notifications is recommended.
+                    </div>
+                  )}
                 </div>
               </Popover.Panel>
             </Transition>
@@ -656,24 +650,24 @@ const Sidebar = () => {
 
               {isDesktopSidebarOpen && <SectionLabel text="Resource Management" />}
 
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Master File" 
-                link="/Master" 
-                active={activeItem === '/Master'}
+              {/* Master File Dropdown (Desktop) */}
+              <SidebarDropdown
+                icon={FaFileAlt}
+                text="Master File"
                 isExpanded={isDesktopSidebarOpen}
+                active={[
+                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday'
+                ].includes(activeItem)}
+                items={[
+                  { text: 'Venues', link: '/Venue', icon: FaBuilding },
+                  { text: 'Vehicles', link: '/VehicleEntry', icon: FaCar },
+                  { text: 'Equipments', link: '/Equipment', icon: FaListAlt },
+                  { text: 'Users', link: '/Faculty', icon: FaUsers },
+                  { text: 'Holidays', link: '/Holiday', icon: FaPlus },
+                ]}
               />
-              
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Checklist" 
-                link="/Checklist" 
-                active={activeItem === '/Checklist'}
-                isExpanded={isDesktopSidebarOpen}
-              />
 
-
-
+              {/* Restore Archive nav item (Desktop) */}
               <MiniSidebarItem 
                 icon={FaArchive} 
                 text="Archive" 
@@ -702,7 +696,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaChartBar} 
-                text="Reports" 
+                text="Defect Reports" 
                 link="/Reports" 
                 active={activeItem === '/Reports'}
                 isExpanded={isDesktopSidebarOpen}
@@ -767,24 +761,24 @@ const Sidebar = () => {
 
               {isDesktopSidebarOpen && <SectionLabel text="Resource Management" />}
 
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Master" 
-                link="/Master" 
-                active={activeItem === '/Master'}
+              {/* Master File Dropdown (Mobile) */}
+              <SidebarDropdown
+                icon={FaFileAlt}
+                text="Master File"
                 isExpanded={isDesktopSidebarOpen}
+                active={[
+                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday'
+                ].includes(activeItem)}
+                items={[
+                  { text: 'Venues', link: '/Venue', icon: FaBuilding },
+                  { text: 'Vehicles', link: '/VehicleEntry', icon: FaCar },
+                  { text: 'Equipments', link: '/Equipment', icon: FaListAlt },
+                  { text: 'Users', link: '/Faculty', icon: FaUsers },
+                  { text: 'Holidays', link: '/Holiday', icon: FaPlus },
+                ]}
               />
-              
-              <MiniSidebarItem 
-                icon={FaFileAlt} 
-                text="Checklist" 
-                link="/Checklist" 
-                active={activeItem === '/Checklist'}
-                isExpanded={isDesktopSidebarOpen}
-              />
 
-
-
+              {/* Restore Archive nav item (Mobile) */}
               <MiniSidebarItem 
                 icon={FaArchive} 
                 text="Archive" 
@@ -813,7 +807,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaChartBar} 
-                text="Reports" 
+                text="Defect Reports" 
                 link="/Reports" 
                 active={activeItem === '/Reports'}
                 isExpanded={isDesktopSidebarOpen}
@@ -902,6 +896,73 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
     </Link>
   );
 });
+
+// Add SidebarDropdown component at the end of the file
+const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
+  const [open, setOpen] = useState(false);
+  useEffect(() => {
+    if (active) setOpen(true);
+  }, [active]);
+
+  // Helper to check if any item is currently active (matches current pathname)
+  const isAnyItemActive = items.some(item => window.location.pathname === item.link);
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        className={`flex items-center w-full ${isExpanded ? 'justify-between p-2.5' : 'justify-center p-2'} rounded-lg transition-all ${
+          active ? 'bg-[#145414] text-white font-medium' : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
+        }`}
+        onClick={() => {
+          // Only toggle open/close if not already open and not already on an active item
+          if (!open || !isAnyItemActive) {
+            setOpen((prev) => !prev);
+          }
+        }}
+        title={!isExpanded ? text : undefined}
+      >
+        <div className={`flex items-center ${isExpanded ? 'space-x-3' : ''}`}>
+          <Icon size={16} className={active ? 'text-white' : 'text-[#145414]'} />
+          {isExpanded && <span className="text-sm">{text}</span>}
+        </div>
+        {isExpanded && (
+          <span className="ml-auto">
+            {open ? <FaAngleLeft size={12} /> : <FaAngleRight size={12} />}
+          </span>
+        )}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className={`overflow-hidden ${isExpanded ? 'pl-8' : ''}`}
+          >
+            {items.map((item) => {
+              const ItemIcon = item.icon;
+              return (
+                <Link
+                  key={item.link}
+                  to={item.link}
+                  className={`flex items-center gap-2 py-2 px-2 rounded-lg text-sm transition-all ${
+                    window.location.pathname === item.link
+                      ? 'bg-[#145414] text-white font-medium'
+                      : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
+                  }`}
+                >
+                  {ItemIcon && <ItemIcon size={15} className="min-w-[15px]" />}
+                  {item.text}
+                </Link>
+              );
+            })}
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
 
 
 export default Sidebar;

@@ -11,9 +11,11 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   
   // User data states
   const [userData, setUserData] = useState({
+    title_abbreviation: '', // Added
     users_fname: '',
     users_mname: '',
     users_lname: '',
+    users_suffix: '', // Added
     users_email: '',
     users_school_id: '',
     users_contact_number: '',
@@ -25,6 +27,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
 
   // Add a state for departments
   const [departments, setDepartments] = useState([]);
+  // Add a state for titles
+  const [titles, setTitles] = useState([]);
+  // Add a state for user levels
+  const [userLevels, setUserLevels] = useState([]);
 
   // Add a state for loading 2FA status
   const [is2FALoading, setIs2FALoading] = useState(false);
@@ -105,6 +111,52 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     }
   }, [baseUrl]);
 
+  // Function to fetch titles from API
+  const fetchTitles = useCallback(async () => {
+    try {
+      const response = await fetch(`${baseUrl}/user.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: "fetchTitle"
+        })
+      });
+      const responseData = await response.json();
+      if (responseData && responseData.status === 'success' && responseData.data) {
+        setTitles(responseData.data);
+      } else {
+        setTitles([]);
+      }
+    } catch (error) {
+      setTitles([]);
+    }
+  }, [baseUrl]);
+
+  // Function to fetch user levels from API
+  const fetchUserLevels = useCallback(async () => {
+    try {
+      const response = await fetch(`${baseUrl}/user.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: "fetchUserLevels"
+        })
+      });
+      const responseData = await response.json();
+      if (responseData && responseData.status === 'success' && responseData.data) {
+        setUserLevels(responseData.data);
+      } else {
+        setUserLevels([]);
+      }
+    } catch (error) {
+      setUserLevels([]);
+    }
+  }, [baseUrl]);
+
   // Function to fetch 2FA status
   const fetch2FAStatus = useCallback(async () => {
     try {
@@ -146,13 +198,14 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       fetchUserData();
       fetchDepartments();
       fetch2FAStatus();
-      
+      fetchTitles();
+      fetchUserLevels();
       // Check if user is admin
       const userLevelId = SecureStorage.getSessionItem('user_level_id');
-      setIsAdmin(userLevelId === '1');
+      setIsAdmin(userLevelId === 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, fetchUserData, fetchDepartments, fetch2FAStatus]);
+  }, [isOpen, fetchUserData, fetchDepartments, fetch2FAStatus, fetchTitles, fetchUserLevels]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({...userData});
@@ -220,7 +273,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           users_mname: editedData.users_mname,
           users_lname: editedData.users_lname,
           users_email: editedData.users_email,
-          users_contact_number: editedData.users_contact_number
+          users_contact_number: editedData.users_contact_number,
+          users_suffix: editedData.users_suffix || '',
+          title_id: titles.find(t => t.abbreviation === editedData.title_abbreviation)?.id || null,
+          users_user_level_id: editedData.user_level_id || userData.user_level_id,
         };
         
         // Only include restricted fields if user is admin
@@ -258,7 +314,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       }
     } else {
       // Start editing - make a copy of the current userData
-      setEditedData({...userData});
+      setEditedData({
+        ...userData,
+        user_level_id: userData.user_level_id || userData.users_user_level_id || '',
+      });
     }
     setIsEditing(!isEditing);
   };
@@ -593,7 +652,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           )}
         </label>
         
-        {isEditing && !isRestrictedField && isSelectField ? (
+        {isEditing && !isRestrictedField && isSelectField && fieldName === 'departments_id' ? (
           <select
             name={fieldName}
             value={editedData[fieldName] || editedData.users_department_id || ''}
@@ -605,6 +664,18 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
               <option key={dept.departments_id} value={dept.departments_id}>
                 {dept.departments_name}
               </option>
+            ))}
+          </select>
+        ) : isEditing && !isRestrictedField && isRoleField ? (
+          <select
+            name="user_level_id"
+            value={editedData.user_level_id || ''}
+            onChange={handleInputChange}
+            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+          >
+            <option value="">Select Role</option>
+            {userLevels.map(level => (
+              <option key={level.user_level_id} value={level.user_level_id}>{level.user_level_name}</option>
             ))}
           </select>
         ) : isEditing && !isRestrictedField ? (
@@ -738,29 +809,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                     <div className="animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-green-500"></div>
                   </div>
                 ) : (
-                  <div className="flex flex-col md:flex-row gap-6">
-                    {/* Avatar Section */}
-                    <div className="md:w-1/3">
-                      <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700 dark:to-gray-800 p-6 rounded-xl flex flex-col items-center">
-                        <div className="w-32 h-32 bg-gradient-to-br from-green-400 to-green-600 dark:from-green-500 dark:to-green-700 rounded-full flex items-center justify-center text-white shadow-lg mb-4 ring-4 ring-white dark:ring-gray-700">
-                          <FaUser size={60} />
-                        </div>
-                        <h4 className="text-xl font-bold text-gray-800 dark:text-white mb-1">
-                          {`${userData.users_fname || ''} ${userData.users_mname || ''} ${userData.users_lname || ''}`.trim()}
-                        </h4>
-                        <p className="text-green-600 dark:text-green-400 font-medium">{userData.user_level_name || 'Administrator'}</p>
-                        <div className="text-sm text-gray-500 dark:text-gray-400 mt-1">{userData.users_school_id || ''}</div>
-                        <div className="mt-4 w-full pt-4 border-t border-gray-200 dark:border-gray-600">
-                          <div className="flex items-center justify-center space-x-2 text-sm text-gray-500 dark:text-gray-400">
-                            <FaBuilding size={14} />
-                            <span>{userData.departments_name || ''}</span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                    
+                  <div className="w-full">
                     {/* Profile Details */}
-                    <div className="md:w-2/3 space-y-4">
+                    <div className="space-y-4">
                       <div className="bg-gray-50 dark:bg-gray-700/40 p-6 rounded-xl shadow-sm">
                         <div className="space-y-4">
                           {/* Full Name Fields - split into first, middle, last when editing */}
@@ -770,7 +821,21 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                               <span>Full Name</span>
                             </label>
                             {isEditing ? (
-                              <div className="grid grid-cols-3 gap-2">
+                              <div className="space-y-2">
+                                <div>
+                                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Title</label>
+                                  <select
+                                    name="title_abbreviation"
+                                    value={editedData.title_abbreviation || ''}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                                  >
+                                    <option value="">Select Title</option>
+                                    {titles.map((title) => (
+                                      <option key={title.id} value={title.abbreviation}>{title.abbreviation}</option>
+                                    ))}
+                                  </select>
+                                </div>
                                 <div>
                                   <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">First Name</label>
                                   <input
@@ -801,9 +866,32 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                                     className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                                   />
                                 </div>
+                                <div>
+                                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Suffix</label>
+                                  <select
+                                    name="users_suffix"
+                                    value={editedData.users_suffix || ''}
+                                    onChange={handleInputChange}
+                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                                  >
+                                    <option value="">No Suffix</option>
+                                    <option value="Jr.">Jr.</option>
+                                    <option value="Sr.">Sr.</option>
+                                    <option value="II">II</option>
+                                    <option value="III">III</option>
+                                    <option value="IV">IV</option>
+                                    <option value="V">V</option>
+               
+                                  </select>
+                                </div>
                               </div>
                             ) : (
-                              <p className="text-gray-800 dark:text-white bg-white/70 dark:bg-gray-800/70 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700">{`${userData.users_fname || ''} ${userData.users_mname || ''} ${userData.users_lname || ''}`.trim()}</p>
+                              <p className="text-gray-800 dark:text-white bg-white/70 dark:bg-gray-800/70 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700">
+                                {`
+                                  ${userData.title_abbreviation ? userData.title_abbreviation + ' ' : ''}
+                                  ${userData.users_fname || ''} ${userData.users_mname || ''} ${userData.users_lname || ''}${userData.users_suffix ? ' ' + userData.users_suffix : ''}
+                                `.replace(/\s+/g, ' ').trim()}
+                              </p>
                             )}
                           </div>
                           

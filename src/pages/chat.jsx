@@ -401,106 +401,106 @@ const Chat = () => {
     if (!activeConversation || !currentUser) return null;
     
     return (
-      <div className="sticky top-0 z-10 border-b bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md pt-6">
-        <div className="container mx-auto">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">              <button
-              onClick={handleBackClick}
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
-              aria-label="Back"
-            >
-                <FiChevronLeft className="w-5 h-5 text-white" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <img 
-                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
-                    className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
-                    alt={activeConversation?.name || 'User'}
-                    onError={(e) => { e.target.src = 'default-avatar.svg' }}
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
-                 
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button 
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
-                aria-label="Search"
-                onClick={() => setShowSearch(!showSearch)}
-              >
-                <FiSearch className="w-4 h-4 text-white" />
-              </button>
-              <button 
-                onClick={() => setShowChatMenu(!showChatMenu)}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
-                aria-label="More options"
-              >
-                <FiMoreVertical className="w-4 h-4 text-white" />
-                {showChatMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
-                    <div className="py-1">
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiUserPlus className="w-4 h-4" /> Add members
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiEdit className="w-4 h-4" /> Edit chat
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiStar className="w-4 h-4" /> Pin conversation
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiArchive className="w-4 h-4" /> Archive chat
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
-                        <FiTrash className="w-4 h-4" /> Delete chat
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </button>
+      <div className="sticky top-0 z-10 bg-gradient-to-r from-lime-900 to-green-900 text-white  rounded-t-lg">
+  <div className="container mx-auto">
+    <div className="flex items-center justify-between p-4">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleBackClick}
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
+          aria-label="Back"
+        >
+          <FiChevronLeft className="w-5 h-5 text-white" />
+        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <img 
+              src={activeConversation && getAvatarUrl(activeConversation.picture)}
+              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
+              alt={activeConversation?.name || 'User'}
+              onError={(e) => { e.target.src = 'default-avatar.svg' }}
+            />
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded-full"></div>
             </div>
           </div>
-          
-          {/* Search bar - conditionally rendered */}
-          <AnimatePresence>
-            {showSearch && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="px-4 pb-4"
-              >
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search in conversation..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                  <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-                  {searchQuery && (
-                    <button 
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
-                    >
-                      <FiX className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div>
+            <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
+          </div>
         </div>
       </div>
+      
+      <div className="flex items-center gap-2">
+        <button 
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
+          aria-label="Search"
+          onClick={() => setShowSearch(!showSearch)}
+        >
+          <FiSearch className="w-4 h-4 text-white" />
+        </button>
+        <button 
+          onClick={() => setShowChatMenu(!showChatMenu)}
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
+          aria-label="More options"
+        >
+          <FiMoreVertical className="w-4 h-4 text-white" />
+          {showChatMenu && (
+            <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
+              <div className="py-1">
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiUserPlus className="w-4 h-4" /> Add members
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiEdit className="w-4 h-4" /> Edit chat
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiStar className="w-4 h-4" /> Pin conversation
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiArchive className="w-4 h-4" /> Archive chat
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
+                  <FiTrash className="w-4 h-4" /> Delete chat
+                </button>
+              </div>
+            </div>
+          )}
+        </button>
+      </div>
+    </div>
+    
+    {/* Search bar - conditionally rendered */}
+    <AnimatePresence>
+      {showSearch && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="px-4 pb-4"
+        >
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search in conversation..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
+            />
+            <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+</div>
     );
   };
 
@@ -533,7 +533,7 @@ const Chat = () => {
         <motion.div 
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-3 p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200"
+          className="mb-3 p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200 "
         >
           <div className="flex items-center gap-3">
             {attachmentPreview.type.startsWith('image/') ? (
@@ -1062,7 +1062,7 @@ const Chat = () => {
     if (connectionStatus === 'connected') return null;
     
     return (
-      <div className="absolute left-0 right-0 top-[64px] z-20 px-4 py-1.5 flex justify-center">
+      <div className="absolute left-[10.5rem] right-0 top-[94px] z-20 px-4 py-1.5 flex justify-center">
         <motion.div 
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1147,214 +1147,215 @@ const Chat = () => {
         <Sidebar />
       </div>
       
-      <div className="flex-1 flex flex-col h-full mb-4 mt-20">
-        {renderConnectionStatus()}
-      
-        {viewMode === 'list' ? (
-          // List View
-          <div className="flex flex-col h-full overflow-hidden">
-            <div className="bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md">
-              {!isMobile && (
-                <div className="flex items-center justify-between px-6 py-4">
-                  <h3 className="font-semibold text-white text-lg">Chats</h3>
-                  <div className="flex items-center gap-2">
-                    <button 
-                      onClick={() => setShowSearch(!showSearch)}
-                      className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                    >
-                      <FiSearch className="w-4 h-4 text-white" />
-                    </button>
-                    <button 
-                      onClick={() => setShowNewChat(true)}
-                      className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
-                    >
-                      <FiPlus className="w-4 h-4 text-white" />
-                    </button>
-                  </div>
-                </div>
-              )}
-              
-              {/* Desktop Search bar - conditionally rendered */}
-              {!isMobile && (
-                <AnimatePresence>
-                  {showSearch && (
-                    <motion.div 
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                      className="px-6 pb-4"
-                    >
-                      <div className="relative">
-                        <input
-                          type="text"
-                          placeholder="Search conversations..."
-                          value={conversationSearch}
-                          onChange={(e) => setConversationSearch(e.target.value)}
-                          className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
-                        />
-                        <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-                        {conversationSearch && (
-                          <button 
-                            onClick={() => setConversationSearch('')}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
-                          >
-                            <FiX className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              )}
+      <div className="flex-1 flex flex-col h-full min-w-[300px] mt-20 md:mt-[7rem] mx-1.5 md:mx-2 rounded-xl">
+  {renderConnectionStatus()}
 
+  {viewMode === "list" ? (
+    // List View
+    <div className="flex flex-col h-full overflow-hidden rounded-xl">
+      <div className="bg-gradient-to-r from-lime-900 to-green-900 text-white shadow-md rounded-xl">
+        {/* Header - Now visible on all devices */}
+        <div className="flex items-center justify-between p-3 sm:p-4">
+          <h3 className="font-semibold text-white text-lg">Chats</h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowSearch(!showSearch)}
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
+              aria-label="Search chats"
+            >
+              <FiSearch className="w-4 h-4 text-white" />
+            </button>
+            <button
+              onClick={() => setShowNewChat(true)}
+              className="w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all"
+              aria-label="New chat"
+            >
+              <FiPlus className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        </div>
 
-              {/* Chat filter tabs */}
-              <div className="bg-white border-b border-gray-200 px-2 overflow-x-auto">
-                <div className="flex items-center space-x-1 py-2">
-                  <button 
-                    onClick={() => setChatFilter('all')}
-                    className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-all ${
-                      chatFilter === 'all' 
-                        ? 'bg-slate-100 text-slate-800' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
+        {/* Search bar - now works on mobile too */}
+        <AnimatePresence>
+          {showSearch && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              exit={{ opacity: 0, height: 0 }}
+              className="px-4 sm:px-6 pb-3 sm:pb-4"
+            >
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search conversations..."
+                  value={conversationSearch}
+                  onChange={(e) => setConversationSearch(e.target.value)}
+                  className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 pr-8 focus:outline-none focus:ring-2 focus:ring-white/30 text-sm sm:text-base"
+                />
+                <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+                {conversationSearch && (
+                  <button
+                    onClick={() => setConversationSearch("")}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+                    aria-label="Clear search"
                   >
-                    All Chats
+                    <FiX className="w-4 h-4" />
                   </button>
-                  <button 
-                    onClick={() => setChatFilter('unread')}
-                    className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-all ${
-                      chatFilter === 'unread' 
-                        ? 'bg-slate-100 text-slate-800' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Unread
-                  </button>
-                  <button 
-                    onClick={() => setChatFilter('groups')}
-                    className={`px-4 py-2 text-sm font-medium rounded-full whitespace-nowrap transition-all ${
-                      chatFilter === 'groups' 
-                        ? 'bg-slate-100 text-slate-800' 
-                        : 'text-gray-600 hover:bg-gray-100'
-                    }`}
-                  >
-                    Groups
-                  </button>
-                </div>
-              </div>
-
-              {/* Chat list */}
-              <div className="flex-1 overflow-y-auto bg-white max-h-[calc(100vh-200px)]">
-                {isLoading ? (
-                  <div className="flex flex-col items-center justify-center h-32 py-6">
-                    <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2"></div>
-                    <p className="text-sm text-gray-500">Loading conversations...</p>
-                  </div>
-                ) : filteredConversations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12 px-4">
-                    <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
-                      <FiMessageCircle className="w-8 h-8 text-slate-500" />
-                    </div>
-                    <h4 className="text-lg font-semibold text-gray-900 mb-2 text-center">No conversations found</h4>
-                    <p className="text-sm text-gray-500 text-center mb-6">
-                      {conversationSearch 
-                        ? "Try a different search term" 
-                        : "Start a new conversation with someone"}
-                    </p>
-                    <button
-                      onClick={() => setShowNewChat(true)}
-                      className="px-5 py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors flex items-center gap-2"
-                    >
-                      <FiPlus className="w-4 h-4" />
-                      New Conversation
-                    </button>
-                  </div>
-                ) : (
-                  <div className="divide-y divide-gray-100">
-                    {filteredConversations.map(chat => (
-                      <motion.div
-                        key={chat.id}
-                        onClick={() => handleConversationClick(chat)}
-                        whileTap={{ scale: 0.98 }}
-                        className="px-4 py-3 hover:bg-slate-50 cursor-pointer transition-colors"
-                      >
-                        <div className="flex items-center space-x-3">
-                          <div className="relative flex-shrink-0">
-                            <img 
-                              src={chat && getAvatarUrl(chat.picture)}
-                              className="w-12 h-12 rounded-full object-cover border-2 border-white shadow-sm" 
-                              alt={chat?.name || 'User'}
-                              onError={(e) => { e.target.src = 'default-avatar.svg' }}
-                            />
-                            <div className="absolute bottom-0 right-0 w-3 h-3 bg-emerald-500 rounded-full ring-2 ring-white" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between">
-                              <h4 className="font-semibold text-gray-900 truncate">{chat.name}</h4>
-                              <span className="text-xs text-gray-500">
-                                {format(new Date(chat.timestamp), 'HH:mm')}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm text-gray-500 truncate">{chat.lastMessage}</p>
-                              {chat.unread > 0 && (
-                                <div className="min-w-[1.5rem] h-6 bg-primary text-white text-xs font-medium rounded-full flex items-center justify-center">
-                                  {chat.unread}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </motion.div>
-                    ))}
-                  </div>
                 )}
               </div>
-            </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Chat filter tabs */}
+        <div className="bg-white border-b border-gray-200 px-2 overflow-x-auto">
+          <div className="flex items-center space-x-1 py-2">
+            {["all", "unread", "groups"].map((filter) => (
+              <button
+                key={filter}
+                onClick={() => setChatFilter(filter)}
+                className={`px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm font-medium rounded-full whitespace-nowrap transition-all ${
+                  chatFilter === filter
+                    ? "bg-slate-100 text-slate-800"
+                    : "text-gray-600 hover:bg-gray-100"
+                }`}
+              >
+                {filter === "all" && "All Chats"}
+                {filter === "unread" && "Unread"}
+                {filter === "groups" && "Groups"}
+              </button>
+            ))}
           </div>
-        ) : (
-          // Conversation View
-          <div className="flex flex-col h-full bg-gradient-to-br from-white via-gray-50/50 to-green-100/20">
-            {/* Chat Header - only show on desktop */}
-            {!isMobile && renderChatHeader()}
-            
-            {/* Messages container */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 pb-24 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50">
-              {/* Messages will be displayed here */}
-              {messages
-                .filter(msg => {
-                  // Filter messages for the active conversation
-                  const isSenderOrReceiver = 
-                    (msg.senderId === currentUser.id && msg.receiverId === activeConversation.id) ||
-                    (msg.senderId === activeConversation.id && msg.receiverId === currentUser.id);
-                  
-                  // Also filter by search query if present
-                  const matchesSearch = !searchQuery || 
-                    msg.text.toLowerCase().includes(searchQuery.toLowerCase());
-                  
-                  return isSenderOrReceiver && matchesSearch;
-                })
-                .map((message) => (
-                  <MessageItem 
-                    key={message.id}
-                    message={message}
-                    isOwn={message.senderId === currentUser.id}
-                    onSelect={() => handleSelectMessage(message)}
-                    isSelected={selectedMessages.includes(message.id)}
-                    showReactionPicker={showReactionPicker === message.id}
-                    onReaction={(emoji) => handleReaction(message.id, emoji)}
-                    currentUser={currentUser}
-                  />
-                ))}
-              <div ref={messagesEndRef} />
+        </div>
+
+        {/* Chat list */}
+        <div className="flex-1 overflow-y-auto bg-white max-h-[calc(100vh-180px)] sm:max-h-[calc(100vh-200px)] rounded-b-xl">
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center h-40 py-6">
+              <div className="w-8 h-8 border-2 border-primary border-t-transparent rounded-full animate-spin mb-2" />
+              <p className="text-sm text-gray-500">
+                Loading conversations...
+              </p>
             </div>
-            
-            {/* Input area - fixed at bottom */}
-            {renderInputArea()}
-          </div>
-        )}
+          ) : filteredConversations.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 sm:py-12 px-4">
+              <div className="w-14 h-14 sm:w-16 sm:h-16 bg-slate-100 rounded-full flex items-center justify-center mb-3 sm:mb-4">
+                <FiMessageCircle className="w-6 h-6 sm:w-8 sm:h-8 text-slate-500" />
+              </div>
+              <h4 className="text-base sm:text-lg font-semibold text-gray-900 mb-2 text-center">
+                {conversationSearch
+                  ? "No matches found"
+                  : "No conversations"}
+              </h4>
+              <p className="text-xs sm:text-sm text-gray-500 text-center mb-4 sm:mb-6">
+                {conversationSearch
+                  ? "Try a different search term"
+                  : "Start a new conversation"}
+              </p>
+              <button
+                onClick={() => setShowNewChat(true)}
+                className="px-4 py-2 sm:px-5 sm:py-2.5 bg-primary hover:bg-primary-dark text-white rounded-lg transition-colors flex items-center gap-2 text-sm sm:text-base"
+              >
+                <FiPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                New Conversation
+              </button>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-100">
+              {filteredConversations.map((chat) => (
+                <motion.div
+                  key={chat.id}
+                  onClick={() => handleConversationClick(chat)}
+                  whileTap={{ scale: 0.98 }}
+                  className="px-3 sm:px-4 py-2.5 sm:py-3 hover:bg-slate-50 cursor-pointer transition-colors"
+                >
+                  <div className="flex items-center space-x-3">
+                    <div className="relative flex-shrink-0">
+                      <img
+                        src={chat && getAvatarUrl(chat.picture)}
+                        className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-white shadow-sm"
+                        alt={chat?.name || "User"}
+                        onError={(e) => {
+                          e.target.src = "default-avatar.svg";
+                        }}
+                      />
+                      {chat.online && (
+                        <div className="absolute bottom-0 right-0 w-2.5 h-2.5 sm:w-3 sm:h-3 bg-emerald-500 rounded-full ring-2 ring-white" />
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-medium sm:font-semibold text-gray-900 truncate text-sm sm:text-base">
+                          {chat.name}
+                        </h4>
+                        <span className="text-xs text-gray-500">
+                          {format(new Date(chat.timestamp), "HH:mm")}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between mt-0.5">
+                        <p className="text-xs sm:text-sm text-gray-500 truncate">
+                          {chat.lastMessage}
+                        </p>
+                        {chat.unread > 0 && (
+                          <div className="min-w-[1.25rem] h-5 sm:min-w-[1.5rem] sm:h-6 bg-primary text-white text-xs font-medium rounded-full flex items-center justify-center">
+                            {chat.unread}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
+    </div>
+  ) : (
+    // Conversation View
+    <div className="flex flex-col h-full bg-gradient-to-br from-white via-gray-50/50 to-green-100/20">
+      {/* Chat Header - only show on desktop */}
+      {!isMobile && renderChatHeader()}
+
+      {/* Messages container */}
+      <div className="flex-1 overflow-y-auto px-4 py-6 pb-24 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 border border-gray-900 relative shadow-md">
+        {/* Messages will be displayed here */}
+        {messages
+          .filter((msg) => {
+            // Filter messages for the active conversation
+            const isSenderOrReceiver =
+              (msg.senderId === currentUser.id &&
+                msg.receiverId === activeConversation.id) ||
+              (msg.senderId === activeConversation.id &&
+                msg.receiverId === currentUser.id);
+
+            // Also filter by search query if present
+            const matchesSearch =
+              !searchQuery ||
+              msg.text.toLowerCase().includes(searchQuery.toLowerCase());
+
+            return isSenderOrReceiver && matchesSearch;
+          })
+          .map((message) => (
+            <MessageItem
+              key={message.id}
+              message={message}
+              isOwn={message.senderId === currentUser.id}
+              onSelect={() => handleSelectMessage(message)}
+              isSelected={selectedMessages.includes(message.id)}
+              showReactionPicker={showReactionPicker === message.id}
+              onReaction={(emoji) => handleReaction(message.id, emoji)}
+              currentUser={currentUser}
+            />
+          ))}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input area - fixed at bottom */}
+      {renderInputArea()}
+    </div>
+  )}
+</div>
       
       {/* New Chat Modal */}
       <AnimatePresence>

@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag, Table } from 'antd';
 import { ToolOutlined, CheckCircleOutlined, DatabaseOutlined } from '@ant-design/icons';
 import { SecureStorage } from '../../../../utils/encryption';
 import axios from 'axios';
@@ -30,9 +30,37 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
     const [loading, setLoading] = useState(true);
     const [utilizationData, setUtilizationData] = useState(null);
     const [equipmentDetails, setEquipmentDetails] = useState(null);
+    const [reservationHistory, setReservationHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('1');
     const encryptedUrl = SecureStorage.getLocalItem("url");
 
     const COLORS = ['#548e54', '#83b383'];
+
+ 
+
+    const fetchReservationHistory = useCallback(async () => {
+        if (!equipment?.equip_id) return;
+        setHistoryLoading(true);
+        try {
+            const response = await axios.post(
+                `${encryptedUrl}/user.php`,
+                new URLSearchParams({
+                    operation: "fetchEquipmentHistory",
+                    equip_id: equipment.equip_id
+                })
+            );
+            if (response.data.status === 'success') {
+                setReservationHistory(response.data.data || []);
+            } else {
+                setReservationHistory([]);
+            }
+        } catch (error) {
+            setReservationHistory([]);
+        } finally {
+            setHistoryLoading(false);
+        }
+    }, [equipment?.equip_id, encryptedUrl]);
 
     useEffect(() => {
         const fetchUtilizationData = async () => {
@@ -60,7 +88,10 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
         };
 
         fetchUtilizationData();
-    }, [open, equipment, encryptedUrl]);
+        if (open && equipment?.equip_id) {
+            fetchReservationHistory();
+        }
+    }, [open, equipment, encryptedUrl, fetchReservationHistory]);
 
     const processUtilizationData = (data) => {
         const { usage_statistics, reservations } = data;
@@ -207,6 +238,41 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
         );
     };
 
+    const renderReservationHistoryTable = () => (
+        <div className="p-4" style={{ minHeight: '500px' }}>
+            <Table
+                dataSource={reservationHistory}
+                loading={historyLoading}
+                rowKey={(record, idx) => idx}
+                pagination={{ pageSize: 8 }}
+                columns={[
+                    {
+                        title: 'Requester',
+                        dataIndex: 'requester',
+                        key: 'requester',
+                    },
+                    {
+                        title: 'Quantity',
+                        dataIndex: 'reservation_equipment_quantity',
+                        key: 'reservation_equipment_quantity',
+                    },
+                    {
+                        title: 'Start Date',
+                        dataIndex: 'reservation_start_date',
+                        key: 'reservation_start_date',
+                        render: (text) => text ? moment(text).format('MMMM D h:mm A') : '',
+                    },
+                    {
+                        title: 'End Date',
+                        dataIndex: 'reservation_end_date',
+                        key: 'reservation_end_date',
+                        render: (text) => text ? moment(text).format('MMMM D h:mm A') : '',
+                    },
+                ]}
+            />
+        </div>
+    );
+
     const items = [
         {
             key: '1',
@@ -216,6 +282,11 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
                     {renderMonthlyUtilizationChart()}
                 </div>
             ),
+        },
+        {
+            key: '2',
+            label: <span className="text-base font-medium">Reservation History</span>,
+            children: renderReservationHistoryTable(),
         }
     ];
 
@@ -309,12 +380,14 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
                         </div>
                     </div>
 
-                    {/* Chart Section */}
+                    {/* Chart & Tabs Section */}
                     <div className="mt-4">
                         <Tabs 
                             items={items}
                             className="utilization-tabs"
                             size="small"
+                            activeKey={activeTab}
+                            onChange={setActiveTab}
                         />
                     </div>
                 </div>

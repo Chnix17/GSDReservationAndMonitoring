@@ -18,6 +18,9 @@
   --modern-teal: #83b383;
   --modern-sage: #538c4c;
 }
+.body {
+  background: linear-gradient(to bottom right, #5ec97e, #ffffff); /* from-green-50 to-white */
+}
 
 /* Loader Animation */
 .loader {

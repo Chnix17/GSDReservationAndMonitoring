@@ -1,10 +1,10 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Card, Statistic, Table, Tag, Button, Tabs, Input, Tooltip, Row, Col, Dropdown, Modal } from 'antd';
+import {Table, Tag, Button, Tabs, Input, Tooltip,  Dropdown, Modal } from 'antd';
 import { motion } from 'framer-motion';
 import {
-  CarOutlined,
-  HomeOutlined,
-  ToolOutlined,
+  // CarOutlined,
+  // HomeOutlined,
+  // ToolOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
   ExclamationCircleOutlined,
@@ -22,14 +22,14 @@ const Reports = () => {
   const [loading, setLoading] = useState(true);
   const [maintenanceResources, setMaintenanceResources] = useState([]);
   const [maintenanceResourcesWithStatus, setMaintenanceResourcesWithStatus] = useState([]);
-  const [totalCounts, setTotalCounts] = useState({
-    venues: 0,
-    vehicles: 0,
-    equipments: 0,
-    venues_in_use: 0,
-    vehicles_in_use: 0,
-    equipments_in_use: 0
-  });
+  // const [totalCounts, setTotalCounts] = useState({
+  //   venues: 0,
+  //   vehicles: 0,
+  //   equipments: 0,
+  //   venues_in_use: 0,
+  //   vehicles_in_use: 0,
+  //   equipments_in_use: 0
+  // });
   const [timeRange, setTimeRange] = useState('week');
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -45,7 +45,7 @@ const Reports = () => {
       });
 
       if (response.data.status === 'success') {
-        setTotalCounts(response.data.data);
+        // setTotalCounts(response.data.data);
       }
     } catch (error) {
       toast.error('Error fetching availability statistics');
@@ -110,46 +110,46 @@ const Reports = () => {
     }
   };
 
-  // Enhanced Resource Card Component
-  const ResourceCard = ({ title, stats, icon: Icon, color }) => (
-    <motion.div
-      whileHover={{ scale: 1.02 }}
-      transition={{ duration: 0.2 }}
-    >
-      <Card 
-        className="shadow-lg hover:shadow-xl transition-all duration-300 bg-[#fafff4] border-0"
-        bodyStyle={{ padding: '1.5rem' }}
-      >
-        <div className="flex justify-between items-start">
-          <div className="w-full">
-            <h3 className="text-xl font-bold mb-6 text-green-900 flex items-center">
-              {title}
-              <Icon className="ml-2 text-2xl" />
-            </h3>
-            <div className="grid grid-cols-3 gap-6">
-              <Statistic 
-                title={<span className="text-gray-600">Total</span>} 
-                value={stats.total}
-                className="statistic-card"
-              />
-              <Statistic 
-                title={<span className="text-gray-600">Available</span>}
-                value={stats.available}
-                valueStyle={{ color: '#3f8600', fontWeight: 'bold' }}
-                className="statistic-card"
-              />
-              <Statistic
-                title={<span className="text-gray-600">In Use</span>}
-                value={stats.inUse}
-                valueStyle={{ color: '#cf1322', fontWeight: 'bold' }}
-                className="statistic-card"
-              />
-            </div>
-          </div>
-        </div>
-      </Card>
-    </motion.div>
-  );
+  // // Enhanced Resource Card Component
+  // const ResourceCard = ({ title, stats, icon: Icon, color }) => (
+  //   <motion.div
+  //     whileHover={{ scale: 1.02 }}
+  //     transition={{ duration: 0.2 }}
+  //   >
+  //     <Card 
+  //       className="shadow-lg hover:shadow-xl transition-all duration-300 bg-[#fafff4] border-0"
+  //       bodyStyle={{ padding: '1.5rem' }}
+  //     >
+  //       <div className="flex justify-between items-start">
+  //         <div className="w-full">
+  //           <h3 className="text-xl font-bold mb-6 text-green-900 flex items-center">
+  //             {title}
+  //             <Icon className="ml-2 text-2xl" />
+  //           </h3>
+  //           <div className="grid grid-cols-3 gap-6">
+  //             <Statistic 
+  //               title={<span className="text-gray-600">Total</span>} 
+  //               value={stats.total}
+  //               className="statistic-card"
+  //             />
+  //             <Statistic 
+  //               title={<span className="text-gray-600">Available</span>}
+  //               value={stats.available}
+  //               valueStyle={{ color: '#3f8600', fontWeight: 'bold' }}
+  //               className="statistic-card"
+  //             />
+  //             <Statistic
+  //               title={<span className="text-gray-600">In Use</span>}
+  //               value={stats.inUse}
+  //               valueStyle={{ color: '#cf1322', fontWeight: 'bold' }}
+  //               className="statistic-card"
+  //             />
+  //           </div>
+  //         </div>
+  //       </div>
+  //     </Card>
+  //   </motion.div>
+  // );
 
   // Update the filter function to handle two statuses
   const filterResourcesByStatus = (resources, status) => {
@@ -185,7 +185,7 @@ const Reports = () => {
         key: 'resource_name',
       },
       {
-        title: 'Condition',
+        title: 'Status',
         dataIndex: 'condition_name',
         key: 'condition_name',
         render: (status) => (
@@ -276,7 +276,7 @@ const Reports = () => {
           </motion.div>
 
           {/* Statistics Cards */}
-          <Row gutter={[16, 16]} className="mb-6">
+          {/* <Row gutter={[16, 16]} className="mb-6">
             <Col xs={24} sm={12} lg={8}>
               <ResourceCard
                 title="Venues"
@@ -313,7 +313,7 @@ const Reports = () => {
                 color="text-green-900"
               />
             </Col>
-          </Row>
+          </Row> */}
 
           {/* Search and Filters */}
           <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">

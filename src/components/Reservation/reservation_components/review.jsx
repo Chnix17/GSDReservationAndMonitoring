@@ -299,6 +299,17 @@ const ReviewSection = ({
               </div>
             </div>
           </div>
+          {/* Additional Note Section */}
+          {formData.additionalNote && formData.additionalNote.trim() !== '' && (
+            <div className="mt-6">
+              <Text type="secondary" className="text-sm">Additional Note</Text>
+              <div className="flex items-center mt-1">
+                <Text strong className="text-base block text-green-700">
+                  {formData.additionalNote}
+                </Text>
+              </div>
+            </div>
+          )}
         </div>
       </div>
       <Divider className="my-6" />

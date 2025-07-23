@@ -24,7 +24,7 @@ import Equipmentc from './pages/equipmentCategory';
 import VehicleModel from './pages/vehiclemodel';
 import ViewReserve from './page_user/viewReserve';
 import Calendar from './pages/calendar';    
-import Record from './pages/Record';
+import Record from './pages/Admin/Record';
 import ViewApproval from './page_dean/viewApproval';
 import DeanViewReserve from './page_dean/viewReserve';
 import DeanDashboard from './page_dean/dashboard';

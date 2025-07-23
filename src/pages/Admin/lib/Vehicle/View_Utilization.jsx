@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
+import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag, Table } from 'antd';
 import { CarOutlined, ToolOutlined, ClockCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { SecureStorage } from '../../../../utils/encryption';
 import axios from 'axios';
@@ -33,6 +33,9 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
     const encryptedUrl = SecureStorage.getLocalItem("url");
 
     const COLORS = ['#548e54', '#83b383'];
+
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [reservationHistory, setReservationHistory] = useState([]);
 
     const processUtilizationData = useCallback((data) => {
         const { usage_statistics, reservations } = data;
@@ -110,7 +113,34 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
             }
         };
 
-        fetchUtilizationData();
+        const fetchReservationHistory = async () => {
+            if (open && vehicle?.vehicle_id) {
+                setHistoryLoading(true);
+                try {
+                    const response = await axios.post(
+                        `${encryptedUrl}/user.php`,
+                        new URLSearchParams({
+                            operation: "fetchVehicleHistory",
+                            vehicle_id: vehicle.vehicle_id // <-- changed from vehicleId to vehicle_id
+                        })
+                    );
+                    if (response.data.status === 'success') {
+                        setReservationHistory(response.data.data || []);
+                    } else {
+                        setReservationHistory([]);
+                    }
+                } catch (error) {
+                    setReservationHistory([]);
+                } finally {
+                    setHistoryLoading(false);
+                }
+            }
+        };
+
+        if (open && vehicle?.vehicle_id) {
+            fetchUtilizationData();
+            fetchReservationHistory();
+        }
     }, [open, vehicle, encryptedUrl, processUtilizationData]);
 
     const calculateAverageUsageTime = (reservations) => {
@@ -230,6 +260,66 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
         );
     };
 
+    const reservationColumns = [
+        {
+            title: 'Vehicle',
+            dataIndex: 'vehicle_model_name',
+            key: 'vehicle_model_name',
+        },
+        {
+            title: 'Category',
+            dataIndex: 'vehicle_category_name',
+            key: 'vehicle_category_name',
+        },
+        {
+            title: 'Make',
+            dataIndex: 'vehicle_make_name',
+            key: 'vehicle_make_name',
+        },
+        {
+            title: 'License',
+            dataIndex: 'vehicle_license',
+            key: 'vehicle_license',
+        },
+        {
+            title: 'Requester',
+            dataIndex: 'requester',
+            key: 'requester',
+        },
+        {
+            title: 'Start Date',
+            dataIndex: 'reservation_start_date',
+            key: 'reservation_start_date',
+            render: (text) => text ? moment(text).format('MMMM D h:mm A') : '',
+        },
+        {
+            title: 'End Date',
+            dataIndex: 'reservation_end_date',
+            key: 'reservation_end_date',
+            render: (text) => text ? moment(text).format('MMMM D h:mm A') : '',
+        },
+        {
+            title: 'Driver',
+            dataIndex: 'driver_name',
+            key: 'driver_name',
+            render: (text) => text || <span style={{ color: '#aaa' }}>N/A</span>,
+        },
+    ];
+
+    const renderReservationHistory = () => (
+        <div className="p-4" style={{ minHeight: '500px' }}>
+            <Table
+                columns={reservationColumns}
+                dataSource={reservationHistory.map((item, idx) => ({ ...item, key: idx }))}
+                loading={historyLoading}
+                pagination={{ pageSize: 8 }}
+                locale={{ emptyText: historyLoading ? 'Loading...' : 'No reservation history found.' }}
+                bordered
+                size="small"
+            />
+        </div>
+    );
+
     const items = [
         {
             key: '1',
@@ -239,6 +329,11 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
                     {renderMonthlyUtilizationChart()}
                 </div>
             ),
+        },
+        {
+            key: '2',
+            label: <span className="text-base font-medium">Reservation History</span>,
+            children: renderReservationHistory(),
         }
     ];
 

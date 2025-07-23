@@ -1,6 +1,6 @@
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
-import {SecureStorage} from "../utils/encryption";
+import {SecureStorage} from "../../utils/encryption";
 
 import {
 
@@ -21,12 +21,13 @@ import {
 } from "antd";
 import { ToastContainer, toast } from "react-toastify";
 import { useEffect, useState, useCallback } from "react";
-
-import Sidebar from "./Sidebar";
+import { DatePicker } from "antd";
+import Sidebar from "../Sidebar";
 import axios from "axios";
 import moment from "moment";
 import { motion } from "framer-motion";
-import ReservationDetails from "../components/core/reservation_details";
+import ReservationDetails from "../../components/core/reservation_details";
+import { generateReservationReport } from "./core/excel_report";
 
 
 const Record = () => {
@@ -40,6 +41,8 @@ const Record = () => {
   const [sortField, setSortField] = useState("reservation_created_at");
   const [sortOrder, setSortOrder] = useState("desc");
   const [baseUrl, setBaseUrl] = useState("");
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [exporting, setExporting] = useState(false);
 
   const fetchReservations = useCallback(async (url) => {
     if (!url) return;
@@ -152,6 +155,48 @@ const Record = () => {
     fetchReservations(baseUrl);
   };
   
+  const handleGenerateReport = async () => {
+    if (!selectedMonth) {
+      toast.error("Please select a month first.");
+      return;
+    }
+    if (!baseUrl) {
+      toast.error("Base URL not set.");
+      return;
+    }
+    setExporting(true);
+    try {
+      const monthStr = selectedMonth.format("YYYY-MM");
+      const response = await axios.post(
+        `${baseUrl}/user.php`,
+        {
+          operation: "fetchReservationGenerateReport",
+          month: monthStr,
+        },
+        {
+          headers: {
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      if (response.data && Array.isArray(response.data.data)) {
+        const exported = generateReservationReport(response.data.data, monthStr);
+        if (exported) {
+          toast.success("Report exported successfully!");
+        } else {
+          toast.error("No data found for the selected month.");
+        }
+      } else {
+        toast.error("No data found for the selected month.");
+      }
+    } catch (error) {
+      console.error("Error generating report:", error);
+      toast.error("Failed to generate report.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const columns = [
     {
       title: "Title",
@@ -233,10 +278,10 @@ const Record = () => {
             </div>
           </motion.div>
 
-          {/* Search and Filters */}
+          {/* Search, Filters, and Report Generation */}
           <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-row items-center gap-2 w-full">
-              <div className="flex-grow">
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
+              <div className="flex-grow w-full">
                 <Input
                   placeholder="Search by ID, title, or requester"
                   allowClear
@@ -255,6 +300,28 @@ const Record = () => {
                   style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                 />
               </Tooltip>
+              {/* Month Picker and Generate Report Button */}
+              <div className="flex flex-row items-center gap-2">
+                <DatePicker
+                  picker="month"
+                  onChange={setSelectedMonth}
+                  value={selectedMonth}
+                  allowClear
+                  placeholder="Select month"
+                  style={{ minWidth: 140 }}
+                  size="large"
+                  disabled={exporting}
+                />
+                <Button
+                  type="primary"
+                  onClick={handleGenerateReport}
+                  loading={exporting}
+                  disabled={!selectedMonth || exporting}
+                  className="bg-green-700 hover:bg-green-900 font-medium"
+                >
+                  Generate Report
+                </Button>
+              </div>
             </div>
           </div>
 
