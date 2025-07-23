@@ -4,7 +4,7 @@ import {
   FaTachometerAlt, FaFileAlt, 
   FaBars,  FaUserCircle, FaCar, FaTimes,
   FaComments,  FaBell, 
-  FaAngleRight, FaAngleLeft
+  FaAngleRight, FaAngleLeft, FaCheck
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
@@ -22,6 +22,12 @@ const Sidebar = () => {
 
   const [notifications, setNotifications] = useState([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState({
+    supported: false,
+    subscribed: false,
+    permission: 'default'
+  });
+  const [isSubscribing, setIsSubscribing] = useState(false);
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
 
@@ -77,6 +83,141 @@ const Sidebar = () => {
     } catch (error) {
       console.error('Error marking notifications as read:', error);
     }
+  };
+
+  // Add this function to fetch subscription status from backend
+  const fetchPushSubscriptionStatus = async () => {
+    try {
+      const userId = SecureStorage.getSessionItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem('url');
+      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'get',
+          user_id: userId
+        })
+      });
+      const result = await response.json();
+      if (result.status === 'success' && result.data && result.data.is_active === 1) {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+      } else {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+      }
+    } catch (error) {
+      console.error('Error fetching push subscription status:', error);
+      setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+    }
+  };
+
+  // Check subscription status on component mount
+  useEffect(() => {
+    const checkSubscriptionStatus = async () => {
+      const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+      const permission = Notification.permission;
+      
+      let subscribed = false;
+      if (supported && permission === 'granted') {
+        try {
+          const registration = await navigator.serviceWorker.getRegistration();
+          if (registration) {
+            const subscription = await registration.pushManager.getSubscription();
+            subscribed = !!subscription;
+          }
+        } catch (error) {
+          console.error('Error checking subscription:', error);
+        }
+      }
+
+      setSubscriptionStatus({
+        supported,
+        subscribed,
+        permission
+      });
+    };
+
+    checkSubscriptionStatus();
+  }, []);
+
+  // Subscribe to push notifications
+  const subscribeToNotifications = async () => {
+    if (!subscriptionStatus.supported) {
+      alert('Push notifications are not supported in your browser.');
+      return;
+    }
+
+    setIsSubscribing(true);
+    try {
+      // Request permission
+      const permission = await Notification.requestPermission();
+      if (permission !== 'granted') {
+        alert('Notification permission denied. Please enable notifications in your browser settings.');
+        return;
+      }
+
+      // Register service worker
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      // Subscribe to push manager
+      const subscription = await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array('BELqHYNGLPs3EIxn6y7lMopZIpyXAKWY84Kci2FvTIW_bBSBj2l7d6e8Hp1kFKYhwF2miGYrjj9kDSX_oUfa070')
+      });
+
+      // Send subscription to server
+      const userId = SecureStorage.getSessionItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem("url");
+      
+      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'save',
+          user_id: userId,
+          subscription: {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
+              auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
+            }
+          }
+        })
+      });
+
+      const result = await response.json();
+      if (result.status === 'success') {
+        await fetchPushSubscriptionStatus();
+        alert('Successfully subscribed to push notifications!');
+      } else {
+        throw new Error(result.message || 'Failed to save subscription');
+      }
+    } catch (error) {
+      console.error('Error subscribing to notifications:', error);
+      alert('Failed to subscribe to notifications: ' + error.message);
+    } finally {
+      setIsSubscribing(false);
+    }
+  };
+
+  // Convert VAPID key to Uint8Array
+  const urlBase64ToUint8Array = (base64String) => {
+    const padding = '='.repeat((4 - base64String.length % 4) % 4);
+    const base64 = (base64String + padding)
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
+    const rawData = window.atob(base64);
+    const outputArray = new Uint8Array(rawData.length);
+
+    for (let i = 0; i < rawData.length; ++i) {
+      outputArray[i] = rawData.charCodeAt(i);
+    }
+    return outputArray;
   };
 
   useEffect(() => {
@@ -210,10 +351,57 @@ const Sidebar = () => {
                     ))
                   )}
                 </div>
-                <div className="p-2 text-center">
+                <div className="p-2 text-center border-t border-gray-100 dark:border-gray-700">
                   <Link to="/Faculty/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
                     View all notifications
                   </Link>
+                </div>
+                
+                {/* Subscription Section */}
+                <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-100 dark:border-gray-600">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Push Notifications</p>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {subscriptionStatus.subscribed 
+                          ? 'Enabled' 
+                          : subscriptionStatus.permission === 'denied' 
+                            ? 'Blocked' 
+                            : 'Not enabled'}
+                      </p>
+                    </div>
+                    {!subscriptionStatus.subscribed && subscriptionStatus.supported && (
+                      <button
+                        onClick={subscribeToNotifications}
+                        disabled={isSubscribing}
+                        className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {isSubscribing ? 'Enabling...' : 'Enable'}
+                      </button>
+                    )}
+                    {subscriptionStatus.subscribed && (
+                      <div className="flex items-center text-xs text-green-600 dark:text-green-400">
+                        <FaCheck className="w-3 h-3 mr-1" />
+                        Enabled
+                      </div>
+                    )}
+                  </div>
+                  {!subscriptionStatus.supported && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Not supported in this browser
+                    </p>
+                  )}
+                  {subscriptionStatus.permission === 'denied' && (
+                    <p className="text-xs text-yellow-500 mt-1">
+                      Please enable notifications in browser settings
+                    </p>
+                  )}
+                  {/* Recommendation/Reminder for enabling push notifications */}
+                  {(!subscriptionStatus.subscribed && subscriptionStatus.supported && subscriptionStatus.permission !== 'denied') && (
+                    <div className="mt-2 text-xs text-blue-600 dark:text-blue-300">
+                      For real-time updates, enabling push notifications is recommended.
+                    </div>
+                  )}
                 </div>
               </Popover.Panel>
             </Transition>

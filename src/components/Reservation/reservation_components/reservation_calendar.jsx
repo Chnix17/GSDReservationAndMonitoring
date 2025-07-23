@@ -68,6 +68,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
   const [pendingDateSelection, setPendingDateSelection] = useState(null);
   const userLevel = SecureStorage.getSessionItem('user_level');
   const userDepartment = SecureStorage.getSessionItem('Department Name');
+  const [allDriversAvailable, setAllDriversAvailable] = useState(false); // NEW
 
   // Update state when initialData changes
   useEffect(() => {
@@ -290,16 +291,22 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData }) =>
       });
       
       if (response.data.status === 'success') {
-        setDriverAvailability(response.data.data || []);
+        if (Array.isArray(response.data.data) && response.data.data.length === 0) {
+          setAllDriversAvailable(true); // All dates available
+          setDriverAvailability([]);
+        } else {
+          setAllDriversAvailable(false);
+          setDriverAvailability(response.data.data || []);
+        }
       } else {
+        setAllDriversAvailable(false);
         setDriverAvailability([]);
       }
     } catch (error) {
-      console.error('Error fetching driver availability:', error);
+      setAllDriversAvailable(false);
       setDriverAvailability([]);
-      toast.error('Failed to fetch driver availability');
     }
-  }, [baseUrl, selectedResource.type]);
+  }, [baseUrl, selectedResource]);
 
 
 
@@ -2262,6 +2269,14 @@ const checkConflicts = (attemptedStart, attemptedEnd) => {
 
 // Add function to check driver availability for specific time period
 const checkDriverAvailabilityForTime = (startDate, endDate) => {
+  if (allDriversAvailable) {
+    // If all drivers are available, return a dummy array with enough drivers
+    const numberOfVehicles = selectedResource.id ? selectedResource.id.length : 1;
+    return Array(numberOfVehicles).fill({});
+  }
+  if (!driverAvailability || driverAvailability.length === 0) {
+    return [];
+  }
   console.log('=== CHECKING DRIVER AVAILABILITY FOR SELECTED TIME PERIOD ===');
   console.log('Time period to check:', {
     startDate: startDate.toISOString(),
@@ -2270,11 +2285,6 @@ const checkDriverAvailabilityForTime = (startDate, endDate) => {
     endDateLocal: endDate.toLocaleString()
   });
   console.log('Total drivers to check:', driverAvailability?.length || 0);
-
-  if (!driverAvailability || driverAvailability.length === 0) {
-    console.log('No driver availability data');
-    return [];
-  }
 
   const availableDrivers = driverAvailability.filter(driver => {
     console.log('Checking driver:', {
@@ -2321,6 +2331,15 @@ const checkDriverAvailabilityForTime = (startDate, endDate) => {
 
 // Add function to check if available drivers are sufficient for the number of vehicles
 const checkDriverSufficiency = (startDate, endDate) => {
+  if (allDriversAvailable) {
+    const numberOfVehicles = selectedResource.id ? selectedResource.id.length : 1;
+    return {
+      availableDrivers: Array(numberOfVehicles).fill({}),
+      numberOfVehicles,
+      isSufficient: true,
+      shortfall: 0
+    };
+  }
   const availableDrivers = checkDriverAvailabilityForTime(startDate, endDate);
   const numberOfVehicles = selectedResource.id ? selectedResource.id.length : 1;
   
@@ -2342,6 +2361,17 @@ const checkDriverSufficiency = (startDate, endDate) => {
 
 // Add function to get driver availability for a specific date
 const getDriverAvailabilityForDate = (date) => {
+  if (allDriversAvailable) {
+    const numberOfVehicles = selectedResource.id ? selectedResource.id.length : 1;
+    return {
+      available: numberOfVehicles,
+      total: numberOfVehicles,
+      drivers: Array(numberOfVehicles).fill({}),
+      isSufficient: true,
+      shortfall: 0,
+      numberOfVehicles
+    };
+  }
   if (!driverAvailability || driverAvailability.length === 0) {
     return { available: 0, total: 0, drivers: [], isSufficient: false, shortfall: 0 };
   }
@@ -2385,6 +2415,14 @@ const getDriverAvailabilityForDate = (date) => {
 
 // Add function to get driver availability for a specific time slot
 const getDriverAvailabilityForTimeSlot = (date, hour) => {
+  if (allDriversAvailable) {
+    const numberOfVehicles = selectedResource.id ? selectedResource.id.length : 1;
+    return {
+      available: numberOfVehicles,
+      total: numberOfVehicles,
+      drivers: Array(numberOfVehicles).fill({})
+    };
+  }
   if (!driverAvailability || driverAvailability.length === 0) {
     return { available: 0, total: 0, drivers: [] };
   }

@@ -196,32 +196,41 @@ const Sidebar = () => {
     return () => clearInterval(interval);
   }, []);
 
-  // Check subscription status on component mount
+  // Add this function to fetch subscription status from backend
+  const fetchPushSubscriptionStatus = async () => {
+    try {
+      const userId = SecureStorage.getSessionItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem('url');
+      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'get',
+          user_id: userId
+        })
+      });
+      const result = await response.json();
+      if (result.status === 'success' && result.data && result.data.is_active === 1) {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+      } else {
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+      }
+    } catch (error) {
+      console.error('Error fetching push subscription status:', error);
+      setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+    }
+  };
+
+  // In useEffect, call fetchPushSubscriptionStatus on mount
   useEffect(() => {
     const checkSubscriptionStatus = async () => {
       const supported = 'serviceWorker' in navigator && 'PushManager' in window;
       const permission = Notification.permission;
-      
-      let subscribed = false;
-      if (supported && permission === 'granted') {
-        try {
-          const registration = await navigator.serviceWorker.getRegistration();
-          if (registration) {
-            const subscription = await registration.pushManager.getSubscription();
-            subscribed = !!subscription;
-          }
-        } catch (error) {
-          console.error('Error checking subscription:', error);
-        }
-      }
-
-      setSubscriptionStatus({
-        supported,
-        subscribed,
-        permission
-      });
+      setSubscriptionStatus(prev => ({ ...prev, supported, permission }));
+      await fetchPushSubscriptionStatus();
     };
-
     checkSubscriptionStatus();
   }, []);
 
@@ -275,7 +284,7 @@ const Sidebar = () => {
 
       const result = await response.json();
       if (result.status === 'success') {
-        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+        await fetchPushSubscriptionStatus();
         alert('Successfully subscribed to push notifications!');
       } else {
         throw new Error(result.message || 'Failed to save subscription');
@@ -419,28 +428,12 @@ const Sidebar = () => {
                       Please enable notifications in browser settings
                     </p>
                   )}
-                  {/* Test Notification Button */}
-                  <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-600">
-                    <button
-                      onClick={async () => {
-                        try {
-                          const pushManager = new (await import('../utils/pushNotificationManager.js')).default();
-                          const result = await pushManager.testSimpleNotification();
-                          if (result) {
-                            alert('Test notification sent! Check your notifications.');
-                          } else {
-                            alert('Failed to send test notification. Check console for details.');
-                          }
-                        } catch (error) {
-                          console.error('Test notification error:', error);
-                          alert('Error testing notification: ' + error.message);
-                        }
-                      }}
-                      className="w-full px-2 py-1 text-xs bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Test Notification
-                    </button>
-                  </div>
+                  {/* Recommendation/Reminder for enabling push notifications */}
+                  {(!subscriptionStatus.subscribed && subscriptionStatus.supported && subscriptionStatus.permission !== 'denied') && (
+                    <div className="mt-2 text-xs text-blue-600 dark:text-blue-300">
+                      For real-time updates, enabling push notifications is recommended.
+                    </div>
+                  )}
                 </div>
               </Popover.Panel>
             </Transition>
