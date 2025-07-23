@@ -401,106 +401,106 @@ const Chat = () => {
     if (!activeConversation || !currentUser) return null;
     
     return (
-      <div className="sticky top-0 z-10 border-b bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md pt-6">
-        <div className="container mx-auto">
-          <div className="flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">              <button
-              onClick={handleBackClick}
-              className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
-              aria-label="Back"
-            >
-                <FiChevronLeft className="w-5 h-5 text-white" />
-              </button>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <img 
-                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
-                    className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
-                    alt={activeConversation?.name || 'User'}
-                    onError={(e) => { e.target.src = 'default-avatar.svg' }}
-                  />
-                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
-                    <div className="w-2 h-2 bg-white rounded-full"></div>
-                  </div>
-                </div>
-                <div>
-                  <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
-                 
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <button 
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
-                aria-label="Search"
-                onClick={() => setShowSearch(!showSearch)}
-              >
-                <FiSearch className="w-4 h-4 text-white" />
-              </button>
-              <button 
-                onClick={() => setShowChatMenu(!showChatMenu)}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
-                aria-label="More options"
-              >
-                <FiMoreVertical className="w-4 h-4 text-white" />
-                {showChatMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
-                    <div className="py-1">
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiUserPlus className="w-4 h-4" /> Add members
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiEdit className="w-4 h-4" /> Edit chat
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiStar className="w-4 h-4" /> Pin conversation
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiArchive className="w-4 h-4" /> Archive chat
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
-                        <FiTrash className="w-4 h-4" /> Delete chat
-                      </button>
-                    </div>
-                  </div>
-                )}
-              </button>
+     <div className="sticky top-0 z-10 border-b bg-gradient-to-r from-lime-900 to-green-900 text-white shadow-md rounded-t-lg mt-40">
+  <div className="container mx-auto">
+    <div className="flex items-center justify-between p-4">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={handleBackClick}
+          className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
+          aria-label="Back"
+        >
+          <FiChevronLeft className="w-5 h-5 text-white" />
+        </button>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <img 
+              src={activeConversation && getAvatarUrl(activeConversation.picture)}
+              className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
+              alt={activeConversation?.name || 'User'}
+              onError={(e) => { e.target.src = 'default-avatar.svg' }}
+            />
+            <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
+              <div className="w-2 h-2 bg-white rounded-full"></div>
             </div>
           </div>
-          
-          {/* Search bar - conditionally rendered */}
-          <AnimatePresence>
-            {showSearch && (
-              <motion.div 
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                className="px-4 pb-4"
-              >
-                <div className="relative">
-                  <input
-                    type="text"
-                    placeholder="Search in conversation..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
-                  />
-                  <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
-                  {searchQuery && (
-                    <button 
-                      onClick={() => setSearchQuery('')}
-                      className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
-                    >
-                      <FiX className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+          <div>
+            <h4 className="font-semibold text-white">{activeConversation?.name || 'Chat'}</h4>
+          </div>
         </div>
       </div>
+      
+      <div className="flex items-center gap-2">
+        <button 
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
+          aria-label="Search"
+          onClick={() => setShowSearch(!showSearch)}
+        >
+          <FiSearch className="w-4 h-4 text-white" />
+        </button>
+        <button 
+          onClick={() => setShowChatMenu(!showChatMenu)}
+          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
+          aria-label="More options"
+        >
+          <FiMoreVertical className="w-4 h-4 text-white" />
+          {showChatMenu && (
+            <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
+              <div className="py-1">
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiUserPlus className="w-4 h-4" /> Add members
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiEdit className="w-4 h-4" /> Edit chat
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiStar className="w-4 h-4" /> Pin conversation
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                  <FiArchive className="w-4 h-4" /> Archive chat
+                </button>
+                <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
+                  <FiTrash className="w-4 h-4" /> Delete chat
+                </button>
+              </div>
+            </div>
+          )}
+        </button>
+      </div>
+    </div>
+    
+    {/* Search bar - conditionally rendered */}
+    <AnimatePresence>
+      {showSearch && (
+        <motion.div 
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: 'auto' }}
+          exit={{ opacity: 0, height: 0 }}
+          className="px-4 pb-4"
+        >
+          <div className="relative">
+            <input
+              type="text"
+              placeholder="Search in conversation..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-white/10 backdrop-blur-sm text-white placeholder-white/70 border border-white/20 rounded-full py-2 px-4 pl-10 focus:outline-none focus:ring-2 focus:ring-white/30"
+            />
+            <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-white/70" />
+            {searchQuery && (
+              <button 
+                onClick={() => setSearchQuery('')}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-white/70 hover:text-white"
+              >
+                <FiX className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  </div>
+</div>
     );
   };
 
@@ -1148,15 +1148,15 @@ const Chat = () => {
         <Sidebar />
       </div>
       
-      <div className="flex-1 flex flex-col h-full mb-4 mt-20">
+      <div className="flex-1 flex flex-col h-full mb-4">
         {renderConnectionStatus()}
       
         {viewMode === 'list' ? (
           // List View
-          <div className="flex flex-col h-full overflow-hidden">
-            <div className="bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md">
+          <div className="">
+            <div className="bg-gradient-to-r from-primary/90 to-primary-dark/90 text-white shadow-md ">
               {!isMobile && (
-                <div className="flex items-center justify-between px-6 py-4">
+                <div className="flex items-center justify-between px-6 py-4 ">
                   <h3 className="font-semibold text-white text-lg">Chats</h3>
                   <div className="flex items-center gap-2">
                     <button 
