@@ -334,7 +334,7 @@ const ViewPersonnelTask = () => {
           {/* Header Section */}
           <div className="mb-8 mt-20 sticky top-0 z-10  ">
             <div className="flex flex-col gap-4 sm:gap-6">
-              <h1 className="text-3xl font-extrabold text-green-900 tracking-tight pt-4">My Tasks</h1>
+              <h1 className="text-xl font-extrabold text-green-900 tracking-tight pt-4">My Tasks</h1>
               <div className="flex justify-start">
                 <div className="flex p-1 bg-green-50 rounded-lg ">
                   <button
@@ -375,14 +375,18 @@ const ViewPersonnelTask = () => {
                     size="large"
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full  !border-green-200 !rounded-lg focus:!border-green-500"
+                    className="w-full  !border-green-900 !rounded-lg focus:!border-green-800"
                   />
                   <Tooltip title="Refresh data">
                     <Button
-                      icon={<ReloadOutlined />}
+                      icon={<ReloadOutlined  className='text-white font-bold'/>}
                       onClick={handleRefresh}
                       size="large"
+<<<<<<< HEAD
+                      className="!bg-green-900 !border-green-900 hover:!bg-lime-950"
+=======
                       className="!bg-green-900 !border-green-200 hover:!bg-green-200"
+>>>>>>> b74d856c1d6e967a88798471bca3b993c914c232
                     />
                   </Tooltip>
                 </div>
@@ -396,7 +400,11 @@ const ViewPersonnelTask = () => {
           </div>
 
           {/* Table Section */}
+<<<<<<< HEAD
+          <div className="relative overflow-x-auto shadow-lg rounded-md    sm:rounded-2xl">
+=======
           <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
+>>>>>>> b74d856c1d6e967a88798471bca3b993c914c232
             {loading || releasingAll ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
