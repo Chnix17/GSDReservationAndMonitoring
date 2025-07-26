@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 
 const VehicleMakes = () => {
   const navigate = useNavigate();
@@ -15,8 +15,7 @@ const VehicleMakes = () => {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ id: '', name: '' });
   const [showModal, setShowModal] = useState(false);  
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [selectedMakeId, setSelectedMakeId] = useState(null);
+
   const [editMode, setEditMode] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -40,7 +39,7 @@ const VehicleMakes = () => {
   const fetchMakes = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${encryptedUrl}fetchMaster.php`, {
+      const response = await fetch(`${encryptedUrl}user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -73,6 +72,7 @@ const VehicleMakes = () => {
 
   const filteredMakes = useMemo(() => {
     return makes.filter(make => 
+      make.vehicle_make_name &&
       make.vehicle_make_name.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [makes, searchTerm]);
@@ -86,38 +86,38 @@ const VehicleMakes = () => {
     }
   };
 
-  const handleDelete = (id) => {
-    setSelectedMakeId(id);
-    setShowConfirmDelete(true);
-  };
+  // const handleDelete = (id) => {
+  //   setSelectedMakeId(id);
+  //   setShowConfirmDelete(true);
+  // };
 
-  const confirmDelete = async () => {
-    try {
-      const response = await fetch(`${encryptedUrl}delete_master.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          operation: 'deleteVehicleMake', 
-          vehicleMakeId: selectedMakeId 
-        }),
-      });
-
-      const data = await response.json();
-      if (data.status === 'success') {
-        setMakes(makes.filter(make => make.vehicle_make_id !== selectedMakeId));
-        toast.success('Vehicle make deleted successfully!');
-      } else {
-        toast.error(data.message || 'Failed to delete vehicle make.');
-      }
-    } catch (error) {
-      console.error('Error deleting vehicle make:', error);
-      toast.error('Error deleting vehicle make.');
-    } finally {
-      setShowConfirmDelete(false);
-    }
-  };
+  // const confirmDelete = async () => {
+  //   try {
+  //     const response = await fetch(`${encryptedUrl}delete_master.php`, {
+  //       method: 'POST',
+  //       headers: {
+  //         'Content-Type': 'application/json',
+  //       },
+  //       body: JSON.stringify({ 
+  //         operation: 'deleteVehicleMake', 
+  //         vehicleMakeId: selectedMakeId 
+  //       }),
+  //     });
+  //
+  //     const data = await response.json();
+  //     if (data.status === 'success') {
+  //       setMakes(makes.filter(make => make.vehicle_make_id !== selectedMakeId));
+  //       toast.success('Vehicle make deleted successfully!');
+  //     } else {
+  //       toast.error(data.message || 'Failed to delete vehicle make.');
+  //     }
+  //   } catch (error) {
+  //     console.error('Error deleting vehicle make:', error);
+  //     toast.error('Error deleting vehicle make.');
+  //   } finally {
+  //     setShowConfirmDelete(false);
+  //   }
+  // };
 
   const handleAdd = () => {
     setFormData({ id: '', name: '' });
@@ -140,12 +140,12 @@ const VehicleMakes = () => {
 
     setIsSubmitting(true);
     try {
-      const endpoint = editMode ? 'update_master1.php' : 'vehicle_master.php';
+      const endpoint = 'user.php';
       const operation = editMode ? 'updateVehicleMake' : 'saveMakeData';
       
       const requestBody = editMode 
         ? { operation, id: formData.id, name: sanitizedName }
-        : { operation, json: { vehicle_make_name: sanitizedName } };
+        : { operation, vehicle_make_name: sanitizedName };
 
       const response = await fetch(`${encryptedUrl}${endpoint}`, {
         method: 'POST',
@@ -313,6 +313,7 @@ const VehicleMakes = () => {
                                     className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
                                   />
                                 </Tooltip>
+                                {/*
                                 <Tooltip title="Delete Make">
                                   <Button
                                     shape="circle"
@@ -323,6 +324,7 @@ const VehicleMakes = () => {
                                     className="shadow-lg flex items-center justify-center"
                                   />
                                 </Tooltip>
+                                */}
                               </div>
                             </td>
                           </tr>
@@ -397,6 +399,7 @@ const VehicleMakes = () => {
       </Modal>
 
       {/* Confirm Delete Modal */}
+      {/*
       <Modal
         title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
         open={showConfirmDelete}
@@ -424,6 +427,7 @@ const VehicleMakes = () => {
         <p>Are you sure you want to delete this vehicle make?</p>
         <p className="text-gray-500 text-sm mt-2">This action cannot be undone.</p>
       </Modal>
+      */}
 
     
     </div>

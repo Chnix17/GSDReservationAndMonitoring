@@ -129,7 +129,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
 
       const response = await axios({
         method: 'post',
-        url: `${encryptedUrl}fetch2.php`,
+        url: `${encryptedUrl}user.php`,
         headers: {
           'Content-Type': 'application/json'
         },

@@ -59,7 +59,7 @@
             weekly: [],
             monthly: []
         });
-        const [setReleaseFacilities] = useState([]);
+        
         const [setPersonnel] = useState([]);
         const [ongoingReservations, setOngoingReservations] = useState([]);
         const [completedReservations, setCompletedReservations] = useState([]);
@@ -148,21 +148,7 @@
             }
         }, [encryptedUrl]);
 
-        const fetchReleaseFacilities = useCallback(async () => {
-            try {
-                const response = await axios.post(`${encryptedUrl}/fetch_reserve.php`, {
-                    operation: 'fetchReleaseFacilities'
-                });
-
-                if (response.data && response.data.status === 'success') {
-                    console.log('Release Facilities Data:', response.data.data);
-                    setReleaseFacilities(response.data.data);
-                } else {
-                }
-            } catch (error) {
-                console.error('Fetch release facilities error:', error);
-            }
-        }, [setReleaseFacilities, encryptedUrl]);
+  
 
         const fetchPersonnel = useCallback(async () => {
             try {
@@ -181,7 +167,7 @@
 
         const fetchTotals = useCallback(async () => {
             try {
-                const response = await axios.post(`${encryptedUrl}/get_totals.php`, {
+                const response = await axios.post(`${encryptedUrl}/user.php`, {
                     operation: 'getTotals'
                 });
 
@@ -204,13 +190,13 @@
             if (!loading) {
 
                 fetchReservations();
-                fetchReleaseFacilities();
+                
                 fetchPersonnel(); // Add this line
       
                 fetchTotals();
 
             }
-        }, [loading, fetchReservations, fetchReleaseFacilities,  fetchPersonnel, encryptedUrl, fetchTotals]);
+        }, [loading, fetchReservations  ,  fetchPersonnel, encryptedUrl, fetchTotals]);
 
         // Handle back navigation behavior
         useEffect(() => {
@@ -254,14 +240,13 @@
         useEffect(() => {
             if (!loading) {
                 fetchReservations();
-                fetchReleaseFacilities();
+           
                 fetchPersonnel();
       
                 fetchTotals();
 
             }
-        }, [loading, fetchReservations, 
-            fetchReleaseFacilities, fetchPersonnel, encryptedUrl, fetchTotals]);
+        }, [loading, fetchReservations, encryptedUrl, fetchTotals, fetchPersonnel]);
 
 
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../pages/Sidebar';
 import axios from 'axios';
@@ -79,6 +79,7 @@ const AddReservation = () => {
     venues: [], 
     purpose: '',
     destination: '',
+    owner: '', // Add owner field
     passengers: [],
     driverType: 'default',
     driverName: '',
@@ -314,10 +315,24 @@ const validateCurrentStep = () => {
           toast.error('Please enter a destination');
           return false;
         }
-        
+        // Remove owner validation (already removed field)
         if (!formData.passengers || formData.passengers.length === 0) {
           toast.error('Please add at least one passenger');
           return false;
+        }
+        // ENFORCE: All own driver names must be filled if driverType is 'own'
+        if (formData.driverType === 'own') {
+          if (!formData.ownDrivers || formData.ownDrivers.length === 0 || formData.ownDrivers.some(d => !d.name || !d.name.trim())) {
+            toast.error('Please enter a driver name for each selected vehicle');
+            return false;
+          }
+        }
+        // ENFORCE: All own driver names must be filled for mixed mode
+        if (formData.driverType === 'mixed') {
+          if (!formData.mixedDrivers || formData.mixedDrivers.length === 0 || formData.mixedDrivers.some(d => d.driverType === 'own' && (!d.name || !d.name.trim()))) {
+            toast.error('Please enter driver names for all vehicles marked as "Own Driver"');
+            return false;
+          }
         }
         return true;
       }
@@ -345,6 +360,7 @@ const handleBack = () => {
         venues: [],
         purpose: '',
         destination: '',
+        owner: '', // Reset owner field
         passengers: [],
         driverType: 'default',
         driverName: '',
@@ -531,13 +547,17 @@ const handleAddReservation = async () => {
         toast.error('You must provide your own drivers for this reservation');
         return false;
       }
-
       // If forceMixedDrivers is true, ensure driver type is 'mixed'
       if (formData.forceMixedDrivers && formData.driverType !== 'mixed') {
         toast.error('You must use mixed driver mode for this reservation');
         return false;
       }
-
+      // ENFORCE: Requester name required if Own Driver is selected
+      const requesterName = SecureStorage.getSessionItem('user_full_name') || '';
+      if (formData.driverType === 'own' && !requesterName.trim()) {
+        toast.error('Requester name is required when providing own driver. Please complete your profile.');
+        return false;
+      }
       if (formData.driverType === 'own') {
         // Validation: each selected vehicle must have a driver name
         if (!formData.ownDrivers || formData.ownDrivers.length !== selectedModels.length || formData.ownDrivers.some(d => !d.name.trim())) {
@@ -550,24 +570,20 @@ const handleAddReservation = async () => {
           toast.error('Please configure driver assignments for all vehicles');
           return false;
         }
-        
         // Check that own drivers have names
         const ownDriversWithoutNames = formData.mixedDrivers.filter(d => d.driverType === 'own' && !d.name.trim());
         if (ownDriversWithoutNames.length > 0) {
           toast.error('Please enter driver names for vehicles marked as "Own Driver"');
           return false;
         }
-        
         // Additional validation for forced mixed drivers
         if (formData.forceMixedDrivers) {
           const availableDrivers = formData.availableDrivers || 0;
           const defaultDrivers = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-          
           if (defaultDrivers > availableDrivers) {
             toast.error(`Cannot assign more than ${availableDrivers} default drivers. Please adjust your assignments.`);
             return false;
           }
-          
           // Ensure at least one vehicle has a driver assigned
           if (formData.mixedDrivers.length === 0) {
             toast.error('Please configure driver assignments for all vehicles');
@@ -713,6 +729,7 @@ const resetForm = () => {
     venues: [], 
     purpose: '',
     destination: '',
+    owner: '', // Reset owner field
     passengers: [],
     driverType: 'default',
     driverName: '',
@@ -1468,6 +1485,7 @@ const EquipmentSelectionModal = ({
     background: '#fff',
     scrollbarWidth: 'thin',
     scrollbarColor: '#b5e0b5 #f0f0f0',
+    overflowAnchor: 'none', // Prevent scroll jumps
   };
 
   // Custom scrollbar for webkit
@@ -1476,6 +1494,11 @@ const EquipmentSelectionModal = ({
     ::-webkit-scrollbar-thumb { background: #b5e0b5; border-radius: 4px; }
     ::-webkit-scrollbar-track { background: #f0f0f0; }
   `;
+
+  // --- SCROLL PRESERVATION LOGIC ---
+  const scrollableListRef = useRef(null);
+  const prevScrollTopRef = useRef(0);
+  const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false);
 
   // Reset local state when modal opens - use a ref to track if modal was just opened
   const modalJustOpenedRef = useRef(false);
@@ -1508,9 +1531,12 @@ const EquipmentSelectionModal = ({
   }, [localEquipmentQuantities]);
   
   const handleLocalQuantityChange = (equipId, value) => {
+    // --- Save scroll position before state update ---
+    if (scrollableListRef.current) {
+      prevScrollTopRef.current = scrollableListRef.current.scrollTop;
+    }
     // Convert value to number and handle empty/undefined cases
     const numericValue = value === '' || value === null || value === undefined ? 0 : Number(value);
-    
     // Ensure equipId is consistently handled as a string for state keys
     const equipmentKey = String(equipId);
     
@@ -1564,7 +1590,15 @@ const EquipmentSelectionModal = ({
       console.log('=== handleLocalQuantityChange completed ===');
       return newState;
     });
+    setShouldRestoreScroll(true); // <-- Add this
   };
+
+  useLayoutEffect(() => {
+    if (shouldRestoreScroll && scrollableListRef.current) {
+      scrollableListRef.current.scrollTop = prevScrollTopRef.current;
+      setShouldRestoreScroll(false);
+    }
+  }, [localState, shouldRestoreScroll]);
   
   const handleConfirm = () => {
     // Update both states to ensure consistency
@@ -1589,7 +1623,7 @@ const EquipmentSelectionModal = ({
 
 
   // Equipment Card Component for list view only
-  const EquipmentCard = ({ item, isSelected, onClick, currentQuantity, onQuantityChange }) => {
+  const EquipmentCard = React.memo(({ item, isSelected, onClick, currentQuantity, onQuantityChange }) => {
     const availableQuantity = parseInt(item.available_quantity || item.available) || 0;
     const isAvailable = availableQuantity > 0;
     const [tempInputValue, setTempInputValue] = useState(currentQuantity?.toString() || '');
@@ -1720,7 +1754,7 @@ const EquipmentSelectionModal = ({
         </div>
       </Card>
     );
-  };
+  });
   
   // Get unique categories from equipment
   const equipmentCategories = Array.from(
@@ -1799,7 +1833,7 @@ const EquipmentSelectionModal = ({
               className="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
               style={{ minWidth: 120 }}
             >
-              <option value="all">All Categories</option>
+              <option value="all">All</option>
               {equipmentCategories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -1816,8 +1850,8 @@ const EquipmentSelectionModal = ({
           </div>
         </div>
       </div>
-      {/* Scrollable Equipment List */}
-      <div style={scrollableListStyle}>
+      {/* Scrollable Equipment List (no animation wrapper) */}
+      <div ref={scrollableListRef} style={scrollableListStyle}>
         <div className="flex flex-col gap-2">
           {currentEquipment.map((item) => {
             const equipmentKey = String(item.equip_id);
@@ -1988,7 +2022,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
           disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}
         >
           <Radio value="default" disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}>Default Driver</Radio>
-          <Radio value="own">Own Driver</Radio>
+          <Radio value="own">Own Driver <span className="text-red-500">*</span></Radio>
           <Radio value="mixed">Mixed (Default + Own)</Radio>
         </Radio.Group>
 
@@ -1998,7 +2032,6 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
               <div className="text-xs text-gray-500">
                 {shouldForceOwnDrivers ? 
                   "You must provide your own drivers for this reservation." : 
-                  
                   "Select vehicles first to enter driver names."
                 }
               </div>
@@ -2011,6 +2044,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                 <div key={vehicle_id} className="flex items-center gap-2">
                   <span className="text-sm text-gray-700 min-w-[120px]">
                     {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
+                    <span className="text-red-500 ml-1">*</span>
                   </span>
                   <Input
                     placeholder="Enter driver name"
@@ -2026,13 +2060,13 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                     }}
                     className="rounded"
                     size={isMobile ? 'middle' : 'large'}
-                    required
+                    required={formData.driverType === 'own'}
                   />
                 </div>
               );
             }) : shouldForceOwnDrivers && (
               <div className="space-y-2">
-                <div className="text-sm text-gray-700">You must provide your own drivers for this reservation.</div>
+                <div className="text-sm text-gray-700">You must provide your own drivers for this reservation.<span className="text-red-500 ml-1">*</span></div>
                 <Input
                   placeholder="Enter driver name"
                   value={formData.ownDrivers?.[0]?.name || ''}
@@ -2045,7 +2079,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                   }}
                   className="rounded"
                   size={isMobile ? 'middle' : 'large'}
-                  required
+                  required={formData.driverType === 'own'}
                 />
               </div>
             )}
@@ -2175,7 +2209,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                       >
                         Default Driver
                       </Radio>
-                      <Radio value="own">Own Driver</Radio>
+                      <Radio value="own">Own Driver <span className="text-red-500">*</span></Radio>
                     </Radio.Group>
                   </div>
                   {effectiveDriverType === 'own' && (
@@ -2251,7 +2285,7 @@ const fetchVenues = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/fetch2.php`,
+      url: `${encryptedUrl}/user.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2272,7 +2306,7 @@ const fetchVehicles = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/fetch2.php`,
+      url: `${encryptedUrl}/user.php`,
       headers: {
         'Content-Type': 'application/json'
       },

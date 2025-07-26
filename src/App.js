@@ -23,7 +23,7 @@ import Equipmentc from './pages/equipmentCategory';
 
 import VehicleModel from './pages/vehiclemodel';
 import ViewReserve from './page_user/viewReserve';
-import Calendar from './pages/calendar';    
+
 import Record from './pages/Admin/Record';
 import ViewApproval from './page_dean/viewApproval';
 import DeanViewReserve from './page_dean/viewReserve';
@@ -169,7 +169,7 @@ const App = () => {
                         <Route path="/Faculty/Notification" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><NotificationUser /></ProtectedRoute>} />
                         {/* Shared Routes (accessible by all authenticated users) */}
                         
-                        <Route path="/calendar" element={<ProtectedRoute allowedRoles={['Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Calendar /></ProtectedRoute>} />
+                       
                         <Route path="/chat" element={<ProtectedRoute allowedRoles={['Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Chat /></ProtectedRoute>} />
 
                         {/* Personnel Routes */}

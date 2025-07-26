@@ -24,9 +24,8 @@ function Logins() {
     const [captchaCanvasRef] = useState(React.createRef());
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [email, setEmail] = useState('');
-    const [setIsEmailValid] = useState(null);
     const [showOtpInput, setShowOtpInput] = useState(false);
-    const [setResetKey] = useState('');
+
     const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
     const [isSendingOtp, setIsSendingOtp] = useState(false);
     const [canResendLoginOtp, setCanResendLoginOtp] = useState(false);
@@ -677,20 +676,43 @@ function Logins() {
 
         setIsVerifyingEmail(true);
         try {
-            const response = await axios.post(`${localStorage.getItem("url")}login.php`, {
+            const apiUrl = SecureStorage.getLocalItem("url");
+            if (!apiUrl) {
+                notify("API URL configuration is missing. Please contact support.", 'error');
+                setIsVerifyingEmail(false);
+                return;
+            }
+
+            const response = await axios.post(`${apiUrl}login.php`, {
                 operation: "checkEmail",
                 json: { email }
             });
 
-            if (response.data.status === "exists") {
-                setIsEmailValid(true);
+            let data = response.data;
+            console.log("CheckEmail response:", data);
+
+            if (typeof data === "string") {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {
+                    notify("Invalid response from server", 'error');
+                    setIsVerifyingEmail(false);
+                    return;
+                }
+            }
+
+            console.log("Parsed data.status:", data.status);
+
+            if (data.status === "exists") {
+                console.log("Email exists block hit");
                 setShowCaptchaAfterEmail(true);
                 generateCaptcha();
             } else {
-                setIsEmailValid(false);
+                console.log("Email not found block hit, status was:", data.status);
                 notify("Email not found in our records", 'error');
             }
         } catch (error) {
+            console.error("CheckEmail error:", error);
             notify("Error verifying email", 'error');
         } finally {
             setIsVerifyingEmail(false);
@@ -710,19 +732,33 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${localStorage.getItem("url")}update_master2.php`, {
+            const response = await axios.post(`${SecureStorage.getLocalItem("url")}update_master2.php`, {
                 operation: "send_password_reset_otp",
                 email: email
             });
 
-            if (response.data.status === "success") {
-                setResetKey(response.data.key);
+            let data = response.data;
+            console.log("SendOTP response:", data);
+
+            if (typeof data === "string") {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {
+                    notify("Invalid response from server", 'error');
+                    if (isResend) setIsResending(false);
+                    else setIsSendingOtp(false);
+                    return;
+                }
+            }
+
+            if (data.status === "success") {
+        
                 setShowOtpInput(true);
                 setResendTimer(180); // Reset timer
                 setCanResendOtp(false);
                 notify(isResend ? "OTP resent successfully" : "OTP sent to your email", 'success');
             } else {
-                notify(response.data.message || "Failed to send OTP", 'error');
+                notify(data.message || "Failed to send OTP", 'error');
             }
         } catch (error) {
             notify(error.response?.data?.message || "Error sending OTP", 'error');
@@ -778,7 +814,7 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${localStorage.getItem("url")}update_master2.php`, {
+            const response = await axios.post(`${SecureStorage.getLocalItem("url")}update_master2.php`, {
                 operation: "validate_otp",
                 otp: otpValue,
                 email: email // Add email parameter to the request
@@ -808,7 +844,7 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${localStorage.getItem("url")}update_master2.php`, {
+            const response = await axios.post(`${SecureStorage.getLocalItem("url")}update_master2.php`, {
                 operation: "update_password",
                 email: email,
                 password: newPassword
@@ -854,7 +890,6 @@ function Logins() {
     const handleModalClose = () => {
         setShowForgotPassword(false);
         // Don't clear email
-        setIsEmailValid(null);
         setForgotPasswordCaptchaInput('');
         setIsForgotPasswordCaptchaCorrect(null);
         setShowCaptchaAfterEmail(false);

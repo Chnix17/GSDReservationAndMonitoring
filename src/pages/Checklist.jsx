@@ -237,7 +237,7 @@ function Checklist() {
 
   const fetchResources = async (type) => {
     try {
-      const response = await fetch(`${storedUrl}fetch2.php`, {
+      const response = await fetch(`${storedUrl}user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

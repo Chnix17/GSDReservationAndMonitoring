@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, Button, Form, Input,  Tooltip, Empty, Pagination, Alert } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import {  FaEye } from 'react-icons/fa';
+
 import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
@@ -43,7 +43,7 @@ const EquipmentCategories = () => {
     const fetchCategories = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${encryptedUrl}fetchMaster.php`, new URLSearchParams({ operation: 'fetchEquipments' }));
+            const response = await axios.post(`${encryptedUrl}user.php`, new URLSearchParams({ operation: 'fetchEquipmentsCategory' }));
             if (response.data.status === 'success') {
                 setCategories(response.data.data);
                 setFilteredCategories(response.data.data);
@@ -113,8 +113,8 @@ const EquipmentCategories = () => {
         }
     };
 
-    const handleSave = async () => {
-        const sanitizedName = sanitizeInput(formData.name);
+    const handleSave = async (values) => {
+        const sanitizedName = sanitizeInput(values.name);
         if (!sanitizedName.trim()) {
             toast.error("Please enter a category name.");
             return;
@@ -127,20 +127,23 @@ const EquipmentCategories = () => {
 
         setIsSubmitting(true);
         try {
-            const requestData = {
-                operation: editMode ? 'updateEquipmentCategory' : 'saveEquipmentCategory',
-                json: {
-                    equipments_category_name: sanitizedName.trim()
-                }
-            };
-
+            let requestData;
             if (editMode) {
-                requestData.json.equipments_category_id = formData.categoryId;
+                requestData = {
+                    operation: 'updateEquipmentCategory',
+                    categoryData: {
+                        categoryId: formData.categoryId,
+                        name: sanitizedName.trim()
+                    }
+                };
+            } else {
+                requestData = {
+                    operation: 'saveEquipmentCategory',
+                    equipments_category_name: sanitizedName.trim()
+                };
             }
 
-            const endpoint = editMode 
-                ? `${encryptedUrl}update_master1.php`
-                : `${encryptedUrl}vehicle_master.php`;
+            const endpoint = `${encryptedUrl}user.php`;
 
             const response = await axios.post(
                 endpoint,
@@ -315,7 +318,7 @@ const EquipmentCategories = () => {
                                                         </td>
                                                         <td className="px-4 py-6">
                                                             <div className="flex items-center">
-                                                                <FaEye className="mr-2 text-green-900" />
+                                                              
                                                                 <span className="font-bold truncate block max-w-[200px]">{category.equipments_category_name}</span>
                                                             </div>
                                                         </td>
@@ -388,7 +391,7 @@ const EquipmentCategories = () => {
             <Modal
                 title={
                     <div className="flex items-center">
-                        <FaEye className="mr-2 text-green-900" /> 
+                       
                         {editMode ? 'Edit Equipment Category' : 'Add Equipment Category'}
                     </div>
                 }
@@ -402,14 +405,14 @@ const EquipmentCategories = () => {
                         key="submit" 
                         type="primary" 
                         loading={isSubmitting} 
-                        onClick={handleSave}
+                        onClick={() => form.submit()}
                         className="bg-green-900 hover:bg-lime-900"
                     >
                         {isSubmitting ? 'Saving...' : 'Save'}
                     </Button>
                 ]}
             >
-                <Form form={form} layout="vertical">
+                <Form form={form} layout="vertical" onFinish={handleSave}>
                     <Form.Item
                         label="Category Name"
                         name="name"

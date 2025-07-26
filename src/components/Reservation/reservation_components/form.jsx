@@ -242,6 +242,7 @@ const BasicInformationForm = ({
               </Form.Item>
 
               {renderDriverDropdown(selectedModels || [], vehicles || [], setFormData)}
+
             </section>
 
             <section className="space-y-4 mt-6">

@@ -140,49 +140,6 @@ const AssignPersonnel = () => {
     }
   };
 
-  const fetchCompletedReservations = async () => {
-    setLoading(true);
-    try {
-      const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}records&reports.php`, {
-        operation: 'fetchCompletedRelease'
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (response.data.status === 'success' && Array.isArray(response.data.data)) {
-        const formattedData = response.data.data.map(item => {
-          const masterData = item.master_data;
-          return {
-            id: masterData.reservation_id,
-            type: masterData.venue_form_name ? 'Venue' : 'Vehicle',
-            name: masterData.venue_form_name || masterData.vehicle_form_name,
-            details: '',
-            personnel: masterData.personnel_name || 'Unknown',
-            checklists: masterData.venue_form_name 
-              ? item.venue_equipment.map(eq => ({
-                  name: eq.release_checklist_name,
-                  status: masterData.status_checklist_name || 'Completed'
-                }))
-              : item.vehicle_checklist.map(vc => ({
-                  name: vc.release_checklist_name,
-                  status: masterData.status_checklist_name || 'Completed'
-                })),
-            status: 'Completed',
-            createdAt: masterData.reservation_date
-          };
-        });
-        setReservations(formattedData);
-      }
-    } catch (error) {
-      console.error('Error fetching completed reservations:', error);
-      toast.error('Error fetching completed reservations');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -198,9 +155,7 @@ const AssignPersonnel = () => {
       fetchNotAssignedReservations();
     } else if (activeTab === 'Assigned') {
       fetchAssignedReservations();
-    } else if (activeTab === 'Completed') {
-      fetchCompletedReservations();
-    }
+    } 
   }, [activeTab]);
 
   // Filter reservations based on search term and active tab
@@ -312,8 +267,6 @@ const AssignPersonnel = () => {
       fetchNotAssignedReservations();
     } else if (activeTab === 'Assigned') {
       fetchAssignedReservations();
-    } else if (activeTab === 'Completed') {
-      fetchCompletedReservations();
     }
   };
 

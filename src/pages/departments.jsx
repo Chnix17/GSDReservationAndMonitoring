@@ -47,7 +47,7 @@ const Departments = () => {
         setLoading(true);
         const url = SecureStorage.getLocalItem("url");
         try {
-            const response = await axios.post(`${url}fetchMaster.php`, new URLSearchParams({ operation: 'fetchDepartments' }));
+            const response = await axios.post(`${url}user.php`, new URLSearchParams({ operation: 'fetchDepartments' }));
             if (response.data.status === 'success') {
                 setDepartments(response.data.data);
                 setFilteredDepartments(response.data.data);
@@ -115,11 +115,11 @@ const Departments = () => {
         setIsSubmitting(true);
         const url = SecureStorage.getLocalItem("url");
         try {
-            const endpoint = editMode ? 'update_master1.php' : 'vehicle_master.php';
+            const endpoint = editMode ? 'user.php' : 'user.php';
             const operation = editMode ? 'updateDepartment' : 'saveDepartmentData';
             const payload = editMode ? 
                 { operation, id: formData.id, name: sanitizedName.trim() } :
-                { operation, json: { departments_name: sanitizedName.trim() } };
+                { operation, departments_name: sanitizedName.trim() };
             
             console.log('Sending payload:', payload); // Debug log
             

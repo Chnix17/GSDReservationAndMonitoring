@@ -216,7 +216,7 @@ const ViewPersonnelTask = () => {
 
   const handleRefresh = () => {
     fetchPersonnelTasks();
-    toast.info('Refreshing tasks...');
+
   };
 
   const fetchCompletedTasks = useCallback(async () => {
@@ -308,12 +308,21 @@ const ViewPersonnelTask = () => {
     }
   };
 
-  // Helper: Only allow opening from 5 minutes before start date (Asia/Manila) and onwards
+  // Helper: Only allow opening from 1 hour before start date (Asia/Manila) and onwards
   const canOpenTask = (task) => {
     if (!task || !task.reservation_start_date) return false;
     const now = dayjs().tz('Asia/Manila');
-    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(5, 'minute');
+    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(1, 'hour');
     return now.isAfter(openTime) || now.isSame(openTime);
+  };
+
+  // Helper: Get minutes until checklist can be opened
+  const getMinutesUntilOpen = (task) => {
+    if (!task || !task.reservation_start_date) return null;
+    const now = dayjs().tz('Asia/Manila');
+    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(1, 'hour');
+    const diff = openTime.diff(now, 'minute');
+    return diff > 0 ? diff : 0;
   };
 
   return (
@@ -473,9 +482,17 @@ const ViewPersonnelTask = () => {
                                   <Tag color="success">Completed</Tag>
                                 ) : (
                                   <>
-                                    <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
-                                      {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
-                                    </Tag>
+                                    {canOpenTask(task) ? (
+                                      <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
+                                        {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
+                                      </Tag>
+                                    ) : (
+                                      <Tooltip title={`Checklist will open in ${getMinutesUntilOpen(task)} minute(s)`}>
+                                        <Tag color="default">
+                                          Locked
+                                        </Tag>
+                                      </Tooltip>
+                                    )}
                                     {task.is_returned === 1 && (
                                       <Tag color="success">Returned</Tag>
                                     )}

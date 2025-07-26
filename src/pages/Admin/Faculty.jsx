@@ -133,7 +133,7 @@ const Faculty = () => {
     const getUserDetails = async (userId) => {
         try {
             const response = await axios.post(
-                `${encryptedUrl}fetchMaster.php`,
+                `${encryptedUrl}user.php`,
                 { 
                     operation: 'fetchUsersById',
                     id: userId 
@@ -174,7 +174,7 @@ const Faculty = () => {
 
     const fetchDepartments = useCallback(async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+            const response = await axios.post(`${encryptedUrl}user.php`, 
                 { operation: "fetchDepartments" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -192,7 +192,7 @@ const Faculty = () => {
 
     const fetchUserLevels = useCallback(async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+            const response = await axios.post(`${encryptedUrl}user.php`, 
                 { operation: "fetchUserLevels" },
                 { headers: { 'Content-Type': 'application/json' } }
             );

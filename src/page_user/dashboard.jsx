@@ -7,7 +7,7 @@ import { FiCalendar,
 import { Modal, Tabs, Pagination } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
-import ReservationCalendar from '../components/ReservationCalendar';
+
 import Sidebar from './component/user_sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { toast } from 'react-toastify';
@@ -16,7 +16,7 @@ const { TabPane } = Tabs;
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
 
   const [activeReservations, setActiveReservations] = useState([]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -502,7 +502,7 @@ const Dashboard = () => {
                       <FiCalendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                       <p>No active reservations found</p>
                       <button
-                        onClick={() => navigate('/add-reservation')}
+                        onClick={() => navigate('/addReservation')}
                         className="mt-4 text-green-600 hover:text-green-700 font-medium"
                       >
                         Create a new reservation
@@ -599,13 +599,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <ReservationCalendar 
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-      />
-
-
-
+   
       <DetailModal 
         visible={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}

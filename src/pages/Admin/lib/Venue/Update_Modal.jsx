@@ -40,38 +40,40 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     }, [fetchStatusAvailability]);
 
     const getVenueDetails = useCallback(async () => {
-        console.log('venueId:', venueId);
-        
+        if (!venueId) {
+            toast.error("No venue ID provided.");
+            return;
+        }
+
         try {
-            const formData = new URLSearchParams();
-            formData.append('operation', 'fetchVenueById');
-            formData.append('id', venueId);
-    
-            const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
-                formData,
+            const requestData = {
+                operation: 'fetchVenueById',
+                id: venueId
+            };
+
+            const response = await axios.post(
+                `${baseUrl}/user.php`,
+                requestData,
                 {
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json'
                     }
                 }
             );
-    
-            console.log('fetchVenueById response:', response.data);
-    
+
             if (response.data.status === 'success' && response.data.data && response.data.data.length > 0) {
                 const venue = response.data.data[0];
                 setVenueName(venue.ven_name);
                 setMaxOccupancy(venue.ven_occupancy);
                 setSelectedStatus(venue.status_availability_id);
                 setEventType(venue.event_type || 'Big Event');
-                
+
                 form.setFieldsValue({
                     name: venue.ven_name,
                     occupancy: venue.ven_occupancy,
                     status: venue.status_availability_id,
                     event_type: venue.event_type || 'Big Event',
                 });
-                
             } else {
                 toast.error("Failed to fetch venue details");
             }

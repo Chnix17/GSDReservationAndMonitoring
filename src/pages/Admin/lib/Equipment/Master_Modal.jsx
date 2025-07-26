@@ -109,12 +109,10 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         const user_admin_id = SecureStorage.getSessionItem('user_id');
         const requestData = {
             operation: "saveEquipment",
-            data: {
-                name: equipmentName,
-                equipments_category_id: selectedCategory,
-                equip_type: equipmentType,
-                user_admin_id: user_admin_id
-            }
+            name: equipmentName,
+            equipments_category_id: selectedCategory,
+            equip_type: equipmentType,
+            user_admin_id: user_admin_id
         };
 
         
@@ -124,7 +122,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
         try {
             const response = await axios.post(
-                `${baseUrl}/insert_master.php`,
+                `${baseUrl}/user.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {

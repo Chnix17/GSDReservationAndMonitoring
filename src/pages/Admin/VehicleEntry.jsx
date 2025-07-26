@@ -42,7 +42,7 @@ const VehicleEntry = () => {
     const [pageSize, setPageSize] = useState(10);
     
     const navigate = useNavigate();
-    const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
+    const BASE_URL = `${encryptedUrl}/user.php`;
 
     const IMAGE_BASE_URL = encryptedUrl;
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);

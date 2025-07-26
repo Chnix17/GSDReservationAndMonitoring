@@ -54,6 +54,9 @@ const ViewApproval = () => {
     }
   }, []);
 
+  // Get baseUrl from SecureStorage
+  const baseUrl = SecureStorage.getLocalItem("url");
+
   const fetchApprovalRequests = useCallback(async () => {
     if (!departmentId) {
       console.error("Department ID is not available");
@@ -63,7 +66,7 @@ const ViewApproval = () => {
     setLoading(true);
     try {
       // First, try fetchApprovalByDept
-      const response1 = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response1 = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchApprovalByDept',
         json: {
           department_id: departmentId,
@@ -74,7 +77,7 @@ const ViewApproval = () => {
       let data1 = response1.data && response1.data.data ? response1.data.data.map(item => ({ ...item, fromApprovalByDept: true })) : [];
 
       // Next, try fetchRequestReservation
-      const response2 = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response2 = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchRequestReservation'
       });
       let data2 = response2.data && response2.data.data ? response2.data.data.map(item => ({
@@ -123,7 +126,7 @@ const ViewApproval = () => {
     } finally {
       setLoading(false);
     }
-  }, [departmentId]);
+  }, [departmentId, baseUrl]);
 
   const handleApproval = async (reservationId, isAccepted) => {
     if (!selectedRequest) {
@@ -142,7 +145,7 @@ const ViewApproval = () => {
         notification_message = `Your Reservation Has Been Declined. Reason: ${declineReason === 'Other' ? customReason : declineReason}`;
       }
 
-      const response = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
+      const response = await axios.post(`${baseUrl}/process_reservation.php`, {
         operation: 'handleApproval',
         reservation_id: reservationId,
         is_accepted: isAccepted,
@@ -202,7 +205,7 @@ const ViewApproval = () => {
 
   const fetchAvailability = async () => {
     try {
-      const response = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchVenueScheduledCheck'
       });
       if (response.data && response.data.status === 'success') {
@@ -218,7 +221,7 @@ const ViewApproval = () => {
   const handleViewApprovalDetails = async (request) => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchRequestById',
         reservation_id: request.reservation_id
       });

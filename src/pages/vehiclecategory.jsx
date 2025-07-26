@@ -48,7 +48,7 @@ const VehicleCategories = () => {
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+      const response = await axios.post(`${encryptedUrl}user.php`, 
         new URLSearchParams({ operation: 'fetchVehicleCategories' })
       );
       if (response.data.status === 'success') {
@@ -73,6 +73,7 @@ const VehicleCategories = () => {
       setFormData({ id: categoryToEdit.vehicle_category_id, name: categoryToEdit.vehicle_category_name });
       setEditMode(true);
       setShowModal(true);
+      form.setFieldsValue({ name: categoryToEdit.vehicle_category_name });
     }
   };
 
@@ -105,8 +106,8 @@ const VehicleCategories = () => {
     }
   };
   
-  const handleSave = async () => {
-    const sanitizedName = sanitizeInput(formData.name);
+  const handleSave = async (values) => {
+    const sanitizedName = sanitizeInput(values.name);
     
     if (!sanitizedName.trim()) {
       toast.error("Please enter a category name.");
@@ -120,19 +121,19 @@ const VehicleCategories = () => {
 
     setIsSubmitting(true);
     try {
-      const endpoint = editMode ? 'update_master1.php' : 'vehicle_master.php';
-      const requestData = editMode ? {
-        operation: 'updateVehicleCategory',
-        id: formData.id,
-        name: sanitizedName
-      } : {
-        operation: 'saveCategoryData',
-        json: JSON.stringify({
-          vehicle_category_name: sanitizedName
-        })
-      };
+      // Always use user.php for both save and update
+      const requestData = editMode
+        ? {
+            operation: 'updateVehicleCategory',
+            id: formData.id,
+            name: sanitizedName
+          }
+        : {
+            operation: 'saveCategoryData',
+            vehicle_category_name: sanitizedName
+          };
 
-      const response = await axios.post(`${encryptedUrl}${endpoint}`, requestData, {
+      const response = await axios.post(`${encryptedUrl}user.php`, requestData, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -142,6 +143,7 @@ const VehicleCategories = () => {
         fetchCategories();
         closeModal();
       } else {
+        // Show backend error message, e.g., duplicate category
         toast.error(response.data.message || `Failed to ${editMode ? 'update' : 'add'} vehicle category.`);
       }
     } catch (error) {
@@ -155,6 +157,7 @@ const VehicleCategories = () => {
     setShowModal(false);
     setEditMode(false);
     setFormData({ id: '', name: '' });
+    form.resetFields();
   };
 
   const handleSearchChange = (e) => {
@@ -170,6 +173,7 @@ const VehicleCategories = () => {
     setFormData({ id: '', name: '' });
     setEditMode(false);
     setShowModal(true);
+    form.setFieldsValue({ name: '' });
   };
   
   const handleRefresh = () => {
@@ -362,10 +366,10 @@ const VehicleCategories = () => {
         open={showModal}
         onCancel={closeModal}
         okText={editMode ? 'Update' : 'Add'}
-        onOk={handleSave}
+        onOk={() => form.submit()}
         confirmLoading={isSubmitting}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item
             label="Category Name"
             name="name"

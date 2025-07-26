@@ -31,7 +31,7 @@ const Create_Modal = ({
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [isModelModalOpen, setIsModelModalOpen] = useState(false);
     const encryptedUrl = SecureStorage.getLocalItem("url");
-    const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
+    const BASE_URL = `${encryptedUrl}/user.php`;
 
     const fetchMakes = useCallback(async () => {
         try {

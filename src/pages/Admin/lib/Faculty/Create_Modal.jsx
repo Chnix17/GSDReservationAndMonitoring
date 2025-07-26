@@ -192,7 +192,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/fetchMaster.php`,
+                url: `${baseUrl}/user.php`,
                 data: new URLSearchParams({
                     operation: 'fetchUserLevels'
                 }).toString(),
@@ -218,7 +218,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/fetchMaster.php`,
+                url: `${baseUrl}/user.php`,
                 data: new URLSearchParams({
                     operation: 'fetchDepartments'
                 }).toString(),

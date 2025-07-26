@@ -8,7 +8,6 @@ import { FiCalendar,
 import { Modal, Tabs, Button, Empty, Pagination } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
-import ReservationCalendar from '../components/ReservationCalendar';
 import Sidebar from './component/dean_sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { toast } from 'react-toastify';
@@ -18,7 +17,7 @@ const { TabPane } = Tabs;
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
 
   const [activeReservations, setActiveReservations] = useState([]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -877,10 +876,7 @@ const Dashboard = () => {
         </div>
       </Modal>
 
-      <ReservationCalendar 
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-      />
+          
 
       <DetailModal 
         visible={isDetailModalOpen}

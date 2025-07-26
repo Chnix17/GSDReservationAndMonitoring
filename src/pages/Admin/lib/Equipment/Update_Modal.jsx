@@ -51,7 +51,7 @@ const UpdateEquipmentModal = ({
     }, [baseUrl]);
 
     const getEquipmentDetails = useCallback(async (equip_id) => {
-        const url = `${baseUrl}/fetchMaster.php`;
+        const url = `${baseUrl}/user.php`;
         const jsonData = { operation: "fetchEquipmentById", id: equip_id };
 
         try {
