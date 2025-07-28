@@ -34,7 +34,7 @@ const EquipmentEntry = () => {
     const [selectedEquipment, setSelectedEquipment] = useState(null);
 
     const navigate = useNavigate();
-    const user_level_id = SecureStorage.getSessionItem('user_level_id');
+    const user_level_id = SecureStorage.getLocalItem('user_level_id');
 
     useEffect(() => {
         const decryptedUserLevel = parseInt(user_level_id);

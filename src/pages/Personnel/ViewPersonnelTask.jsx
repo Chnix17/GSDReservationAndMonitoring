@@ -382,11 +382,7 @@ const ViewPersonnelTask = () => {
                       icon={<ReloadOutlined  className='text-white font-bold'/>}
                       onClick={handleRefresh}
                       size="large"
-<<<<<<< HEAD
                       className="!bg-green-900 !border-green-900 hover:!bg-lime-950"
-=======
-                      className="!bg-green-900 !border-green-200 hover:!bg-green-200"
->>>>>>> b74d856c1d6e967a88798471bca3b993c914c232
                     />
                   </Tooltip>
                 </div>
@@ -400,11 +396,7 @@ const ViewPersonnelTask = () => {
           </div>
 
           {/* Table Section */}
-<<<<<<< HEAD
-          <div className="relative overflow-x-auto shadow-lg rounded-md    sm:rounded-2xl">
-=======
           <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
->>>>>>> b74d856c1d6e967a88798471bca3b993c914c232
             {loading || releasingAll ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>

@@ -45,7 +45,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-          const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+          const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17) {
               localStorage.clear();

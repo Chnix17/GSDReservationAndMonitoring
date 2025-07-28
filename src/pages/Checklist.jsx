@@ -33,7 +33,7 @@ function Checklist() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
     if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
@@ -46,7 +46,7 @@ function Checklist() {
     const fetchChecklists = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${storedUrl}fetch2.php`, {
+        const response = await fetch(`${storedUrl}user.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -98,7 +98,7 @@ function Checklist() {
     try {
       console.log('Sending request with:', { type, id });
       
-      const response = await fetch(`${storedUrl}fetch2.php`, {
+      const response = await fetch(`${storedUrl}user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -134,7 +134,7 @@ function Checklist() {
     }
     
     try {
-      const response = await fetch(`${storedUrl}fetch2.php`, {
+      const response = await fetch(`${storedUrl}user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -303,7 +303,7 @@ function Checklist() {
     }
 
     try {
-      const response = await fetch(`${storedUrl}fetch2.php`, {
+      const response = await fetch(`${storedUrl}user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -345,7 +345,7 @@ function Checklist() {
     const fetchChecklists = async () => {
       setLoading(true);
       try {
-        const response = await fetch(`${storedUrl}fetch2.php`, {
+        const response = await fetch(`${storedUrl}user.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -402,7 +402,7 @@ function Checklist() {
     }
 
     try {
-      const response = await fetch(`${storedUrl}fetch2.php`, {
+      const response = await fetch(`${storedUrl}user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

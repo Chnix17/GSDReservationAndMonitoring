@@ -46,7 +46,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       
       console.log('Fetching user data for ID:', userId);
       
-      const response = await fetch(`${baseUrl}/fetchMaster.php`, {
+      const response = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -87,7 +87,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // Function to fetch departments from API
   const fetchDepartments = useCallback(async () => {
     try {
-      const response = await fetch(`${baseUrl}/fetchMaster.php`, {
+      const response = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

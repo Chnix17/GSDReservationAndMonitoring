@@ -199,7 +199,7 @@ const Chat = () => {
         userid: currentUser.id
       };
 
-      const response = await fetch('http://localhost/coc/gsd/fetchMaster.php', {
+      const response = await fetch('http://localhost/coc/gsd/user.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -268,7 +268,7 @@ const Chat = () => {
       formData.append('operation', 'fetchChatHistory');
       formData.append('userId', currentUser.id);
 
-      const response = await fetch('hhttp://localhost/coc/gsd/fetchMaster.php', {
+      const response = await fetch('hhttp://localhost/coc/gsd/.php', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -428,7 +428,7 @@ const Chat = () => {
   );
 
   const renderInputArea = () => (
-    <div className="border-t bg-white/95 backdrop-blur-lg px-4 py-3 sticky bottom-0 z-10">
+    <div className="border-t bg-white/95 backdrop-blur-lg px-4 py-3 pb-6 sticky bottom-0 z-10">
       {messageToReply && (
         <motion.div 
           initial={{ opacity: 0, y: 5 }}

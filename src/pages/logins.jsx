@@ -1069,7 +1069,7 @@ function Logins() {
                     
                     // Fetch the user's full details
                     try {
-                        const userDetailsResponse = await axios.post(`${apiUrl}fetchMaster.php`, {
+                        const userDetailsResponse = await axios.post(`${apiUrl}user.php`, {
                             operation: "fetchUsersById",
                             id: userId
                         });
@@ -1222,7 +1222,7 @@ function Logins() {
             const userId = SecureStorage.getSessionItem("temp_user_id");
             
             // Get user details again to proceed with login
-            const userResponse = await axios.post(`${apiUrl}fetchMaster.php`, {
+            const userResponse = await axios.post(`${apiUrl}user.php`, {
                 operation: "fetchUsersById",
                 id: userId
             });

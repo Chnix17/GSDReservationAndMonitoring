@@ -19,7 +19,6 @@ import Sidebar from '../Sidebar';
 import {SecureStorage} from '../../utils/encryption';
 
 const Reports = () => {
-  const [loading, setLoading] = useState(true);
   const [maintenanceResources, setMaintenanceResources] = useState([]);
   const [maintenanceResourcesWithStatus, setMaintenanceResourcesWithStatus] = useState([]);
   // const [totalCounts, setTotalCounts] = useState({
@@ -37,26 +36,11 @@ const Reports = () => {
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
-  const fetchAvailabilityStats = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await axios.post(`${baseUrl}/get_totals.php`, {
-        operation: 'getAvailabilityStatus'
-      });
 
-      if (response.data.status === 'success') {
-        // setTotalCounts(response.data.data);
-      }
-    } catch (error) {
-      toast.error('Error fetching availability statistics');
-    } finally {
-      setLoading(false);
-    }
-  }, [baseUrl]);
 
   const fetchMaintenanceResources = useCallback(async () => {
     try {
-      const response = await axios.post(`${baseUrl}/get_totals.php`, {
+      const response = await axios.post(`${baseUrl}/user.php`, {
         operation: 'displayedMaintenanceResources'
       });
 
@@ -94,7 +78,7 @@ const Reports = () => {
   const handleUpdateResourceStatus = async (isFixed) => {
     if (!selectedResource) return;
     try {
-      await axios.post(`${baseUrl}/get_totals.php`, {
+      await axios.post(`${baseUrl}/user.php`, {
         operation: "updateResourceStatusAndCondition",
         type: selectedResource.resource_type,
         resourceId: selectedResource.resource_id, // or the correct field for your resource
@@ -229,7 +213,6 @@ const Reports = () => {
   };
 
   const handleRefresh = () => {
-    fetchAvailabilityStats();
     fetchMaintenanceResources();
     fetchMaintenanceResourcesWithStatus();
     setSearchTerm('');
@@ -240,10 +223,9 @@ const Reports = () => {
   );
 
   useEffect(() => {
-    fetchAvailabilityStats();
     fetchMaintenanceResources();
     fetchMaintenanceResourcesWithStatus();
-  }, [timeRange, fetchAvailabilityStats, fetchMaintenanceResources, fetchMaintenanceResourcesWithStatus]);
+  }, [timeRange, fetchMaintenanceResources, fetchMaintenanceResourcesWithStatus]);
 
   // Add debugging logs to help verify filtering
   useEffect(() => {
@@ -385,7 +367,7 @@ const Reports = () => {
                   children: (
                     <div className="overflow-x-auto pr-8">
                       <Table
-                        loading={loading}
+                        loading={false}
                         pagination={{ 
                           pageSize: 10,
                           showSizeChanger: true,
@@ -415,7 +397,7 @@ const Reports = () => {
                   children: (
                     <div className="overflow-x-auto">
                       <Table
-                        loading={loading}
+                        loading={false}
                         pagination={{ 
                           pageSize: 10,
                           showSizeChanger: true,

@@ -165,7 +165,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchApprovalRequests = async () => {
       try {
-        const departmentId = SecureStorage.getSessionItem('department_id');
+        const departmentId = SecureStorage.getLocalItem('department_id');
         const baseUrl = SecureStorage.getLocalItem("url");
         
         const response = await fetch(`${baseUrl}/Department_Dean.php`, {
@@ -177,8 +177,8 @@ const Dashboard = () => {
             operation: 'fetchApprovalByDept',
             json: {
               department_id: departmentId,
-              user_level_id: SecureStorage.getSessionItem("user_level_id"),
-              current_user_id: SecureStorage.getSessionItem("user_id")
+              user_level_id: SecureStorage.getLocalItem("user_level_id"),
+              current_user_id: SecureStorage.getLocalItem("user_id")
             }
           })
         });

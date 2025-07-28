@@ -31,7 +31,7 @@ const Sidebar = () => {
   });
   const [isSubscribing, setIsSubscribing] = useState(false);
 
-  const name = SecureStorage.getSessionItem('name') || 'Admin User';
+  const name = SecureStorage.getLocalItem('name') || 'Admin User';
 
 
   
@@ -492,9 +492,6 @@ const Sidebar = () => {
                         >
                           My Profile
                         </button>
-                        <Link to="/settings" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                          Settings
-                        </Link>
                         <button
                           onClick={handleLogout}
                           className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"

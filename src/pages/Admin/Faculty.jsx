@@ -79,7 +79,7 @@ const generateAvatarColor = (str) => {
 };
 
 const Faculty = () => {
-    const user_level_id = SecureStorage.getSessionItem('user_level_id');
+    const user_level_id = SecureStorage.getLocalItem('user_level_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
     const [users, setUsers] = useState([]);
     const [loading, setLoading] = useState(false);

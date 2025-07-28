@@ -33,7 +33,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         console.log('Fetching equipment details for ID:', equipmentId);
         setLoading(true);
         try {
-            const url = `${baseUrl}/fetchMaster.php`;
+            const url = `${baseUrl}/user.php`;
             const params = new URLSearchParams({
                 operation: "fetchEquipmentById",
                 id: equipmentId,

@@ -20,7 +20,7 @@ import UpdateModal from './lib/Vehicle/Update_Modal';
 import ViewUtilization from './lib/Vehicle/View_Utilization';
 
 const VehicleEntry = () => {
-    const user_level_id = SecureStorage.getSessionItem('user_level_id');
+    const user_level_id = SecureStorage.getLocalItem('user_level_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
     // Add fileUploadRef before other state declarations
     const fileUploadRef = useRef(null);
@@ -115,7 +115,7 @@ const VehicleEntry = () => {
 
     const fetchStatusAvailability = useCallback(async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
+            const response = await axios.post(`${encryptedUrl}/user.php`, 
                 new URLSearchParams({ operation: "fetchStatusAvailability" })
             );
             if (response.data.status === 'success') {

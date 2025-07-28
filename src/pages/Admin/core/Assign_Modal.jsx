@@ -217,7 +217,7 @@ const AssignModal = ({
         }
       };
 
-      const response = await axios.post(`${baseUrl}/fetch2.php`, payload);
+      const response = await axios.post(`${baseUrl}/user.php`, payload);
 
       if (response.data.status === 'success') {
         onSuccess({

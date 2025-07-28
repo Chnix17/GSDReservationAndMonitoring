@@ -48,7 +48,7 @@ const ViewReserve = () => {
     // Table columns configuration
 
     useEffect(() => {
-        const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+        const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18) {
             localStorage.clear();
@@ -59,7 +59,7 @@ const ViewReserve = () => {
 
     const confirmCancelReservation = async () => {
         try {
-            const userId = SecureStorage.getSessionItem('user_id');
+            const userId = SecureStorage.getLocalItem('user_id');
             if (!userId) {
                 toast.error('User session expired');
                 navigate('/gsd');
@@ -106,7 +106,7 @@ const ViewReserve = () => {
     const fetchReservations = useCallback(async () => {
         try {
             setLoading(true);
-            const userId = SecureStorage.getSessionItem('user_id');
+            const userId = SecureStorage.getLocalItem('user_id');
             console.log('Fetching reservations for user:', userId);
             
             if (!userId) {

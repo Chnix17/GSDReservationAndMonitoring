@@ -31,7 +31,7 @@ const EquipmentCategories = () => {
     const [form] = Form.useForm();
 
     useEffect(() => {
-        const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+        const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         console.log("this is encryptedUserLevel", encryptedUserLevel);
         if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {

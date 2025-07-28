@@ -9,10 +9,17 @@ import { Progress, Tooltip } from "antd";
 const BASE_URL =
   SecureStorage.getLocalItem("url") || "http://localhost/coc/gsd/";
 
-const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, type }) => {
-  const [selectedCondition, setSelectedCondition] = useState('');
-  const [badQuantity, setBadQuantity] = useState('');
-  const [remarks, setRemarks] = useState('');
+const ReturnConditionModal = ({
+  isOpen,
+  onClose,
+  onSubmit,
+  isSubmitting,
+  item,
+  type,
+}) => {
+  const [selectedCondition, setSelectedCondition] = useState("");
+  const [badQuantity, setBadQuantity] = useState("");
+  const [remarks, setRemarks] = useState("");
   const totalQuantity = parseInt(item?.quantity || 0);
   const isEquipmentConsumable = type === "equipment_consumable";
   const isVenue = type === "venue";
@@ -60,7 +67,7 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
         toast.error('Please enter remarks for "Other" condition');
         return;
       }
-      onSubmit(selectedCondition, null, null, remarks);
+      onSubmit(selectedCondition, null, null, remarks); // Pass remarks
       return;
     }
     if (isEquipmentConsumable && selectedCondition !== "good") {
@@ -143,6 +150,7 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
               </svg>
             </button>
           </div>
+
           <div className="space-y-4">
             <p className="text-sm text-gray-600">
               Please select the condition of the returned item:
@@ -237,6 +245,7 @@ const ReturnConditionModal = ({ isOpen, onClose, onSubmit, isSubmitting, item, t
               </div>
             )}
           </div>
+
           <div className="mt-6 flex justify-end gap-3">
             <button
               onClick={onClose}
@@ -301,14 +310,8 @@ const ChecklistModal = ({
   refreshTasks,
 }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [conditions, setConditions] = useState([]);
-  const [venueCondition, setVenueCondition] = useState('');
-  const [vehicleCondition, setVehicleCondition] = useState('');
-  const [equipmentCondition, setEquipmentCondition] = useState('');
-  const [otherVenueCondition, setOtherVenueCondition] = useState('');
-  const [otherVehicleCondition, setOtherVehicleCondition] = useState('');
-  const [otherEquipmentCondition, setOtherEquipmentCondition] = useState('');
-  const [equipmentDefectQty, setEquipmentDefectQty] = useState('');
+      // const [equipmentCondition, setEquipmentCondition] = useState("");
+      // const [equipmentDefectQty, setEquipmentDefectQty] = useState("");
   const [isReleasing, setIsReleasing] = useState(false);
   const [expandedSections, setExpandedSections] = useState({
     info: true,
@@ -332,29 +335,29 @@ const ChecklistModal = ({
     equipment: "checklist_equipment_id",
   };
 
-  const needsDefectQuantity = (conditionId) => {
-    return ["3", "4"].includes(conditionId);
-  };
+  // const needsDefectQuantity = (conditionId) => {
+  //   return ["3", "4"].includes(conditionId);
+  // };
 
-  const handleEquipmentDefectQtyChange = (e) => {
-    const value = e.target.value;
-    const totalQuantity = selectedTask?.equipments?.[0]?.quantity || 0;
+  // const handleEquipmentDefectQtyChange = (e) => {
+  //   const value = e.target.value;
+  //   const totalQuantity = selectedTask?.equipments?.[0]?.quantity || 0;
 
-    if (value < 0) {
-      setEquipmentDefectQty("0");
-      return;
-    }
+  //   if (value < 0) {
+  //     setEquipmentDefectQty("0");
+  //     return;
+  //   }
 
-    if (parseInt(value) > parseInt(totalQuantity)) {
-      toast.error(
-        `Defect quantity cannot exceed total quantity (${totalQuantity})`,
-      );
-      setEquipmentDefectQty(totalQuantity.toString());
-      return;
-    }
+  //   if (parseInt(value) > parseInt(totalQuantity)) {
+  //     toast.error(
+  //       `Defect quantity cannot exceed total quantity (${totalQuantity})`,
+  //     );
+  //     setEquipmentDefectQty(totalQuantity.toString());
+  //     return;
+  //   }
 
-    setEquipmentDefectQty(value);
-  };
+  //   setEquipmentDefectQty(value);
+  // };
 
   const formatDateTime = (dateString) => {
     const date = new Date(dateString);
@@ -433,11 +436,15 @@ const ChecklistModal = ({
 
     // Check venues if they exist
     const venuesDone =
-      !hasVenues || task.venues.every((venue) => venue.active === -1);
+      !hasVenues || task.venues.every((venue) => 
+        venue.active === -1 || venue.is_returned === 1 || venue.is_returned === "1"
+      );
 
     // Check vehicles if they exist
     const vehiclesDone =
-      !hasVehicles || task.vehicles.every((vehicle) => vehicle.active === -1);
+      !hasVehicles || task.vehicles.every((vehicle) => 
+        vehicle.active === -1 || vehicle.is_returned === 1 || vehicle.is_returned === "1"
+      );
 
     // Check equipment units if they exist
     const equipmentsDone =
@@ -445,28 +452,19 @@ const ChecklistModal = ({
       task.equipments.every((equipment) => {
         // For consumable equipment (no units)
         if (!equipment.units || equipment.units.length === 0) {
-          return equipment.active === -1;
+          return equipment.active === -1 || equipment.is_returned === 1 || equipment.is_returned === "1";
         }
         // For equipment with units, check each unit
-        return equipment.units.every((unit) => unit.active === -1);
+        return equipment.units.every((unit) => 
+          unit.active === -1 || unit.is_returned === 1 || unit.is_returned === "1"
+        );
       });
 
     // Return true if all existing resource types are done
     return venuesDone && vehiclesDone && equipmentsDone;
   };
 
-  const fetchConditions = async () => {
-    try {
-      const response = await axios.post(`${BASE_URL}fetchMaster.php`, new URLSearchParams({ operation: 'fetchConditions' }));
-      if (response.data.status === 'success') {
-        setConditions(response.data.data);
-      } else {
-        toast.error(response.data.message);
-      }
-    } catch (error) {
-      toast.error("Error fetching conditions");
-    }
-  };
+
 
   const handleChecklistUpdate = async (type, checklistId, value) => {
     try {
@@ -592,19 +590,6 @@ const ChecklistModal = ({
   };
 
   const handleSubmitTask = async () => {
-    if (venueCondition === "Other" && !otherVenueCondition.trim()) {
-      toast.error("Please specify the venue condition");
-      return;
-    }
-    if (vehicleCondition === "Other" && !otherVehicleCondition.trim()) {
-      toast.error("Please specify the vehicle condition");
-      return;
-    }
-    if (equipmentCondition === "Other" && !otherEquipmentCondition.trim()) {
-      toast.error("Please specify the equipment condition");
-      return;
-    }
-
     // Check if all resources are done/returned
     if (!areAllResourcesDone(selectedTask)) {
       toast.error("All resources must be done or returned before submitting");
@@ -613,99 +598,28 @@ const ChecklistModal = ({
 
     try {
       setIsSubmitting(true);
-      const conditionsPayload = {
-        operation: 'submitCondition',
-        conditions: {}
+      
+      const updateStatusPayload = {
+        operation: "updateReservationStatus",
+        reservation_id: selectedTask.reservation_id,
       };
 
-      // Handle all venues
-      if (selectedTask.venues && selectedTask.venues.length > 0 && venueCondition) {
-        const venueConditionId = conditions.find(c => c.condition_name === venueCondition)?.id;
-        
-        conditionsPayload.conditions.venue = {
-          reservation_ids: [],
-          condition_ids: [],
-          other_reasons: [],
-          qty_bad: []
-        };
-        
-        selectedTask.venues.forEach(venue => {
-          if (venue.reservation_venue_id && venueConditionId) {
-            conditionsPayload.conditions.venue.reservation_ids.push(venue.reservation_venue_id);
-            conditionsPayload.conditions.venue.condition_ids.push(venueConditionId);
-            conditionsPayload.conditions.venue.other_reasons.push(venueCondition === 'Other' ? otherVenueCondition : null);
-            conditionsPayload.conditions.venue.qty_bad.push('0');
-          }
-        });
-      }
-
-      // Handle all vehicles
-      if (selectedTask.vehicles && selectedTask.vehicles.length > 0 && vehicleCondition) {
-        const vehicleConditionId = conditions.find(c => c.condition_name === vehicleCondition)?.id;
-        
-        conditionsPayload.conditions.vehicle = {
-          reservation_ids: [],
-          condition_ids: [],
-          other_reasons: [],
-          qty_bad: []
-        };
-        
-        selectedTask.vehicles.forEach(vehicle => {
-          if (vehicle.reservation_vehicle_id && vehicleConditionId) {
-            conditionsPayload.conditions.vehicle.reservation_ids.push(vehicle.reservation_vehicle_id);
-            conditionsPayload.conditions.vehicle.condition_ids.push(vehicleConditionId);
-            conditionsPayload.conditions.vehicle.other_reasons.push(vehicleCondition === 'Other' ? otherVehicleCondition : null);
-            conditionsPayload.conditions.vehicle.qty_bad.push('0');
-          }
-        });
-      }
-
-      // Handle all equipment
-      if (selectedTask.equipments && selectedTask.equipments.length > 0 && equipmentCondition) {
-        conditionsPayload.conditions.equipment = {
-          reservation_ids: [],
-          condition_ids: [],
-          other_reasons: [],
-          qty_bad: []
-        };
-        
-        selectedTask.equipments.forEach(equipment => {
-          if (equipment.reservation_equipment_id) {
-            conditionsPayload.conditions.equipment.reservation_ids.push(equipment.reservation_equipment_id);
-            conditionsPayload.conditions.equipment.condition_ids.push(equipmentCondition);
-            conditionsPayload.conditions.equipment.other_reasons.push(equipmentCondition === '6' ? otherEquipmentCondition : null);
-            conditionsPayload.conditions.equipment.qty_bad.push(needsDefectQuantity(equipmentCondition) ? (equipmentDefectQty || '0') : '0');
-          }
-        });
-      }
-
-      const conditionResponse = await axios.post(`${BASE_URL}personnel.php`, conditionsPayload, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-
-      if (conditionResponse.data.status === 'success') {
-        const updateStatusPayload = {
-          operation: 'updateReservationStatus',
-          reservation_id: selectedTask.reservation_id
-        };
-
-        const statusResponse = await axios.post(`${BASE_URL}personnel.php`, updateStatusPayload, {
+      const statusResponse = await axios.post(
+        `${BASE_URL}personnel.php`,
+        updateStatusPayload,
+        {
           headers: {
-            'Content-Type': 'application/json'
-          }
-        });
+            "Content-Type": "application/json",
+          },
+        },
+      );
 
-        if (statusResponse.data.status === 'success') {
-          toast.success('Task completed successfully');
-          onClose();
-          onTaskUpdate(null);
-        } else {
-          toast.error('Failed to update reservation status');
-        }
+      if (statusResponse.data.status === "success") {
+        toast.success("Task completed successfully");
+        onClose();
+        onTaskUpdate(null);
       } else {
-        toast.error(conditionResponse.data.message || 'Failed to submit task');
+        toast.error("Failed to update reservation status");
       }
     } catch (err) {
       console.error("Error submitting task:", err);
@@ -731,23 +645,23 @@ const ChecklistModal = ({
         case "venue":
           reservationId = item.reservation_venue_id;
           resourceId = item.reservation_venue_venue_id;
-          setVenueCondition("In Use");
+
           break;
         case "vehicle":
           reservationId = item.reservation_vehicle_id;
           resourceId = item.reservation_vehicle_vehicle_id;
-          setVehicleCondition("In Use");
+
           break;
         case "equipment":
           reservationId = item.reservation_unit_id;
           resourceId = item.unit_id;
-          setEquipmentCondition("In Use");
+
           break;
         case "equipment_consumable":
           reservationId = item.reservation_equipment_id;
           resourceId = item.quantity_id;
           quantity = item.quantity;
-          setEquipmentCondition("In Use");
+
           break;
         default:
           toast.error("Invalid type");
@@ -869,6 +783,14 @@ const ChecklistModal = ({
         message: "Invalid item",
       };
 
+    // If already returned, prevent any release
+    if (item.is_returned === 1 || item.is_returned === "1") {
+      return {
+        canRelease: false,
+        message: "This item is already returned",
+      };
+    }
+
     // If active is -1, prevent any release
     if (item.active === -1) {
       return {
@@ -917,6 +839,9 @@ const ChecklistModal = ({
     // If already returned, don't show return button
     if (item.is_returned === 1 || item.is_returned === "1") return false;
 
+    // If active is -1 (done/returned), don't show return button
+    if (item.active === -1) return false;
+
     // Check if the item is active
     const isActive = item.active === 1 || item.active === "1";
 
@@ -955,11 +880,6 @@ const ChecklistModal = ({
   };
 
   const handleReturnClick = (type, item) => {
-    // If already returned, do not open modal
-    if (item.is_returned === "1" || item.is_returned === 1) {
-      toast.info("This item is already done or returned");
-      return;
-    }
     setSelectedItemForReturn({ type, item });
     setShowReturnModal(true);
   };
@@ -984,34 +904,34 @@ const ChecklistModal = ({
         case "venue":
           reservation_id = item.reservation_venue_id;
           resource_id = item.reservation_venue_venue_id;
-          setVenueCondition(condition === "good" ? "Good Condition" : "Other");
-          if (condition === "other") {
-            setOtherVenueCondition(remarks);
-          }
+          // setVenueCondition(condition === "good" ? "Good Condition" : "Other");
+          // if (condition === "other") {
+          //   setOtherVenueCondition(remarks);
+          // }
           break;
         case "vehicle":
           reservation_id = item.reservation_vehicle_id;
           resource_id = item.reservation_vehicle_vehicle_id;
-          setVehicleCondition(condition);
-          if (condition === "Other") {
-            setOtherVehicleCondition(condition);
-          }
+          // setVehicleCondition(condition);
+          // if (condition === "Other") {
+          //   setOtherVehicleCondition(condition);
+          // }
           break;
         case "equipment":
           reservation_id = item.reservation_unit_id;
           resource_id = item.unit_id;
-          setEquipmentCondition(condition);
-          if (condition === "Other") {
-            setOtherEquipmentCondition(condition);
-          }
+          // setEquipmentCondition(condition);
+          // if (condition === "Other") {
+          //   setOtherEquipmentCondition(condition);
+          // }
           break;
         case "equipment_consumable":
           reservation_id = item.reservation_equipment_id;
           resource_id = item.quantity_id;
-          setEquipmentCondition(condition);
-          if (condition === "Other") {
-            setOtherEquipmentCondition(condition);
-          }
+          // setEquipmentCondition(condition);
+          // if (condition === "Other") {
+          //   setOtherEquipmentCondition(condition);
+          // }
           break;
         default:
           toast.error("Invalid type");
@@ -1030,8 +950,10 @@ const ChecklistModal = ({
         reservation_id: reservation_id,
         resource_id: resource_id,
         condition: isOther ? null : condition,
-        user_personnel_id: SecureStorage.getSessionItem('user_id'),
-        remarks: isOther ? remarks : null
+        user_personnel_id: SecureStorage.getSessionItem("user_id"),
+        remarks: isOther ? remarks : null,
+        good_quantity: goodQuantity,
+        bad_quantity: badQuantity,
       };
 
       console.log("Return payload:", payload);
@@ -1047,43 +969,66 @@ const ChecklistModal = ({
         onTaskUpdate((prev) => {
           if (!prev) return prev;
           const updatedTask = { ...prev };
-          
-          switch(type) {
-            case 'venue':
-              updatedTask.venues = updatedTask.venues.map(venue => 
-                venue.reservation_venue_id === reservation_id 
-                  ? { ...venue, is_returned: '1', return_condition: condition }
-                  : venue
-              );
-              break;
-            case 'vehicle':
-              updatedTask.vehicles = updatedTask.vehicles.map(vehicle => 
-                vehicle.reservation_vehicle_id === reservation_id 
-                  ? { ...vehicle, is_returned: 1, return_condition: condition }
-                  : vehicle
-              );
-              break;
-            case 'equipment':
-              updatedTask.equipments = updatedTask.equipments.map(equipment => ({
-                ...equipment,
-                units: equipment.units?.map(unit => 
-                  unit.reservation_unit_id === reservation_id 
-                    ? { ...unit, is_returned: '1', return_condition: condition }
-                    : unit
-                )
-              }));
-              break;
-            case 'equipment_consumable':
-              updatedTask.equipments = updatedTask.equipments.map(equipment => 
-                equipment.reservation_equipment_id === reservation_id 
+
+          switch (type) {
+            case "venue":
+              updatedTask.venues = updatedTask.venues.map((venue) =>
+                venue.reservation_venue_id === reservation_id
                   ? { 
-                      ...equipment, 
-                      is_returned: '1', 
+                      ...venue, 
+                      is_returned: "1", 
                       return_condition: condition,
-                      good_quantity: goodQuantity,
-                      bad_quantity: badQuantity
+                      active: -1, // Mark as done/returned
+                      availability_status: "Available" // Reset status
                     }
-                  : equipment
+                  : venue,
+              );
+              break;
+            case "vehicle":
+              updatedTask.vehicles = updatedTask.vehicles.map((vehicle) =>
+                vehicle.reservation_vehicle_id === reservation_id
+                  ? { 
+                      ...vehicle, 
+                      is_returned: 1, 
+                      return_condition: condition,
+                      active: -1, // Mark as done/returned
+                      availability_status: "Available" // Reset status
+                    }
+                  : vehicle,
+              );
+              break;
+            case "equipment":
+              updatedTask.equipments = updatedTask.equipments.map(
+                (equipment) => ({
+                  ...equipment,
+                  units: equipment.units?.map((unit) =>
+                    unit.reservation_unit_id === reservation_id
+                      ? {
+                          ...unit,
+                          is_returned: "1",
+                          return_condition: condition,
+                          active: -1, // Mark as done/returned
+                          availability_status: "Available" // Reset status
+                        }
+                      : unit,
+                  ),
+                }),
+              );
+              break;
+            case "equipment_consumable":
+              updatedTask.equipments = updatedTask.equipments.map(
+                (equipment) =>
+                  equipment.reservation_equipment_id === reservation_id
+                    ? {
+                        ...equipment,
+                        is_returned: "1",
+                        return_condition: condition,
+                        good_quantity: goodQuantity,
+                        bad_quantity: badQuantity,
+                        active: -1, // Mark as done/returned
+                        availability_status: "Available" // Reset status
+                      }
+                    : equipment,
               );
               break;
             default:
@@ -1091,6 +1036,11 @@ const ChecklistModal = ({
           }
           return updatedTask;
         });
+
+        // Refresh the task data to ensure consistency
+        if (refreshTasks) {
+          await refreshTasks();
+        }
       } else {
         toast.error(response.data.message || "Failed to return");
       }
@@ -1104,12 +1054,13 @@ const ChecklistModal = ({
 
   const renderReturnButton = (type, item) => {
     const isReturned = item.is_returned === "1" || item.is_returned === 1;
+    const isDone = item.active === -1;
 
-    if (isReturned) {
+    if (isReturned || isDone) {
       return (
         <div className="flex items-center gap-2">
           <span className="px-2 py-1 text-xs font-medium text-green-600 bg-green-50 rounded-lg">
-            Returned
+            {isReturned ? "Returned" : "Done"}
           </span>
           {item.return_condition && (
             <span className="px-2 py-1 text-xs font-medium text-gray-600 bg-gray-50 rounded-lg capitalize">
@@ -1471,7 +1422,7 @@ const ChecklistModal = ({
                           ) : (
                             // Show condition dropdown for non-consumable equipment with units
                             <>
-                              {equipmentCondition &&
+                              {/* {equipmentCondition &&
                                 needsDefectQuantity(equipmentCondition) && (
                                   <input
                                     type="number"
@@ -1481,7 +1432,7 @@ const ChecklistModal = ({
                                     placeholder="Qty"
                                     className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-lime-400 focus:border-lime-400 flex-1 min-w-[150px]"
                                   />
-                                )}
+                                )} */}
                             </>
                           )}
                         </div>
@@ -1663,11 +1614,7 @@ const ChecklistModal = ({
     }));
   };
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchConditions();
-    }
-  }, [isOpen]);
+  
 
   useEffect(() => {
     if (isOpen && selectedTask) {
@@ -1981,7 +1928,7 @@ const ChecklistModal = ({
                                 ) : (
                                     // Show condition dropdown for non-consumable equipment with units
                                     <>
-
+{/* 
                                         {equipmentCondition && needsDefectQuantity(equipmentCondition) && (
                                             <input
                                                 type="number"
@@ -1991,7 +1938,7 @@ const ChecklistModal = ({
                                                 placeholder="Qty"
                                                 className="text-xs sm:text-sm border border-gray-200 rounded-lg px-2 py-1 bg-white/80 backdrop-blur-sm focus:ring-1 focus:ring-lime-400 focus:border-lime-400 flex-1 min-w-[150px]"
                                             />
-                                        )}
+                                        )} */}
                                     </>
                                 )}
                             </div>
@@ -2106,42 +2053,69 @@ const ChecklistModal = ({
     </div>
 </div>
 
-              <div className="w-full flex justify-center mt-10">
-                <div className="flex gap-4 bg-white/90 border border-gray-100 rounded-2xl shadow-lg px-8 py-5">
-                  <button
-                    onClick={onClose}
-                    className="flex items-center gap-2 px-6 py-2.5 rounded-full border border-gray-300 bg-white text-gray-700 font-medium text-base shadow-sm hover:bg-gray-50 hover:text-lime-700 transition-all focus:outline-none focus:ring-2 focus:ring-lime-200"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                    Cancel
-                  </button>
-                  <button
-                    onClick={handleSubmitTask}
-                    disabled={isSubmitting || !isTaskInProgress(selectedTask) || !isAllChecklistsCompleted(selectedTask) || !areAllResourcesDone(selectedTask)}
-                    className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold text-base shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-lime-400
-                      ${isTaskInProgress(selectedTask) && isAllChecklistsCompleted(selectedTask) && areAllResourcesDone(selectedTask)
-                        ? 'bg-lime-600 text-white hover:bg-lime-700'
-                        : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
-                    `}
-                  >
-                    {isSubmitting ? (
-                      <>
-                        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
-                        Submitting...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Mark Reservation As Done
-                      </>
-                    )}
-                  </button>
-                </div>
-              </div>
+           <div className="w-full flex flex-col p-4 gap-4 sm:flex-row justify-start sm:gap-4 sm:m-5">
+  <button
+    onClick={onClose}
+    className="w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-gray-700 font-medium text-base shadow-sm hover:bg-gray-900 hover:text-lime-100 transition-all focus:outline-none focus:ring-2 focus:ring-lime-200"
+  >
+    <svg
+      className="w-5 h-5"
+      fill="none"
+      stroke="currentColor"
+      viewBox="0 0 24 24"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth={2}
+        d="M6 18L18 6M6 6l12 12"
+      />
+    </svg>
+    Cancel
+  </button>
+  <button
+    onClick={handleSubmitTask}
+    disabled={
+      isSubmitting ||
+      !isTaskInProgress(selectedTask) ||
+      !isAllChecklistsCompleted(selectedTask) ||
+      !areAllResourcesDone(selectedTask)
+    }
+    className={`w-full sm:w-auto flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-black-100 font-semibold text-base shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-lime-400
+      ${
+        isTaskInProgress(selectedTask) &&
+        isAllChecklistsCompleted(selectedTask) &&
+        areAllResourcesDone(selectedTask)
+          ? "bg-lime-600 text-white hover:bg-lime-700"
+          : "bg-gray-200 text-gray-400 cursor-not-allowed"
+      }
+    `}
+  >
+    {isSubmitting ? (
+      <>
+        <div className="animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent"></div>
+        Submitting...
+      </>
+    ) : (
+      <>
+        <svg
+          className="w-5 h-5"
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M5 13l4 4L19 7"
+          />
+        </svg>
+        Mark Reservation As Done
+      </>
+    )}
+  </button>
+</div>
             </>
           )}
         </motion.div>
@@ -2163,5 +2137,3 @@ const ChecklistModal = ({
 };
 
 export default ChecklistModal;
-
-

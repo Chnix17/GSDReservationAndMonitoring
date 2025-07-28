@@ -126,7 +126,7 @@ const handleRemovePassenger = (passengerId) => {
       const fetchData = async () => {
         setLoading(true);
         try {
-          const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+          const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
           if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6) {
@@ -315,24 +315,17 @@ const validateCurrentStep = () => {
           toast.error('Please enter a destination');
           return false;
         }
-        // Remove owner validation (already removed field)
+        
+        // Check if owner is required due to driver shortage
+        if ((formData.forceOwnDrivers || formData.forceMixedDrivers) && (!formData.owner || !formData.owner.trim())) {
+          toast.error('Please enter the vehicle owner name (required when providing own drivers)');
+          return false;
+
+        }
+        
         if (!formData.passengers || formData.passengers.length === 0) {
           toast.error('Please add at least one passenger');
           return false;
-        }
-        // ENFORCE: All own driver names must be filled if driverType is 'own'
-        if (formData.driverType === 'own') {
-          if (!formData.ownDrivers || formData.ownDrivers.length === 0 || formData.ownDrivers.some(d => !d.name || !d.name.trim())) {
-            toast.error('Please enter a driver name for each selected vehicle');
-            return false;
-          }
-        }
-        // ENFORCE: All own driver names must be filled for mixed mode
-        if (formData.driverType === 'mixed') {
-          if (!formData.mixedDrivers || formData.mixedDrivers.length === 0 || formData.mixedDrivers.some(d => d.driverType === 'own' && (!d.name || !d.name.trim()))) {
-            toast.error('Please enter driver names for all vehicles marked as "Own Driver"');
-            return false;
-          }
         }
         return true;
       }
@@ -477,7 +470,7 @@ const renderBasicInformation = () => {
 const handleAddReservation = async () => {
   try {
     setLoading(true);
-    const userId = SecureStorage.getSessionItem('user_id');
+    const userId = SecureStorage.getLocalItem('user_id');
 
     // Common validation for dates
     if (!formData.startDate || !formData.endDate) {
@@ -547,17 +540,13 @@ const handleAddReservation = async () => {
         toast.error('You must provide your own drivers for this reservation');
         return false;
       }
+
       // If forceMixedDrivers is true, ensure driver type is 'mixed'
       if (formData.forceMixedDrivers && formData.driverType !== 'mixed') {
         toast.error('You must use mixed driver mode for this reservation');
         return false;
       }
-      // ENFORCE: Requester name required if Own Driver is selected
-      const requesterName = SecureStorage.getSessionItem('user_full_name') || '';
-      if (formData.driverType === 'own' && !requesterName.trim()) {
-        toast.error('Requester name is required when providing own driver. Please complete your profile.');
-        return false;
-      }
+
       if (formData.driverType === 'own') {
         // Validation: each selected vehicle must have a driver name
         if (!formData.ownDrivers || formData.ownDrivers.length !== selectedModels.length || formData.ownDrivers.some(d => !d.name.trim())) {
@@ -570,20 +559,24 @@ const handleAddReservation = async () => {
           toast.error('Please configure driver assignments for all vehicles');
           return false;
         }
+        
         // Check that own drivers have names
         const ownDriversWithoutNames = formData.mixedDrivers.filter(d => d.driverType === 'own' && !d.name.trim());
         if (ownDriversWithoutNames.length > 0) {
           toast.error('Please enter driver names for vehicles marked as "Own Driver"');
           return false;
         }
+        
         // Additional validation for forced mixed drivers
         if (formData.forceMixedDrivers) {
           const availableDrivers = formData.availableDrivers || 0;
           const defaultDrivers = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
+          
           if (defaultDrivers > availableDrivers) {
             toast.error(`Cannot assign more than ${availableDrivers} default drivers. Please adjust your assignments.`);
             return false;
           }
+          
           // Ensure at least one vehicle has a driver assigned
           if (formData.mixedDrivers.length === 0) {
             toast.error('Please configure driver assignments for all vehicles');
@@ -2022,7 +2015,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
           disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}
         >
           <Radio value="default" disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}>Default Driver</Radio>
-          <Radio value="own">Own Driver <span className="text-red-500">*</span></Radio>
+          <Radio value="own">Own Driver</Radio>
           <Radio value="mixed">Mixed (Default + Own)</Radio>
         </Radio.Group>
 
@@ -2032,6 +2025,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
               <div className="text-xs text-gray-500">
                 {shouldForceOwnDrivers ? 
                   "You must provide your own drivers for this reservation." : 
+                  
                   "Select vehicles first to enter driver names."
                 }
               </div>
@@ -2044,7 +2038,6 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                 <div key={vehicle_id} className="flex items-center gap-2">
                   <span className="text-sm text-gray-700 min-w-[120px]">
                     {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
-                    <span className="text-red-500 ml-1">*</span>
                   </span>
                   <Input
                     placeholder="Enter driver name"
@@ -2060,13 +2053,13 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                     }}
                     className="rounded"
                     size={isMobile ? 'middle' : 'large'}
-                    required={formData.driverType === 'own'}
+                    required
                   />
                 </div>
               );
             }) : shouldForceOwnDrivers && (
               <div className="space-y-2">
-                <div className="text-sm text-gray-700">You must provide your own drivers for this reservation.<span className="text-red-500 ml-1">*</span></div>
+                <div className="text-sm text-gray-700">You must provide your own drivers for this reservation.</div>
                 <Input
                   placeholder="Enter driver name"
                   value={formData.ownDrivers?.[0]?.name || ''}
@@ -2079,7 +2072,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                   }}
                   className="rounded"
                   size={isMobile ? 'middle' : 'large'}
-                  required={formData.driverType === 'own'}
+                  required
                 />
               </div>
             )}
@@ -2209,7 +2202,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                       >
                         Default Driver
                       </Radio>
-                      <Radio value="own">Own Driver <span className="text-red-500">*</span></Radio>
+                      <Radio value="own">Own Driver</Radio>
                     </Radio.Group>
                   </div>
                   {effectiveDriverType === 'own' && (
@@ -2326,8 +2319,8 @@ const fetchVehicles = useCallback(async () => {
 const fetchEquipment = useCallback(async (startDate, endDate) => {
   try {
     // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getSessionItem('user_level');
-    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const userLevel = SecureStorage.getLocalItem('user_level');
+    const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     
     // Prepare the API payload based on user role
@@ -2397,8 +2390,8 @@ useEffect(() => {
   fetchVehicles();
   
   // Get user level and department for COO Department Head check
-  const userLevel = SecureStorage.getSessionItem('user_level');
-  const userDepartment = SecureStorage.getSessionItem('Department Name');
+  const userLevel = SecureStorage.getLocalItem('user_level');
+  const userDepartment = SecureStorage.getLocalItem('Department Name');
   const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
   
   if (isCOODepartmentHead) {
@@ -2414,8 +2407,8 @@ useEffect(() => {
 useEffect(() => {
   if (resourceType === 'equipment') {
     // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getSessionItem('user_level');
-    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const userLevel = SecureStorage.getLocalItem('user_level');
+    const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     
     if (isCOODepartmentHead) {
@@ -2550,8 +2543,8 @@ useEffect(() => {
 useEffect(() => {
   if (showEquipmentModal && (!equipment || equipment.length === 0)) {
     // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getSessionItem('user_level');
-    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const userLevel = SecureStorage.getLocalItem('user_level');
+    const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     
     if (isCOODepartmentHead) {

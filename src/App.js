@@ -61,6 +61,8 @@ const App = () => {
         SecureStorage.setLocalItem("url", defaultUrl);
     }
 
+    
+
     // Register service worker
     useEffect(() => {
         if ('serviceWorker' in navigator) {

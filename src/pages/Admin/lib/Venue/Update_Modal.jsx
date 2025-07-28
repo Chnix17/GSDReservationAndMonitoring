@@ -19,7 +19,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
 
     const fetchStatusAvailability = useCallback(async () => {
         try {
-            const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
+            const response = await axios.post(`${baseUrl}/user.php`, 
                 new URLSearchParams({
                     operation: 'fetchStatusAvailability'
                 })

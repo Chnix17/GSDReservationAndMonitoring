@@ -37,7 +37,7 @@ const VehicleModels = () => {
   const [form] = Form.useForm();
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
     if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
@@ -124,7 +124,7 @@ const VehicleModels = () => {
 
   const fetchVehicleModelById = async (id) => {
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`,
+      const response = await axios.post(`${encryptedUrl}user.php`,
         `operation=fetchModelById&id=${id}`,
         {
           headers: {

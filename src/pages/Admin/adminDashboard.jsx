@@ -73,7 +73,7 @@
 
         useEffect(() => {
             const hasLoadedBefore = localStorage.getItem('hasLoadedDashboard');
-            const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+            const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
             const decryptedUserLevel = parseInt(encryptedUserLevel); 
             console.log('Decrypted User Level:', decryptedUserLevel);
 

@@ -8,7 +8,7 @@ const ProtectedRoute = ({ children, allowedRoles, requiredDepartment }) => {
     const [shouldNavigate, setShouldNavigate] = useState(false);
     // Check both regular localStorage and SecureStorage for backward compatibility
     const isLoggedIn = SecureStorage.getLocalItem('loggedIn') === 'true' || SecureStorage.getSessionItem('loggedIn');
-    const userRole = SecureStorage.getSessionItem('user_level');
+    const userRole = SecureStorage.getLocalItem('user_level');
     const userDepartment = SecureStorage.getSessionItem('Department Name');
 
     useEffect(() => {

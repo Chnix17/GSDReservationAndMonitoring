@@ -35,7 +35,7 @@ const VenueEntry = () => {
     const navigate = useNavigate();
     const user_id = SecureStorage.getSessionItem('user_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id");
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id");
 
     useEffect(() => {
         const decryptedUserLevel = parseInt(encryptedUserLevel);
