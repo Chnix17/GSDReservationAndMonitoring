@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Sidebar from '../Sidebar';
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
-import {  faPlus } from '@fortawesome/free-solid-svg-icons';
+
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -18,7 +17,7 @@ import { SecureStorage } from '../../utils/encryption';
 import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
 import CreateModal from './lib/Faculty/Create_Modal';
 import UpdateModal from './lib/Faculty/Update_Modal';
-import { Alert, Empty, Pagination, Input, Tooltip, Dropdown, Space } from 'antd';
+import { Alert, Empty, Pagination, Input, Tooltip, Space } from 'antd';
 import { Button as AntButton } from 'antd';
 import { SearchOutlined, DownOutlined } from '@ant-design/icons';
 
@@ -308,32 +307,6 @@ const Faculty = () => {
     // Pagination logic: slice filteredData for current page
     const paginatedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-    const handleMenuClick = (e) => {
-        switch (e.key) {
-            case 'add':
-                setModalState({ isOpen: true, type: 'add', user: null });
-                break;
-            case 'viewDepartments':
-                navigate('/departments');
-                break;
-            default:
-                break;
-        }
-    };
-
-    const items = [
-        {
-            key: 'add',
-            icon: <FontAwesomeIcon icon={faPlus} />,
-            label: 'Add Faculty',
-        },
-        {
-            key: 'viewDepartments',
-            icon: <i className="pi pi-building" />,
-            label: 'View Departments',
-        },
-    ];
-
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
             <style>{customStyles}</style>
@@ -395,24 +368,18 @@ const Faculty = () => {
                                     style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                 />
                             </Tooltip>
-                            <Dropdown
-                                menu={{
-                                    items,
-                                    onClick: handleMenuClick,
-                                }}
+                            <AntButton
+                                type="primary"
+                                size="large"
+                                className="bg-lime-900 hover:bg-green-600"
+                                onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
                             >
-                                <AntButton
-                                    type="primary"
-                                    size="large"
-                                    className="bg-lime-900 hover:bg-green-600"
-                                >
-                                    <Space>
-                                        <span className="hidden sm:inline">Add Faculty</span>
-                                        <span className="sm:hidden">Add</span>
-                                        <DownOutlined />
-                                    </Space>
-                                </AntButton>
-                            </Dropdown>
+                                <Space>
+                                    <span className="hidden sm:inline">Add Faculty</span>
+                                    <span className="sm:hidden">Add</span>
+                                    <DownOutlined />
+                                </Space>
+                            </AntButton>
                         </div>
                     </div>
 

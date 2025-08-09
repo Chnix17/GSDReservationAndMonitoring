@@ -34,7 +34,7 @@ const Update_Modal = ({
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [isModelModalOpen, setIsModelModalOpen] = useState(false);
     const encryptedUrl = SecureStorage.getLocalItem("url");
-    const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
+    const BASE_URL = `${encryptedUrl}/user.php`;
 
     const fetchMakes = useCallback(async () => {
         try {
@@ -124,15 +124,78 @@ const Update_Modal = ({
         }
     }, [BASE_URL]);
 
+    const resetForm = useCallback(() => {
+        console.log('Resetting form');
+        form.resetFields();
+        setMakeId('');
+        setCategory('');
+        setVehicleModelId('');
+        setVehicleLicensed('');
+        setYear(new Date());
+        setSelectedStatus('');
+    }, [form]);
+
     useEffect(() => {
         if (open) {
             fetchMakes();
             fetchStatusAvailability();
+        } else {
+            // Reset form when modal closes
+            resetForm();
         }
-    }, [open, fetchMakes, fetchStatusAvailability]);
+    }, [open, fetchMakes, fetchStatusAvailability, resetForm]);
+
+    // Reset and populate form when editingVehicle changes
+    useEffect(() => {
+        if (open && editingVehicle) {
+            console.log('Editing vehicle changed, resetting form with:', editingVehicle);
+            resetForm();
+            
+            // Set license immediately
+            setVehicleLicensed(editingVehicle.vehicle_license);
+            form.setFieldsValue({ license: editingVehicle.vehicle_license });
+            
+            // Set year immediately
+            const yearValue = parseInt(editingVehicle.year);
+            if (!isNaN(yearValue)) {
+                const yearDate = new Date(yearValue, 0, 1);
+                console.log('Setting year to:', yearValue, 'Date object:', yearDate);
+                setYear(yearDate);
+                form.setFieldsValue({ year: yearDate });
+            }
+        }
+    }, [editingVehicle, open, form]);
+
+    // Ensure form is synchronized when modal opens
+    useEffect(() => {
+        if (open && editingVehicle) {
+            console.log('Modal opened, synchronizing form with editing vehicle:', editingVehicle);
+            
+            // Force form update after a short delay to ensure all fields are properly set
+            setTimeout(() => {
+                if (editingVehicle) {
+                    console.log('Forcing form update with vehicle data:', editingVehicle);
+                    
+                    // Set license
+                    setVehicleLicensed(editingVehicle.vehicle_license);
+                    form.setFieldsValue({ license: editingVehicle.vehicle_license });
+                    
+                    // Set year
+                    const yearValue = parseInt(editingVehicle.year);
+                    if (!isNaN(yearValue)) {
+                        const yearDate = new Date(yearValue, 0, 1);
+                        console.log('Re-setting year to:', yearValue, 'Date object:', yearDate);
+                        setYear(yearDate);
+                        form.setFieldsValue({ year: yearDate });
+                    }
+                }
+            }, 100);
+        }
+    }, [open, editingVehicle, form]);
 
     useEffect(() => {
         if (open && editingVehicle && makes.length > 0) {
+            console.log('Populating form with editing vehicle:', editingVehicle);
             const selectedMake = makes.find(make => make.vehicle_make_name === editingVehicle.vehicle_make_name);
             if (selectedMake) {
                 setMakeId(selectedMake.vehicle_make_id);
@@ -144,6 +207,7 @@ const Update_Modal = ({
 
     useEffect(() => {
         if (open && editingVehicle && categories.length > 0) {
+            console.log('Setting category for editing vehicle:', editingVehicle.vehicle_category_name);
             const selectedCategory = categories.find(cat => cat.vehicle_category_name === editingVehicle.vehicle_category_name);
             if (selectedCategory) {
                 setCategory(selectedCategory.vehicle_category_id);
@@ -155,23 +219,40 @@ const Update_Modal = ({
 
     useEffect(() => {
         if (open && editingVehicle && modelsByCategory[category]?.length > 0) {
+            console.log('Setting model for editing vehicle:', editingVehicle.vehicle_model_name);
             const models = modelsByCategory[category] || [];
             const selectedModel = models.find(model => model.vehicle_model_name === editingVehicle.vehicle_model_name);
             if (selectedModel) {
+                console.log('Found matching model:', selectedModel);
                 setVehicleModelId(selectedModel.vehicle_model_id);
                 form.setFieldsValue({ model: selectedModel.vehicle_model_id });
+            } else {
+                console.log('No matching model found for:', editingVehicle.vehicle_model_name);
+                console.log('Available models:', models.map(m => m.vehicle_model_name));
             }
         }
     }, [open, editingVehicle, modelsByCategory, category, form]);
 
     useEffect(() => {
         if (open && editingVehicle && statusAvailability.length > 0) {
+            console.log('Setting form values for editing vehicle:', editingVehicle);
+            
+            // Set license
             setVehicleLicensed(editingVehicle.vehicle_license);
             form.setFieldsValue({ license: editingVehicle.vehicle_license });
 
-            setYear(new Date(editingVehicle.year));
-            form.setFieldsValue({ year: new Date(editingVehicle.year) });
+            // Set year - ensure it's properly formatted
+            const yearValue = parseInt(editingVehicle.year);
+            if (!isNaN(yearValue)) {
+                const yearDate = new Date(yearValue, 0, 1); // January 1st of the year
+                console.log('Setting year to:', yearValue, 'Date object:', yearDate);
+                setYear(yearDate);
+                form.setFieldsValue({ year: yearDate });
+            } else {
+                console.error('Invalid year value:', editingVehicle.year);
+            }
 
+            // Set status
             const selectedStatusObj = statusAvailability.find(status => status.status_availability_name === editingVehicle.status_availability_name);
             if (selectedStatusObj) {
                 setSelectedStatus(selectedStatusObj.status_availability_id);
@@ -250,42 +331,25 @@ const Update_Modal = ({
             }
 
             const formData = {
-                operation: "updateVehicleLicense",
-                vehicleData: {
-                    vehicle_id: editingVehicle.vehicle_id,
-                    vehicle_model_id: values.model,
-                    vehicle_license: values.license,
-                    year: dayjs(values.year).format('YYYY'),
-                    status_availability_id: values.status,
-                    user_admin_id: SecureStorage.getSessionItem('user_id'),
-                    is_active: 1
-                }
+                vehicle_id: editingVehicle.vehicle_id,
+                vehicle_model_id: values.model,
+                vehicle_license: values.license,
+                year: dayjs(values.year).format('YYYY'),
+                status_availability_id: values.status,
+                user_admin_id: SecureStorage.getSessionItem('user_id'),
+                is_active: 1
             };
-            console.log('Form data:', formData);
+            console.log('Form data to submit:', formData);
 
-            const response = await axios.post(`${encryptedUrl}/update_master1.php`, formData);
-            
-            if (response.data.status === 'success') {
-                toast.success('Vehicle updated successfully');
-                onSubmit(formData.vehicleData);
-                handleClose();
-            } else {
-                toast.error(response.data.message || 'Failed to update vehicle');
-            }
+            // Let the parent component handle the API call
+            onSubmit(formData);
         } catch (error) {
-            console.error('Update failed:', error);
-            toast.error(error.response?.data?.message || error.message || 'Failed to update vehicle');
+            console.error('Form validation failed:', error);
+            toast.error('Please check all required fields');
         }
     };
 
-    const resetForm = () => {
-        form.resetFields();
-        setMakeId('');
-        setCategory('');
-        setVehicleModelId('');
-        setVehicleLicensed('');
-        setYear(new Date());
-    };
+
 
     const handleClose = () => {
         resetForm();
@@ -447,9 +511,10 @@ const Update_Modal = ({
                             type="primary" 
                             onClick={handleSubmit}
                             loading={isSubmitting}
+                            disabled={isSubmitting}
                             className="bg-green-900 hover:bg-lime-900"
                         >
-                            Update Vehicle
+                            {isSubmitting ? 'Updating...' : 'Update Vehicle'}
                         </Button>
                     </div>
                 </Form>

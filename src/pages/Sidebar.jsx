@@ -386,7 +386,7 @@ const Sidebar = () => {
                   )}
                 </div>
                 <div className="p-2 text-center border-t border-gray-100 dark:border-gray-700">
-                  <Link to="/notifications" className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                  <Link to="/Admin/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
                     View all notifications
                   </Link>
                 </div>
@@ -654,7 +654,7 @@ const Sidebar = () => {
                 text="Master File"
                 isExpanded={isDesktopSidebarOpen}
                 active={[
-                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday'
+                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday', '/vehiclemake', '/vehiclecategory', '/vehiclemodel', '/equipmentCategory', '/departments'
                 ].includes(activeItem)}
                 items={[
                   { text: 'Venues', link: '/Venue', icon: FaBuilding },
@@ -662,6 +662,14 @@ const Sidebar = () => {
                   { text: 'Equipments', link: '/Equipment', icon: FaListAlt },
                   { text: 'Users', link: '/Faculty', icon: FaUsers },
                   { text: 'Holidays', link: '/Holiday', icon: FaPlus },
+                  { section: 'Sub-Vehicle ' },
+                  { text: 'Vehicle Make', link: '/vehiclemake', icon: FaCar },
+                  { text: 'Vehicle Category', link: '/vehiclecategory', icon: FaListAlt },
+                  { text: 'Vehicle Model', link: '/vehiclemodel', icon: FaCar },
+                  { section: 'Sub-Equipment ' },
+                  { text: 'Equipment Category', link: '/equipmentCategory', icon: FaFolder },
+                  { section: 'Sub-Department ' },
+                  { text: 'Department', link: '/departments', icon: FaBuilding },
                 ]}
               />
 
@@ -683,6 +691,7 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
+            
               {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
 
               <MiniSidebarItem 
@@ -773,7 +782,7 @@ const Sidebar = () => {
                 text="Master File"
                 isExpanded={isDesktopSidebarOpen}
                 active={[
-                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday'
+                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday', '/vehiclemake', '/vehiclecategory', '/vehiclemodel', '/equipmentCategory', '/departments'
                 ].includes(activeItem)}
                 items={[
                   { text: 'Venues', link: '/Venue', icon: FaBuilding },
@@ -781,6 +790,14 @@ const Sidebar = () => {
                   { text: 'Equipments', link: '/Equipment', icon: FaListAlt },
                   { text: 'Users', link: '/Faculty', icon: FaUsers },
                   { text: 'Holidays', link: '/Holiday', icon: FaPlus },
+                  { section: 'Vehicle ' },
+                  { text: 'Vehicle Make', link: '/vehiclemake', icon: FaCar },
+                  { text: 'Vehicle Category', link: '/vehiclecategory', icon: FaListAlt },
+                  { text: 'Vehicle Model', link: '/vehiclemodel', icon: FaCar },
+                  { section: 'Equipment ' },
+                  { text: 'Equipment Category', link: '/equipmentCategory', icon: FaFolder },
+                  { section: 'Department ' },
+                  { text: 'Department', link: '/departments', icon: FaBuilding },
                 ]}
               />
 
@@ -801,6 +818,8 @@ const Sidebar = () => {
                 active={activeItem === '/archive'}
                 isExpanded={isDesktopSidebarOpen}
               />
+
+             
 
               {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
 
@@ -920,7 +939,7 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
   }, [active]);
 
   // Helper to check if any item is currently active (matches current pathname)
-  const isAnyItemActive = items.some(item => window.location.pathname === item.link);
+  const isAnyItemActive = items.some(item => item.link && window.location.pathname === item.link);
 
   return (
     <div className="relative">
@@ -930,7 +949,6 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
           active ? 'bg-[#145414] text-white font-medium' : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
         }`}
         onClick={() => {
-          // Only toggle open/close if not already open and not already on an active item
           if (!open || !isAnyItemActive) {
             setOpen((prev) => !prev);
           }
@@ -955,7 +973,16 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
             exit={{ height: 0, opacity: 0 }}
             className={`overflow-hidden ${isExpanded ? 'pl-8' : ''}`}
           >
-            {items.map((item) => {
+            {items.map((item, idx) => {
+              if (item.section) {
+                return (
+                  <div key={item.section + idx} className="pt-3 pb-1">
+                    <p className="px-2 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                      {item.section}
+                    </p>
+                  </div>
+                );
+              }
               const ItemIcon = item.icon;
               return (
                 <Link

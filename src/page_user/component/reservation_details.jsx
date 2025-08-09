@@ -201,70 +201,70 @@ const ReservationDetails = ({
                         </Button>
                     )
                 ]}
-                className="reservation-detail-modal custom-responsive-modal"
-                bodyStyle={{ padding: 0, maxHeight: '90vh', overflowY: 'auto' }}
-                style={{ top: 20, padding: 0 }}
+                className="reservation-detail-modal"
+                bodyStyle={{ padding: '0' }}
                 maskClosable={false}
                 zIndex={1000}
             >
                 <div className="p-0">
                     {/* Header Section */}
-                    <div className="bg-gradient-to-r from-green-700 to-lime-500 p-4 md:p-6 rounded-t-lg">
+                    <div className="bg-gradient-to-r from-green-700 to-lime-500 p-6 rounded-t-lg">
                         <div className="flex justify-between items-center">
                             <div>
+ 
                                 <div className="flex items-center gap-2">
-                                    {/* Logo or icon can go here if needed */}
+                                   
                                 </div>
                             </div>
                             <div className="text-white text-right">
-                                <p className="text-white opacity-90 text-xs md:text-sm">Created on</p>
-                                <p className="font-semibold text-xs md:text-base">{new Date(reservationDetails.reservation_created_at).toLocaleString()}</p>
+                                <p className="text-white opacity-90 text-sm">Created on</p>
+                                <p className="font-semibold">{new Date(reservationDetails.reservation_created_at).toLocaleString()}</p>
                             </div>
                         </div>
                     </div>
 
                     {/* Tabs Section */}
-                    <Tabs defaultActiveKey="1" className="p-2 md:p-6">
+                    <Tabs defaultActiveKey="1" className="p-6">
                         <TabPane tab={<span><InfoCircleOutlined /> Details</span>} key="1">
                             {/* Basic Details Section */}
-                            <div className="bg-white p-2 md:p-6 rounded-lg border border-blue-200 shadow-sm mb-4 md:mb-6">
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+                            <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm mb-6">
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {/* Requester Information */}
-                                    <div className="space-y-2 md:space-y-4">
-                                        <h3 className="text-base md:text-lg font-medium text-gray-800 flex items-center gap-2">
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
                                             <UserOutlined className="text-blue-500" />
                                             Requester Details
                                         </h3>
-                                        <div className="space-y-2 md:space-y-3">
+                                        <div className="space-y-3">
                                             <div>
-                                                <p className="text-xs md:text-sm text-gray-500">Name</p>
-                                                <p className="font-medium text-sm md:text-base">{reservationDetails.requester_name}</p>
+                                                <p className="text-sm text-gray-500">Name</p>
+                                                <p className="font-medium">{reservationDetails.requester_name}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs md:text-sm text-gray-500">Role</p>
-                                                <p className="font-medium text-sm md:text-base">{reservationDetails.user_level_name}</p>
+                                                <p className="text-sm text-gray-500">Role</p>
+                                                <p className="font-medium">{reservationDetails.user_level_name}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs md:text-sm text-gray-500">Department</p>
-                                                <p className="font-medium text-sm md:text-base">{reservationDetails.department_name}</p>
+                                                <p className="text-sm text-gray-500">Department</p>
+                                                <p className="font-medium">{reservationDetails.department_name}</p>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Schedule and Details */}
-                                    <div className="space-y-2 md:space-y-4">
-                                        <h3 className="text-base md:text-lg font-medium text-gray-800 flex items-center gap-2">
+                                    <div className="space-y-4">
+                                        <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
                                             <CalendarOutlined className="text-orange-500" />
                                             Schedule & Details
                                         </h3>
-                                        <div className="space-y-2 md:space-y-3">
+                                        <div className="space-y-3">
                                             <div>
-                                                <p className="text-xs md:text-sm text-gray-500">Description</p>
-                                                <p className="font-medium text-sm md:text-base">{reservationDetails.reservation_description}</p>
+                                                <p className="text-sm text-gray-500">Description</p>
+                                                <p className="font-medium">{reservationDetails.reservation_description}</p>
                                             </div>
                                             <div>
-                                                <p className="text-xs md:text-sm text-gray-500">Date & Time</p>
-                                                <p className="font-medium text-sm md:text-base">
+                                                <p className="text-sm text-gray-500">Date & Time</p>
+                                                <p className="font-medium">
                                                     {format(new Date(reservationDetails.reservation_start_date), 'MMM dd, yyyy h:mm a')} - 
                                                     {format(new Date(reservationDetails.reservation_end_date), 'h:mm a')}
                                                 </p>
@@ -275,64 +275,60 @@ const ReservationDetails = ({
                             </div>
 
                             {/* Resources Section */}
-                            <div className="bg-white p-2 md:p-6 rounded-lg border border-blue-200 shadow-sm">
-                                <h3 className="text-base md:text-lg font-medium mb-2 md:mb-4 text-gray-800">Requested Resources</h3>
-                                <div className="space-y-2 md:space-y-4">
+                            <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
+                                <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
+                                <div className="space-y-4">
                                     {/* Venues */}
                                     {reservationDetails.venues?.length > 0 && (
-                                        <div className="overflow-x-auto">
-                                            <Table 
-                                                title={() => "Venues"}
-                                                dataSource={reservationDetails.venues} 
-                                                columns={columns.venue}
-                                                pagination={false}
-                                                size="small"
-                                            />
-                                        </div>
+                                        <Table 
+                                            title={() => "Venues"}
+                                            dataSource={reservationDetails.venues} 
+                                            columns={columns.venue}
+                                            pagination={false}
+                                            size="small"
+                                        />
                                     )}
 
                                     {/* Vehicles */}
                                     {reservationDetails.vehicles?.length > 0 && (
-                                        <div className="overflow-x-auto">
-                                            <Table 
-                                                title={() => "Vehicles"}
-                                                dataSource={reservationDetails.vehicles.map(vehicle => ({
+                                        <Table 
+                                            title={() => "Vehicles"}
+                                            dataSource={reservationDetails.vehicles.map(vehicle => {
+                                                // Find the driver assigned to this vehicle by reservation_vehicle_id (compare as strings)
+                                                const assignedDriver = reservationDetails.drivers?.find(driver => String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id));
+                                                return {
                                                     ...vehicle,
-                                                    driver: (reservationDetails.drivers || []).find(driver => driver.reservation_vehicle_id === vehicle.reservation_vehicle_id)?.driver_name || 'No driver assigned'
-                                                }))} 
-                                                columns={[
-                                                    ...columns.vehicle,
-                                                    {
-                                                        title: 'Driver',
-                                                        dataIndex: 'driver',
-                                                        key: 'driver',
-                                                        render: (text) => (
-                                                            <div className="flex items-center">
-                                                                <UserOutlined className="mr-2 text-blue-500" />
-                                                                <span className="font-medium">{text}</span>
-                                                            </div>
-                                                        )
-                                                    }
-                                                ]}
-                                                pagination={false}
-                                                size="small"
-                                                scroll={{ x: 400 }}
-                                            />
-                                        </div>
+                                                    driver: assignedDriver ? assignedDriver.driver_name : 'No driver assigned'
+                                                };
+                                            })} 
+                                            columns={[
+                                                ...columns.vehicle,
+                                                {
+                                                    title: 'Driver',
+                                                    dataIndex: 'driver',
+                                                    key: 'driver',
+                                                    render: (text) => (
+                                                        <div className="flex items-center">
+                                                            <UserOutlined className="mr-2 text-blue-500" />
+                                                            <span className="font-medium">{text}</span>
+                                                        </div>
+                                                    )
+                                                }
+                                            ]}
+                                            pagination={false}
+                                            size="small"
+                                        />
                                     )}
 
                                     {/* Equipment */}
                                     {reservationDetails.equipment?.length > 0 && (
-                                        <div className="overflow-x-auto">
-                                            <Table 
-                                                title={() => "Equipment"}
-                                                dataSource={reservationDetails.equipment} 
-                                                columns={columns.equipment}
-                                                pagination={false}
-                                                size="small"
-                                                scroll={{ x: 400 }}
-                                            />
-                                        </div>
+                                        <Table 
+                                            title={() => "Equipment"}
+                                            dataSource={reservationDetails.equipment} 
+                                            columns={columns.equipment}
+                                            pagination={false}
+                                            size="small"
+                                        />
                                     )}
 
                                     {/* Gate Pass Download Button (if both vehicle and equipment) */}
@@ -353,24 +349,24 @@ const ReservationDetails = ({
 
                         <TabPane tab={<span><HistoryOutlined /> Status Log</span>} key="2">
                             <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                                <div className="bg-gray-50 p-2 md:p-4 border-b border-gray-200">
-                                    <h3 className="text-base md:text-lg font-medium text-gray-800 flex items-center gap-2">
+                                <div className="bg-gray-50 p-4 border-b border-gray-200">
+                                    <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
                                         <HistoryOutlined className="text-blue-500" /> Status History
                                     </h3>
                                 </div>
                                 <div className="divide-y divide-gray-200">
                                     {reservationDetails.statusHistory && reservationDetails.statusHistory.map((status, index) => (
-                                        <div key={index} className="p-2 md:p-4 hover:bg-gray-50 transition-colors">
+                                        <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
                                             <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-2 md:space-x-3">
+                                                <div className="flex items-center space-x-3">
                                                     <div className={`w-2 h-2 rounded-full ${
                                                         status.status_name?.toLowerCase() === 'approved' ? 'bg-green-500' :
                                                         status.status_name?.toLowerCase() === 'declined' ? 'bg-red-500' :
                                                         'bg-yellow-500'
                                                     }`} />
                                                     <div>
-                                                        <p className="font-medium text-gray-900 text-xs md:text-base">{status.status_name}</p>
-                                                        <p className="text-xs md:text-sm text-gray-500">
+                                                        <p className="font-medium text-gray-900">{status.status_name}</p>
+                                                        <p className="text-sm text-gray-500">
                                                             {format(new Date(status.updated_at), 'MMM dd, yyyy h:mm a')}
                                                             {status.updated_by_full_name && status.status_name !== 'Pending' && (
                                                                 <span className="ml-2 text-gray-400">

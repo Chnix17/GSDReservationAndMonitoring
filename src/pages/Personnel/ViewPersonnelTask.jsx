@@ -142,7 +142,7 @@ const ViewPersonnelTask = () => {
         for (const equipment of task.equipments) {
           // Consumable equipment (no units)
           if ((!equipment.units || equipment.units.length === 0) && equipment.availability_status !== 'In Use' && equipment.active !== -1) {
-            await releaseResource('equipment_consumable', equipment.reservation_equipment_id, equipment.quantity_id, equipment.quantity);
+            await releaseResource('equipment_bulk', equipment.reservation_equipment_id, equipment.quantity_id, equipment.quantity);
           }
           // Equipment with units
           if (equipment.units && Array.isArray(equipment.units)) {

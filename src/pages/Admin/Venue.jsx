@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import {  FaChartBar, FaBuilding } from 'react-icons/fa';
 import { Modal, Input,  Button, Tooltip, Alert, Empty, Pagination } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ExclamationCircleOutlined, InboxOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { motion } from 'framer-motion';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
@@ -33,7 +33,7 @@ const VenueEntry = () => {
     const [selectedVenue, setSelectedVenue] = useState(null);
     const [selectedVenues, setSelectedVenues] = useState([]);
     const navigate = useNavigate();
-    const user_id = SecureStorage.getSessionItem('user_id');
+    const user_id = SecureStorage.getLocalItem('user_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
     const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id");
 
@@ -147,7 +147,7 @@ const VenueEntry = () => {
             </div>
             
             <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
-                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-20">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -178,7 +178,7 @@ const VenueEntry = () => {
                                 {selectedVenues.length > 0 && (
                                     <Button
                                         danger
-                                        icon={<DeleteOutlined />}
+                                        icon={<InboxOutlined />}
                                         onClick={() => handleArchiveVenue(selectedVenues)}
                                         size="large"
                                     >
@@ -258,6 +258,11 @@ const VenueEntry = () => {
                                             </th>
                                             <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
+                                                    Area Type
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-4 py-4">
+                                                <div className="flex items-center">
                                                     Status
                                                 </div>
                                             </th>
@@ -306,6 +311,10 @@ const VenueEntry = () => {
                                                             {venue.event_type ? venue.event_type : 'Not Specified'}
                                                         </td>
                                                         <td className="px-4 py-4">
+                                                            {venue.area_type === 'Open Area' ? 'Open Area' : 
+                                                             venue.area_type === 'Close Area' ? 'Close Area' : 'Not Specified'}
+                                                        </td>
+                                                        <td className="px-4 py-4">
                                                             <Tag 
                                                                 value={
                                                                     venue.status_availability_id === 1 ? 'Available' :
@@ -337,7 +346,7 @@ const VenueEntry = () => {
                                                                 />
                                                                 <Button
                                                                     danger
-                                                                    icon={<DeleteOutlined />}
+                                                                    icon={<InboxOutlined />}
                                                                     onClick={() => handleArchiveVenue(venue.ven_id)}
                                                                     size="middle"
                                                                 />

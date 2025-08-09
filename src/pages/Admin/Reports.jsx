@@ -85,7 +85,7 @@ const Reports = () => {
         recordId: selectedResource.record_id || selectedResource.maintenance_id,
         isFixed: isFixed
       });
-      toast.success(isFixed ? "Resource marked as fixed." : "Resource marked as cannot be fixed.");
+      toast.success(isFixed ? "Resource marked as available for use." : "Resource marked as unavailable.");
       setIsModalOpen(false);
       fetchMaintenanceResources();
       fetchMaintenanceResourcesWithStatus();
@@ -417,29 +417,90 @@ const Reports = () => {
                 }
               ]}
             />
-            {/* Modal for Fixed/Cannot be Fixed */}
+            {/* Minimal Modal for Available/Unavailable */}
             <Modal
-              title={selectedResource ? selectedResource.resource_name : 'Resource Details'}
+              title={
+                <div className="flex items-center space-x-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="text-lg font-semibold text-gray-800">
+                    {selectedResource ? selectedResource.resource_name : 'Resource Details'}
+                  </span>
+                </div>
+              }
               open={isModalOpen}
               onCancel={() => setIsModalOpen(false)}
+              className="custom-modal"
+              width={500}
               footer={[
                 <Button
-                  key="fixed"
-                  type="primary"
-                  onClick={() => handleUpdateResourceStatus(true)}
-                >
-                  Fixed
-                </Button>,
-                <Button
-                  key="cannot"
+                  key="unavailable"
                   danger
                   onClick={() => handleUpdateResourceStatus(false)}
+                  className="mr-2"
                 >
-                  Cannot be Fixed
+                  Set to Unavailable
+                </Button>,
+                <Button
+                  key="available"
+                  type="primary"
+                  onClick={() => handleUpdateResourceStatus(true)}
+                  className="bg-green-600 border-green-600 hover:bg-green-700"
+                >
+                  Available for Use
                 </Button>
               ]}
             >
-              <p>Choose an action for this resource.</p>
+              {selectedResource && (
+                <div className="space-y-4">
+                  {/* Resource Info */}
+                  <div className="bg-white p-4 rounded-lg border border-gray-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-sm font-semibold text-gray-800">Resource Details</h4>
+                      <Tag color="green" className="text-xs">
+                        {selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1)}
+                      </Tag>
+                    </div>
+                    <div className="space-y-3">
+                      <div className="flex justify-between text-sm">
+                        <span className="text-gray-500">Status:</span>
+                        <span className="font-medium text-gray-800">{selectedResource.condition_name || 'Unset'}</span>
+                      </div>
+                      {selectedResource.requester_name && (
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-500">Responsible:</span>
+                          <span className="font-medium text-green-600">{selectedResource.requester_name}</span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Reservation Info */}
+                  {(selectedResource.reservation_title || selectedResource.reservation_description) && (
+                    <div className="bg-white p-4 rounded-lg border border-gray-200">
+                      <h4 className="text-sm font-semibold text-gray-800 mb-3">Reservation Info</h4>
+                      {selectedResource.reservation_title && (
+                        <div className="mb-2">
+                          <p className="text-sm font-medium text-gray-800">{selectedResource.reservation_title}</p>
+                        </div>
+                      )}
+                      {selectedResource.reservation_description && (
+                        <div>
+                          <p className="text-xs text-gray-600 leading-relaxed">{selectedResource.reservation_description}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Action Section */}
+                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                      <h4 className="text-sm font-semibold text-gray-700">Action Required</h4>
+                    </div>
+                    <p className="text-xs text-gray-600">Choose the appropriate status for this resource.</p>
+                  </div>
+                </div>
+              )}
             </Modal>
           </div>
         </div>

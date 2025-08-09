@@ -9,7 +9,7 @@ import {
   FiMoreHorizontal,  FiEdit,
   FiArchive,  FiStar, 
   FiCheck, FiCheckCircle, FiUserPlus, FiRefreshCw,
-  FiAlertCircle, FiHeart, FiThumbsUp, FiCornerUpRight,
+  FiAlertCircle, FiHeart, FiThumbsUp, FiCornerUpRight, FiChevronDown, 
  FiTrash,  FiPlus
 } from 'react-icons/fi';
 import {  FaRegLaughBeam} from 'react-icons/fa';
@@ -225,11 +225,12 @@ const Chat = () => {
   const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
 
   const [viewMode, setViewMode] = useState('list');
   const [conversationSearch, setConversationSearch] = useState('');
 
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
+
 
   const wsRef = useRef(null);
 
@@ -322,9 +323,14 @@ const Chat = () => {
             (msg.receiverId === currentUser.id && msg.senderId === activeConversation.id)
           );
           
-          setMessages(
-            conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-          );
+          const sortedMessages = conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          
+          // Check if there are new messages
+          if (messages.length > 0 && sortedMessages.length > messages.length) {
+            setHasNewMessages(true);
+          }
+          
+          setMessages(sortedMessages);
         }
 
         // Update conversations list
@@ -734,6 +740,16 @@ const Chat = () => {
       setSelectedMessages([]);
       setMessageToReply(null);
       setAttachmentPreview(null);
+      
+      // Scroll to bottom after sending message
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'end'
+          });
+        }
+      }, 100);
     } catch (error) {
       console.error('Error sending message:', error);
       // Optionally, show error to user
@@ -1001,7 +1017,7 @@ const Chat = () => {
   const handleConversationClick = (conversation) => {
     setActiveConversation(conversation);
     setViewMode('conversation');
-    setShouldAutoScroll(true); // Trigger auto-scroll when conversation opens
+    setHasNewMessages(false); // Reset new messages indicator
   };
 
   // Add a handler for back button click
@@ -1092,26 +1108,26 @@ const Chat = () => {
   useEffect(() => {
     if (!activeConversation || !currentUser.id) return;
     
-    // Poll for new messages every second
+    // Poll for new messages every 2 seconds for better performance
     const pollingInterval = setInterval(() => {
       // Use the existing memorizeFetchAllChats function to update messages
       memorizeFetchAllChats();
-    }, 1000); // Poll every second
+    }, 2000); // Poll every 2 seconds
     
     // Clean up on unmount or when conversation changes
     return () => clearInterval(pollingInterval);
   }, [activeConversation, currentUser.id, memorizeFetchAllChats]);
 
-  // Auto-scroll to bottom only when conversation is first opened
+  // Auto-scroll to bottom when new messages arrive or conversation opens
   useEffect(() => {
-    if (shouldAutoScroll && messagesEndRef.current) {
+    if (messagesEndRef.current) {
+      // Always scroll to bottom when messages change
       messagesEndRef.current.scrollIntoView({ 
         behavior: 'smooth',
         block: 'end'
       });
-      setShouldAutoScroll(false); // Reset the flag after scrolling
     }
-  }, [shouldAutoScroll, messages]);
+  }, [messages]);
 
   // Add error handling component
   const ErrorMessage = ({ message, onClose }) => (
@@ -1307,7 +1323,44 @@ const Chat = () => {
             {renderChatHeader()}
 
             {/* Messages container with proper spacing */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 border border-gray-900 relative shadow-md">
+            <div 
+              className="flex-1 overflow-y-auto px-4 py-6 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 border border-gray-900 relative shadow-md"
+              onScroll={(e) => {
+                const { scrollTop, scrollHeight, clientHeight } = e.target;
+                // If user scrolls to bottom, hide new messages indicator
+                if (scrollTop + clientHeight >= scrollHeight - 10) {
+                  setHasNewMessages(false);
+                }
+              }}
+            >
+              {/* New Messages Indicator */}
+              <AnimatePresence>
+                {hasNewMessages && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="absolute top-4 right-4 z-10"
+                  >
+                    <button
+                      onClick={() => {
+                        if (messagesEndRef.current) {
+                          messagesEndRef.current.scrollIntoView({ 
+                            behavior: 'smooth',
+                            block: 'end'
+                          });
+                          setHasNewMessages(false);
+                        }
+                      }}
+                      className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium transition-all"
+                    >
+                      <FiChevronDown className="w-4 h-4" />
+                      New Messages
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
               {/* Messages will be displayed here */}
               {messages
                 .filter((msg) => {

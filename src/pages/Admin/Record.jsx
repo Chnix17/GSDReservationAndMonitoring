@@ -199,6 +199,14 @@ const Record = () => {
 
   const columns = [
     {
+      title: "ID",
+      dataIndex: "reservation_id",
+      key: "reservation_id",
+      sorter: true,
+      sortOrder: sortField === "reservation_id" ? sortOrder : null,
+      render: (text) => <span className="font-mono font-bold text-green-800">#{text}</span>,
+    },
+    {
       title: "Title",
       dataIndex: "title",
       key: "title",
@@ -207,32 +215,36 @@ const Record = () => {
       render: (text) => <span className="font-medium">{text}</span>,
     },
     {
-      title: "Description",
-      dataIndex: "description",
-      key: "description",
-      render: (text) => <span className="line-clamp-2">{text}</span>,
-    },
-    {
       title: "Requester",
       dataIndex: "requester",
       key: "requester",
       sorter: true,
       sortOrder: sortField === "requester" ? sortOrder : null,
+      render: (text) => <span className="font-medium text-gray-700">{text}</span>,
     },
     {
-      title: "Created At",
-      dataIndex: "created_at",
-      key: "created_at",
+      title: "Date Range",
+      dataIndex: "start_date",
+      key: "date_range",
       sorter: true,
-      sortOrder: sortField === "created_at" ? sortOrder : null,
-      render: (text) => moment(text).format("MMM D, YYYY h:mm A"),
+      sortOrder: sortField === "start_date" ? sortOrder : null,
+      render: (_, record) => (
+        <div className="text-gray-600">
+          <div>{moment(record.start_date).format("MMM D, YYYY h:mm A")}</div>
+          <div className="text-xs">to</div>
+          <div>{moment(record.end_date).format("MMM D, YYYY h:mm A")}</div>
+        </div>
+      ),
     },
     {
       title: "Status",
       dataIndex: "status",
       key: "status",
       render: (status) => (
-        <Tag color={getStatusColor(status)} className="capitalize">
+        <Tag 
+          color={getStatusColor(status)} 
+          className="capitalize px-3 py-1 text-sm font-medium rounded-full"
+        >
           {status}
         </Tag>
       ),
@@ -245,9 +257,9 @@ const Record = () => {
           type="primary"
           onClick={() => showModal(record)}
           icon={<EyeOutlined />}
-          className="bg-green-900 hover:bg-lime-900 font-medium"
+          className="bg-green-700 hover:bg-green-800 font-medium rounded-lg flex items-center"
         >
-          View
+          <span className="hidden sm:inline">View Details</span>
         </Button>
       ),
     },
@@ -442,6 +454,8 @@ const DetailModal = ({ visible, record, onClose }) => {
   const [modalData, setModalData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
+  const [deansApproval, setDeansApproval] = useState([]);
+  const [isLoadingDeans, setIsLoadingDeans] = useState(false);
 
   useEffect(() => {
     const url = SecureStorage.getLocalItem("url");
@@ -483,6 +497,37 @@ const DetailModal = ({ visible, record, onClose }) => {
     fetchData();
   }, [visible, record, baseUrl]);
 
+  // Fetch Dean's Approval data
+  useEffect(() => {
+    const fetchDeansApproval = async () => {
+      if (!visible || !modalData?.reservation_id || !baseUrl) {
+        setDeansApproval([]);
+        return;
+      }
+
+      setIsLoadingDeans(true);
+      try {
+        const response = await axios.post(`${baseUrl}/user.php`, {
+          operation: 'fetchDeansApproval',
+          reservation_id: modalData.reservation_id
+        });
+        
+        if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
+          setDeansApproval(response.data.data);
+        } else {
+          setDeansApproval([]);
+        }
+      } catch (error) {
+        console.error('Error fetching deans approval:', error);
+        setDeansApproval([]);
+      } finally {
+        setIsLoadingDeans(false);
+      }
+    };
+
+    fetchDeansApproval();
+  }, [visible, modalData, baseUrl]);
+
   if (isLoading) {
     return (
       <Modal
@@ -504,6 +549,8 @@ const DetailModal = ({ visible, record, onClose }) => {
       visible={visible}
       onClose={onClose}
       reservationDetails={modalData}
+      deansApproval={deansApproval}
+      isLoadingDeans={isLoadingDeans}
     />
   );
 };

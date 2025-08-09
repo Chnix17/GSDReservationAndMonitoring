@@ -88,7 +88,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             return;
         }
 
-        if (equipment.equip_type === 'Consumable') {
+        if (equipment.equip_type === 'Bulk') {
             if (!quickAdjustment.quantity) {
                 message.error('Please enter quantity');
                 return;
@@ -115,7 +115,11 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         brand: ''
                     });
                     // Refresh equipment data
-                    fetchEquipmentDetails();
+                    await fetchEquipmentDetails();
+                    // Call onUpdate callback to refresh parent component
+                    if (typeof onUpdate === 'function') {
+                        onUpdate();
+                    }
                 } else {
                     throw new Error(response.data.message || 'Failed to update stock');
                 }
@@ -156,16 +160,15 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     brand: ''
                 });
                 // Refresh equipment data
-                fetchEquipmentDetails();
+                await fetchEquipmentDetails();
+                // Call onUpdate callback to refresh parent component
+                if (typeof onUpdate === 'function') {
+                    onUpdate();
+                }
             } catch (error) {
                 console.error('Error saving unit:', error);
                 message.error('Failed to save unit: ' + (error.message || 'Unknown error'));
             }
-        }
-        
-        // Only call onUpdate if it's a function
-        if (typeof onUpdate === 'function') {
-            onUpdate();
         }
     };
 
@@ -216,7 +219,12 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     color: '',
                     brand: ''
                 });
-                fetchEquipmentDetails();
+                // Refresh equipment data
+                await fetchEquipmentDetails();
+                // Call onUpdate callback to refresh parent component
+                if (typeof onUpdate === 'function') {
+                    onUpdate();
+                }
             } else {
                 throw new Error(response.data.message || 'Failed to update unit');
             }
@@ -253,7 +261,11 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             if (response.data.status === 'success') {
                 message.success(selectedUnits.length > 1 ? 'Units archived successfully' : 'Unit archived successfully');
                 // Refresh equipment data
-                fetchEquipmentDetails();
+                await fetchEquipmentDetails();
+                // Call onUpdate callback to refresh parent component
+                if (typeof onUpdate === 'function') {
+                    onUpdate();
+                }
             } else {
                 throw new Error(response.data.message || 'Failed to archive unit(s)');
             }
@@ -329,8 +341,8 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     </div>
                 </div>
 
-                {/* Stock Information Card for Consumable Items */}
-                {equipment.equip_type === 'Consumable' && (
+                {/* Stock Information Card for Bulk Items */}
+                {equipment.equip_type === 'Bulk' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
@@ -378,7 +390,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 )}
 
                 {/* Units Information Card */}
-                {equipment.equip_type !== 'Consumable' && (
+                {equipment.equip_type === 'Serialized' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
@@ -569,7 +581,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
         return (
             <Modal
-                title={equipment.equip_type === 'Consumable' ? 'Adjust Stock' : 'Add Unit'}
+                title={equipment.equip_type === 'Bulk' ? 'Adjust Stock' : 'Add Unit'}
                 open={isAddModalVisible}
                 onCancel={() => {
                     setIsAddModalVisible(false);
@@ -584,7 +596,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 footer={null}
             >
                 <div className="space-y-6">
-                    {equipment.equip_type === 'Consumable' ? (
+                    {equipment.equip_type === 'Bulk' ? (
                         <>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -679,7 +691,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 <>
                     {renderContent()}
                     {renderAddModal()}
-                    {equipment?.equip_type === 'Consumable' ? (
+                    {equipment?.equip_type === 'Bulk' ? (
                         <ViewUtilizationConsumable
                             open={isViewUtilizationOpen}
                             onCancel={() => setIsViewUtilizationOpen(false)}

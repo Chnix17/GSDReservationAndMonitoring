@@ -8,8 +8,8 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Tooltip, Modal, Form, Input, Empty, Pagination } from 'antd';
+import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
@@ -21,8 +21,6 @@ const VehicleCategories = () => {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ id: '', name: '' });
   const [showModal, setShowModal] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -77,35 +75,6 @@ const VehicleCategories = () => {
     }
   };
 
-  const handleDelete = (id) => {
-    setSelectedCategoryId(id);
-    setShowConfirmDelete(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      const response = await axios.post(`${encryptedUrl}delete_master.php`, {
-        operation: 'deleteVehicleCategory',
-        vehicleCategoryId: selectedCategoryId
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.data.status === 'success') {
-        setCategories(categories.filter(category => category.vehicle_category_id !== selectedCategoryId));
-        setFilteredCategories(filteredCategories.filter(category => category.vehicle_category_id !== selectedCategoryId));
-        toast.success('Vehicle category deleted successfully!');
-      } else {
-        toast.error(response.data.message || 'Failed to delete vehicle category.');
-      }
-    } catch (error) {
-      toast.error('Error deleting vehicle category.');
-    } finally {
-      setShowConfirmDelete(false);
-    }
-  };
-  
   const handleSave = async (values) => {
     const sanitizedName = sanitizeInput(values.name);
     
@@ -301,16 +270,6 @@ const VehicleCategories = () => {
                                     className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
                                   />
                                 </Tooltip>
-                                <Tooltip title="Delete Category">
-                                  <Button
-                                    shape="circle"
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => handleDelete(category.vehicle_category_id)}
-                                    size="large"
-                                    className="shadow-lg flex items-center justify-center"
-                                  />
-                                </Tooltip>
                               </div>
                             </td>
                           </tr>
@@ -385,36 +344,6 @@ const VehicleCategories = () => {
             />
           </Form.Item>
         </Form>
-      </Modal>
-
-      {/* Confirm Delete Modal */}
-      <Modal
-        title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
-        open={showConfirmDelete}
-        onCancel={() => setShowConfirmDelete(false)}
-        footer={[
-          <Button key="back" onClick={() => setShowConfirmDelete(false)}>
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            danger
-            loading={loading}
-            onClick={() => confirmDelete()}
-            icon={<DeleteOutlined />}
-          >
-            Delete
-          </Button>,
-        ]}
-      >
-        <Alert
-          message="Warning"
-          description="Are you sure you want to delete this vehicle category? This action cannot be undone."
-          type="warning"
-          showIcon
-          icon={<ExclamationCircleOutlined />}
-        />
       </Modal>
 
       <Toaster position="top-right" />

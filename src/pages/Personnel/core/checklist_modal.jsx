@@ -21,7 +21,7 @@ const ReturnConditionModal = ({
   const [badQuantity, setBadQuantity] = useState("");
   const [remarks, setRemarks] = useState("");
   const totalQuantity = parseInt(item?.quantity || 0);
-  const isEquipmentConsumable = type === "equipment_consumable";
+  const isEquipmentConsumable = type === "equipment_bulk";
   const isVenue = type === "venue";
 
   // Venue-specific options
@@ -34,7 +34,7 @@ const ReturnConditionModal = ({
     {
       value: "other",
       label: "Other",
-      icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
+      icon: "M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z",
     },
   ];
   // Default options for other types
@@ -423,6 +423,63 @@ const ChecklistModal = ({
     return venuesCompleted && vehiclesCompleted && equipmentsCompleted;
   };
 
+  // New function to check if all checklists for a specific resource are completed
+  const areResourceChecklistsCompleted = (item, type) => {
+    if (!item) return false;
+
+    // For venues
+    if (type === "venue") {
+      return item.checklists?.every(
+        (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+      ) ?? true;
+    }
+
+    // For vehicles
+    if (type === "vehicle") {
+      return item.checklists?.every(
+        (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+      ) ?? true;
+    }
+
+    // For equipment bulk (consumable equipment)
+    if (type === "equipment_bulk") {
+      return item.checklists?.every(
+        (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+      ) ?? true;
+    }
+
+    // For equipment units
+    if (type === "equipment") {
+      // Special case: If this is a unit and we're in "all units in use" scenario
+      // We need to check if the parent equipment's checklists are completed
+      if (selectedTask?.equipments) {
+        for (const equipment of selectedTask.equipments) {
+          if (equipment.units && equipment.units.length > 0) {
+            // Check if all units are in use
+            const allUnitsInUse = equipment.units.every(unit =>
+              unit.availability_status === "In Use" && unit.active === 1
+            );
+            
+            // If all units are in use and this unit is part of this equipment
+            if (allUnitsInUse && equipment.units.some(unit => unit.unit_id === item.unit_id)) {
+              // Check equipment-level checklists instead of unit checklists
+              return equipment.checklists?.every(
+                (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+              ) ?? true;
+            }
+          }
+        }
+      }
+      
+      // Default case: Check if the unit has checklists and all are completed
+      return item.checklists?.every(
+        (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+      ) ?? true;
+    }
+
+    return true; // Default to true if no checklists
+  };
+
   const areAllResourcesDone = (task) => {
     if (!task) return false;
 
@@ -657,7 +714,7 @@ const ChecklistModal = ({
           resourceId = item.unit_id;
 
           break;
-        case "equipment_consumable":
+        case "equipment_bulk":
           reservationId = item.reservation_equipment_id;
           resourceId = item.quantity_id;
           quantity = item.quantity;
@@ -744,7 +801,7 @@ const ChecklistModal = ({
               }),
             );
           } else if (
-            type === "equipment_consumable" &&
+            type === "equipment_bulk" &&
             updatedTask.equipments
           ) {
             updatedTask.equipments = updatedTask.equipments.map((equipment) =>
@@ -857,6 +914,9 @@ const ChecklistModal = ({
       currentTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
     );
 
+    // Check if all checklists for this resource are completed
+    const checklistsCompleted = areResourceChecklistsCompleted(item, type);
+
     // For debugging
     console.log("Return conditions:", {
       item,
@@ -864,10 +924,15 @@ const ChecklistModal = ({
       manilaEndTime,
       manilaCurrentTime,
       isPastEndTime: manilaCurrentTime >= manilaEndTime,
+      checklistsCompleted,
+      checklists: item.checklists,
     });
 
-    // Show return button only if item is active AND reservation has ended in Manila time
-    return isActive && manilaCurrentTime >= manilaEndTime;
+    // Show return button only if:
+    // 1. Item is active
+    // 2. Reservation has ended in Manila time
+    // 3. All checklists for this resource are completed
+    return isActive && manilaCurrentTime >= manilaEndTime && checklistsCompleted;
   };
 
   const isOverdue = (item) => {
@@ -925,7 +990,7 @@ const ChecklistModal = ({
           //   setOtherEquipmentCondition(condition);
           // }
           break;
-        case "equipment_consumable":
+        case "equipment_bulk":
           reservation_id = item.reservation_equipment_id;
           resource_id = item.quantity_id;
           // setEquipmentCondition(condition);
@@ -1015,7 +1080,7 @@ const ChecklistModal = ({
                 }),
               );
               break;
-            case "equipment_consumable":
+            case "equipment_bulk":
               updatedTask.equipments = updatedTask.equipments.map(
                 (equipment) =>
                   equipment.reservation_equipment_id === reservation_id
@@ -1071,10 +1136,90 @@ const ChecklistModal = ({
       );
     }
 
+    // Check if all checklists are completed for this resource
+    const checklistsCompleted = areResourceChecklistsCompleted(item, type);
+    const isActive = item.active === 1 || item.active === "1";
+    const endTime = new Date(selectedTask?.reservation_end_date);
+    const currentTime = new Date();
+    const manilaEndTime = new Date(
+      endTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
+    );
+    const manilaCurrentTime = new Date(
+      currentTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
+    );
+    const isPastEndTime = manilaCurrentTime >= manilaEndTime;
+
+    // If not active, show not active message
+    if (!isActive) {
+      return (
+        <span className="px-2 py-1 text-xs font-medium text-gray-500 bg-gray-50 rounded-lg">
+          Not active
+        </span>
+      );
+    }
+
+
+
+    // Always show return button, but disable until both conditions are met
+    const isDisabled = !isPastEndTime || !checklistsCompleted;
+    
+    // Get checklist progress for tooltip
+    let completedCount = 0;
+    let totalCount = 0;
+    
+    // Special case for equipment units in "all units in use" scenario
+    if (type === "equipment" && selectedTask?.equipments) {
+      for (const equipment of selectedTask.equipments) {
+        if (equipment.units && equipment.units.length > 0) {
+          const allUnitsInUse = equipment.units.every(unit =>
+            unit.availability_status === "In Use" && unit.active === 1
+          );
+          
+          if (allUnitsInUse && equipment.units.some(unit => unit.unit_id === item.unit_id)) {
+            // Use equipment-level checklists
+            completedCount = equipment.checklists?.filter(
+              (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+            ).length || 0;
+            totalCount = equipment.checklists?.length || 0;
+            break;
+          }
+        }
+      }
+    }
+
+    // Default case: use item's own checklists
+    if (totalCount === 0 && item.checklists && item.checklists.length > 0) {
+      completedCount = item.checklists.filter(
+        (checklist) => checklist.isChecked === "1" || checklist.isChecked === 1
+      ).length;
+      totalCount = item.checklists.length;
+    }
+
+    // Determine tooltip message and status text
+    let tooltipMessage = "Return this item";
+    let statusText = "";
+    
+    if (!isPastEndTime && !checklistsCompleted) {
+      tooltipMessage = "Complete all checklists and wait for reservation to end";
+      statusText = `(${completedCount}/${totalCount} checklists, wait for end)`;
+    } else if (!isPastEndTime) {
+      tooltipMessage = "Return available after reservation ends";
+      statusText = "(Wait for end)";
+    } else if (!checklistsCompleted) {
+      tooltipMessage = `Complete all checklists (${completedCount}/${totalCount} completed)`;
+      statusText = `(${completedCount}/${totalCount} checklists)`;
+    }
+    
     return (
       <button
-        onClick={() => handleReturnClick(type, item)}
-        className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 transition-colors flex items-center gap-1.5"
+        onClick={isDisabled ? undefined : () => handleReturnClick(type, item)}
+        disabled={isDisabled}
+        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors flex items-center gap-1.5 ${
+          isDisabled 
+            ? "bg-gray-300 text-gray-500 cursor-not-allowed" 
+            : "text-white bg-lime-500 hover:bg-lime-600"
+        }`}
+        title={tooltipMessage}
       >
         <svg
           className="w-3.5 h-3.5"
@@ -1090,8 +1235,15 @@ const ChecklistModal = ({
           />
         </svg>
         Return
+        {isDisabled && statusText && (
+          <span className="ml-1 text-xs text-gray-400">
+            {statusText}
+          </span>
+        )}
       </button>
     );
+
+
   };
 
   const renderChecklistItem = (item, type) => {
@@ -1282,14 +1434,11 @@ const ChecklistModal = ({
                               </button>
                             );
                           })()}
-                          {canBeReturned(venue, "venue") &&
-                            !venue.is_returned &&
-                            renderReturnButton("venue", venue)}
+                          {!venue.is_returned && renderReturnButton("venue", venue)}
                         </div>
                       </div>
-                      {/* Show venue checklists if in use and active */}
+                      {/* Show venue checklists if active */}
                       {venue.checklists?.length > 0 &&
-                        venue.availability_status === "In Use" &&
                         venue.active === 1 && (
                           <div className="mt-3 space-y-2">
                             <h4 className="text-xs font-medium text-gray-400 mb-2">
@@ -1342,14 +1491,11 @@ const ChecklistModal = ({
                               </button>
                             );
                           })()}
-                          {canBeReturned(vehicle, "vehicle") &&
-                            !vehicle.is_returned &&
-                            renderReturnButton("vehicle", vehicle)}
+                                                          {!vehicle.is_returned && renderReturnButton("vehicle", vehicle)}
                         </div>
                       </div>
-                      {/* Show vehicle checklists if in use and active */}
+                      {/* Show vehicle checklists if active */}
                       {vehicle.checklists?.length > 0 &&
-                        vehicle.availability_status === "In Use" &&
                         vehicle.active === 1 && (
                           <div className="mt-3 space-y-2">
                             <h4 className="text-xs font-medium text-gray-400 mb-2">
@@ -1396,7 +1542,7 @@ const ChecklistModal = ({
                                   <button
                                     onClick={() => {
                                       console.log("Equipment data:", equipment); // Debug log
-                                      handleRelease("equipment_consumable", {
+                                      handleRelease("equipment_bulk", {
                                         ...equipment,
                                         quantity_id: equipment.quantity_id, // Ensure quantity_id is included
                                       });
@@ -1408,16 +1554,12 @@ const ChecklistModal = ({
                                   </button>
                                 );
                               })()}
-                              {equipment.active === 1 &&
-                                canBeReturned(
-                                  equipment,
-                                  "equipment_consumable",
-                                ) &&
-                                !equipment.is_returned &&
-                                renderReturnButton(
-                                  "equipment_consumable",
-                                  equipment,
-                                )}
+                                                                      {equipment.active === 1 &&
+                                          !equipment.is_returned &&
+                                          renderReturnButton(
+                                            "equipment_bulk",
+                                            equipment,
+                                          )}
                             </>
                           ) : (
                             // Show condition dropdown for non-consumable equipment with units
@@ -1499,8 +1641,7 @@ const ChecklistModal = ({
                                             </span>
                                           </div>
                                           <div className="flex items-center gap-2">
-                                            {canBeReturned(unit, "equipment") &&
-                                              !unit.is_returned &&
+                                            {!unit.is_returned &&
                                               renderReturnButton(
                                                 "equipment",
                                                 unit,
@@ -1573,9 +1714,8 @@ const ChecklistModal = ({
                                         renderReturnButton("equipment", unit)}
                                     </div>
                                   </div>
-                                  {/* Show unit checklists if in use and active */}
+                                  {/* Show unit checklists if active */}
                                   {unit.checklists?.length > 0 &&
-                                    unit.availability_status === "In Use" &&
                                     unit.active === 1 && (
                                       <div className="mt-3 pt-3 border-t border-gray-100">
                                         <h4 className="text-xs font-medium text-gray-400 mb-2">
@@ -1831,7 +1971,7 @@ const ChecklistModal = ({
                                         </button>
                                     );
                                 })()}
-                                {canBeReturned(venue, 'venue') && !venue.is_returned && renderReturnButton('venue', venue)}
+                                {!venue.is_returned && renderReturnButton('venue', venue)}
                             </div>
                         </div>
                     </div>
@@ -1910,10 +2050,10 @@ const ChecklistModal = ({
                                                 <button
                                                     onClick={() => {
                                                         console.log('Equipment data:', equipment); // Debug log
-                                                        handleRelease('equipment_consumable', {
-                                                            ...equipment,
-                                                            quantity_id: equipment.quantity_id // Ensure quantity_id is included
-                                                        });
+                                                                                            handleRelease('equipment_bulk', {
+                                        ...equipment,
+                                        quantity_id: equipment.quantity_id // Ensure quantity_id is included
+                                    });
                                                     }}
                                                     disabled={isSubmitting}
                                                     className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
@@ -1922,8 +2062,8 @@ const ChecklistModal = ({
                                                 </button>
                                             );
                                         })()}
-                                        {equipment.active === 1 && canBeReturned(equipment, 'equipment_consumable') && !equipment.is_returned &&
-                                            renderReturnButton('equipment_consumable', equipment)}
+                                        {equipment.active === 1 && canBeReturned(equipment, 'equipment_bulk') && !equipment.is_returned &&
+                                            renderReturnButton('equipment_bulk', equipment)}
                                     </>
                                 ) : (
                                     // Show condition dropdown for non-consumable equipment with units
@@ -1980,7 +2120,7 @@ const ChecklistModal = ({
                                                                     </span>
                                                                 </div>
                                                                 <div className="flex items-center gap-2">
-                                                                    {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnButton('equipment', unit)}
+                                                                    {!unit.is_returned && renderReturnButton('equipment', unit)}
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -2028,11 +2168,11 @@ const ChecklistModal = ({
                                                                 </button>
                                                             );
                                                         })()}
-                                                        {canBeReturned(unit, 'equipment') && !unit.is_returned && renderReturnButton('equipment', unit)}
+                                                        {!unit.is_returned && renderReturnButton('equipment', unit)}
                                                     </div>
                                                 </div>
-                                                {/* Show unit checklists if in use and active */}
-                                                {unit.checklists?.length > 0 && unit.availability_status === "In Use" && unit.active === 1 && (
+                                                {/* Show unit checklists if active */}
+                                                {unit.checklists?.length > 0 && unit.active === 1 && (
                                                     <div className="mt-3 pt-3 border-t border-gray-100">
                                                         <h4 className="text-xs font-medium text-gray-400 mb-2">Unit Checklist Items</h4>
                                                         <div className="space-y-2">

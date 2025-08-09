@@ -164,6 +164,42 @@
   border: 1px solid var(--accent-green);
 }
 
+/* Enhanced Modal Styles */
+.custom-modal .ant-modal-content {
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e5e7eb;
+}
+
+.custom-modal .ant-modal-header {
+  border-bottom: 1px solid #e5e7eb;
+  padding: 20px 24px 16px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+  border-radius: 16px 16px 0 0;
+}
+
+.custom-modal .ant-modal-body {
+  padding: 20px 24px;
+}
+
+.custom-modal .ant-modal-footer {
+  border-top: 1px solid #e5e7eb;
+  padding: 16px 24px 20px;
+  background: #fafafa;
+  border-radius: 0 0 16px 16px;
+}
+
+.custom-modal .ant-btn {
+  border-radius: 8px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.custom-modal .ant-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
 .custom-responsive-modal .ant-modal-content {
   max-width: 95vw;
   width: 100%;

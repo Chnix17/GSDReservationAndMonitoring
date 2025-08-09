@@ -6,6 +6,7 @@ import axios from 'axios';
 import { SecureStorage } from '../../../../utils/encryption';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import CategoryModal from './Category_Modal';
+import '../../../../styles/EnhancedDetailModal.css';
 const { Option } = Select;
 
 const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
@@ -21,8 +22,8 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
 
     // Equipment types
     const equipmentTypes = [
-        'Consumable',
-        'Non-Consumable'
+        { value: 'Bulk', label: 'Bulk (Multiple units in one entry)' },
+        { value: 'Serialized', label: 'Serialized (Individual unit tracking)' }
     ];
 
     const fetchCategories = useCallback(async () => {
@@ -154,6 +155,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
     return (
         <>
             <Modal
+                className="enhanced-detail-modal"
                 title={
                     <div className="flex items-center">
                         <FaTools className="mr-2 text-green-900" /> 
@@ -223,8 +225,8 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
                             placeholder="Select equipment type"
                         >
                             {equipmentTypes.map(type => (
-                                <Option key={type} value={type}>
-                                    {type}
+                                <Option key={type.value} value={type.value}>
+                                    {type.label}
                                 </Option>
                             ))}
                         </Select>

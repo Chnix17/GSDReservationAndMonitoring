@@ -1,11 +1,13 @@
-import React from 'react';
-import { Modal, Tag, Table } from 'antd';
+
+import { Modal, Tag, Table, Tabs, Spin, Collapse } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
     BuildOutlined,
     CarOutlined,
-    ToolOutlined
+    ToolOutlined,
+    DownOutlined,
+    RightOutlined
 } from '@ant-design/icons';
 
 const formatDateRange = (startDate, endDate) => {
@@ -36,6 +38,8 @@ const ReservationDetails = ({
     visible, 
     onClose, 
     reservationDetails,
+    deansApproval = [],
+    isLoadingDeans = false,
     showAvailability = false,
     checkResourceAvailability = () => true
 }) => {
@@ -139,7 +143,12 @@ const ReservationDetails = ({
                     <div className="flex justify-between items-center">
                         <div>
                             <div className="flex items-center gap-2">
+                                <h2 className="text-2xl font-bold text-white">
+                                    Reservation #{reservationDetails.reservation_id}
+                                </h2>
+                              
                             </div>
+                           
                         </div>
                         <div className="text-white text-right">
                             <p className="text-white opacity-90 text-sm">Created on</p>
@@ -150,142 +159,218 @@ const ReservationDetails = ({
 
                 {/* Main Content */}
                 <div className="p-6">
-                    {/* Basic Details Section */}
-                    <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm mb-6">
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            {/* Requester Information */}
-                            <div className="space-y-4">
-                                <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
-                                    <UserOutlined className="text-blue-500" />
-                                    Requester Details
-                                </h3>
-                                <div className="space-y-3">
-                                    <div>
-                                        <p className="text-sm text-gray-500">Name</p>
-                                        <p className="font-medium">{reservationDetails.requester_name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Role</p>
-                                        <p className="font-medium">{reservationDetails.user_level_name}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Department</p>
-                                        <p className="font-medium">{reservationDetails.department_name}</p>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Schedule and Details */}
-                            <div className="space-y-4">
-                                <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
-                                    <CalendarOutlined className="text-orange-500" />
-                                    Schedule & Details
-                                </h3>
-                                <div className="space-y-3">
-                                    <div>
-                                        <p className="text-sm text-gray-500">Title</p>
-                                        <p className="font-medium">{reservationDetails.reservation_title}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Description</p>
-                                        <p className="font-medium">{reservationDetails.reservation_description}</p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Date & Time</p>
-                                        <p className="font-medium">{formatDateRange(
-                                            reservationDetails.reservation_start_date,
-                                            reservationDetails.reservation_end_date
-                                        )}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Resources Section */}
-                    <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
-                        <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
-                        <div className="space-y-4">
-                            {/* Venues */}
-                            {reservationDetails.venues?.length > 0 && (
-                                <Table 
-                                    title={() => "Venues"}
-                                    dataSource={reservationDetails.venues} 
-                                    columns={columns.venue}
-                                    pagination={false}
-                                    size="small"
-                                />
-                            )}
-
-                            {/* Vehicles */}
-                            {reservationDetails.vehicles?.length > 0 && (
-                                <Table 
-                                    title={() => "Vehicles"}
-                                    dataSource={reservationDetails.vehicles.map(vehicle => {
-                                        // Always use driver_name for each driver
-                                        let driverNames = 'No driver assigned';
-                                        if (reservationDetails.drivers && reservationDetails.drivers.length > 0) {
-                                            driverNames = reservationDetails.drivers.map(driver => driver.driver_name).join(', ');
-                                        }
-                                        return {
-                                            ...vehicle,
-                                            driver: driverNames
-                                        };
-                                    })} 
-                                    columns={[
-                                        ...columns.vehicle,
-                                        {
-                                            title: 'Driver',
-                                            dataIndex: 'driver',
-                                            key: 'driver',
-                                            render: (text, record) => (
-                                                <div className="flex items-center justify-between">
-                                                    <div className="flex items-center">
-                                                        <UserOutlined className="mr-2 text-blue-500" />
-                                                        {/* Remove leading comma and space if present */}
-                                                        <span className="font-medium">{text.replace(/^,\s*/, '')}</span>
-                                                    </div>
+                    <Tabs defaultActiveKey="1" type="card">
+                        <Tabs.TabPane tab="Reservation Details" key="1">
+                            <div className="space-y-6">
+                                {/* Basic Details Section */}
+                                <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm mb-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        {/* Requester Information */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                                                <UserOutlined className="text-blue-500" />
+                                                Requester Details
+                                            </h3>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Name</p>
+                                                    <p className="font-medium">{reservationDetails.requester_name}</p>
                                                 </div>
-                                            )
-                                        }
-                                    ]}
-                                    pagination={false}
-                                    size="small"
-                                />
-                            )}
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Role</p>
+                                                    <p className="font-medium">{reservationDetails.user_level_name}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Department</p>
+                                                    <p className="font-medium">{reservationDetails.department_name}</p>
+                                                </div>
+                                            </div>
+                                        </div>
 
-                            {/* Equipment */}
-                            {reservationDetails.equipment?.length > 0 && (
-                                <Table 
-                                    title={() => "Equipment"}
-                                    dataSource={reservationDetails.equipment} 
-                                    columns={columns.equipment}
-                                    pagination={false}
-                                    size="small"
-                                />
-                            )}
-                        </div>
-                    </div>
+                                        {/* Schedule and Details */}
+                                        <div className="space-y-4">
+                                            <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                                                <CalendarOutlined className="text-orange-500" />
+                                                Schedule & Details
+                                            </h3>
+                                            <div className="space-y-3">
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Title</p>
+                                                    <p className="font-medium">{reservationDetails.reservation_title}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Description</p>
+                                                    <p className="font-medium">{reservationDetails.reservation_description}</p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Date & Time</p>
+                                                    <p className="font-medium">{formatDateRange(
+                                                        reservationDetails.reservation_start_date,
+                                                        reservationDetails.reservation_end_date
+                                                    )}</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
 
-                    {/* Trip Passengers Section */}
-                    {reservationDetails.passengers && reservationDetails.passengers.length > 0 && (
-                        <div className="mt-6">
-                            <h3 className="text-lg font-medium mb-4 text-gray-800">Trip Passengers</h3>
-                            <div className="bg-white p-4 rounded-lg border border-purple-200 shadow-sm">
-                                <ul className="divide-y divide-purple-100">
-                                    {reservationDetails.passengers.map((passenger, index) => (
-                                        <li key={index} className="py-3 flex items-center gap-3">
-                                            <UserOutlined className="text-purple-400 text-lg" />
-                                            <span className="text-gray-700">{passenger.name}</span>
-                                        </li>
-                                    ))}
-                                </ul>
+                                {/* Resources Section */}
+                                <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
+                                    <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
+                                    <div className="space-y-4">
+                                        {/* Venues */}
+                                        {reservationDetails.venues?.length > 0 && (
+                                            <Table 
+                                                title={() => "Venues"}
+                                                dataSource={reservationDetails.venues} 
+                                                columns={columns.venue}
+                                                pagination={false}
+                                                size="small"
+                                            />
+                                        )}
+
+                                        {/* Vehicles */}
+                                        {reservationDetails.vehicles?.length > 0 && (
+                                            <Table 
+                                                title={() => "Vehicles"}
+                                                dataSource={reservationDetails.vehicles.map(vehicle => {
+                                                    // Always use driver_name for each driver
+                                                    let driverNames = 'No driver assigned';
+                                                    if (reservationDetails.drivers && reservationDetails.drivers.length > 0) {
+                                                        driverNames = reservationDetails.drivers.map(driver => driver.driver_name).join(', ');
+                                                    }
+                                                    return {
+                                                        ...vehicle,
+                                                        driver: driverNames
+                                                    };
+                                                })} 
+                                                columns={[...columns.vehicle, {
+                                                    title: 'Driver',
+                                                    dataIndex: 'driver',
+                                                    key: 'driver',
+                                                    render: (text, record) => (
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center">
+                                                                <UserOutlined className="mr-2 text-blue-500" />
+                                                                {/* Remove leading comma and space if present */}
+                                                                <span className="font-medium">{text.replace(/^,\s*/, '')}</span>
+                                                            </div>
+                                                        </div>
+                                                    )
+                                                }]}
+                                                pagination={false}
+                                                size="small"
+                                            />
+                                        )}
+
+                                        {/* Equipment */}
+                                        {reservationDetails.equipment?.length > 0 && (
+                                            <Table 
+                                                title={() => "Equipment"}
+                                                dataSource={reservationDetails.equipment} 
+                                                columns={columns.equipment}
+                                                pagination={false}
+                                                size="small"
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Trip Passengers Section */}
+                                {reservationDetails.passengers && reservationDetails.passengers.length > 0 && (
+                                    <div className="mt-6">
+                                        <h3 className="text-lg font-medium mb-4 text-gray-800">Trip Passengers</h3>
+                                        <div className="bg-white p-4 rounded-lg border border-purple-200 shadow-sm">
+                                            <ul className="divide-y divide-purple-100">
+                                                {reservationDetails.passengers.map((passenger, index) => (
+                                                    <li key={index} className="py-3 flex items-center gap-3">
+                                                        <UserOutlined className="text-purple-400 text-lg" />
+                                                        <span className="text-gray-700">{passenger.name}</span>
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                
                             </div>
-                        </div>
-                    )}
+                        </Tabs.TabPane>
+                        <Tabs.TabPane tab="Status History" key="2">
+                            <div className="mt-6">
+                                {/* Status History Section - Non-collapsable */}
+                                {reservationDetails.status_history && reservationDetails.status_history.length > 0 ? (
+                                    <div className="bg-white p-4 rounded-lg border border-green-200 shadow-sm mb-6">
+                                        <h3 className="text-lg font-medium mb-4 text-gray-800">Status History</h3>
+                                        <div className="space-y-4">
+                                            {reservationDetails.status_history
+                                                .sort((a, b) => new Date(b.reservation_updated_at) - new Date(a.reservation_updated_at))
+                                                .map((status, index) => (
+                                                    <div key={status.reservation_status_id} className="flex">
+                                                        <div className="flex flex-col items-center mr-4">
+                                                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                                            {index !== reservationDetails.status_history.length - 1 && (
+                                                                <div className="w-0.5 h-full bg-green-300"></div>
+                                                            )}
+                                                        </div>
+                                                        <div className="flex-1 mb-4">
+                                                            <div className="flex justify-between items-center mb-1">
+                                                                <span className="font-medium text-gray-800">{status.status_name}</span>
+                                                                <span className="text-sm text-gray-500">
+                                                                    {new Date(status.reservation_updated_at).toLocaleString()}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-sm text-gray-600">
+                                                                Updated by: {status.updated_by_name}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-white p-4 rounded-lg border border-green-200 shadow-sm mb-6">
+                                        <h3 className="text-lg font-medium mb-4 text-gray-800">Status History</h3>
+                                        <p className="text-gray-500 text-center py-4">No status history available</p>
+                                    </div>
+                                )}
 
-                    {/* Description */}
-                    
+                                {/* Dean's Approval Section - Collapsable */}
+                                {deansApproval && deansApproval.length > 0 && (
+                                    <div>
+                                        <Collapse 
+                                            bordered={false} 
+                                            className="bg-white rounded-lg border border-blue-200 shadow-sm"
+                                            expandIcon={({ isActive }) => isActive ? <DownOutlined /> : <RightOutlined />}>
+                                            <Collapse.Panel header="Department Approval" key="1">
+                                                <div className="p-4">
+                                                    {isLoadingDeans ? (
+                                                        <div className="flex justify-center items-center h-32">
+                                                            <Spin size="large" />
+                                                        </div>
+                                                    ) : (
+                                                        <ul className="divide-y divide-blue-100">
+                                                            {deansApproval.map((approval, index) => (
+                                                                <li key={index} className="py-3 flex items-center justify-between">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <UserOutlined className="text-blue-400 text-lg" />
+                                                                        <span className="text-gray-700">{approval.dean_name}</span>
+                                                                    </div>
+                                                                    <Tag color={approval.is_approved === 1 || approval.is_approved === '1' ? 'green' : 'red'}>
+                                                                        {approval.is_approved === 1 || approval.is_approved === '1' ? 'Approved' : 'Pending'}
+                                                                    </Tag>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    )}
+                                                </div>
+                                            </Collapse.Panel>
+                                        </Collapse>
+                                    </div>
+                                )}
+                            </div>
+                        </Tabs.TabPane>
+                    </Tabs>
                 </div>
             </div>
         </Modal>

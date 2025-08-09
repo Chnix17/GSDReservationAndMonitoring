@@ -320,18 +320,62 @@ function Checklist() {
       const result = await response.json();
       if (result.status === 'success') {
         message.success(result.message || 'Checklist saved successfully');
-        setIsModalVisible(false);
+        // Don't close the modal on successful save
+        // setIsModalVisible(false);
+        
+        // Clear all form fields and dropdowns
         setChecklistItems([]);
         setResourceType(null);
         setSelectedResource(null);
         setNewItem('');
+        setResources([]); // Clear the resources dropdown options
         
-        // Refresh the data after saving
-        const updatedType = resourceType === 'venue' ? 'venue' :
-                          resourceType === 'equipment' ? 'equipment' :
-                          'vehicle';
-        await fetchResources(updatedType);
-        window.location.reload(); // Refresh to show updated counts
+        // Refresh the data after saving without page reload
+        const fetchChecklists = async () => {
+          try {
+            const response = await fetch(`${storedUrl}user.php`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify({ operation: 'fetchChecklist' })
+            });
+            const result = await response.json();
+            if (result.status === 'success') {
+              // Transform data for venues
+              const venueList = Object.values(result.data.venues || {}).map(item => ({
+                key: `v${item.id}`,
+                id: item.id,
+                name: item.name,
+                checklistCount: item.count
+              }));
+              setVenueData(venueList);
+
+              // Transform data for equipment
+              const equipmentList = Object.values(result.data.equipment || {}).map(item => ({
+                key: `e${item.id}`,
+                id: item.id,
+                name: item.name,
+                checklistCount: item.count
+              }));
+              setEquipmentData(equipmentList);
+
+              // Transform data for vehicles
+              const vehicleList = Object.values(result.data.vehicles || {}).map(item => ({
+                key: `vh${item.id}`,
+                id: item.id,
+                name: item.name,
+                checklistCount: item.count
+              }));
+              setVehicleData(vehicleList);
+            }
+          } catch (error) {
+            console.error('Error refreshing checklists:', error);
+          }
+        };
+
+        await fetchChecklists();
       } else {
         message.error(result.message || 'Failed to save checklist');
       }

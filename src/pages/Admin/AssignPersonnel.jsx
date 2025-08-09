@@ -117,6 +117,54 @@ const AssignPersonnel = () => {
 
           const progress = totalChecklists > 0 ? (completedChecklists / totalChecklists) * 100 : 0;
 
+          // Extract assigned personnel from checklists
+          let assignedPersonnel = 'Not Assigned';
+          
+          // Check venues for assigned personnel
+          if (item.venues && item.venues.length > 0) {
+            for (const venue of item.venues) {
+              if (venue.checklists && venue.checklists.length > 0) {
+                for (const checklist of venue.checklists) {
+                  if (checklist.personnel_name) {
+                    assignedPersonnel = checklist.personnel_name;
+                    break;
+                  }
+                }
+                if (assignedPersonnel !== 'Not Assigned') break;
+              }
+            }
+          }
+          
+          // Check vehicles for assigned personnel if not found in venues
+          if (assignedPersonnel === 'Not Assigned' && item.vehicles && item.vehicles.length > 0) {
+            for (const vehicle of item.vehicles) {
+              if (vehicle.checklists && vehicle.checklists.length > 0) {
+                for (const checklist of vehicle.checklists) {
+                  if (checklist.personnel_name) {
+                    assignedPersonnel = checklist.personnel_name;
+                    break;
+                  }
+                }
+                if (assignedPersonnel !== 'Not Assigned') break;
+              }
+            }
+          }
+          
+          // Check equipments for assigned personnel if not found in venues or vehicles
+          if (assignedPersonnel === 'Not Assigned' && item.equipments && item.equipments.length > 0) {
+            for (const equipment of item.equipments) {
+              if (equipment.checklists && equipment.checklists.length > 0) {
+                for (const checklist of equipment.checklists) {
+                  if (checklist.personnel_name) {
+                    assignedPersonnel = checklist.personnel_name;
+                    break;
+                  }
+                }
+                if (assignedPersonnel !== 'Not Assigned') break;
+              }
+            }
+          }
+
           return {
             id: item.reservation_id,
             title: item.reservation_title,
@@ -124,7 +172,7 @@ const AssignPersonnel = () => {
             requestor: item.user_details?.full_name || 'Unknown',
             startDate: item.reservation_start_date,
             endDate: item.reservation_end_date,
-            personnel: item.venues?.[0]?.checklists?.[0]?.personnel_name || 'Not Assigned',
+            personnel: assignedPersonnel,
             progress: Math.round(progress),
             status: 'Assigned',
             rawData: item

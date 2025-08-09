@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton, Input, Tooltip } from 'antd';
-import { UndoOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, DeleteOutlined, SearchOutlined, IdcardOutlined, ReloadOutlined } from '@ant-design/icons';
+import { UndoOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import Sidebar from './Sidebar';
 import axios from 'axios';
 import { toast } from 'react-toastify';
@@ -14,7 +14,7 @@ const Archive = () => {
   const [vehicles, setVehicles] = useState([]);
   const [venues, setVenues] = useState([]);
   const [equipment, setEquipment] = useState([]);
-  const [drivers, setDrivers] = useState([]);
+
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
@@ -138,22 +138,7 @@ const Archive = () => {
     }
   }, [encryptedUrl]);
 
-  const fetchDrivers = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await axios.post(`${encryptedUrl}/fetchMaster.php`,
-        { operation: "fetchInactiveDriver" },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      if (response.data.status === 'success') {
-        setDrivers(response.data.data);
-      }
-    } catch (error) {
-      toast.error("Error fetching drivers");
-    } finally {
-      setLoading(false);
-    }
-  }, [encryptedUrl]);
+
 
   useEffect(() => {
     fetchUsers();
@@ -174,26 +159,32 @@ const Archive = () => {
       case 3:
         fetchEquipment();
         break;
-      case 4:
-        fetchDrivers();
-        break;
       default:
         break;
     }
-  }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment, fetchDrivers]);
+  }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment]);
 
-  const handleRestoreUsers = async () => {
+  const handleRestoreUsers = async (record) => {
+    let userIds;
+    if (record) {
+      // If restoring a single user from the action button
+      userIds = [record.users_id];
+    } else {
+      // If restoring multiple users from bulk selection
+      userIds = selectedRowKeys;
+    }
+    
     const payload = {
       operation: "unarchiveUser",
       userType: "user",
-      userId: selectedRowKeys
+      userId: userIds
     };
     console.log('Restore Users Payload:', payload);
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
-        message.success(`${selectedRowKeys.length} users restored successfully`);
+        message.success(`${userIds.length} users restored successfully`);
         setSelectedRowKeys([]);
         fetchUsers();
       } else {
@@ -205,18 +196,27 @@ const Archive = () => {
     }
   };
 
-  const handleRestoreVehicles = async () => {
+  const handleRestoreVehicles = async (record) => {
+    let resourceIds;
+    if (record) {
+      // If restoring a single vehicle from the action button
+      resourceIds = [record.vehicle_id];
+    } else {
+      // If restoring multiple vehicles from bulk selection
+      resourceIds = selectedRowKeys;
+    }
+    
     const payload = {
       operation: "unarchiveResource",
       resourceType: "vehicle",
-      resourceId: selectedRowKeys
+      resourceId: resourceIds
     };
     console.log('Restore Vehicles Payload:', payload);
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
-        message.success(`${selectedRowKeys.length} vehicles restored successfully`);
+        message.success(`${resourceIds.length} vehicles restored successfully`);
         setSelectedRowKeys([]);
         fetchVehicles();
       } else {
@@ -228,18 +228,27 @@ const Archive = () => {
     }
   };
 
-  const handleRestoreVenues = async () => {
+  const handleRestoreVenues = async (record) => {
+    let resourceIds;
+    if (record) {
+      // If restoring a single venue from the action button
+      resourceIds = [record.ven_id];
+    } else {
+      // If restoring multiple venues from bulk selection
+      resourceIds = selectedRowKeys;
+    }
+    
     const payload = {
       operation: "unarchiveResource",
       resourceType: "venue",
-      resourceId: selectedRowKeys
+      resourceId: resourceIds
     };
     console.log('Restore Venues Payload:', payload);
     try {
       const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
       if (response.data.status === 'success') {
-        message.success(`${selectedRowKeys.length} venues restored successfully`);
+        message.success(`${resourceIds.length} venues restored successfully`);
         setSelectedRowKeys([]);
         fetchVenues();
       } else {
@@ -286,123 +295,11 @@ const Archive = () => {
     }
   };
 
-  const handleRestoreDrivers = async () => {
-    const payload = {
-      operation: "unarchiveUser",
-      userType: "driver",
-      userId: selectedRowKeys
-    };
-    console.log('Restore Drivers Payload:', payload);
-    try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
 
-      if (response.data.status === 'success') {
-        message.success(`${selectedRowKeys.length} drivers restored successfully`);
-        setSelectedRowKeys([]);
-        fetchDrivers();
-      } else {
-        message.error(`Failed to restore drivers`);
-      }
-    } catch (error) {
-      console.error('Error restoring drivers:', error);
-      message.error(`An error occurred while restoring drivers`);
-    }
-  };
 
-  const handleDeleteUser = async (record) => {
-    try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "deleteUser",
-        userId: record.users_id
-      });
+ 
 
-      if (response.data.status === 'success') {
-        message.success(`User deleted successfully`);
-        fetchUsers();
-      } else {
-        message.error(`Failed to delete user`);
-      }
-    } catch (error) {
-      console.error('Error deleting user:', error);
-      message.error(`An error occurred while deleting user`);
-    }
-  };
 
-  const handleDeleteVehicle = async (record) => {
-    try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "deleteVehicle",
-        vehicleId: record.vehicle_id
-      });
-
-      if (response.data.status === 'success') {
-        message.success(`Vehicle deleted successfully`);
-        fetchVehicles();
-      } else {
-        message.error(`Failed to delete vehicle`);
-      }
-    } catch (error) {
-      console.error('Error deleting vehicle:', error);
-      message.error(`An error occurred while deleting vehicle`);
-    }
-  };
-
-  const handleDeleteVenue = async (record) => {
-    try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "deleteVenue",
-        venueId: record.ven_id
-      });
-
-      if (response.data.status === 'success') {
-        message.success(`Venue deleted successfully`);
-        fetchVenues();
-      } else {
-        message.error(`Failed to delete venue`);
-      }
-    } catch (error) {
-      console.error('Error deleting venue:', error);
-      message.error(`An error occurred while deleting venue`);
-    }
-  };
-
-  const handleDeleteEquipment = async (record) => {
-    try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "deleteEquipment",
-        equipmentId: record.equip_id
-      });
-
-      if (response.data.status === 'success') {
-        message.success(`Equipment deleted successfully`);
-        fetchEquipment();
-      } else {
-        message.error(`Failed to delete equipment`);
-      }
-    } catch (error) {
-      console.error('Error deleting equipment:', error);
-      message.error(`An error occurred while deleting equipment`);
-    }
-  };
-
-  const handleDeleteDriver = async (record) => {
-    try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, {
-        operation: "deleteDriver",
-        driverId: record.driver_id
-      });
-
-      if (response.data.status === 'success') {
-        message.success(`Driver deleted successfully`);
-        fetchDrivers();
-      } else {
-        message.error(`Failed to delete driver`);
-      }
-    } catch (error) {
-      console.error('Error deleting driver:', error);
-      message.error(`An error occurred while deleting driver`);
-    }
-  };
 
   // Add global search function
   const handleSearch = (value) => {
@@ -434,9 +331,6 @@ const Archive = () => {
         break;
       case 3:
         fetchEquipment();
-        break;
-      case 4:
-        fetchDrivers();
         break;
       default:
         break;
@@ -521,20 +415,7 @@ const Archive = () => {
               <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
-          <Popconfirm
-            title="Delete this user permanently?"
-            description="This will permanently delete this user and cannot be undone."
-            onConfirm={() => handleDeleteUser(record)}
-            okText="Yes"
-            cancelText="No"
-            placement="left"
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger icon={<DeleteOutlined />} size="small">
-              <span className="hidden sm:inline">Delete</span>
-              <span className="sm:hidden">D</span>
-            </Button>
-          </Popconfirm>
+         
         </Space>
       ),
     }
@@ -600,20 +481,6 @@ const Archive = () => {
               <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
-          <Popconfirm
-            title="Delete this vehicle permanently?"
-            description="This will permanently delete this vehicle and cannot be undone."
-            onConfirm={() => handleDeleteVehicle(record)}
-            okText="Yes"
-            cancelText="No"
-            placement="left"
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger icon={<DeleteOutlined />} size="small">
-              <span className="hidden sm:inline">Delete</span>
-              <span className="sm:hidden">D</span>
-            </Button>
-          </Popconfirm>
         </Space>
       ),
     }
@@ -650,20 +517,6 @@ const Archive = () => {
             <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
               <span className="hidden sm:inline">Restore</span>
               <span className="sm:hidden">R</span>
-            </Button>
-          </Popconfirm>
-          <Popconfirm
-            title="Delete this venue permanently?"
-            description="This will permanently delete this venue and cannot be undone."
-            onConfirm={() => handleDeleteVenue(record)}
-            okText="Yes"
-            cancelText="No"
-            placement="left"
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger icon={<DeleteOutlined />} size="small">
-              <span className="hidden sm:inline">Delete</span>
-              <span className="sm:hidden">D</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -703,86 +556,12 @@ const Archive = () => {
               <span className="sm:hidden">R</span>
             </Button>
           </Popconfirm>
-          <Popconfirm
-            title="Delete this equipment permanently?"
-            description="This will permanently delete this equipment and cannot be undone."
-            onConfirm={() => handleDeleteEquipment(record)}
-            okText="Yes"
-            cancelText="No"
-            placement="left"
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger icon={<DeleteOutlined />} size="small">
-              <span className="hidden sm:inline">Delete</span>
-              <span className="sm:hidden">D</span>
-            </Button>
-          </Popconfirm>
         </Space>
       ),
     }
   ];
 
-  const driverColumns = [
-    { 
-      title: 'Employee ID', 
-      dataIndex: 'employee_id', 
-      key: 'employeeId',
-      sorter: (a, b) => a.employee_id.localeCompare(b.employee_id),
-    },
-    {
-      title: 'Name',
-      key: 'name',
-      render: (text, record) => {
-        const fullName = [
-          record.driver_first_name,
-          record.driver_middle_name,
-          record.driver_last_name,
-          record.driver_suffix
-        ].filter(Boolean).join(' ');
-        return fullName;
-      },
-      sorter: (a, b) => {
-        const nameA = `${a.driver_first_name} ${a.driver_last_name}`;
-        const nameB = `${b.driver_first_name} ${b.driver_last_name}`;
-        return nameA.localeCompare(nameB);
-      },
-    },
-    {
-      title: 'Action',
-      key: 'action',
-      render: (_, record) => (
-        <Space size="small">
-          <Popconfirm
-            title="Restore this driver?"
-            description="This will move the driver back to active status."
-            onConfirm={() => handleRestoreDrivers(record)}
-            okText="Yes"
-            cancelText="No"
-            placement="left"
-          >
-            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
-              <span className="hidden sm:inline">Restore</span>
-              <span className="sm:hidden">R</span>
-            </Button>
-          </Popconfirm>
-          <Popconfirm
-            title="Delete this driver permanently?"
-            description="This will permanently delete this driver and cannot be undone."
-            onConfirm={() => handleDeleteDriver(record)}
-            okText="Yes"
-            cancelText="No"
-            placement="left"
-            okButtonProps={{ danger: true }}
-          >
-            <Button danger icon={<DeleteOutlined />} size="small">
-              <span className="hidden sm:inline">Delete</span>
-              <span className="sm:hidden">D</span>
-            </Button>
-          </Popconfirm>
-        </Space>
-      ),
-    }
-  ];
+
 
   const renderEmptyState = () => (
     <Empty
@@ -804,8 +583,7 @@ const Archive = () => {
     { key: 0, label: 'Users', icon: <UserOutlined /> },
     { key: 1, label: 'Vehicles', icon: <CarOutlined /> },
     { key: 2, label: 'Venues', icon: <HomeOutlined /> },
-    { key: 3, label: 'Equipment', icon: <ToolOutlined /> },
-    { key: 4, label: 'Drivers', icon: <IdcardOutlined /> }
+    { key: 3, label: 'Equipment', icon: <ToolOutlined /> }
   ];
 
   const rowSelection = {
@@ -832,9 +610,6 @@ const Archive = () => {
         case 3:
           handleRestoreEquipment();
           break;
-        case 4:
-          handleRestoreDrivers();
-          break;
         default:
           break;
       }
@@ -859,8 +634,7 @@ const Archive = () => {
       value === 0 ? users :
       value === 1 ? vehicles :
       value === 2 ? venues :
-      value === 3 ? equipment :
-      value === 4 ? drivers : []
+      value === 3 ? equipment : []
     );
     
     const startIndex = (currentPage - 1) * pageSize;
@@ -874,7 +648,6 @@ const Archive = () => {
       case 1: return vehicleColumns;
       case 2: return venueColumns;
       case 3: return equipmentColumns;
-      case 4: return driverColumns;
       default: return [];
     }
   };
@@ -885,7 +658,6 @@ const Archive = () => {
       case 1: return 'vehicle_id';
       case 2: return 'ven_id';
       case 3: return 'equip_id';
-      case 4: return 'driver_id';
       default: return 'id';
     }
   };
@@ -895,8 +667,7 @@ const Archive = () => {
       value === 0 ? users :
       value === 1 ? vehicles :
       value === 2 ? venues :
-      value === 3 ? equipment :
-      value === 4 ? drivers : []
+      value === 3 ? equipment : []
     ).length;
   };
 

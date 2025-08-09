@@ -419,14 +419,13 @@ const Update_Modal = ({
                         name="users_email"
                         rules={[
                             { required: true, message: 'Please input email address!' },
-                            { type: 'email', message: 'Please enter a valid email address' },
                             { 
-                                pattern: /^[a-zA-Z0-9._%+-]+@phinmaed\.com$/,
-                                message: 'Email must end with @phinmaed.com'
+                                pattern: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                                message: 'Please enter a valid email address'
                             }
                         ]}
                     >
-                        <Input placeholder="Enter email address (e.g., chsi.valle.coc@phinmaed.com)" />
+                        <Input placeholder="Enter email address" />
                     </Form.Item>
 
                     <Form.Item

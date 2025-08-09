@@ -46,6 +46,7 @@ import Driver from './pages/Drivers';
 import Holiday from './pages/Admin/Holiday';
 import DriverDashboard from './pages/Driver/DriverDashboard';
 import DriverTrips from './pages/Driver/Trips'
+import AdminNotification from './pages/Admin/notification';
 
 import VenueSchedule from './page_dean/VenueSchedule'
 
@@ -109,7 +110,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips'
+            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -141,6 +142,7 @@ const App = () => {
                         <Route path="/vehiclemake" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclem /></ProtectedRoute>} />
                         <Route path="/vehiclecategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclec /></ProtectedRoute>} />
                         <Route path="/equipmentCategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
+                        <Route path="/Admin/Notification" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminNotification /></ProtectedRoute>} />
           
                         <Route path="/vehiclemodel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><VehicleModel /></ProtectedRoute>} />
                         <Route path="/AssignPersonnel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AssignPersonnel /></ProtectedRoute>} />

@@ -428,7 +428,7 @@ const Chat = () => {
   );
 
   const renderInputArea = () => (
-    <div className="border-t bg-white/95 backdrop-blur-lg px-4 py-3 pb-6 sticky bottom-0 z-10">
+    <div className="border-t bg-white/95 backdrop-blur-lg px-4 py-3 sticky bottom-0 z-10">
       {messageToReply && (
         <motion.div 
           initial={{ opacity: 0, y: 5 }}

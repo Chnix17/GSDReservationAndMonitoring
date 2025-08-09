@@ -124,7 +124,7 @@ const Dashboard = () => {
               participants: res.reservation_participants,
               startTime,
               endTime,
-              feedback: res.feedback || 'No feedback',
+              feedback: res.feedback || '',
               status: res.reservation_status_name
             };
 
@@ -771,9 +771,11 @@ const Dashboard = () => {
                             <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
                             <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
                           </div>
-                          <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
-                            {reservation.feedback}
-                          </span>
+                          {reservation.feedback && (
+                            <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                              {reservation.feedback}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
                           <div className="flex items-center">

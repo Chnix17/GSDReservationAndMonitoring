@@ -5,6 +5,7 @@ import { BankOutlined, CarOutlined } from '@ant-design/icons';
 import { FaTools } from 'react-icons/fa';
 import { Tag } from 'primereact/tag';
 import { FaCheckCircle } from 'react-icons/fa';
+import { SecureStorage } from '../../../../src/utils/encryption';
 
 const { Title } = Typography;
 
@@ -43,6 +44,20 @@ const resourceTypes = [
 ];
 
 const SelectType = ({ resourceType, onResourceTypeSelect, onStepAdvance }) => {
+  const [filteredResourceTypes, setFilteredResourceTypes] = React.useState(resourceTypes);
+
+  React.useEffect(() => {
+    // Get user level from secure storage
+    const userLevel = SecureStorage.getLocalItem("user_level_id");
+    const allowedLevels = ['1', '5', '6', '18'];
+    
+    // If user level is not in the allowed list, filter out the vehicle option
+    if (userLevel && !allowedLevels.includes(userLevel.toString())) {
+      setFilteredResourceTypes(resourceTypes.filter(type => type.value !== 'vehicle'));
+    } else {
+      setFilteredResourceTypes(resourceTypes);
+    }
+  }, []);
   const handleResourceTypeSelect = (type) => {
     onResourceTypeSelect(type);
     // Immediately advance to next step
@@ -61,8 +76,12 @@ const SelectType = ({ resourceType, onResourceTypeSelect, onStepAdvance }) => {
         <p className="text-gray-500 text-sm sm:text-base">Select the type of resource you need for your reservation</p>
       </div>
       
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-        {resourceTypes.map(option => (
+      <div className={`grid gap-4 sm:gap-6 ${
+        filteredResourceTypes.length === 2 
+          ? 'grid-cols-2 max-w-2xl mx-auto' 
+          : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'
+      }`}>
+        {filteredResourceTypes.map(option => (
           <motion.div
             key={option.value}
             whileHover={{ scale: 1.02 }}

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { message as toast, Modal, Button, Input, Space, Empty, Pagination, Tooltip, Dropdown } from 'antd';
-import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, EyeOutlined, DownOutlined, ToolOutlined } from '@ant-design/icons';
+import { message as toast, Modal, Button, Input, Space, Empty, Pagination, Tooltip} from 'antd';
+import { PlusOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, EyeOutlined } from '@ant-design/icons';
 import { motion } from 'framer-motion';
 import { SecureStorage } from '../../utils/encryption';
 import UpdateEquipmentModal from './lib/Equipment/Update_Modal';
@@ -172,32 +172,6 @@ const EquipmentEntry = () => {
         setIsTrackingModalOpen(true);
     };
 
-    const handleMenuClick = (e) => {
-        switch (e.key) {
-            case 'add':
-                setIsMasterModalOpen(true);
-                break;
-            case 'viewCategories':
-                navigate('/equipmentCategory');
-                break;
-            default:
-                break;
-        }
-    };
-
-    const items = [
-        {
-            key: 'add',
-            icon: <PlusOutlined />,
-            label: 'Add Equipment',
-        },
-        {
-            key: 'viewCategories',
-            icon: <ToolOutlined />,
-            label: 'View Categories',
-        },
-    ];
-
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
@@ -243,23 +217,16 @@ const EquipmentEntry = () => {
                                     style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                                 />
                             </Tooltip>
-                            <Dropdown
-                                menu={{
-                                    items,
-                                    onClick: handleMenuClick,
-                                }}
+                            <Button
+                                type="primary"
+                                size="large"
+                                className="bg-lime-900 hover:bg-green-600"
+                                onClick={() => setIsMasterModalOpen(true)}
                             >
-                                <Button
-                                    type="primary"
-                                    size="large"
-                                    className="bg-lime-900 hover:bg-green-600"
-                                >
-                                    <Space>
-                                        Add Equipment
-                                        <DownOutlined />
-                                    </Space>
-                                </Button>
-                            </Dropdown>
+                                <Space>
+                                    Add Equipment
+                                </Space>
+                            </Button>
                         </div>
                     </div>
 

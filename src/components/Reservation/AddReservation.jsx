@@ -102,6 +102,80 @@ const AddReservation = () => {
   const [venues, setVenues] = useState([]);
   const [vehicles, setVehicles] = useState([]);
 
+  // Clean up selectedVenueEquipment when equipment data changes
+  useEffect(() => {
+    if ((resourceType === 'venue' || resourceType === 'vehicle') && 
+        selectedVenueEquipment && 
+        Object.keys(selectedVenueEquipment).length > 0 && 
+        equipment?.length > 0) {
+      
+      const updatedEquipment = { ...selectedVenueEquipment };
+      let hasChanges = false;
+      let removedItems = [];
+      
+      // Check each selected equipment
+      Object.entries(selectedVenueEquipment).forEach(([equipId, quantity]) => {
+        const equip = equipment.find(e => 
+          String(e.equip_id) === equipId || 
+          String(e.equipment_id) === equipId
+        );
+        
+        // If equipment doesn't exist or is unavailable, or quantity is <= 0, remove it
+        if (!equip) {
+          const itemName = `Equipment (ID: ${equipId})`;
+          removedItems.push(`${itemName} - No longer available`);
+          delete updatedEquipment[equipId];
+          hasChanges = true;
+        } 
+        else if (quantity <= 0) {
+          const itemName = equip.equip_name || equip.equipment_name || `Equipment (ID: ${equipId})`;
+          removedItems.push(`${itemName} - Invalid quantity (${quantity})`);
+          delete updatedEquipment[equipId];
+          hasChanges = true;
+        }
+        // If quantity exceeds available, adjust it
+        else if (quantity > (equip.available_quantity || 0)) {
+          const itemName = equip.equip_name || equip.equipment_name || `Equipment (ID: ${equipId})`;
+          removedItems.push(`${itemName} - Quantity reduced from ${quantity} to ${equip.available_quantity} (available)`);
+          updatedEquipment[equipId] = equip.available_quantity || 0;
+          hasChanges = true;
+        }
+      });
+
+      // If there were changes, update the state and show toast
+      if (hasChanges) {
+        // Show toast with removed items
+        if (removedItems.length > 0) {
+          const message = (
+            <div>
+              <div>Some equipment was adjusted:</div>
+              <ul className="mt-1 list-disc pl-4">
+                {removedItems.map((item, idx) => (
+                  <li key={idx} className="text-sm">{item}</li>
+                ))}
+              </ul>
+            </div>
+          );
+          
+          toast(message, {
+            duration: 5000,
+            icon: '⚠️',
+            style: {
+              maxWidth: '400px',
+              padding: '12px 16px',
+            },
+          });
+        }
+        
+        setSelectedVenueEquipment(updatedEquipment);
+        setFormData(prev => ({
+          ...prev,
+          selectedVenueEquipment: updatedEquipment
+        }));
+      }
+    }
+  }, [equipment, resourceType, selectedVenueEquipment]);
+
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth <= 375);
@@ -317,10 +391,10 @@ const validateCurrentStep = () => {
         }
         
         // Check if owner is required due to driver shortage
-        if ((formData.forceOwnDrivers || formData.forceMixedDrivers) && (!formData.owner || !formData.owner.trim())) {
-          toast.error('Please enter the vehicle owner name (required when providing own drivers)');
+        // Only require owner name if we're forcing own drivers and no driver names are provided
+        if (formData.forceOwnDrivers && !formData.ownDrivers?.some(d => d.name?.trim())) {
+          toast.error('Please enter driver names for all vehicles');
           return false;
-
         }
         
         if (!formData.passengers || formData.passengers.length === 0) {
@@ -467,6 +541,83 @@ const renderBasicInformation = () => {
 };
 
 
+const checkResourceAvailability = async (resourceType, resourceIds, quantities = []) => {
+  try {
+    // Get availability information including existing reservations
+    const response = await axios.post(
+      `${encryptedUrl}/user.php`,
+      {
+        operation: 'fetchAvailability',
+        itemType: resourceType,
+        itemId: resourceIds,
+        ...(resourceType === 'equipment' && { quantity: quantities }),
+        startDateTime: format(formData.startDate, 'yyyy-MM-dd HH:mm:ss'),
+        endDateTime: format(formData.endDate, 'yyyy-MM-dd HH:mm:ss')
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.data.status !== 'success') {
+      throw new Error('Failed to check availability');
+    }
+
+    // Check for existing reservations with status_id = 1 in the response
+    const existingReservations = response.data.data.filter(item => 
+      item.reservation_status_status_id === 1 && 
+      item.reservation_start_date && 
+      item.reservation_end_date
+    );
+
+    // If there are existing reservations with status_id 1, check for overlaps
+    if (existingReservations.length > 0) {
+      const selectedStart = new Date(formData.startDate);
+      const selectedEnd = new Date(formData.endDate);
+      
+      // Check if the selected date range overlaps with any existing reservation
+      const hasOverlap = existingReservations.some(reservation => {
+        const resStart = new Date(reservation.reservation_start_date);
+        const resEnd = new Date(reservation.reservation_end_date);
+        
+        // Check for overlap
+        return (
+          (selectedStart >= resStart && selectedStart < resEnd) || // New start is during existing reservation
+          (selectedEnd > resStart && selectedEnd <= resEnd) ||    // New end is during existing reservation
+          (selectedStart <= resStart && selectedEnd >= resEnd)     // New range completely contains existing reservation
+        );
+      });
+
+      if (hasOverlap) {
+        return {
+          isAvailable: false,
+          unavailableItems: [{
+            message: 'The selected date range overlaps with an existing active reservation.'
+          }]
+        };
+      }
+    }
+
+    // Check if any items are not available based on quantity or availability
+    const unavailableItems = response.data.data.filter(item => {
+      if (resourceType === 'equipment') {
+        return item.available_quantity < (quantities[resourceIds.indexOf(item.equip_id)] || 0);
+      }
+      return !item.is_available;
+    });
+
+    return {
+      isAvailable: unavailableItems.length === 0,
+      unavailableItems
+    };
+  } catch (error) {
+    console.error('Error checking availability:', error);
+    throw error;
+  }
+};
+
 const handleAddReservation = async () => {
   try {
     setLoading(true);
@@ -475,6 +626,33 @@ const handleAddReservation = async () => {
     // Common validation for dates
     if (!formData.startDate || !formData.endDate) {
       toast.error('Please select start and end dates');
+      return false;
+    }
+
+    // Check resource availability based on type
+    let availabilityCheck;
+    if (resourceType === 'venue' && formData.venues?.length > 0) {
+      availabilityCheck = await checkResourceAvailability('venue', formData.venues);
+    } else if (resourceType === 'vehicle' && selectedModels?.length > 0) {
+      availabilityCheck = await checkResourceAvailability('vehicle', selectedModels);
+    } else if (resourceType === 'equipment' && Object.keys(equipmentQuantities).length > 0) {
+      const equipmentIds = Object.keys(equipmentQuantities).filter(id => equipmentQuantities[id] > 0);
+      const quantities = equipmentIds.map(id => equipmentQuantities[id]);
+      availabilityCheck = await checkResourceAvailability('equipment', equipmentIds, quantities);
+    }
+
+    if (availabilityCheck && !availabilityCheck.isAvailable) {
+      const resourceName = resourceType === 'venue' ? 'Venue' : 
+                         resourceType === 'vehicle' ? 'Vehicle' : 'Equipment';
+      
+      const errorMessage = availabilityCheck.unavailableItems.length > 0
+        ? `The following ${resourceType}(s) are no longer available: ` +
+          availabilityCheck.unavailableItems.map(item => 
+            item.name || `ID: ${item.id || item.equip_id || item.vehicle_id}`
+          ).join(', ')
+        : `The selected ${resourceType}(s) are no longer available for the chosen time slot.`;
+      
+      toast.error(errorMessage, { duration: 5000 });
       return false;
     }
 
@@ -948,6 +1126,7 @@ const renderStepContent = () => {
                 : selectedModels
           }}
           initialData={calendarData} // Pass the fetched calendar data
+          venueEventTypeById={Object.fromEntries((venues || []).map(v => [v.ven_id, v.event_type]))}
         />
       </div>
     ),
@@ -978,35 +1157,44 @@ const renderStepContent = () => {
   );
 };
 
-const renderEquipmentSelection = () => (
-  <ResourceEquipment
-    // equipmentCategories={equipmentCategories}
-    selectedCategory={selectedCategory}
-    onCategoryChange={setSelectedCategory}
-    equipmentQuantities={equipmentQuantities}
-    onQuantityChange={(equipId, value) => {
-      setEquipmentQuantities(prev => ({
-        ...prev,
-        [equipId]: value
-      }));
-      
-      if (resourceType === 'venue' || resourceType === 'vehicle') {
-        setSelectedVenueEquipment(prev => {
-          const newSelection = { ...prev };
-          if (value <= 0) {
-            delete newSelection[equipId];
-          } else {
-            newSelection[equipId] = value;
-          }
-          return newSelection;
-        });
+const renderEquipmentSelection = () => {
+  const handleEquipmentQuantityChange = (updatedQuantities) => {
+    // Create a new object to ensure state updates are detected
+    const newQuantities = { ...updatedQuantities };
+    
+    // Remove any entries with 0 or negative quantities
+    Object.keys(newQuantities).forEach(key => {
+      if (newQuantities[key] <= 0) {
+        delete newQuantities[key];
       }
-    }}
-    isMobile={isMobile}
-    startDate={formData.startDate}
-    endDate={formData.endDate}
-  />
-);
+    });
+    
+    // Update all relevant states with the cleaned quantities
+    setEquipmentQuantities(prev => ({ ...prev, ...newQuantities }));
+    setSelectedVenueEquipment(prev => ({ ...prev, ...newQuantities }));
+    
+    // Update form data with the cleaned quantities
+    setFormData(prev => ({
+      ...prev,
+      selectedVenueEquipment: { ...newQuantities }
+    }));
+    
+    // Log the changes for debugging
+    console.log('Equipment quantities updated:', newQuantities);
+  };
+
+  return (
+    <ResourceEquipment
+      selectedCategory={selectedCategory}
+      onCategoryChange={setSelectedCategory}
+      equipmentQuantities={equipmentQuantities}
+      onQuantityChange={handleEquipmentQuantityChange}
+      isMobile={isMobile}
+      startDate={formData.startDate}
+      endDate={formData.endDate}
+    />
+  );
+};
 
 
 

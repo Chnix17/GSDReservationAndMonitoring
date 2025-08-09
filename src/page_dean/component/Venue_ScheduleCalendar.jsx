@@ -162,7 +162,7 @@ const Venue_ScheduleCalendar = ({ isOpen, onClose, venId, venueName }) => {
           <div className="bg-white p-4 rounded-lg shadow-sm">
             <h4 className="text-sm font-medium text-gray-500 mb-1">Schedule Period</h4>
             <p className="text-lg font-semibold text-gray-900">
-              {dayjs(scheduleData[0].semester_start).format('MMM D, YYYY')} - {dayjs(scheduleData[0].semester_end).format('MMM D, YYYY')}
+              {dayjs(scheduleData[0].semester_start).format('MMM d, yyyy')} - {dayjs(scheduleData[0].semester_end).format('MMM d, yyyy')}
             </p>
           </div>
           <div className="bg-white p-4 rounded-lg shadow-sm">

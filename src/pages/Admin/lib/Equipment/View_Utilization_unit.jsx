@@ -355,15 +355,7 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
                             <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
                                 <span className="font-medium">Category:</span> {equipmentDetails.equipments_category_name}
                             </Text>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
-                                <span className="font-medium">Brand:</span> {equipmentDetails.brand || 'N/A'}
-                            </Text>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
-                                <span className="font-medium">Size:</span> {equipmentDetails.size || 'N/A'}
-                            </Text>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
-                                <span className="font-medium">Color:</span> {equipmentDetails.color || 'N/A'}
-                            </Text>
+                           
                         </div>
                         <div>
                             <Text style={{ color: '#333333' }} className="block text-sm md:text-base">

@@ -161,7 +161,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   const fetch2FAStatus = useCallback(async () => {
     try {
       setIs2FALoading(true);
-      const userId = SecureStorage.getSessionItem('user_id') || '42';
+      const userId = SecureStorage.getLocalItem('user_id') || '42';
       
       const response = await fetch(`${baseUrl}/update_master2.php`, {
         method: 'POST',

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Modal, Button, Form, Tooltip, Input, Empty, Pagination, Alert } from 'antd';
+import { Modal, Button, Form, Tooltip, Input, Empty, Pagination, Select } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
 import {   FaBuilding } from 'react-icons/fa';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -16,10 +16,8 @@ const Departments = () => {
     const [departments, setDepartments] = useState([]);
     const [filteredDepartments, setFilteredDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [formData, setFormData] = useState({ id: '', name: '' });
+    const [formData, setFormData] = useState({ id: '', name: '', department_type: 'Academic' });
     const [showModal, setShowModal] = useState(false);
-    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-    const [selectedDepartmentId, setSelectedDepartmentId] = useState(null);
     const [editMode, setEditMode] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -64,41 +62,17 @@ const Departments = () => {
     const handleEdit = (id) => {
         const departmentToEdit = departments.find((dept) => dept.departments_id === id);
         if (departmentToEdit) {
-            setFormData({ id: departmentToEdit.departments_id, name: departmentToEdit.departments_name });
+            setFormData({ 
+                id: departmentToEdit.departments_id, 
+                name: departmentToEdit.departments_name,
+                department_type: departmentToEdit.department_type || 'Academic'
+            });
             setEditMode(true);
             setShowModal(true);
         }
     };
 
-    const handleDelete = (id) => {
-        setSelectedDepartmentId(id);
-        setShowConfirmDelete(true);
-    };
 
-    const confirmDelete = async () => {
-        const url = SecureStorage.getLocalItem("url");
-        try {
-            const response = await axios.post(`${url}delete_master.php`, {
-                operation: 'deleteDepartment',
-                departmentId: selectedDepartmentId
-            }, {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-            if (response.data.status === 'success') {
-                setDepartments(departments.filter(dept => dept.departments_id !== selectedDepartmentId));
-                setFilteredDepartments(filteredDepartments.filter(dept => dept.departments_id !== selectedDepartmentId));
-                toast.success('Department deleted successfully!');
-            } else {
-                toast.error(response.data.message || 'Failed to delete department.');
-            }
-        } catch (error) {
-            toast.error('Error deleting department.');
-        } finally {
-            setShowConfirmDelete(false);
-        }
-    };
 
     const handleSave = async () => {
         const sanitizedName = sanitizeInput(formData.name);
@@ -118,8 +92,8 @@ const Departments = () => {
             const endpoint = editMode ? 'user.php' : 'user.php';
             const operation = editMode ? 'updateDepartment' : 'saveDepartmentData';
             const payload = editMode ? 
-                { operation, id: formData.id, name: sanitizedName.trim() } :
-                { operation, departments_name: sanitizedName.trim() };
+                { operation, id: formData.id, name: sanitizedName.trim(), type: formData.department_type } :
+                { operation, departments_name: sanitizedName.trim(), department_type: formData.department_type };
             
             console.log('Sending payload:', payload); // Debug log
             
@@ -140,6 +114,7 @@ const Departments = () => {
                         dept.departments_id === formData.id ? { ...dept, departments_name: sanitizedName.trim() } : dept
                     ));
                     toast.success('Department updated successfully!');
+                    await fetchDepartments();
                 } else {
                     // Check if response.data.data exists
                     const newDepartment = {
@@ -149,6 +124,7 @@ const Departments = () => {
                     setDepartments(prevDepartments => [...prevDepartments, newDepartment]);
                     setFilteredDepartments(prevFiltered => [...prevFiltered, newDepartment]);
                     toast.success('Department added successfully!');
+                    await fetchDepartments();
                 }
                 closeModal();
             } else {
@@ -165,7 +141,7 @@ const Departments = () => {
     const closeModal = () => {
         setShowModal(false);
         setEditMode(false);
-        setFormData({ id: '', name: '' });
+        setFormData({ id: '', name: '', department_type: 'Academic' });
     };
 
     const handleSearchChange = (e) => {
@@ -178,7 +154,7 @@ const Departments = () => {
     };
 
     const handleAddDepartment = () => {
-        setFormData({ id: '', name: '' });
+        setFormData({ id: '', name: '', department_type: 'Academic' });
         setEditMode(false);
         setShowModal(true);
     };
@@ -281,6 +257,11 @@ const Departments = () => {
                                             </th>
                                             <th scope="col" className="px-4 py-4">
                                                 <div className="flex items-center">
+                                                    DEPARTMENT TYPE
+                                                </div>
+                                            </th>
+                                            <th scope="col" className="px-4 py-4">
+                                                <div className="flex items-center">
                                                     ACTIONS
                                                 </div>
                                             </th>
@@ -299,6 +280,11 @@ const Departments = () => {
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-6">
+                                                            <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                                                                {department.department_type || 'N/A'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-4 py-6">
                                                             <div className="flex justify-center space-x-2">
                                                                 <Tooltip title="Edit Department">
                                                                     <Button
@@ -307,16 +293,6 @@ const Departments = () => {
                                                                         onClick={() => handleEdit(department.departments_id)}
                                                                         size="large"
                                                                         className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
-                                                                    />
-                                                                </Tooltip>
-                                                                <Tooltip title="Delete Department">
-                                                                    <Button
-                                                                        shape="circle"
-                                                                        danger
-                                                                        icon={<DeleteOutlined />}
-                                                                        onClick={() => handleDelete(department.departments_id)}
-                                                                        size="large"
-                                                                        className="shadow-lg flex items-center justify-center"
                                                                     />
                                                                 </Tooltip>
                                                             </div>
@@ -389,38 +365,24 @@ const Departments = () => {
                             placeholder="Enter department name"
                         />
                     </Form.Item>
+                    <Form.Item
+                        label="Department Type"
+                        required
+                        tooltip="Select the department type"
+                    >
+                        <Select
+                            value={formData.department_type}
+                            onChange={(value) => setFormData({ ...formData, department_type: value })}
+                            placeholder="Select department type"
+                        >
+                            <Select.Option value="Academic">Academic</Select.Option>
+                            <Select.Option value="Non-Academic">Non-Academic</Select.Option>
+                        </Select>
+                    </Form.Item>
                 </Form>
             </Modal>
 
-            {/* Confirm Delete Modal */}
-            <Modal
-                title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
-                open={showConfirmDelete}
-                onCancel={() => setShowConfirmDelete(false)}
-                footer={[
-                    <Button key="back" onClick={() => setShowConfirmDelete(false)}>
-                        Cancel
-                    </Button>,
-                    <Button
-                        key="submit"
-                        type="primary"
-                        danger
-                        loading={loading}
-                        onClick={confirmDelete}
-                        icon={<DeleteOutlined />}
-                    >
-                        Delete
-                    </Button>,
-                ]}
-            >
-                <Alert
-                    message="Warning"
-                    description="Are you sure you want to delete this department? This action cannot be undone."
-                    type="warning"
-                    showIcon
-                    icon={<ExclamationCircleOutlined />}
-                />
-            </Modal>
+
 
             <Toaster position="top-right" />
         </div>
