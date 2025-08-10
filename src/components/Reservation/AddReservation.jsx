@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../pages/Sidebar';
 import axios from 'axios';
@@ -79,6 +79,7 @@ const AddReservation = () => {
     venues: [], 
     purpose: '',
     destination: '',
+    owner: '', // Add owner field
     passengers: [],
     driverType: 'default',
     driverName: '',
@@ -100,6 +101,80 @@ const AddReservation = () => {
   const [equipment, setEquipment] = useState([]);
   const [venues, setVenues] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+
+  // Clean up selectedVenueEquipment when equipment data changes
+  useEffect(() => {
+    if ((resourceType === 'venue' || resourceType === 'vehicle') && 
+        selectedVenueEquipment && 
+        Object.keys(selectedVenueEquipment).length > 0 && 
+        equipment?.length > 0) {
+      
+      const updatedEquipment = { ...selectedVenueEquipment };
+      let hasChanges = false;
+      let removedItems = [];
+      
+      // Check each selected equipment
+      Object.entries(selectedVenueEquipment).forEach(([equipId, quantity]) => {
+        const equip = equipment.find(e => 
+          String(e.equip_id) === equipId || 
+          String(e.equipment_id) === equipId
+        );
+        
+        // If equipment doesn't exist or is unavailable, or quantity is <= 0, remove it
+        if (!equip) {
+          const itemName = `Equipment (ID: ${equipId})`;
+          removedItems.push(`${itemName} - No longer available`);
+          delete updatedEquipment[equipId];
+          hasChanges = true;
+        } 
+        else if (quantity <= 0) {
+          const itemName = equip.equip_name || equip.equipment_name || `Equipment (ID: ${equipId})`;
+          removedItems.push(`${itemName} - Invalid quantity (${quantity})`);
+          delete updatedEquipment[equipId];
+          hasChanges = true;
+        }
+        // If quantity exceeds available, adjust it
+        else if (quantity > (equip.available_quantity || 0)) {
+          const itemName = equip.equip_name || equip.equipment_name || `Equipment (ID: ${equipId})`;
+          removedItems.push(`${itemName} - Quantity reduced from ${quantity} to ${equip.available_quantity} (available)`);
+          updatedEquipment[equipId] = equip.available_quantity || 0;
+          hasChanges = true;
+        }
+      });
+
+      // If there were changes, update the state and show toast
+      if (hasChanges) {
+        // Show toast with removed items
+        if (removedItems.length > 0) {
+          const message = (
+            <div>
+              <div>Some equipment was adjusted:</div>
+              <ul className="mt-1 list-disc pl-4">
+                {removedItems.map((item, idx) => (
+                  <li key={idx} className="text-sm">{item}</li>
+                ))}
+              </ul>
+            </div>
+          );
+          
+          toast(message, {
+            duration: 5000,
+            icon: '⚠️',
+            style: {
+              maxWidth: '400px',
+              padding: '12px 16px',
+            },
+          });
+        }
+        
+        setSelectedVenueEquipment(updatedEquipment);
+        setFormData(prev => ({
+          ...prev,
+          selectedVenueEquipment: updatedEquipment
+        }));
+      }
+    }
+  }, [equipment, resourceType, selectedVenueEquipment]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -125,7 +200,7 @@ const handleRemovePassenger = (passengerId) => {
       const fetchData = async () => {
         setLoading(true);
         try {
-          const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+          const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
           if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6) {
@@ -315,6 +390,13 @@ const validateCurrentStep = () => {
           return false;
         }
         
+        // Check if owner is required due to driver shortage
+        // Only require owner name if we're forcing own drivers and no driver names are provided
+        if (formData.forceOwnDrivers && !formData.ownDrivers?.some(d => d.name?.trim())) {
+          toast.error('Please enter driver names for all vehicles');
+          return false;
+        }
+        
         if (!formData.passengers || formData.passengers.length === 0) {
           toast.error('Please add at least one passenger');
           return false;
@@ -345,6 +427,7 @@ const handleBack = () => {
         venues: [],
         purpose: '',
         destination: '',
+        owner: '', // Reset owner field
         passengers: [],
         driverType: 'default',
         driverName: '',
@@ -458,14 +541,118 @@ const renderBasicInformation = () => {
 };
 
 
+const checkResourceAvailability = async (resourceType, resourceIds, quantities = []) => {
+  try {
+    // Get availability information including existing reservations
+    const response = await axios.post(
+      `${encryptedUrl}/user.php`,
+      {
+        operation: 'fetchAvailability',
+        itemType: resourceType,
+        itemId: resourceIds,
+        ...(resourceType === 'equipment' && { quantity: quantities }),
+        startDateTime: format(formData.startDate, 'yyyy-MM-dd HH:mm:ss'),
+        endDateTime: format(formData.endDate, 'yyyy-MM-dd HH:mm:ss')
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+
+    if (response.data.status !== 'success') {
+      throw new Error('Failed to check availability');
+    }
+
+    // Check for existing reservations with status_id = 1 in the response
+    const existingReservations = response.data.data.filter(item => 
+      item.reservation_status_status_id === 1 && 
+      item.reservation_start_date && 
+      item.reservation_end_date
+    );
+
+    // If there are existing reservations with status_id 1, check for overlaps
+    if (existingReservations.length > 0) {
+      const selectedStart = new Date(formData.startDate);
+      const selectedEnd = new Date(formData.endDate);
+      
+      // Check if the selected date range overlaps with any existing reservation
+      const hasOverlap = existingReservations.some(reservation => {
+        const resStart = new Date(reservation.reservation_start_date);
+        const resEnd = new Date(reservation.reservation_end_date);
+        
+        // Check for overlap
+        return (
+          (selectedStart >= resStart && selectedStart < resEnd) || // New start is during existing reservation
+          (selectedEnd > resStart && selectedEnd <= resEnd) ||    // New end is during existing reservation
+          (selectedStart <= resStart && selectedEnd >= resEnd)     // New range completely contains existing reservation
+        );
+      });
+
+      if (hasOverlap) {
+        return {
+          isAvailable: false,
+          unavailableItems: [{
+            message: 'The selected date range overlaps with an existing active reservation.'
+          }]
+        };
+      }
+    }
+
+    // Check if any items are not available based on quantity or availability
+    const unavailableItems = response.data.data.filter(item => {
+      if (resourceType === 'equipment') {
+        return item.available_quantity < (quantities[resourceIds.indexOf(item.equip_id)] || 0);
+      }
+      return !item.is_available;
+    });
+
+    return {
+      isAvailable: unavailableItems.length === 0,
+      unavailableItems
+    };
+  } catch (error) {
+    console.error('Error checking availability:', error);
+    throw error;
+  }
+};
+
 const handleAddReservation = async () => {
   try {
     setLoading(true);
-    const userId = SecureStorage.getSessionItem('user_id');
+    const userId = SecureStorage.getLocalItem('user_id');
 
     // Common validation for dates
     if (!formData.startDate || !formData.endDate) {
       toast.error('Please select start and end dates');
+      return false;
+    }
+
+    // Check resource availability based on type
+    let availabilityCheck;
+    if (resourceType === 'venue' && formData.venues?.length > 0) {
+      availabilityCheck = await checkResourceAvailability('venue', formData.venues);
+    } else if (resourceType === 'vehicle' && selectedModels?.length > 0) {
+      availabilityCheck = await checkResourceAvailability('vehicle', selectedModels);
+    } else if (resourceType === 'equipment' && Object.keys(equipmentQuantities).length > 0) {
+      const equipmentIds = Object.keys(equipmentQuantities).filter(id => equipmentQuantities[id] > 0);
+      const quantities = equipmentIds.map(id => equipmentQuantities[id]);
+      availabilityCheck = await checkResourceAvailability('equipment', equipmentIds, quantities);
+    }
+
+    if (availabilityCheck && !availabilityCheck.isAvailable) {
+      const resourceName = resourceType === 'venue' ? 'Venue' : 
+                         resourceType === 'vehicle' ? 'Vehicle' : 'Equipment';
+      
+      const errorMessage = availabilityCheck.unavailableItems.length > 0
+        ? `The following ${resourceType}(s) are no longer available: ` +
+          availabilityCheck.unavailableItems.map(item => 
+            item.name || `ID: ${item.id || item.equip_id || item.vehicle_id}`
+          ).join(', ')
+        : `The selected ${resourceType}(s) are no longer available for the chosen time slot.`;
+      
+      toast.error(errorMessage, { duration: 5000 });
       return false;
     }
 
@@ -713,6 +900,7 @@ const resetForm = () => {
     venues: [], 
     purpose: '',
     destination: '',
+    owner: '', // Reset owner field
     passengers: [],
     driverType: 'default',
     driverName: '',
@@ -938,6 +1126,7 @@ const renderStepContent = () => {
                 : selectedModels
           }}
           initialData={calendarData} // Pass the fetched calendar data
+          venueEventTypeById={Object.fromEntries((venues || []).map(v => [v.ven_id, v.event_type]))}
         />
       </div>
     ),
@@ -968,35 +1157,44 @@ const renderStepContent = () => {
   );
 };
 
-const renderEquipmentSelection = () => (
-  <ResourceEquipment
-    // equipmentCategories={equipmentCategories}
-    selectedCategory={selectedCategory}
-    onCategoryChange={setSelectedCategory}
-    equipmentQuantities={equipmentQuantities}
-    onQuantityChange={(equipId, value) => {
-      setEquipmentQuantities(prev => ({
-        ...prev,
-        [equipId]: value
-      }));
-      
-      if (resourceType === 'venue' || resourceType === 'vehicle') {
-        setSelectedVenueEquipment(prev => {
-          const newSelection = { ...prev };
-          if (value <= 0) {
-            delete newSelection[equipId];
-          } else {
-            newSelection[equipId] = value;
-          }
-          return newSelection;
-        });
+const renderEquipmentSelection = () => {
+  const handleEquipmentQuantityChange = (updatedQuantities) => {
+    // Create a new object to ensure state updates are detected
+    const newQuantities = { ...updatedQuantities };
+    
+    // Remove any entries with 0 or negative quantities
+    Object.keys(newQuantities).forEach(key => {
+      if (newQuantities[key] <= 0) {
+        delete newQuantities[key];
       }
-    }}
-    isMobile={isMobile}
-    startDate={formData.startDate}
-    endDate={formData.endDate}
-  />
-);
+    });
+    
+    // Update all relevant states with the cleaned quantities
+    setEquipmentQuantities(prev => ({ ...prev, ...newQuantities }));
+    setSelectedVenueEquipment(prev => ({ ...prev, ...newQuantities }));
+    
+    // Update form data with the cleaned quantities
+    setFormData(prev => ({
+      ...prev,
+      selectedVenueEquipment: { ...newQuantities }
+    }));
+    
+    // Log the changes for debugging
+    console.log('Equipment quantities updated:', newQuantities);
+  };
+
+  return (
+    <ResourceEquipment
+      selectedCategory={selectedCategory}
+      onCategoryChange={setSelectedCategory}
+      equipmentQuantities={equipmentQuantities}
+      onQuantityChange={handleEquipmentQuantityChange}
+      isMobile={isMobile}
+      startDate={formData.startDate}
+      endDate={formData.endDate}
+    />
+  );
+};
 
 
 
@@ -1468,6 +1666,7 @@ const EquipmentSelectionModal = ({
     background: '#fff',
     scrollbarWidth: 'thin',
     scrollbarColor: '#b5e0b5 #f0f0f0',
+    overflowAnchor: 'none', // Prevent scroll jumps
   };
 
   // Custom scrollbar for webkit
@@ -1476,6 +1675,11 @@ const EquipmentSelectionModal = ({
     ::-webkit-scrollbar-thumb { background: #b5e0b5; border-radius: 4px; }
     ::-webkit-scrollbar-track { background: #f0f0f0; }
   `;
+
+  // --- SCROLL PRESERVATION LOGIC ---
+  const scrollableListRef = useRef(null);
+  const prevScrollTopRef = useRef(0);
+  const [shouldRestoreScroll, setShouldRestoreScroll] = useState(false);
 
   // Reset local state when modal opens - use a ref to track if modal was just opened
   const modalJustOpenedRef = useRef(false);
@@ -1508,9 +1712,12 @@ const EquipmentSelectionModal = ({
   }, [localEquipmentQuantities]);
   
   const handleLocalQuantityChange = (equipId, value) => {
+    // --- Save scroll position before state update ---
+    if (scrollableListRef.current) {
+      prevScrollTopRef.current = scrollableListRef.current.scrollTop;
+    }
     // Convert value to number and handle empty/undefined cases
     const numericValue = value === '' || value === null || value === undefined ? 0 : Number(value);
-    
     // Ensure equipId is consistently handled as a string for state keys
     const equipmentKey = String(equipId);
     
@@ -1564,7 +1771,15 @@ const EquipmentSelectionModal = ({
       console.log('=== handleLocalQuantityChange completed ===');
       return newState;
     });
+    setShouldRestoreScroll(true); // <-- Add this
   };
+
+  useLayoutEffect(() => {
+    if (shouldRestoreScroll && scrollableListRef.current) {
+      scrollableListRef.current.scrollTop = prevScrollTopRef.current;
+      setShouldRestoreScroll(false);
+    }
+  }, [localState, shouldRestoreScroll]);
   
   const handleConfirm = () => {
     // Update both states to ensure consistency
@@ -1589,7 +1804,7 @@ const EquipmentSelectionModal = ({
 
 
   // Equipment Card Component for list view only
-  const EquipmentCard = ({ item, isSelected, onClick, currentQuantity, onQuantityChange }) => {
+  const EquipmentCard = React.memo(({ item, isSelected, onClick, currentQuantity, onQuantityChange }) => {
     const availableQuantity = parseInt(item.available_quantity || item.available) || 0;
     const isAvailable = availableQuantity > 0;
     const [tempInputValue, setTempInputValue] = useState(currentQuantity?.toString() || '');
@@ -1720,7 +1935,7 @@ const EquipmentSelectionModal = ({
         </div>
       </Card>
     );
-  };
+  });
   
   // Get unique categories from equipment
   const equipmentCategories = Array.from(
@@ -1799,7 +2014,7 @@ const EquipmentSelectionModal = ({
               className="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
               style={{ minWidth: 120 }}
             >
-              <option value="all">All Categories</option>
+              <option value="all">All</option>
               {equipmentCategories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
@@ -1816,8 +2031,8 @@ const EquipmentSelectionModal = ({
           </div>
         </div>
       </div>
-      {/* Scrollable Equipment List */}
-      <div style={scrollableListStyle}>
+      {/* Scrollable Equipment List (no animation wrapper) */}
+      <div ref={scrollableListRef} style={scrollableListStyle}>
         <div className="flex flex-col gap-2">
           {currentEquipment.map((item) => {
             const equipmentKey = String(item.equip_id);
@@ -2251,7 +2466,7 @@ const fetchVenues = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/fetch2.php`,
+      url: `${encryptedUrl}/user.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2272,7 +2487,7 @@ const fetchVehicles = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/fetch2.php`,
+      url: `${encryptedUrl}/user.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2292,8 +2507,8 @@ const fetchVehicles = useCallback(async () => {
 const fetchEquipment = useCallback(async (startDate, endDate) => {
   try {
     // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getSessionItem('user_level');
-    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const userLevel = SecureStorage.getLocalItem('user_level');
+    const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     
     // Prepare the API payload based on user role
@@ -2363,8 +2578,8 @@ useEffect(() => {
   fetchVehicles();
   
   // Get user level and department for COO Department Head check
-  const userLevel = SecureStorage.getSessionItem('user_level');
-  const userDepartment = SecureStorage.getSessionItem('Department Name');
+  const userLevel = SecureStorage.getLocalItem('user_level');
+  const userDepartment = SecureStorage.getLocalItem('Department Name');
   const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
   
   if (isCOODepartmentHead) {
@@ -2380,8 +2595,8 @@ useEffect(() => {
 useEffect(() => {
   if (resourceType === 'equipment') {
     // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getSessionItem('user_level');
-    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const userLevel = SecureStorage.getLocalItem('user_level');
+    const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     
     if (isCOODepartmentHead) {
@@ -2516,8 +2731,8 @@ useEffect(() => {
 useEffect(() => {
   if (showEquipmentModal && (!equipment || equipment.length === 0)) {
     // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getSessionItem('user_level');
-    const userDepartment = SecureStorage.getSessionItem('Department Name');
+    const userLevel = SecureStorage.getLocalItem('user_level');
+    const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     
     if (isCOODepartmentHead) {

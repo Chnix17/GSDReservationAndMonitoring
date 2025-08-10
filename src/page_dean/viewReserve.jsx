@@ -29,7 +29,7 @@ const ViewReserve = () => {
     const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
     const [reservationDetails, setReservationDetails] = useState(null);
 
-    const [sortField, setSortField] = useState('id');
+    const [sortField, setSortField] = useState('title');
     const [sortOrder, setSortOrder] = useState('desc');
     const [currentPage, setCurrentPage] = useState(1);
 
@@ -48,7 +48,7 @@ const ViewReserve = () => {
     // Table columns configuration
 
     useEffect(() => {
-        const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+        const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18) {
             localStorage.clear();
@@ -59,7 +59,7 @@ const ViewReserve = () => {
 
     const confirmCancelReservation = async () => {
         try {
-            const userId = SecureStorage.getSessionItem('user_id');
+            const userId = SecureStorage.getLocalItem('user_id');
             if (!userId) {
                 toast.error('User session expired');
                 navigate('/gsd');
@@ -106,7 +106,7 @@ const ViewReserve = () => {
     const fetchReservations = useCallback(async () => {
         try {
             setLoading(true);
-            const userId = SecureStorage.getSessionItem('user_id');
+            const userId = SecureStorage.getLocalItem('user_id');
             console.log('Fetching reservations for user:', userId);
             
             if (!userId) {
@@ -338,16 +338,6 @@ const ViewReserve = () => {
                                 <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
                                     <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('id')}>
-                                                <div className="flex items-center cursor-pointer">
-                                                    ID
-                                                    {sortField === 'id' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
                                             <th scope="col" className="px-4 py-4" onClick={() => handleSort('title')}>
                                                 <div className="flex items-center cursor-pointer">
                                                     TITLE
@@ -414,7 +404,6 @@ const ViewReserve = () => {
                                                         key={reservation.id}
                                                         className="bg-white border-b last:border-b-0 border-gray-200"
                                                     >
-                                                        <td className="px-4 py-6 font-medium">{reservation.id}</td>
                                                         <td className="px-4 py-6 font-bold">
                                                             <span className="truncate block max-w-[140px]">{reservation.title}</span>
                                                         </td>
@@ -444,7 +433,7 @@ const ViewReserve = () => {
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={8} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                                                <td colSpan={7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={

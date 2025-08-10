@@ -62,6 +62,7 @@ const MessageItem = memo(
       return `http://localhost/coc/gsd/${picture}`;
     };
 
+<<<<<<< HEAD
     // Format timestamp
     const messageTime = format(new Date(message.timestamp), "HH:mm");
 
@@ -88,6 +89,32 @@ const MessageItem = memo(
           e.preventDefault();
           onSelect();
         }}
+=======
+  return (
+    <motion.div 
+      ref={ref}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: inView ? 1 : 0, y: inView ? 0 : 10 }}
+      transition={{ duration: 0.2, ease: "easeOut" }}
+      className={`flex ${isOwn ? 'justify-end' : 'justify-start'} group relative mb-3`}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onSelect();
+      }}
+    >
+      {!isOwn && (
+        <div className="mr-2 flex-shrink-0">
+          <img 
+            src={getAvatarUrl(message.senderPic)}
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
+            alt="avatar"
+            onError={(e) => { e.target.src = 'default-avatar.svg' }}
+          />
+        </div>
+      )}
+      <div 
+        className={`max-w-[75%] sm:max-w-[70%] ${isSelected ? 'bg-primary/5 ring-2 ring-primary/20' : ''} rounded-2xl p-1 relative group`}
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
       >
         {!isOwn && (
           <div className="mr-2 flex-shrink-0">
@@ -102,6 +129,7 @@ const MessageItem = memo(
           </div>
         )}
         <div
+<<<<<<< HEAD
           className={`max-w-[70%] ${isSelected ? "bg-primary/5 ring-2 ring-primary/20" : ""} rounded-2xl p-1 relative group`}
         >
           <div
@@ -114,6 +142,24 @@ const MessageItem = memo(
             {!isOwn && (
               <p className="text-xs font-medium text-primary mb-1">
                 {message.senderName}
+=======
+          className={`rounded-2xl px-3 sm:px-4 py-2.5 sm:py-3 backdrop-blur-sm ${
+            isOwn 
+              ? 'bg-gradient-to-br from-primary to-primary-dark text-white shadow-md' 
+              : 'bg-white border border-gray-100 shadow-sm'
+          }`}
+        >
+          {!isOwn && (
+            <p className="text-xs font-medium text-primary mb-1">{message.senderName}</p>
+          )}
+          
+          {/* Reply info if this message is a reply */}
+          {message.replyTo && (
+            <div className={`mb-2 px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg text-xs font-medium ${isOwn ? 'bg-primary-dark/30 text-white' : 'bg-gray-100 text-gray-600'}`}>
+              <p className="flex items-center gap-1 mb-1">
+                <FiCornerUpRight className="w-3 h-3 flex-shrink-0" />
+                <span className="truncate">{isOwn && message.replyTo.senderName === currentUser.name ? 'Replying to yourself' : `Replying to ${message.replyTo.senderName}`}</span>
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
               </p>
             )}
 
@@ -187,8 +233,23 @@ const MessageItem = memo(
                 <span
                   className={`text-[10px] ${isOwn ? "text-white/70" : "text-gray-400"} flex`}
                 >
+<<<<<<< HEAD
                   {renderStatus()}
                 </span>
+=======
+                  <source src={message.fileUrl} type={message.fileType} />
+                </video>
+              ) : (
+                <a 
+                  href={message.fileUrl} 
+                  className="flex items-center gap-2 p-2 sm:p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                >
+                  <FiFile className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+                  <span className="text-sm font-medium truncate">{message.fileName}</span>
+                </a>
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
               )}
             </div>
           </div>
@@ -221,6 +282,7 @@ const MessageItem = memo(
             </button>
           </div>
         </div>
+<<<<<<< HEAD
         {isOwn && (
           <div className="ml-2 flex-shrink-0">
             <img
@@ -237,6 +299,50 @@ const MessageItem = memo(
     );
   },
 );
+=======
+        
+        {/* Quick reactions that appear on hover/touch */}
+        <div className="absolute bottom-0 right-0 translate-y-full opacity-0 group-hover:opacity-100 group-focus:opacity-100 transition-all duration-200 flex gap-1 mt-1 bg-white rounded-full shadow-lg p-1 border border-gray-100 z-10">
+          <button 
+            onClick={() => onReaction('❤️')}
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <FiHeart className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-red-500" />
+          </button>
+          <button 
+            onClick={() => onReaction('👍')}
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <FiThumbsUp className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-primary" />
+          </button>
+          <button 
+            onClick={() => onReaction('😂')}
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <FaRegLaughBeam className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-500" />
+          </button>
+          <button 
+            onClick={() => onSelect()}
+            className="p-1.5 hover:bg-gray-100 rounded-full transition-colors"
+          >
+            <FiMoreHorizontal className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-gray-500" />
+          </button>
+        </div>
+      </div>
+      {isOwn && (
+        <div className="ml-2 flex-shrink-0">
+          <img 
+            src={getAvatarUrl(currentUser.picture)}
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
+            alt="avatar"
+            onError={(e) => { e.target.src = 'default-avatar.svg' }}
+          />
+        </div>
+      )}
+    </motion.div>
+  );
+});
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
 
 const Chat = () => {
   // Import SecureStorage
@@ -255,9 +361,15 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [currentUser] = useState({
+<<<<<<< HEAD
     id: SecureStorage.getSessionItem("user_id"),
     name: SecureStorage.getSessionItem("name"),
     picture: SecureStorage.getSessionItem("profile_pic"),
+=======
+    id: SecureStorage.getLocalItem('user_id'),
+    name: SecureStorage.getLocalItem('name'),
+    picture: SecureStorage.getLocalItem('profile_pic')
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
   });
 
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -280,14 +392,21 @@ const Chat = () => {
   const [showChatMenu, setShowChatMenu] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
 
+<<<<<<< HEAD
   const [viewMode, setViewMode] = useState("list");
   const [conversationSearch, setConversationSearch] = useState("");
   const [isMobile, setIsMobile] = useState(false);
+=======
+  const [viewMode, setViewMode] = useState('list');
+  const [conversationSearch, setConversationSearch] = useState('');
+
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
   const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
 
   const wsRef = useRef(null);
 
   // Set up responsive design
+<<<<<<< HEAD
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -302,6 +421,9 @@ const Chat = () => {
     // Clean up
     return () => window.removeEventListener("resize", handleResize);
   }, []);
+=======
+
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
 
   // Listen for sidebar collapsed state changes from Sidebar component
   useEffect(() => {
@@ -358,8 +480,13 @@ const Chat = () => {
         userid: currentUser.id,
       };
 
+<<<<<<< HEAD
       const response = await fetch(`${apiUrl}fetchMaster.php`, {
         method: "POST",
+=======
+      const response = await fetch(`${apiUrl}user.php`, {
+        method: 'POST',
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
         headers: {
           "Content-Type": "application/json",
         },
@@ -468,6 +595,7 @@ const Chat = () => {
     if (!activeConversation || !currentUser) return null;
 
     return (
+<<<<<<< HEAD
      <div className="sticky top-0 z-10 border-b bg-gradient-to-r from-lime-900 to-green-900 text-white shadow-md">
   <div className="container mx-auto">
     <div className="flex items-center justify-between p-4">
@@ -489,6 +617,75 @@ const Chat = () => {
             />
             <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
               <div className="w-2 h-2 bg-white rounded-full"></div>
+=======
+      <div className="sticky top-0 z-10 bg-gradient-to-r from-lime-900 to-green-900 text-white rounded-t-lg">
+        <div className="container mx-auto">
+          <div className="flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              {/* Back button - always visible on mobile */}
+              <button
+                onClick={handleBackClick}
+                className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 backdrop-blur-sm"
+                aria-label="Back"
+              >
+                <FiChevronLeft className="w-5 h-5 text-white" />
+              </button>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <img 
+                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
+                    className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
+                    alt={activeConversation?.name || 'User'}
+                    onError={(e) => { e.target.src = 'default-avatar.svg' }}
+                  />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
+                    <div className="w-2 h-2 bg-white rounded-full"></div>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-semibold text-white text-sm sm:text-base">{activeConversation?.name || 'Chat'}</h4>
+                  <p className="text-xs text-white/70">Online</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button 
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200"
+                aria-label="Search"
+                onClick={() => setShowSearch(!showSearch)}
+              >
+                <FiSearch className="w-4 h-4 text-white" />
+              </button>
+              <button 
+                onClick={() => setShowChatMenu(!showChatMenu)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
+                aria-label="More options"
+              >
+                <FiMoreVertical className="w-4 h-4 text-white" />
+                {showChatMenu && (
+                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
+                    <div className="py-1">
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiUserPlus className="w-4 h-4" /> Add members
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiEdit className="w-4 h-4" /> Edit chat
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiStar className="w-4 h-4" /> Pin conversation
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
+                        <FiArchive className="w-4 h-4" /> Archive chat
+                      </button>
+                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
+                        <FiTrash className="w-4 h-4" /> Delete chat
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </button>
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
             </div>
           </div>
           <div>
@@ -571,19 +768,19 @@ const Chat = () => {
     );
   };
 
-  const renderInputArea = () => (
-    <div className="z-10 px-4 py-3 border-t border-gray-200 bg-white/95 backdrop-blur-md shadow-md sticky bottom-0">
+    const renderInputArea = () => (
+    <div className="flex-shrink-0 px-3 sm:px-4 py-3 pb-4 sm:pb-6 border-t border-gray-200 bg-white/95 backdrop-blur-md shadow-md">
       {messageToReply && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.15 }}
-          className="mb-3 p-3 bg-slate-50 rounded-xl flex items-center justify-between border-l-4 border-primary"
+          className="mb-3 p-2 sm:p-3 bg-slate-50 rounded-xl flex items-center justify-between border-l-4 border-primary"
         >
-          <div className="pl-2">
+          <div className="pl-2 flex-1 min-w-0">
             <p className="text-xs text-slate-600 flex items-center gap-1">
-              <FiCornerUpRight className="w-3 h-3" />
-              Replying to {messageToReply.senderName}
+              <FiCornerUpRight className="w-3 h-3 flex-shrink-0" />
+              <span className="truncate">Replying to {messageToReply.senderName}</span>
             </p>
             <p className="text-sm font-medium truncate text-gray-700">
               {messageToReply.text}
@@ -591,7 +788,7 @@ const Chat = () => {
           </div>
           <button
             onClick={() => setMessageToReply(null)}
-            className="p-1.5 hover:bg-slate-100 rounded-full transition-colors"
+            className="p-1.5 hover:bg-slate-100 rounded-full transition-colors flex-shrink-0 ml-2"
           >
             <FiX className="w-4 h-4 text-slate-500" />
           </button>
@@ -602,8 +799,9 @@ const Chat = () => {
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="mb-3 p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200"
+          className="mb-3 p-2 sm:p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200"
         >
+<<<<<<< HEAD
           <div className="flex items-center gap-3">
             {attachmentPreview.type.startsWith("image/") ? (
               <img
@@ -614,16 +812,33 @@ const Chat = () => {
             ) : attachmentPreview.type.startsWith("video/") ? (
               <div className="h-16 w-16 bg-primary/20 rounded-lg flex items-center justify-center">
                 <FiVideo className="w-6 h-6 text-primary" />
+=======
+          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+            {attachmentPreview.type.startsWith('image/') ? (
+              <img 
+                src={URL.createObjectURL(attachmentPreview)} 
+                alt="preview" 
+                className="h-12 w-12 sm:h-16 sm:w-16 object-cover rounded-lg flex-shrink-0"
+              />
+            ) : attachmentPreview.type.startsWith('video/') ? (
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <FiVideo className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
               </div>
             ) : (
-              <div className="h-16 w-16 bg-primary/20 rounded-lg flex items-center justify-center">
-                <FiFile className="w-6 h-6 text-primary" />
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+                <FiFile className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
               </div>
             )}
+<<<<<<< HEAD
             <div>
               <p className="font-medium text-gray-900 text-sm">
                 {attachmentPreview.name}
               </p>
+=======
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-gray-900 text-sm truncate">{attachmentPreview.name}</p>
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
               <p className="text-xs text-gray-500">
                 {(attachmentPreview.size / 1024 / 1024).toFixed(2)} MB
               </p>
@@ -631,7 +846,7 @@ const Chat = () => {
           </div>
           <button
             onClick={() => setAttachmentPreview(null)}
-            className="p-1.5 hover:bg-gray-200 rounded-full transition-colors"
+            className="p-1.5 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-2"
           >
             <FiX className="w-4 h-4" />
           </button>
@@ -642,10 +857,10 @@ const Chat = () => {
         <div className="relative">
           <button
             onClick={() => setShowAttachMenu(!showAttachMenu)}
-            className="w-10 h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary"
+            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary"
             aria-label="Attach file"
           >
-            <FiPaperclip className="w-5 h-5" />
+            <FiPaperclip className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <AnimatePresence>
             {showAttachMenu && (
@@ -654,20 +869,25 @@ const Chat = () => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 transition={{ duration: 0.15 }}
-                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 w-48 z-10"
+                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 w-40 sm:w-48 z-10"
               >
                 <div className="flex flex-col gap-1">
                   <button
                     onClick={() => {
                       fileInputRef.current?.click();
                       setShowAttachMenu(false);
+<<<<<<< HEAD
                     }}
                     className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
+=======
+                    }} 
+                    className="flex items-center gap-2 sm:gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
                   >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <FiImage className="w-4 h-4" />
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                      <FiImage className="w-3 h-3 sm:w-4 sm:h-4" />
                     </div>
-                    <span className="text-sm font-medium">Photo or Video</span>
+                    <span className="text-xs sm:text-sm font-medium">Photo or Video</span>
                   </button>
                   <button
                     onClick={() => {
@@ -675,12 +895,12 @@ const Chat = () => {
                       fileInputRef.current?.click();
                       setShowAttachMenu(false);
                     }}
-                    className="flex items-center gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
+                    className="flex items-center gap-2 sm:gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
                   >
-                    <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary">
-                      <FiFile className="w-4 h-4" />
+                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+                      <FiFile className="w-3 h-3 sm:w-4 sm:h-4" />
                     </div>
-                    <span className="text-sm font-medium">Document</span>
+                    <span className="text-xs sm:text-sm font-medium">Document</span>
                   </button>
                 </div>
               </motion.div>
@@ -694,14 +914,14 @@ const Chat = () => {
             onChange={handleInputChange}
             onKeyPress={(e) => e.key === "Enter" && handleSend()}
             placeholder="Write a message..."
-            className="w-full px-4 py-3 rounded-full bg-gray-100 focus:bg-white border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-sm placeholder:text-gray-400"
+            className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-full bg-gray-100 focus:bg-white border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-sm placeholder:text-gray-400"
           />
           <button
             onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-            className="absolute right-3 top-1/2 transform -translate-y-1/2 p-1.5 hover:bg-gray-200 rounded-full transition-colors text-gray-400 hover:text-amber-500"
+            className="absolute right-2 sm:right-3 top-1/2 transform -translate-y-1/2 p-1.5 hover:bg-gray-200 rounded-full transition-colors text-gray-400 hover:text-amber-500"
             aria-label="Add emoji"
           >
-            <FiSmile className="w-5 h-5" />
+            <FiSmile className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <AnimatePresence>
             {showEmojiPicker && (
@@ -709,8 +929,9 @@ const Chat = () => {
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: 10 }}
-                className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-3 max-w-sm z-10"
+                className="absolute bottom-full right-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 sm:p-3 max-w-xs sm:max-w-sm z-10"
               >
+<<<<<<< HEAD
                 <div className="grid grid-cols-8 gap-2">
                   {[
                     "😊",
@@ -730,13 +951,18 @@ const Chat = () => {
                     "💪",
                     "👏",
                   ].map((emoji) => (
+=======
+                <div className="grid grid-cols-6 sm:grid-cols-8 gap-1 sm:gap-2">
+                  {["😊", "😂", "❤️", "👍", "🔥", "🎉", "🙏", "😍", 
+                    "😎", "🤔", "😢", "😡", "🤯", "💯", "💪", "👏"].map(emoji => (
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
                     <button
                       key={emoji}
                       onClick={() => {
                         setNewMessage((prev) => prev + emoji);
                         setShowEmojiPicker(false);
                       }}
-                      className="w-8 h-8 hover:bg-gray-100 rounded-lg flex items-center justify-center text-xl"
+                      className="w-6 h-6 sm:w-8 sm:h-8 hover:bg-gray-100 rounded-lg flex items-center justify-center text-lg sm:text-xl"
                     >
                       {emoji}
                     </button>
@@ -748,10 +974,10 @@ const Chat = () => {
         </div>
         <button
           onClick={handleSend}
-          className="w-10 h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-primary to-primary-dark text-white shadow-md hover:shadow-lg transition-all"
+          className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-gradient-to-r from-primary to-primary-dark text-white shadow-md hover:shadow-lg transition-all"
           aria-label="Send message"
         >
-          <FiSend className="w-5 h-5" />
+          <FiSend className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
 
         {/* Hidden file input */}
@@ -781,7 +1007,12 @@ const Chat = () => {
                 setErrorMessage("Unsupported file type");
                 return;
               }
+<<<<<<< HEAD
 
+=======
+              
+    
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
               setAttachmentPreview(file);
             }
           }}
@@ -822,8 +1053,13 @@ const Chat = () => {
       formData.append("receiver_id", activeConversation.id);
       formData.append("message", messageText);
 
+<<<<<<< HEAD
       const response = await fetch(`${apiUrl}fetchMaster.php`, {
         method: "POST",
+=======
+      const response = await fetch(`${apiUrl}user.php`, {
+        method: 'POST',
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },
@@ -1172,8 +1408,13 @@ const Chat = () => {
     if (connectionStatus === "connected") return null;
 
     return (
+<<<<<<< HEAD
       <div className="absolute left-0 right-0 top-[64px] z-20 px-4 py-1.5 flex justify-center">
         <motion.div
+=======
+      <div className="absolute left-[10.5rem] right-0 top-[94px] z-20 px-4 py-1.5 flex justify-center">
+        <motion.div 
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
           className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium text-white ${status.color} shadow-md`}
@@ -1262,8 +1503,13 @@ const Chat = () => {
       <div className="flex-shrink-0">
         <Sidebar />
       </div>
+<<<<<<< HEAD
 
       <div className="flex-1 flex flex-col h-full min-w-[300px] mt-20 md:mt-[7rem] mx-1.5 md:mx-2 rounded-xl">
+=======
+      
+      <div className="flex-1 flex flex-col h-[calc(100vh-7rem)] min-w-[300px] mt-20 md:mt-[7rem] mx-1.5 md:mx-2 rounded-xl">
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
         {renderConnectionStatus()}
 
         {viewMode === "list" ? (
@@ -1429,12 +1675,21 @@ const Chat = () => {
           </div>
         ) : (
           // Conversation View
+<<<<<<< HEAD
           <div className="flex flex-col h-full bg-gradient-to-br from-white via-gray-50/50 to-green-100/20 rounded-xl">
             {/* Chat Header - only show on desktop */}
             {!isMobile && renderChatHeader()}
 
             {/* Messages container */}
             <div className="flex-1 overflow-y-auto px-4 py-6 pb-24 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 rounded-xl">
+=======
+          <div className="flex flex-col h-full bg-gradient-to-br from-white via-gray-50/50 to-green-100/20">
+            {/* Chat Header - always visible on mobile and tablet */}
+            {renderChatHeader()}
+
+            {/* Messages container with proper spacing */}
+            <div className="flex-1 overflow-y-auto px-4 py-6 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 border border-gray-900 relative shadow-md">
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
               {/* Messages will be displayed here */}
               {messages
                 .filter((msg) => {
@@ -1467,7 +1722,11 @@ const Chat = () => {
               <div ref={messagesEndRef} />
             </div>
 
+<<<<<<< HEAD
             {/* Input area - fixed at bottom */}
+=======
+            {/* Input area - positioned at bottom without overlay */}
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
             {renderInputArea()}
           </div>
         )}
@@ -1720,6 +1979,51 @@ const Chat = () => {
 
           .mobile-chat-container.sidebar-open {
             transform: translateX(80%);
+          }
+          
+          /* Improve touch targets on mobile */
+          button {
+            min-height: 44px;
+            min-width: 44px;
+          }
+          
+          /* Better spacing for mobile */
+          .px-3 {
+            padding-left: 0.75rem;
+            padding-right: 0.75rem;
+          }
+          
+          .py-2.5 {
+            padding-top: 0.625rem;
+            padding-bottom: 0.625rem;
+          }
+          
+          /* Improve text readability on mobile */
+          .text-sm {
+            font-size: 0.875rem;
+            line-height: 1.25rem;
+          }
+          
+          /* Better message bubble spacing on mobile */
+          .mb-3 {
+            margin-bottom: 0.75rem;
+          }
+          
+          /* Improve input area on mobile */
+          input[type="text"] {
+            font-size: 16px; /* Prevents zoom on iOS */
+          }
+        }
+        
+        /* Tablet specific improvements */
+        @media (min-width: 768px) and (max-width: 1024px) {
+          .max-w-75 {
+            max-width: 70%;
+          }
+          
+          .px-3 {
+            padding-left: 1rem;
+            padding-right: 1rem;
           }
         }
       `}</style>

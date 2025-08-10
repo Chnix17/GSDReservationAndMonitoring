@@ -24,20 +24,84 @@ const BasicInformationForm = ({
   setFormData,
   venues = [], // Add venues as a prop (default empty array)
 }) => {
-  // Debug logging
-  console.log('BasicInformationForm props:', {
-    formData: {
-      driverType: formData.driverType,
-      forceOwnDrivers: formData.forceOwnDrivers,
-      forceMixedDrivers: formData.forceMixedDrivers,
-      availableDrivers: formData.availableDrivers,
-      totalVehicles: formData.totalVehicles,
-      mixedDrivers: formData.mixedDrivers
-    },
-    selectedModels: selectedModels || [],
-    vehicles: vehicles || [],
-    venues: venues || []
-  });
+  // Clean up selectedVenueEquipment to remove non-existent equipment and adjust quantities
+  React.useEffect(() => {
+    console.log('=== Equipment Validation Start ===');
+    console.log('Current resourceType:', formData.resourceType);
+    console.log('Current selectedVenueEquipment:', selectedVenueEquipment);
+    console.log('Available equipment:', equipment);
+    
+    if ((formData.resourceType === 'venue' || formData.resourceType === 'vehicle') && 
+        selectedVenueEquipment && 
+        Object.keys(selectedVenueEquipment).length > 0 && 
+        equipment?.length > 0) {
+      
+      console.log('Processing equipment validation for:', formData.resourceType);
+      const updatedEquipment = { ...selectedVenueEquipment };
+      let hasChanges = false;
+      
+      // Check each selected equipment
+      Object.entries(selectedVenueEquipment).forEach(([equipId, quantity]) => {
+        console.log(`Checking equipment ${equipId} (qty: ${quantity})`);
+        
+        const equip = equipment.find(e => {
+          const match = String(e.equip_id) === equipId || String(e.equipment_id) === equipId;
+          if (match) {
+            console.log('Found matching equipment:', {
+              id: e.equip_id || e.equipment_id,
+              name: e.equip_name || e.equipment_name,
+              available: e.available_quantity,
+              currentQty: quantity
+            });
+          }
+          return match;
+        });
+        
+        // If equipment doesn't exist or is unavailable, remove it
+        if (!equip) {
+          console.log(`Equipment ${equipId} not found in available equipment - removing`);
+          delete updatedEquipment[equipId];
+          hasChanges = true;
+        } 
+        // If quantity exceeds available, adjust it
+        else if (quantity > (equip.available_quantity || 0)) {
+          console.log(`Adjusting quantity for ${equipId} from ${quantity} to ${equip.available_quantity}`);
+          updatedEquipment[equipId] = equip.available_quantity || 0;
+          hasChanges = true;
+        } else {
+          console.log(`Equipment ${equipId} is valid (qty: ${quantity})`);
+        }
+      });
+      
+      // Clean up any equipment with quantity <= 0
+      Object.keys(updatedEquipment).forEach(equipId => {
+        if (updatedEquipment[equipId] <= 0) {
+          console.log(`Removing equipment ${equipId} due to zero/negative quantity`);
+          delete updatedEquipment[equipId];
+          hasChanges = true;
+        }
+      });
+
+      // If there were changes, update the state
+      if (hasChanges) {
+        console.log('Updating selectedVenueEquipment with changes:', updatedEquipment);
+        setFormData(prev => ({
+          ...prev,
+          selectedVenueEquipment: updatedEquipment
+        }));
+      } else {
+        console.log('No changes needed for selected equipment');
+      }
+    } else {
+      console.log('Skipping equipment validation - conditions not met', {
+        isVenueOrVehicle: formData.resourceType === 'venue' || formData.resourceType === 'vehicle',
+        hasSelectedEquipment: selectedVenueEquipment && Object.keys(selectedVenueEquipment).length > 0,
+        hasEquipmentList: equipment?.length > 0
+      });
+    }
+    
+    console.log('=== Equipment Validation End ===');
+  }, [equipment, formData.resourceType, selectedVenueEquipment, setFormData]);
 
   // Calculate max capacity for selected venues
   let maxCapacity = 0;
@@ -242,6 +306,7 @@ const BasicInformationForm = ({
               </Form.Item>
 
               {renderDriverDropdown(selectedModels || [], vehicles || [], setFormData)}
+
             </section>
 
             <section className="space-y-4 mt-6">

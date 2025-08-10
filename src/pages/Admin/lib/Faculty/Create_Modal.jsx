@@ -192,7 +192,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/fetchMaster.php`,
+                url: `${baseUrl}/user.php`,
                 data: new URLSearchParams({
                     operation: 'fetchUserLevels'
                 }).toString(),
@@ -218,7 +218,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/fetchMaster.php`,
+                url: `${baseUrl}/user.php`,
                 data: new URLSearchParams({
                     operation: 'fetchDepartments'
                 }).toString(),
@@ -411,15 +411,14 @@ const Create_Modal = ({
                         name="users_email"
                         rules={[
                             { required: true, message: 'Please input email address!' },
-                            { type: 'email', message: 'Please enter a valid email address' },
                             { 
-                                pattern: /^[a-zA-Z0-9._%+-]+@phinmaed\.com$/,
-                                message: 'Email must end with @phinmaed.com'
+                                pattern: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                                message: 'Please enter a valid email address'
                             }
                         ]}
                         className="mb-0"
                     >
-                        <Input placeholder="Enter email address (e.g., chsi.valle.coc@phinmaed.com)" />
+                        <Input placeholder="Enter email address" />
                     </Form.Item>
                     <Form.Item
                         label="Role"

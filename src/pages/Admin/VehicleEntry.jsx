@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'; // Add useCallback to imports
 import Sidebar from '../Sidebar';
-import { FaCar } from 'react-icons/fa';
 import { toast } from 'sonner';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -11,8 +10,8 @@ import 'primereact/resources/themes/lara-light-green/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import { Tag } from 'primereact/tag';
-import { Modal, Input,  Button, Space, Tooltip,   Empty, Pagination, Alert, Dropdown } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DownOutlined, BarChartOutlined } from '@ant-design/icons';
+import { Modal, Input,  Button, Tooltip,   Empty, Pagination, Alert } from 'antd';
+import { PlusOutlined, ExclamationCircleOutlined, InboxOutlined, EditOutlined, SearchOutlined, ReloadOutlined, BarChartOutlined } from '@ant-design/icons';
 
 import {SecureStorage} from '../../utils/encryption'; // Adjust the import path as necessary
 import CreateModal from './lib/Vehicle/Create_Modal';
@@ -20,15 +19,15 @@ import UpdateModal from './lib/Vehicle/Update_Modal';
 import ViewUtilization from './lib/Vehicle/View_Utilization';
 
 const VehicleEntry = () => {
-    const user_level_id = SecureStorage.getSessionItem('user_level_id');
+    const user_level_id = SecureStorage.getLocalItem('user_level_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
     // Add fileUploadRef before other state declarations
     const fileUploadRef = useRef(null);
     const [vehicles, setVehicles] = useState([]);
     const [filteredVehicles, setFilteredVehicles] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [makes, setMakes] = useState([]);
-    const [modelsByCategory, setModelsByCategory] = useState({});
+    // const [categories, setCategories] = useState([]);
+    // const [makes, setMakes] = useState([]);
+    // const [modelsByCategory, setModelsByCategory] = useState({});
     const [showAddModal, setShowAddModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
 
@@ -36,13 +35,13 @@ const VehicleEntry = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState(null);
 
-    const [statusAvailability, setStatusAvailability] = useState([]);
+    // const [statusAvailability, setStatusAvailability] = useState([]);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [pageSize, setPageSize] = useState(10);
     
     const navigate = useNavigate();
-    const BASE_URL = `${encryptedUrl}/fetchMaster.php`;
+    const BASE_URL = `${encryptedUrl}/user.php`;
 
     const IMAGE_BASE_URL = encryptedUrl;
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -65,75 +64,89 @@ const VehicleEntry = () => {
     const fetchVehicles = useCallback(async () => {
         setLoading(true);
         try {
+            console.log('Fetching all vehicles...');
             const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchAllVehicles" }));
+            console.log('Vehicles response:', response.data);
+            
             if (response.data.status === 'success') {
-                setVehicles(response.data.data);
-                setFilteredVehicles(response.data.data);
+                const vehiclesData = response.data.data || [];
+                console.log('Setting vehicles:', vehiclesData);
+                setVehicles(vehiclesData);
+                setFilteredVehicles(vehiclesData);
             } else {
-                toast.error(response.data.message);
+                console.error('Failed to fetch vehicles:', response.data.message);
+                toast.error(response.data.message || 'Failed to fetch vehicles');
             }
         } catch (error) {
-            toast.error(error.message);
+            console.error('Error fetching vehicles:', error);
+            toast.error(error.message || 'Failed to fetch vehicles');
         } finally {
             setLoading(false);
         }
     }, [BASE_URL]);
 
-    const fetchMakes = useCallback(async () => {
-        try {
-            const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchMake" }));
-            if (response.data.status === 'success') {
-                setMakes(response.data.data);
-                return response.data.data;
-            } else {
-                toast.error(response.data.message);
-                return [];
-            }
-        } catch (error) {
-            toast.error(error.message);
-            return [];
-        }
-    }, [BASE_URL]);
+    // const fetchMakes = useCallback(async () => {
+    //     try {
+    //         const response = await axios.post(BASE_URL, new URLSearchParams({ operation: "fetchMake" }));
+    //         if (response.data.status === 'success') {
+    //             setMakes(response.data.data);
+    //             return response.data.data;
+    //         } else {
+    //             toast.error(response.data.message);
+    //             return [];
+    //         }
+    //     } catch (error) {
+    //         toast.error(error.message);
+    //         return [];
+    //     }
+    // }, [BASE_URL]);
 
-    const fetchCategoriesAndModels = useCallback(async (makeId) => {
-        if (!makeId) return;
-        try {
-            const response = await axios.post(BASE_URL, new URLSearchParams({ 
-                operation: "fetchCategoriesAndModels",
-                make_id: makeId
-            }));
-            if (response.data.status === 'success') {
-                setCategories(response.data.data.categories);
-                setModelsByCategory(response.data.data.modelsByCategory);
-            } else {
-                toast.error(response.data.message);
-            }
-        } catch (error) {
-            toast.error(error.message);
-        }
-    }, [BASE_URL]);
+    // const fetchCategoriesAndModels = useCallback(async (makeId) => {
+    //     if (!makeId) return;
+    //     try {
+    //         const response = await axios.post(BASE_URL, new URLSearchParams({ 
+    //             operation: "fetchCategoriesAndModels",
+    //             make_id: makeId
+    //         }));
+    //         if (response.data.status === 'success') {
+    //             setCategories(response.data.data.categories);
+    //             setModelsByCategory(response.data.data.modelsByCategory);
+    //         } else {
+    //             toast.error(response.data.message);
+    //         }
+    //     } catch (error) {
+    //         toast.error(error.message);
+    //     }
+    // }, [BASE_URL]);
 
-    const fetchStatusAvailability = useCallback(async () => {
-        try {
-            const response = await axios.post(`${encryptedUrl}/fetchMaster.php`, 
-                new URLSearchParams({ operation: "fetchStatusAvailability" })
-            );
-            if (response.data.status === 'success') {
-                setStatusAvailability(response.data.data);
-            } else {
-                toast.error(response.data.message);
-            }
-        } catch (error) {
-            toast.error(error.message);
-        }
-    }, [encryptedUrl]);
+    // const fetchStatusAvailability = useCallback(async () => {
+    //     try {
+    //         const response = await axios.post(`${encryptedUrl}/user.php`, 
+    //             new URLSearchParams({ operation: "fetchStatusAvailability" })
+    //         );
+    //         if (response.data.status === 'success') {
+    //             setStatusAvailability(response.data.data);
+    //         } else {
+    //             toast.error(response.data.message);
+    //         }
+    //     } catch (error) {
+    //         toast.error(error.message);
+    //     }
+    // }, [encryptedUrl]);
 
     useEffect(() => {
         fetchVehicles();
-        fetchMakes();
-        fetchCategoriesAndModels();
-        fetchStatusAvailability();
-    }, [fetchVehicles, fetchMakes, fetchCategoriesAndModels, fetchStatusAvailability]);
+        // fetchMakes();
+        // fetchCategoriesAndModels();
+        // fetchStatusAvailability();
+    }, [fetchVehicles]);
+
+    // Reset editing vehicle when modal closes
+    useEffect(() => {
+        if (!showEditModal) {
+            setEditingVehicle(null);
+        }
+    }, [showEditModal]);
 
     const handleAddVehicle = () => {
         resetForm();
@@ -143,9 +156,7 @@ const VehicleEntry = () => {
 
     const resetForm = () => {
 
-        setCategories([]);
-        setModelsByCategory({});
-
+       
         if (fileUploadRef.current) {
             fileUploadRef.current.clear();
         }
@@ -159,33 +170,46 @@ const VehicleEntry = () => {
         try {
             await fetchVehicles();
             setShowAddModal(false);
+            toast.success('Vehicle created successfully');
         } catch (error) {
-            toast.error(error.message);
+            console.error('Create error:', error);
+            toast.error(error.message || 'Failed to create vehicle');
         }
     };
 
     const handleEditVehicle = async (vehicle) => {
         try {
+            console.log('Fetching vehicle details for ID:', vehicle.vehicle_id);
             const response = await axios.post(BASE_URL, new URLSearchParams({
                 operation: "fetchVehicleById",
                 id: vehicle.vehicle_id
             }));
 
-            if (response.data.status === 'success' && response.data.data.length > 0) {
+            console.log('Vehicle fetch response:', response.data);
+
+            if (response.data.status === 'success' && response.data.data && response.data.data.length > 0) {
                 const vehicleData = response.data.data[0];
+                console.log('Setting editing vehicle with data:', vehicleData);
+                console.log('Year value from API:', vehicleData.year, 'Type:', typeof vehicleData.year);
+                console.log('License value from API:', vehicleData.vehicle_license);
+                console.log('Model value from API:', vehicleData.vehicle_model_name);
                 setEditingVehicle(vehicleData);
                 setShowEditModal(true);
             } else {
+                console.error('No vehicle data found or invalid response:', response.data);
                 toast.error('Failed to fetch vehicle details');
             }
         } catch (error) {
-            toast.error(error.message);
+            console.error('Error fetching vehicle details:', error);
+            toast.error(error.message || 'Failed to fetch vehicle details');
         }
     };
 
     const handleUpdateSubmit = async (formData) => {
         setIsSubmitting(true);
         try {
+            console.log('Updating vehicle with data:', formData);
+            
             const requestData = {
                 operation: "updateVehicleLicense",
                 vehicleData: formData
@@ -201,15 +225,20 @@ const VehicleEntry = () => {
                 }
             );
 
+            console.log('Update response:', response.data);
+
             if (response.data.status === 'success') {
                 toast.success(response.data.message || 'Vehicle updated successfully');
                 setShowEditModal(false);
-                fetchVehicles();
+                setEditingVehicle(null);
+                // Refresh the vehicles list to show updated data
+                await fetchVehicles();
             } else {
                 toast.error(response.data.message || 'Failed to update vehicle');
             }
         } catch (error) {
-            toast.error(error.response?.data?.message || error.message);
+            console.error('Update error:', error);
+            toast.error(error.response?.data?.message || error.message || 'Failed to update vehicle');
         } finally {
             setIsSubmitting(false);
         }
@@ -284,52 +313,10 @@ const VehicleEntry = () => {
         }
     };
 
-    const handleMenuClick = (e) => {
-        switch (e.key) {
-            case 'add':
-                handleAddVehicle();
-                break;
-            case 'viewCategories':
-                navigate('/vehiclecategory');
-                break;
-            case 'viewModels':
-                navigate('/vehiclemodel');
-                break;
-            case 'viewMakes':
-                navigate('/vehiclemake');
-                break;
-            default:
-                break;
-        }
-    };
-
     const handleViewUtilization = (vehicle) => {
         setSelectedVehicleForUtilization(vehicle);
         setShowUtilizationModal(true);
     };
-
-    const items = [
-        {
-            key: 'add',
-            icon: <PlusOutlined />,
-            label: 'Add Vehicle',
-        },
-        {
-            key: 'viewCategories',
-            icon: <FaCar />,
-            label: 'View Categories',
-        },
-        {
-            key: 'viewModels',
-            icon: <FaCar />,
-            label: 'View Models',
-        },
-        {
-            key: 'viewMakes',
-            icon: <FaCar />,
-            label: 'View Makes',
-        },
-    ];
 
     return (
       <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
@@ -339,7 +326,7 @@ const VehicleEntry = () => {
             </div>
             
             <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
-                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
+                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-20">
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
@@ -376,28 +363,21 @@ const VehicleEntry = () => {
                                         size="large"
                                     />
                                 </Tooltip>
-                                <Dropdown
-                                    menu={{
-                                        items,
-                                        onClick: handleMenuClick,
-                                    }}
+                                {/* Replace Dropdown with a single Add Vehicle button */}
+                                <Button
+                                    type="primary"
+                                    size="large"
+                                    className="bg-lime-900 hover:bg-green-600 flex-shrink-0"
+                                    icon={<PlusOutlined />}
+                                    onClick={handleAddVehicle}
                                 >
-                                    <Button
-                                        type="primary"
-                                        size="large"
-                                        className="bg-lime-900 hover:bg-green-600 flex-shrink-0"
-                                    >
-                                        <Space>
-                                            Add Vehicle
-                                            <DownOutlined />
-                                        </Space>
-                                    </Button>
-                                </Dropdown>
+                                    Add Vehicle
+                                </Button>
                             </div>
                             {selectedVehicles.length > 0 && (
                                 <Button
                                     danger
-                                    icon={<DeleteOutlined />}
+                                    icon={<InboxOutlined />}
                                     onClick={() => handleArchiveVehicle(selectedVehicles)}
                                     size="large"
                                     className="w-full md:w-auto"
@@ -547,7 +527,7 @@ const VehicleEntry = () => {
                                                                 />
                                                                 <Button
                                                                     danger
-                                                                    icon={<DeleteOutlined />}
+                                                                    icon={<InboxOutlined />}
                                                                     onClick={() => handleArchiveVehicle(vehicle.vehicle_id)}
                                                                     size="middle"
                                                                 />
@@ -618,13 +598,8 @@ const VehicleEntry = () => {
                     setEditingVehicle(null);
                 }}
                 onSubmit={handleUpdateSubmit}
-                makes={makes}
-                categories={categories}
-                modelsByCategory={modelsByCategory}
-                statusAvailability={statusAvailability}
                 isSubmitting={isSubmitting}
                 editingVehicle={editingVehicle}
-                IMAGE_BASE_URL={IMAGE_BASE_URL}
             />
 
             {/* Confirm Delete Modal */}
@@ -642,7 +617,7 @@ const VehicleEntry = () => {
                         danger
                         loading={loading}
                         onClick={confirmDelete}
-                        icon={<DeleteOutlined />}
+                        icon={<InboxOutlined />}
                     >
                         Archive
                     </Button>,

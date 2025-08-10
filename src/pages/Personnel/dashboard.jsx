@@ -5,14 +5,14 @@ import {
   FiClock,
   FiCalendar
 } from 'react-icons/fi';
-import ReservationCalendar from '../../components/ReservationCalendar';
+
 import Sidebar from './component/sidebar';  // Updated import path
 import { format } from 'timeago.js';
 import { SecureStorage } from '../../utils/encryption'; // Ensure this path is correct
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+ 
   const [recentActivities, setRecentActivities] = useState([]);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 5;
@@ -185,10 +185,7 @@ const Dashboard = () => {
         </motion.div>
       </main>
 
-      <ReservationCalendar 
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-      />
+     
     </div>
   );
 };

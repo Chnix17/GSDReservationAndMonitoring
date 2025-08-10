@@ -46,9 +46,9 @@ const SimpleAreaChart = () => {
         const date = new Date(reservation.reservation_created_at);
         const month = date.getMonth();
         
-        if (reservation.status_id === "4") {
+        if (reservation.status_id === 4) {
           completedData[month]++;
-        } else if (reservation.status_id === "5") {
+        } else if (reservation.status_id === 5) {
           cancelledData[month]++;
         }
       });

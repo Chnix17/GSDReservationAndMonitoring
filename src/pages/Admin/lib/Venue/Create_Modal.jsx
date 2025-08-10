@@ -13,6 +13,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
     const [maxOccupancy, setMaxOccupancy] = useState('');
     const [venueExists, setVenueExists] = useState(false);
     const [eventType, setEventType] = useState('Big Event');
+    const [areaType, setAreaType] = useState(null);
 
     const checkVenueExists = async () => {
         const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({
@@ -44,13 +45,15 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
         const sanitizedName = sanitizeInput(venueName);
         const sanitizedOccupancy = sanitizeInput(maxOccupancy);
         const sanitizedEventType = sanitizeInput(eventType);
+        const sanitizedAreaType = sanitizeInput(areaType);
 
-        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy) || !validateInput(sanitizedEventType)) {
+        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy) || 
+            !validateInput(sanitizedEventType) || !validateInput(sanitizedAreaType)) {
             toast.error("Invalid input detected. Please check your entries.");
             return false;
         }
 
-        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType) {
+        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType || !sanitizedAreaType) {
             toast.error("Please fill in all required fields!");
             return false;
         }
@@ -63,7 +66,8 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
         return {
             name: sanitizedName,
             occupancy: sanitizedOccupancy,
-            event_type: sanitizedEventType
+            event_type: sanitizedEventType,
+            area_type: sanitizedAreaType
         };
     };
 
@@ -78,6 +82,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                 name: validatedData.name,
                 occupancy: validatedData.occupancy,
                 event_type: validatedData.event_type,
+                area_type: validatedData.area_type,
                 user_admin_id: SecureStorage.getSessionItem('user_id')
             };
 
@@ -97,6 +102,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                 setVenueName('');
                 setMaxOccupancy('');
                 setEventType('Big Event');
+                setAreaType(null);
                 onSuccess();
                 onCancel();
             } else {
@@ -170,6 +176,24 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
                         options={[
                             { value: 'Big Event', label: 'Big Event' },
                             { value: 'Small Event', label: 'Small Event' }
+                        ]}
+                    />
+                </Form.Item>
+                <Form.Item 
+                    label="Area Type"
+                    name="area_type"
+                    initialValue={areaType}
+                    rules={[
+                        { required: true, message: 'Please select area type!' },
+                    ]}
+                >
+                    <Select
+                        value={areaType}
+                        onChange={value => setAreaType(value)}
+                        placeholder="Select area type"
+                        options={[
+                            { value: 'Open Area', label: 'Open Area' },
+                            { value: 'Open Area', label: 'Close Area' }
                         ]}
                     />
                 </Form.Item>

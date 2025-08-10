@@ -142,7 +142,7 @@ const ViewPersonnelTask = () => {
         for (const equipment of task.equipments) {
           // Consumable equipment (no units)
           if ((!equipment.units || equipment.units.length === 0) && equipment.availability_status !== 'In Use' && equipment.active !== -1) {
-            await releaseResource('equipment_consumable', equipment.reservation_equipment_id, equipment.quantity_id, equipment.quantity);
+            await releaseResource('equipment_bulk', equipment.reservation_equipment_id, equipment.quantity_id, equipment.quantity);
           }
           // Equipment with units
           if (equipment.units && Array.isArray(equipment.units)) {
@@ -216,7 +216,7 @@ const ViewPersonnelTask = () => {
 
   const handleRefresh = () => {
     fetchPersonnelTasks();
-    toast.info('Refreshing tasks...');
+
   };
 
   const fetchCompletedTasks = useCallback(async () => {
@@ -308,12 +308,21 @@ const ViewPersonnelTask = () => {
     }
   };
 
-  // Helper: Only allow opening from 5 minutes before start date (Asia/Manila) and onwards
+  // Helper: Only allow opening from 1 hour before start date (Asia/Manila) and onwards
   const canOpenTask = (task) => {
     if (!task || !task.reservation_start_date) return false;
     const now = dayjs().tz('Asia/Manila');
-    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(5, 'minute');
+    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(1, 'hour');
     return now.isAfter(openTime) || now.isSame(openTime);
+  };
+
+  // Helper: Get minutes until checklist can be opened
+  const getMinutesUntilOpen = (task) => {
+    if (!task || !task.reservation_start_date) return null;
+    const now = dayjs().tz('Asia/Manila');
+    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(1, 'hour');
+    const diff = openTime.diff(now, 'minute');
+    return diff > 0 ? diff : 0;
   };
 
   return (
@@ -373,7 +382,11 @@ const ViewPersonnelTask = () => {
                       icon={<ReloadOutlined  className='text-white font-bold'/>}
                       onClick={handleRefresh}
                       size="large"
+<<<<<<< HEAD
                       className="!bg-green-900 !border-green-900 hover:!bg-lime-950 !border-green-200 hover:!bg-green-200"
+=======
+                      className="!bg-green-900 !border-green-900 hover:!bg-lime-950"
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
                     />
                   </Tooltip>
                 </div>
@@ -387,11 +400,15 @@ const ViewPersonnelTask = () => {
           </div>
 
           {/* Table Section */}
+<<<<<<< HEAD
 
           <div className="relative overflow-x-auto shadow-lg rounded-md    sm:rounded-2xl">
 
           <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
 
+=======
+          <div className="relative overflow-x-auto shadow-lg sm:rounded-2xl bg-white border border-green-100">
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
             {loading || releasingAll ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
@@ -477,9 +494,17 @@ const ViewPersonnelTask = () => {
                                   <Tag color="success">Completed</Tag>
                                 ) : (
                                   <>
-                                    <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
-                                      {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
-                                    </Tag>
+                                    {canOpenTask(task) ? (
+                                      <Tag color={task.venues?.some(v => v.availability_status === "In Use") ? 'processing' : 'success'}>
+                                        {task.venues?.some(v => v.availability_status === "In Use") ? 'In Progress' : 'Available'}
+                                      </Tag>
+                                    ) : (
+                                      <Tooltip title={`Checklist will open in ${getMinutesUntilOpen(task)} minute(s)`}>
+                                        <Tag color="default">
+                                          Locked
+                                        </Tag>
+                                      </Tooltip>
+                                    )}
                                     {task.is_returned === 1 && (
                                       <Tag color="success">Returned</Tag>
                                     )}

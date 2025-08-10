@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty } from 'antd';
+import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty, Select } from 'antd';
 import { toast } from 'sonner';
 import Sidebar from './Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -37,7 +37,7 @@ const VehicleModels = () => {
   const [form] = Form.useForm();
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
     if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
@@ -51,7 +51,7 @@ const VehicleModels = () => {
   const fetchMakes = useCallback(async () => {
     try {
       const response = await axios.post(
-        `${encryptedUrl}fetchMaster.php`,
+        `${encryptedUrl}user.php`,
         'operation=fetchMake',
         {
           headers: {
@@ -75,7 +75,7 @@ const VehicleModels = () => {
 
   const fetchCategories = useCallback(async () => {
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+      const response = await axios.post(`${encryptedUrl}user.php`, 
         'operation=fetchVehicleCategories',
         {
           headers: {
@@ -100,7 +100,7 @@ const VehicleModels = () => {
   const fetchModels = useCallback(async() => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+      const response = await axios.post(`${encryptedUrl}user.php`, 
         new URLSearchParams({ operation: 'fetchModels' })
       );
       if (response.data.status === 'success') {
@@ -124,7 +124,7 @@ const VehicleModels = () => {
 
   const fetchVehicleModelById = async (id) => {
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`,
+      const response = await axios.post(`${encryptedUrl}user.php`,
         `operation=fetchModelById&id=${id}`,
         {
           headers: {
@@ -234,13 +234,11 @@ const VehicleModels = () => {
       } else {
         const requestData = {
           operation: 'saveModelData',
-          json: JSON.stringify({
-            name: sanitizedName,
-            category_id: parseInt(formData.categoryId),
-            make_id: parseInt(formData.makeId)
-          })
+          name: sanitizedName,
+          category_id: parseInt(formData.categoryId),
+          make_id: parseInt(formData.makeId)
         };
-        response = await axios.post(`${encryptedUrl}vehicle_master.php`, 
+        response = await axios.post(`${encryptedUrl}user.php`, 
           requestData,
           {
             headers: {
@@ -522,35 +520,45 @@ const VehicleModels = () => {
             label="Select Make" 
             required
           >
-            <select 
-              className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500" 
-              value={formData.makeId} 
-              onChange={(e) => setFormData({ ...formData, makeId: e.target.value })}
+            <Select
+              showSearch
+              placeholder="Select a make..."
+              optionFilterProp="children"
+              className="w-full"
+              value={formData.makeId ? String(formData.makeId) : undefined}
+              onChange={(value) => setFormData({ ...formData, makeId: value })}
+              filterOption={(input, option) =>
+                (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             >
-              <option value="">Select a make...</option>
               {makes.map((make) => (
-                <option key={make.vehicle_make_id} value={make.vehicle_make_id}>
+                <Select.Option key={make.vehicle_make_id} value={String(make.vehicle_make_id)}>
                   {make.vehicle_make_name}
-                </option>
+                </Select.Option>
               ))}
-            </select>
+            </Select>
           </Form.Item>
           <Form.Item 
             label="Select Category" 
             required
           >
-            <select 
-              className="w-full border border-gray-300 rounded-md py-2 px-3 focus:outline-none focus:ring-2 focus:ring-green-500" 
-              value={formData.categoryId} 
-              onChange={(e) => setFormData({ ...formData, categoryId: e.target.value })}
+            <Select
+              showSearch
+              placeholder="Select a category..."
+              optionFilterProp="children"
+              className="w-full"
+              value={formData.categoryId ? String(formData.categoryId) : undefined}
+              onChange={(value) => setFormData({ ...formData, categoryId: value })}
+              filterOption={(input, option) =>
+                (option?.children ?? '').toLowerCase().includes(input.toLowerCase())
+              }
             >
-              <option value="">Select a category...</option>
               {categories.map((category) => (
-                <option key={category.vehicle_category_id} value={category.vehicle_category_id}>
+                <Select.Option key={category.vehicle_category_id} value={String(category.vehicle_category_id)}>
                   {category.vehicle_category_name}
-                </option>
+                </Select.Option>
               ))}
-            </select>
+            </Select>
           </Form.Item>
         </Form>
       </Modal>

@@ -29,8 +29,8 @@ const UpdateEquipmentModal = ({
 
     // Equipment types
     const equipmentTypes = [
-        'Consumable',
-        'Non-Consumable'
+        { value: 'Bulk', label: 'Bulk (Multiple units in one entry)' },
+        { value: 'Serialized', label: 'Serialized (Individual unit tracking)' }
     ];
 
     const fetchCategories = useCallback(async () => {
@@ -51,7 +51,7 @@ const UpdateEquipmentModal = ({
     }, [baseUrl]);
 
     const getEquipmentDetails = useCallback(async (equip_id) => {
-        const url = `${baseUrl}/fetchMaster.php`;
+        const url = `${baseUrl}/user.php`;
         const jsonData = { operation: "fetchEquipmentById", id: equip_id };
 
         try {
@@ -286,8 +286,8 @@ const UpdateEquipmentModal = ({
                             placeholder="Select equipment type"
                         >
                             {equipmentTypes.map(type => (
-                                <Option key={type} value={type}>
-                                    {type}
+                                <Option key={type.value} value={type.value}>
+                                    {type.label}
                                 </Option>
                             ))}
                         </Select>

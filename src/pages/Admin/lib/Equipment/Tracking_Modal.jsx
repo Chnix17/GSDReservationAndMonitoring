@@ -281,7 +281,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
                                 <div>
                                     <span className="text-sm font-medium text-gray-700">Type:</span>
                                     <p className="text-sm text-gray-900 capitalize">
-                                        {equipment?.is_serialize ? 'Non-Consumable' : 'Consumable'}
+                                        {equipment?.equip_type || 'N/A'}
                                     </p>
                                 </div>
                                 <div>
@@ -291,7 +291,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
                             </div>
                         </div>
 
-                        {!equipment?.is_serialize && (
+                        {equipment?.equip_type === 'Bulk' && (
                             <div className="bg-white p-4 rounded-lg border border-gray-200">
                                 <h4 className="text-md font-medium text-gray-900 mb-4">Adjust Quantity</h4>
                                 <Space>
@@ -320,7 +320,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
                     </div>
                 </TabPane>
 
-                {equipment?.is_serialize && (
+                {equipment?.equip_type === 'Serialized' && (
                     <TabPane tab="Units" key="2">
                         <div className="space-y-4">
                             <Form

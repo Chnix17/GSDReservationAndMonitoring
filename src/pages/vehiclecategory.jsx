@@ -8,8 +8,8 @@ import axios from 'axios';
 import { motion } from 'framer-motion';
 import { sanitizeInput, validateInput } from '../utils/sanitize';
 import { SecureStorage } from '../utils/encryption';
-import { Button, Tooltip, Modal, Form, Input, Empty, Pagination, Alert } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { Button, Tooltip, Modal, Form, Input, Empty, Pagination } from 'antd';
+import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
@@ -21,8 +21,6 @@ const VehicleCategories = () => {
   const [loading, setLoading] = useState(true);
   const [formData, setFormData] = useState({ id: '', name: '' });
   const [showModal, setShowModal] = useState(false);
-  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-  const [selectedCategoryId, setSelectedCategoryId] = useState(null);
   const [editMode, setEditMode] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,7 +32,7 @@ const VehicleCategories = () => {
   const [form] = Form.useForm();
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
     if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
@@ -48,7 +46,7 @@ const VehicleCategories = () => {
   const fetchCategories = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}fetchMaster.php`, 
+      const response = await axios.post(`${encryptedUrl}user.php`, 
         new URLSearchParams({ operation: 'fetchVehicleCategories' })
       );
       if (response.data.status === 'success') {
@@ -73,40 +71,12 @@ const VehicleCategories = () => {
       setFormData({ id: categoryToEdit.vehicle_category_id, name: categoryToEdit.vehicle_category_name });
       setEditMode(true);
       setShowModal(true);
+      form.setFieldsValue({ name: categoryToEdit.vehicle_category_name });
     }
   };
 
-  const handleDelete = (id) => {
-    setSelectedCategoryId(id);
-    setShowConfirmDelete(true);
-  };
-
-  const confirmDelete = async () => {
-    try {
-      const response = await axios.post(`${encryptedUrl}delete_master.php`, {
-        operation: 'deleteVehicleCategory',
-        vehicleCategoryId: selectedCategoryId
-      }, {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      });
-      if (response.data.status === 'success') {
-        setCategories(categories.filter(category => category.vehicle_category_id !== selectedCategoryId));
-        setFilteredCategories(filteredCategories.filter(category => category.vehicle_category_id !== selectedCategoryId));
-        toast.success('Vehicle category deleted successfully!');
-      } else {
-        toast.error(response.data.message || 'Failed to delete vehicle category.');
-      }
-    } catch (error) {
-      toast.error('Error deleting vehicle category.');
-    } finally {
-      setShowConfirmDelete(false);
-    }
-  };
-  
-  const handleSave = async () => {
-    const sanitizedName = sanitizeInput(formData.name);
+  const handleSave = async (values) => {
+    const sanitizedName = sanitizeInput(values.name);
     
     if (!sanitizedName.trim()) {
       toast.error("Please enter a category name.");
@@ -120,19 +90,19 @@ const VehicleCategories = () => {
 
     setIsSubmitting(true);
     try {
-      const endpoint = editMode ? 'update_master1.php' : 'vehicle_master.php';
-      const requestData = editMode ? {
-        operation: 'updateVehicleCategory',
-        id: formData.id,
-        name: sanitizedName
-      } : {
-        operation: 'saveCategoryData',
-        json: JSON.stringify({
-          vehicle_category_name: sanitizedName
-        })
-      };
+      // Always use user.php for both save and update
+      const requestData = editMode
+        ? {
+            operation: 'updateVehicleCategory',
+            id: formData.id,
+            name: sanitizedName
+          }
+        : {
+            operation: 'saveCategoryData',
+            vehicle_category_name: sanitizedName
+          };
 
-      const response = await axios.post(`${encryptedUrl}${endpoint}`, requestData, {
+      const response = await axios.post(`${encryptedUrl}user.php`, requestData, {
         headers: {
           'Content-Type': 'application/json'
         }
@@ -142,6 +112,7 @@ const VehicleCategories = () => {
         fetchCategories();
         closeModal();
       } else {
+        // Show backend error message, e.g., duplicate category
         toast.error(response.data.message || `Failed to ${editMode ? 'update' : 'add'} vehicle category.`);
       }
     } catch (error) {
@@ -155,6 +126,7 @@ const VehicleCategories = () => {
     setShowModal(false);
     setEditMode(false);
     setFormData({ id: '', name: '' });
+    form.resetFields();
   };
 
   const handleSearchChange = (e) => {
@@ -170,6 +142,7 @@ const VehicleCategories = () => {
     setFormData({ id: '', name: '' });
     setEditMode(false);
     setShowModal(true);
+    form.setFieldsValue({ name: '' });
   };
   
   const handleRefresh = () => {
@@ -297,16 +270,6 @@ const VehicleCategories = () => {
                                     className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
                                   />
                                 </Tooltip>
-                                <Tooltip title="Delete Category">
-                                  <Button
-                                    shape="circle"
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => handleDelete(category.vehicle_category_id)}
-                                    size="large"
-                                    className="shadow-lg flex items-center justify-center"
-                                  />
-                                </Tooltip>
                               </div>
                             </td>
                           </tr>
@@ -362,10 +325,10 @@ const VehicleCategories = () => {
         open={showModal}
         onCancel={closeModal}
         okText={editMode ? 'Update' : 'Add'}
-        onOk={handleSave}
+        onOk={() => form.submit()}
         confirmLoading={isSubmitting}
       >
-        <Form form={form} layout="vertical">
+        <Form form={form} layout="vertical" onFinish={handleSave}>
           <Form.Item
             label="Category Name"
             name="name"
@@ -381,36 +344,6 @@ const VehicleCategories = () => {
             />
           </Form.Item>
         </Form>
-      </Modal>
-
-      {/* Confirm Delete Modal */}
-      <Modal
-        title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
-        open={showConfirmDelete}
-        onCancel={() => setShowConfirmDelete(false)}
-        footer={[
-          <Button key="back" onClick={() => setShowConfirmDelete(false)}>
-            Cancel
-          </Button>,
-          <Button
-            key="submit"
-            type="primary"
-            danger
-            loading={loading}
-            onClick={() => confirmDelete()}
-            icon={<DeleteOutlined />}
-          >
-            Delete
-          </Button>,
-        ]}
-      >
-        <Alert
-          message="Warning"
-          description="Are you sure you want to delete this vehicle category? This action cannot be undone."
-          type="warning"
-          showIcon
-          icon={<ExclamationCircleOutlined />}
-        />
       </Modal>
 
       <Toaster position="top-right" />

@@ -220,26 +220,24 @@ const Update_Modal = ({
 
         const jsonData = {
             operation: 'updateUser',
-            userData: {
-                userId: user.users_id,
-                fname: values.users_firstname,
-                mname: values.users_middlename || '',
-                lname: values.users_lastname,
-                suffix: values.users_suffix || '',
-                title: values.users_title || '',
-                title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null,
-                email: values.users_email,
-                schoolId: values.users_school_id,
-                contact: values.users_contact_number,
-                userLevelId: values.users_role,
-                departmentId: selectedDepartment.departments_id,
-                pic: user.users_pic || '',
-                isActive: 1
-            }
+            userId: user.users_id,
+            fname: values.users_firstname,
+            mname: values.users_middlename || '',
+            lname: values.users_lastname,
+            suffix: values.users_suffix || '',
+            title: values.users_title || '',
+            title_id: values.users_title ? titles.find(t => t.abbreviation === values.users_title)?.id : null,
+            email: values.users_email,
+            schoolId: values.users_school_id,
+            contact: values.users_contact_number,
+            userLevelId: values.users_role,
+            departmentId: selectedDepartment.departments_id,
+            pic: user.users_pic || '',
+            isActive: 1
         };
 
         if (values.users_password) {
-            jsonData.userData.password = values.users_password;
+            jsonData.password = values.users_password;
         }
 
         console.log('Sending update request:', jsonData);
@@ -247,7 +245,7 @@ const Update_Modal = ({
         try {
             setLoading(true);
             const response = await axios.post(
-                `${baseUrl}/update_master1.php`,
+                `${baseUrl}/user.php`,
                 jsonData,
                 {
                     headers: {
@@ -421,14 +419,13 @@ const Update_Modal = ({
                         name="users_email"
                         rules={[
                             { required: true, message: 'Please input email address!' },
-                            { type: 'email', message: 'Please enter a valid email address' },
                             { 
-                                pattern: /^[a-zA-Z0-9._%+-]+@phinmaed\.com$/,
-                                message: 'Email must end with @phinmaed.com'
+                                pattern: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+                                message: 'Please enter a valid email address'
                             }
                         ]}
                     >
-                        <Input placeholder="Enter email address (e.g., chsi.valle.coc@phinmaed.com)" />
+                        <Input placeholder="Enter email address" />
                     </Form.Item>
 
                     <Form.Item

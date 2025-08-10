@@ -7,7 +7,7 @@ import { FiCalendar,
 import { Modal, Tabs, Pagination } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
-import ReservationCalendar from '../components/ReservationCalendar';
+
 import Sidebar from './component/user_sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { toast } from 'react-toastify';
@@ -16,7 +16,7 @@ const { TabPane } = Tabs;
 
 const Dashboard = () => {
   const navigate = useNavigate();
-  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+
 
   const [activeReservations, setActiveReservations] = useState([]);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
@@ -45,7 +45,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-          const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+          const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17) {
               localStorage.clear();
@@ -109,7 +109,7 @@ const Dashboard = () => {
               participants: res.reservation_participants,
               startTime,
               endTime,
-              feedback: res.feedback || 'No feedback',
+              feedback: res.feedback || '',
               status: res.reservation_status_name
             };
 
@@ -502,7 +502,7 @@ const Dashboard = () => {
                       <FiCalendar className="w-12 h-12 mx-auto mb-3 text-gray-400" />
                       <p>No active reservations found</p>
                       <button
-                        onClick={() => navigate('/add-reservation')}
+                        onClick={() => navigate('/addReservation')}
                         className="mt-4 text-green-600 hover:text-green-700 font-medium"
                       >
                         Create a new reservation
@@ -558,9 +558,11 @@ const Dashboard = () => {
                             <h3 className="font-semibold text-gray-800">{reservation.venue}</h3>
                             <p className="text-gray-500 text-sm mt-1">{reservation.purpose}</p>
                           </div>
-                          <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
-                            {reservation.feedback}
-                          </span>
+                          {reservation.feedback && (
+                            <span className="bg-gray-100 text-gray-800 px-3 py-1 rounded-full text-sm font-medium">
+                              {reservation.feedback}
+                            </span>
+                          )}
                         </div>
                         <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
                           <div className="flex items-center">
@@ -599,13 +601,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <ReservationCalendar 
-        isOpen={isCalendarOpen}
-        onClose={() => setIsCalendarOpen(false)}
-      />
-
-
-
+   
       <DetailModal 
         visible={isDetailModalOpen}
         onClose={() => setIsDetailModalOpen(false)}

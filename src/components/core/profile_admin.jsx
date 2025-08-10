@@ -46,7 +46,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       
       console.log('Fetching user data for ID:', userId);
       
-      const response = await fetch(`${baseUrl}/fetchMaster.php`, {
+      const response = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -87,7 +87,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // Function to fetch departments from API
   const fetchDepartments = useCallback(async () => {
     try {
-      const response = await fetch(`${baseUrl}/fetchMaster.php`, {
+      const response = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -161,7 +161,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   const fetch2FAStatus = useCallback(async () => {
     try {
       setIs2FALoading(true);
-      const userId = SecureStorage.getSessionItem('user_id') || '42';
+      const userId = SecureStorage.getLocalItem('user_id') || '42';
       
       const response = await fetch(`${baseUrl}/update_master2.php`, {
         method: 'POST',

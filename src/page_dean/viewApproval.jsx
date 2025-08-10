@@ -37,7 +37,7 @@ const ViewApproval = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18) {
       localStorage.clear();
@@ -46,13 +46,16 @@ const ViewApproval = () => {
   }, [navigate]);
 
   useEffect(() => {
-    const storedDepartmentId = SecureStorage.getSessionItem("department_id");
+    const storedDepartmentId = SecureStorage.getLocalItem("department_id");
     if (storedDepartmentId) {
       setDepartmentId(storedDepartmentId);
     } else {
       console.error("No department ID found in localStorage.");
     }
   }, []);
+
+  // Get baseUrl from SecureStorage
+  const baseUrl = SecureStorage.getLocalItem("url");
 
   const fetchApprovalRequests = useCallback(async () => {
     if (!departmentId) {
@@ -63,18 +66,18 @@ const ViewApproval = () => {
     setLoading(true);
     try {
       // First, try fetchApprovalByDept
-      const response1 = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response1 = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchApprovalByDept',
         json: {
           department_id: departmentId,
-          user_level_id: SecureStorage.getSessionItem("user_level_id"),
-          current_user_id: SecureStorage.getSessionItem("user_id")
+          user_level_id: SecureStorage.getLocalItem("user_level_id"),
+          current_user_id: SecureStorage.getLocalItem("user_id")
         }
       });
       let data1 = response1.data && response1.data.data ? response1.data.data.map(item => ({ ...item, fromApprovalByDept: true })) : [];
 
       // Next, try fetchRequestReservation
-      const response2 = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response2 = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchRequestReservation'
       });
       let data2 = response2.data && response2.data.data ? response2.data.data.map(item => ({
@@ -123,7 +126,7 @@ const ViewApproval = () => {
     } finally {
       setLoading(false);
     }
-  }, [departmentId]);
+  }, [departmentId, baseUrl]);
 
   const handleApproval = async (reservationId, isAccepted) => {
     if (!selectedRequest) {
@@ -142,11 +145,11 @@ const ViewApproval = () => {
         notification_message = `Your Reservation Has Been Declined. Reason: ${declineReason === 'Other' ? customReason : declineReason}`;
       }
 
-      const response = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
+      const response = await axios.post(`${baseUrl}/process_reservation.php`, {
         operation: 'handleApproval',
         reservation_id: reservationId,
         is_accepted: isAccepted,
-        user_id: SecureStorage.getSessionItem("user_id"),
+        user_id: SecureStorage.getLocalItem("user_id"),
         notification_message: notification_message,
         notification_user_id: selectedRequest.user_id
       });
@@ -202,7 +205,7 @@ const ViewApproval = () => {
 
   const fetchAvailability = async () => {
     try {
-      const response = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchVenueScheduledCheck'
       });
       if (response.data && response.data.status === 'success') {
@@ -218,7 +221,7 @@ const ViewApproval = () => {
   const handleViewApprovalDetails = async (request) => {
     setLoading(true);
     try {
-      const response = await axios.post('http://localhost/coc/gsd/Department_Dean.php', {
+      const response = await axios.post(`${baseUrl}/Department_Dean.php`, {
         operation: 'fetchRequestById',
         reservation_id: request.reservation_id
       });

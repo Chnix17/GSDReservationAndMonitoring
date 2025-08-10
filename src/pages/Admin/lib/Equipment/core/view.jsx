@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Button, Tag, Space, message, Modal, Table, Input, Alert } from 'antd';
+import { Button, Tag, Space, message, Modal, Table, Input, Alert, Select } from 'antd';
 import { EditOutlined, DeleteOutlined, PlusOutlined, UserOutlined, CalendarOutlined, EyeOutlined, ExclamationCircleOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { SecureStorage } from '../../../../../utils/encryption';
@@ -23,6 +23,8 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
     const [isEditingUnit, setIsEditingUnit] = useState(false);
     const [editingUnitId, setEditingUnitId] = useState(null);
     const [isAddModalVisible, setIsAddModalVisible] = useState(false);
+    const [statusOptions, setStatusOptions] = useState([]);
+    const [selectedStatus, setSelectedStatus] = useState(1); // default to 'Available'
 
     // Get base URL from SecureStorage
     const baseUrl = SecureStorage.getLocalItem("url");
@@ -31,7 +33,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         console.log('Fetching equipment details for ID:', equipmentId);
         setLoading(true);
         try {
-            const url = `${baseUrl}/fetchMaster.php`;
+            const url = `${baseUrl}/user.php`;
             const params = new URLSearchParams({
                 operation: "fetchEquipmentById",
                 id: equipmentId,
@@ -57,6 +59,17 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         }
     }, [equipmentId, baseUrl]);
 
+    const fetchStatusOptions = async () => {
+        try {
+            const response = await axios.post(`${baseUrl}/user.php`, { operation: "fetchStatusAvailability" });
+            if (response.data.status === 'success') {
+                setStatusOptions(response.data.data);
+            }
+        } catch (error) {
+            message.error("Failed to fetch status options");
+        }
+    };
+
     useEffect(() => {
         if (isOpen && equipmentId) {
             console.log('useEffect triggered, equipmentId:', equipmentId);
@@ -75,7 +88,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             return;
         }
 
-        if (equipment.equip_type === 'Consumable') {
+        if (equipment.equip_type === 'Bulk') {
             if (!quickAdjustment.quantity) {
                 message.error('Please enter quantity');
                 return;
@@ -102,7 +115,11 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         brand: ''
                     });
                     // Refresh equipment data
-                    fetchEquipmentDetails();
+                    await fetchEquipmentDetails();
+                    // Call onUpdate callback to refresh parent component
+                    if (typeof onUpdate === 'function') {
+                        onUpdate();
+                    }
                 } else {
                     throw new Error(response.data.message || 'Failed to update stock');
                 }
@@ -121,9 +138,6 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     operation: "saveUnit",
                     equip_id: equipmentId,
                     serial_number: quickAdjustment.tagNumber,
-                    brand: quickAdjustment.brand || '',
-                    size: quickAdjustment.size || '',
-                    color: quickAdjustment.color || '',
                     status_availability_id: 1, // Default to available
                     user_admin_id: SecureStorage.getSessionItem('user_id')
                 });
@@ -146,16 +160,15 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     brand: ''
                 });
                 // Refresh equipment data
-                fetchEquipmentDetails();
+                await fetchEquipmentDetails();
+                // Call onUpdate callback to refresh parent component
+                if (typeof onUpdate === 'function') {
+                    onUpdate();
+                }
             } catch (error) {
                 console.error('Error saving unit:', error);
                 message.error('Failed to save unit: ' + (error.message || 'Unknown error'));
             }
-        }
-        
-        // Only call onUpdate if it's a function
-        if (typeof onUpdate === 'function') {
-            onUpdate();
         }
     };
 
@@ -169,6 +182,8 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             color: unit.color || '',
             brand: unit.brand || ''
         });
+        setSelectedStatus(unit.status_availability_id || 1);
+        fetchStatusOptions();
     };
 
     const handleUpdateUnit = async () => {
@@ -180,9 +195,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 unitData: {
                     unit_id: editingUnitId,
                     serial_number: quickAdjustment.tagNumber,
-                    brand: quickAdjustment.brand,
-                    size: quickAdjustment.size,
-                    color: quickAdjustment.color,
+                    status_availability_id: selectedStatus, // <-- add this
                     is_active: true,
                     user_admin_id: SecureStorage.getSessionItem('user_id')
                 }
@@ -206,7 +219,12 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     color: '',
                     brand: ''
                 });
-                fetchEquipmentDetails();
+                // Refresh equipment data
+                await fetchEquipmentDetails();
+                // Call onUpdate callback to refresh parent component
+                if (typeof onUpdate === 'function') {
+                    onUpdate();
+                }
             } else {
                 throw new Error(response.data.message || 'Failed to update unit');
             }
@@ -243,7 +261,11 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             if (response.data.status === 'success') {
                 message.success(selectedUnits.length > 1 ? 'Units archived successfully' : 'Unit archived successfully');
                 // Refresh equipment data
-                fetchEquipmentDetails();
+                await fetchEquipmentDetails();
+                // Call onUpdate callback to refresh parent component
+                if (typeof onUpdate === 'function') {
+                    onUpdate();
+                }
             } else {
                 throw new Error(response.data.message || 'Failed to archive unit(s)');
             }
@@ -319,8 +341,8 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     </div>
                 </div>
 
-                {/* Stock Information Card for Consumable Items */}
-                {equipment.equip_type === 'Consumable' && (
+                {/* Stock Information Card for Bulk Items */}
+                {equipment.equip_type === 'Bulk' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
@@ -368,7 +390,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 )}
 
                 {/* Units Information Card */}
-                {equipment.equip_type !== 'Consumable' && (
+                {equipment.equip_type === 'Serialized' && (
                     <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
@@ -418,32 +440,28 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                             )
                                         },
                                         {
-                                            title: 'Brand',
-                                            dataIndex: 'brand',
-                                            key: 'brand',
-                                            render: (text) => text || 'N/A'
-                                        },
-                                        {
-                                            title: 'Size',
-                                            dataIndex: 'size',
-                                            key: 'size',
-                                            render: (text) => text || 'N/A'
-                                        },
-                                        {
-                                            title: 'Color',
-                                            dataIndex: 'color',
-                                            key: 'color',
-                                            render: (text) => text || 'N/A'
-                                        },
-                                        {
                                             title: 'Status',
                                             dataIndex: 'status_availability_id',
                                             key: 'status',
-                                            render: (status) => (
-                                                <Tag color={status === 1 ? 'success' : 'warning'}>
-                                                    {status === 1 ? 'Available' : 'In Use'}
-                                                </Tag>
-                                            )
+                                            render: (status) => {
+                                                // Status mapping: id -> { name, color }
+                                                const statusMap = {
+                                                    1: { name: 'Available', color: 'success' },
+                                                    2: { name: 'Unavailable', color: 'error' },
+                                                    5: { name: 'In Use', color: 'warning' },
+                                                    6: { name: 'For Inspection', color: 'processing' },
+                                                    7: { name: 'Missing', color: 'magenta' },
+                                                    8: { name: 'Damaged', color: 'volcano' },
+                                                    9: { name: 'Available Stock', color: 'cyan' },
+                                                    10: { name: 'Out of stock', color: 'default' },
+                                                };
+                                                const statusInfo = statusMap[status] || { name: 'Unknown', color: 'default' };
+                                                return (
+                                                    <Tag color={statusInfo.color}>
+                                                        {statusInfo.name}
+                                                    </Tag>
+                                                );
+                                            }
                                         },
                                         {
                                             title: 'Created At',
@@ -499,62 +517,37 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         setQuickAdjustment({
                             quantity: '',
                             tagNumber: '',
-                            size: '',
-                            color: '',
-                            brand: ''
                         });
                     }}
                     footer={null}
                 >
                     <div className="space-y-6">
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Tag Number *
-                                </label>
-                                <Input
-                                    value={quickAdjustment.tagNumber}
-                                    onChange={(e) => setQuickAdjustment(prev => ({ ...prev, tagNumber: e.target.value }))}
-                                    placeholder="Enter tag number"
-                                />
-                            </div>
-
-                            <div className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Size
-                                    </label>
-                                    <Input
-                                        value={quickAdjustment.size}
-                                        onChange={(e) => setQuickAdjustment(prev => ({ ...prev, size: e.target.value }))}
-                                        placeholder="Enter size"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Color
-                                    </label>
-                                    <Input
-                                        value={quickAdjustment.color}
-                                        onChange={(e) => setQuickAdjustment(prev => ({ ...prev, color: e.target.value }))}
-                                        placeholder="Enter color"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Brand
-                                    </label>
-                                    <Input
-                                        value={quickAdjustment.brand}
-                                        onChange={(e) => setQuickAdjustment(prev => ({ ...prev, brand: e.target.value }))}
-                                        placeholder="Enter brand"
-                                    />
-                                </div>
-                            </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Tag Number *
+                            </label>
+                            <Input
+                                value={quickAdjustment.tagNumber}
+                                onChange={(e) => setQuickAdjustment(prev => ({ ...prev, tagNumber: e.target.value }))}
+                                placeholder="Enter tag number"
+                            />
                         </div>
-
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                                Status *
+                            </label>
+                            <Select
+                                value={selectedStatus}
+                                onChange={setSelectedStatus}
+                                style={{ width: '100%' }}
+                            >
+                                {statusOptions.map(option => (
+                                    <Select.Option key={option.status_availability_id} value={option.status_availability_id}>
+                                        {option.status_availability_name}
+                                    </Select.Option>
+                                ))}
+                            </Select>
+                        </div>
                         <div className="flex gap-4">
                             <Button
                                 type="primary"
@@ -570,9 +563,6 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                     setQuickAdjustment({
                                         quantity: '',
                                         tagNumber: '',
-                                        size: '',
-                                        color: '',
-                                        brand: ''
                                     });
                                 }}
                                 className="flex-1"
@@ -591,7 +581,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
         return (
             <Modal
-                title={equipment.equip_type === 'Consumable' ? 'Adjust Stock' : 'Add Unit'}
+                title={equipment.equip_type === 'Bulk' ? 'Adjust Stock' : 'Add Unit'}
                 open={isAddModalVisible}
                 onCancel={() => {
                     setIsAddModalVisible(false);
@@ -606,7 +596,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 footer={null}
             >
                 <div className="space-y-6">
-                    {equipment.equip_type === 'Consumable' ? (
+                    {equipment.equip_type === 'Bulk' ? (
                         <>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -643,55 +633,18 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         </>
                     ) : (
                         <>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                                        Tag Number *
-                                    </label>
-                                    <Input
-                                        value={quickAdjustment.tagNumber}
-                                        onChange={(e) => setQuickAdjustment(prev => ({ ...prev, tagNumber: e.target.value }))}
-                                        placeholder="Enter tag number (e.g., EQP-2025-001)"
-                                    />
-                                </div>
-
-                                <div className="space-y-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Size
-                                        </label>
-                                        <Input
-                                            value={quickAdjustment.size}
-                                            onChange={(e) => setQuickAdjustment(prev => ({ ...prev, size: e.target.value }))}
-                                            placeholder="Enter size"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Color
-                                        </label>
-                                        <Input
-                                            value={quickAdjustment.color}
-                                            onChange={(e) => setQuickAdjustment(prev => ({ ...prev, color: e.target.value }))}
-                                            placeholder="Enter color"
-                                        />
-                                    </div>
-
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                                            Brand
-                                        </label>
-                                        <Input
-                                            value={quickAdjustment.brand}
-                                            onChange={(e) => setQuickAdjustment(prev => ({ ...prev, brand: e.target.value }))}
-                                            placeholder="Enter brand"
-                                        />
-                                    </div>
-                                </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Tag Number *
+                                </label>
+                                <Input
+                                    value={quickAdjustment.tagNumber}
+                                    onChange={(e) => setQuickAdjustment(prev => ({ ...prev, tagNumber: e.target.value }))}
+                                    placeholder="Enter tag number (e.g., EQP-2025-001)"
+                                />
                             </div>
 
-                            <div className="flex gap-4">
+                            <div className="flex gap-4 mt-6">
                                 <Button
                                     type="primary"
                                     icon={<PlusOutlined />}
@@ -738,7 +691,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 <>
                     {renderContent()}
                     {renderAddModal()}
-                    {equipment?.equip_type === 'Consumable' ? (
+                    {equipment?.equip_type === 'Bulk' ? (
                         <ViewUtilizationConsumable
                             open={isViewUtilizationOpen}
                             onCancel={() => setIsViewUtilizationOpen(false)}

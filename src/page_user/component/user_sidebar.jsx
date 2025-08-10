@@ -101,10 +101,12 @@ const Sidebar = () => {
         })
       });
       const result = await response.json();
-      if (result.status === 'success' && result.data && result.data.is_active === 1) {
-        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: 'granted' }));
+      if (result.status === 'success' && result.data && Object.keys(result.data).length > 0) {
+        // Subscription exists (enabled regardless of is_active)
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: Notification.permission }));
       } else {
-        setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+        // No subscription data, allow enabling
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: false, permission: Notification.permission }));
       }
     } catch (error) {
       console.error('Error fetching push subscription status:', error);
@@ -370,7 +372,7 @@ const Sidebar = () => {
                             : 'Not enabled'}
                       </p>
                     </div>
-                    {!subscriptionStatus.subscribed && subscriptionStatus.supported && (
+                    {!subscriptionStatus.subscribed && subscriptionStatus.supported && subscriptionStatus.permission !== 'denied' && (
                       <button
                         onClick={subscribeToNotifications}
                         disabled={isSubscribing}

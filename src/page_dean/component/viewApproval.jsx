@@ -49,7 +49,7 @@ const ViewApproval = () => {
   // Approve or Disapprove a request
   const handleApproval = async (approvalId, status) => {
     try {
-      const response = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
+        const response = await axios.post('http://localhost/coc/gsd/process_reservation.php', {
         operation: 'approveRequest',
         approval_id: approvalId,
         status: status,

@@ -14,12 +14,13 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     const [selectedStatus, setSelectedStatus] = useState('1');
     const [statusOptions, setStatusOptions] = useState([]);
     const [eventType, setEventType] = useState('Big Event');
+    const [areaType, setAreaType] = useState(null);
 
     const baseUrl = SecureStorage.getLocalItem("url");
 
     const fetchStatusAvailability = useCallback(async () => {
         try {
-            const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
+            const response = await axios.post(`${baseUrl}/user.php`, 
                 new URLSearchParams({
                     operation: 'fetchStatusAvailability'
                 })
@@ -40,38 +41,42 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     }, [fetchStatusAvailability]);
 
     const getVenueDetails = useCallback(async () => {
-        console.log('venueId:', venueId);
-        
+        if (!venueId) {
+            toast.error("No venue ID provided.");
+            return;
+        }
+
         try {
-            const formData = new URLSearchParams();
-            formData.append('operation', 'fetchVenueById');
-            formData.append('id', venueId);
-    
-            const response = await axios.post(`${baseUrl}/fetchMaster.php`, 
-                formData,
+            const requestData = {
+                operation: 'fetchVenueById',
+                id: venueId
+            };
+
+            const response = await axios.post(
+                `${baseUrl}/user.php`,
+                requestData,
                 {
                     headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded'
+                        'Content-Type': 'application/json'
                     }
                 }
             );
-    
-            console.log('fetchVenueById response:', response.data);
-    
+
             if (response.data.status === 'success' && response.data.data && response.data.data.length > 0) {
                 const venue = response.data.data[0];
                 setVenueName(venue.ven_name);
                 setMaxOccupancy(venue.ven_occupancy);
                 setSelectedStatus(venue.status_availability_id);
                 setEventType(venue.event_type || 'Big Event');
-                
+                setAreaType(venue.area_type || null);
+
                 form.setFieldsValue({
                     name: venue.ven_name,
                     occupancy: venue.ven_occupancy,
                     status: venue.status_availability_id,
                     event_type: venue.event_type || 'Big Event',
+                    area_type: venue.area_type || null,
                 });
-                
             } else {
                 toast.error("Failed to fetch venue details");
             }
@@ -103,13 +108,15 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
         const sanitizedName = sanitizeInput(venueName);
         const sanitizedOccupancy = sanitizeInput(maxOccupancy);
         const sanitizedEventType = sanitizeInput(eventType);
+        const sanitizedAreaType = sanitizeInput(areaType);
 
-        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy) || !validateInput(sanitizedEventType)) {
+        if (!validateInput(sanitizedName) || !validateInput(sanitizedOccupancy) || 
+            !validateInput(sanitizedEventType) || !validateInput(sanitizedAreaType)) {
             toast.error("Invalid input detected. Please check your entries.");
             return false;
         }
 
-        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType) {
+        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType || !sanitizedAreaType) {
             toast.error("Please fill in all required fields!");
             return false;
         }
@@ -122,7 +129,8 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
         return {
             name: sanitizedName,
             occupancy: sanitizedOccupancy,
-            event_type: sanitizedEventType
+            event_type: sanitizedEventType,
+            area_type: sanitizedAreaType
         };
     };
 
@@ -138,7 +146,8 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 venue_name: validatedData.name,
                 max_occupancy: validatedData.occupancy,
                 status_availability_id: parseInt(selectedStatus),
-                event_type: validatedData.event_type
+                event_type: validatedData.event_type,
+                area_type: validatedData.area_type
             };
 
             const response = await axios.post(
@@ -247,6 +256,24 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                         options={[
                             { value: 'Big Event', label: 'Big Event' },
                             { value: 'Small Event', label: 'Small Event' }
+                        ]}
+                    />
+                </Form.Item>
+                <Form.Item 
+                    label="Area Type"
+                    name="area_type"
+                    initialValue={areaType}
+                    rules={[
+                        { required: true, message: 'Please select area type!' },
+                    ]}
+                >
+                    <Select
+                        value={areaType}
+                        onChange={value => setAreaType(value)}
+                        placeholder="Select area type"
+                        options={[
+                            { value: 'Open Area', label: 'Open Area' },
+                            { value: 'Close Area', label: 'Close Area' }
                         ]}
                     />
                 </Form.Item>

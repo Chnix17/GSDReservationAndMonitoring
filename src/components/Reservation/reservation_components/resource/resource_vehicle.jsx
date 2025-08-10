@@ -25,7 +25,7 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, isMobile }
         className={`
           overflow-hidden border border-gray-50/20 hover:border-gray-100 
           shadow-sm hover:shadow-md transition-all
-          ${isSelected ? 'ring-2 ring-green-500 bg-green-50/30' : 'bg-white/80 hover:bg-gray-50/50'}
+          ${isSelected ? 'ring-2 ring-green-500 bg-green-500/20' : 'bg-white/80 hover:bg-gray-50/50'}
           flex
           ${isMobile ? 'py-1 px-2' : 'p-2'}
           backdrop-blur-sm
@@ -140,7 +140,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
 
       const response = await axios({
         method: 'post',
-        url: `${encryptedUrl}fetch2.php`,
+        url: `${encryptedUrl}user.php`,
         headers: {
           'Content-Type': 'application/json'
         },

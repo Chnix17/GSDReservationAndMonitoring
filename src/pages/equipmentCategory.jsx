@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Modal, Button, Form, Input,  Tooltip, Empty, Pagination, Alert } from 'antd';
+import { Modal, Button, Form, Input,  Tooltip, Empty, Pagination } from 'antd';
 import { toast, Toaster } from 'sonner';
 import Sidebar from './Sidebar';
-import {  FaEye } from 'react-icons/fa';
-import { PlusOutlined, ExclamationCircleOutlined, DeleteOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+
+import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -18,8 +18,7 @@ const EquipmentCategories = () => {
     const [loading, setLoading] = useState(true);
     const [formData, setFormData] = useState({ categoryId: '', name: '' });
     const [showModal, setShowModal] = useState(false);
-    const [showConfirmDelete, setShowConfirmDelete] = useState(false);
-    const [selectedCategoryId, setSelectedCategoryId] = useState(null);
+  
     const [editMode, setEditMode] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [searchTerm, setSearchTerm] = useState('');
@@ -31,7 +30,7 @@ const EquipmentCategories = () => {
     const [form] = Form.useForm();
 
     useEffect(() => {
-        const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+        const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         console.log("this is encryptedUserLevel", encryptedUserLevel);
         if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
@@ -43,7 +42,7 @@ const EquipmentCategories = () => {
     const fetchCategories = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${encryptedUrl}fetchMaster.php`, new URLSearchParams({ operation: 'fetchEquipments' }));
+            const response = await axios.post(`${encryptedUrl}user.php`, new URLSearchParams({ operation: 'fetchEquipmentsCategory' }));
             if (response.data.status === 'success') {
                 setCategories(response.data.data);
                 setFilteredCategories(response.data.data);
@@ -61,60 +60,39 @@ const EquipmentCategories = () => {
         fetchCategories();
     }, [fetchCategories]); 
 
-    const handleEdit = (id) => {
-        const categoryToEdit = categories.find((category) => category.equipments_category_id === id);
-        if (categoryToEdit) {
-            setFormData({ categoryId: categoryToEdit.equipments_category_id, name: categoryToEdit.equipments_category_name });
-            setEditMode(true);
-            setShowModal(true);
-        }
-    };
-
-    const handleDelete = (id) => {
-        setSelectedCategoryId(id);
-        setShowConfirmDelete(true);
-    };
-
-    const confirmDelete = async () => {
-        if (!selectedCategoryId) {
-            toast.error('Equipment category ID is required for deletion.');
-            return;
-        }
-
+    const handleEdit = async (id) => {
         try {
-            const requestData = {
-                operation: 'deleteEquipmentCategory',
-                equipmentCategoryId: selectedCategoryId
-            };
-
-            const response = await axios.post(
-                `${encryptedUrl}delete_master.php`,
-                JSON.stringify(requestData),
-                {
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                }
-            );
+            const response = await axios.post(`${encryptedUrl}user.php`, {
+                operation: 'fetchEquipmentCategoryById',
+                id: id
+            });
             
-            if (response.data.status === 'success') {
-                setCategories(categories.filter(category => category.equipments_category_id !== selectedCategoryId));
-                setFilteredCategories(filteredCategories.filter(category => category.equipments_category_id !== selectedCategoryId));
-                toast.success('Equipment category deleted successfully!');
+            if (response.data.status === 'success' && response.data.data.length > 0) {
+                const categoryToEdit = response.data.data[0];
+                const newFormData = { 
+                    categoryId: categoryToEdit.equipments_category_id, 
+                    name: categoryToEdit.equipments_category_name 
+                };
+                setFormData(newFormData);
+                setEditMode(true);
+                setShowModal(true);
+                // Set form values after modal is opened
+                setTimeout(() => {
+                    form.setFieldsValue({ name: categoryToEdit.equipments_category_name });
+                }, 100);
             } else {
-                toast.error(response.data.message || 'Failed to delete equipment category.');
+                toast.error('Failed to fetch category data');
             }
         } catch (error) {
-            console.error('Error deleting category:', error);
-            toast.error('Error deleting equipment category.');
-        } finally {
-            setShowConfirmDelete(false);
-            setSelectedCategoryId(null);
+            console.error('Error fetching category:', error);
+            toast.error('Error fetching category data');
         }
     };
 
-    const handleSave = async () => {
-        const sanitizedName = sanitizeInput(formData.name);
+
+
+    const handleSave = async (values) => {
+        const sanitizedName = sanitizeInput(values.name);
         if (!sanitizedName.trim()) {
             toast.error("Please enter a category name.");
             return;
@@ -127,20 +105,23 @@ const EquipmentCategories = () => {
 
         setIsSubmitting(true);
         try {
-            const requestData = {
-                operation: editMode ? 'updateEquipmentCategory' : 'saveEquipmentCategory',
-                json: {
-                    equipments_category_name: sanitizedName.trim()
-                }
-            };
-
+            let requestData;
             if (editMode) {
-                requestData.json.equipments_category_id = formData.categoryId;
+                requestData = {
+                    operation: 'updateEquipmentCategory',
+                    categoryData: {
+                        categoryId: formData.categoryId,
+                        name: sanitizedName.trim()
+                    }
+                };
+            } else {
+                requestData = {
+                    operation: 'saveEquipmentCategory',
+                    equipments_category_name: sanitizedName.trim()
+                };
             }
 
-            const endpoint = editMode 
-                ? `${encryptedUrl}update_master1.php`
-                : `${encryptedUrl}vehicle_master.php`;
+            const endpoint = `${encryptedUrl}user.php`;
 
             const response = await axios.post(
                 endpoint,
@@ -171,6 +152,7 @@ const EquipmentCategories = () => {
         setShowModal(false);
         setEditMode(false);
         setFormData({ categoryId: '', name: '' });
+        form.resetFields();
     };
 
     const handleSearchChange = (e) => {
@@ -223,7 +205,7 @@ const EquipmentCategories = () => {
                                 <FaArrowLeft className="mr-2" /> Back to Master
                             </Button> */}
                             <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
-                                Equipment Categories Management
+                                Equipment Categories 
                             </h2>
                         </div>
                     </motion.div>
@@ -315,7 +297,7 @@ const EquipmentCategories = () => {
                                                         </td>
                                                         <td className="px-4 py-6">
                                                             <div className="flex items-center">
-                                                                <FaEye className="mr-2 text-green-900" />
+                                                              
                                                                 <span className="font-bold truncate block max-w-[200px]">{category.equipments_category_name}</span>
                                                             </div>
                                                         </td>
@@ -328,16 +310,6 @@ const EquipmentCategories = () => {
                                                                         onClick={() => handleEdit(category.equipments_category_id)}
                                                                         size="large"
                                                                         className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
-                                                                    />
-                                                                </Tooltip>
-                                                                <Tooltip title="Delete Category">
-                                                                    <Button
-                                                                        shape="circle"
-                                                                        danger
-                                                                        icon={<DeleteOutlined />}
-                                                                        onClick={() => handleDelete(category.equipments_category_id)}
-                                                                        size="large"
-                                                                        className="shadow-lg flex items-center justify-center"
                                                                     />
                                                                 </Tooltip>
                                                             </div>
@@ -388,7 +360,7 @@ const EquipmentCategories = () => {
             <Modal
                 title={
                     <div className="flex items-center">
-                        <FaEye className="mr-2 text-green-900" /> 
+                       
                         {editMode ? 'Edit Equipment Category' : 'Add Equipment Category'}
                     </div>
                 }
@@ -402,24 +374,22 @@ const EquipmentCategories = () => {
                         key="submit" 
                         type="primary" 
                         loading={isSubmitting} 
-                        onClick={handleSave}
+                        onClick={() => form.submit()}
                         className="bg-green-900 hover:bg-lime-900"
                     >
                         {isSubmitting ? 'Saving...' : 'Save'}
                     </Button>
                 ]}
             >
-                <Form form={form} layout="vertical">
+                <Form form={form} layout="vertical" onFinish={handleSave}>
                     <Form.Item
                         label="Category Name"
                         name="name"
-                        initialValue={formData.name}
                         rules={[
                             { required: true, message: 'Please input category name!' },
                         ]}
                     >
                         <Input
-                            value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: sanitizeInput(e.target.value) })}
                             placeholder="Enter category name"
                         />
@@ -427,35 +397,7 @@ const EquipmentCategories = () => {
                 </Form>
             </Modal>
 
-            {/* Confirm Delete Modal */}
-            <Modal
-                title={<div className="text-red-600 flex items-center"><ExclamationCircleOutlined className="mr-2" /> Confirm Deletion</div>}
-                open={showConfirmDelete}
-                onCancel={() => setShowConfirmDelete(false)}
-                footer={[
-                    <Button key="back" onClick={() => setShowConfirmDelete(false)}>
-                        Cancel
-                    </Button>,
-                    <Button
-                        key="submit"
-                        type="primary"
-                        danger
-                        loading={loading}
-                        onClick={() => confirmDelete()}
-                        icon={<DeleteOutlined />}
-                    >
-                        Delete
-                    </Button>,
-                ]}
-            >
-                <Alert
-                    message="Warning"
-                    description={`Are you sure you want to delete this equipment category? This action cannot be undone.`}
-                    type="warning"
-                    showIcon
-                    icon={<ExclamationCircleOutlined />}
-                />
-            </Modal>
+
 
             <Toaster position="top-right" />
         </div>

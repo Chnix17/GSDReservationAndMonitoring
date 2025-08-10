@@ -355,8 +355,13 @@ const Chat = () => {
         userid: currentUser.id,
       };
 
+<<<<<<< HEAD
       const response = await fetch(`${apiUrl}fetchMaster.php`, {
         method: "POST",
+=======
+      const response = await fetch(`${apiUrl}user.php`, {
+        method: 'POST',
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
         headers: {
           "Content-Type": "application/json",
         },
@@ -590,7 +595,7 @@ const Chat = () => {
   };
 
   const renderInputArea = () => (
-    <div className="z-10 px-4 py-3 border-t border-gray-200 bg-white/95 backdrop-blur-md shadow-md sticky bottom-0">
+    <div className="z-10 px-4 py-3 pb-6 border-t border-gray-200 bg-white/95 backdrop-blur-md shadow-md sticky bottom-0">
       {messageToReply && (
         <motion.div
           initial={{ opacity: 0, y: 5 }}
@@ -862,8 +867,13 @@ const Chat = () => {
       formData.append("receiver_id", activeConversation.id);
       formData.append("message", messageText);
 
+<<<<<<< HEAD
       const response = await fetch(`${apiUrl}fetchMaster.php`, {
         method: "POST",
+=======
+      const response = await fetch(`${apiUrl}.php`, {
+        method: 'POST',
+>>>>>>> 881ba49aedce273052fed9de3ad6f9e53cd929c7
         headers: {
           "Content-Type": "application/x-www-form-urlencoded",
         },

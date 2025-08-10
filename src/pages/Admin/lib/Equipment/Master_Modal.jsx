@@ -6,6 +6,7 @@ import axios from 'axios';
 import { SecureStorage } from '../../../../utils/encryption';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
 import CategoryModal from './Category_Modal';
+import '../../../../styles/EnhancedDetailModal.css';
 const { Option } = Select;
 
 const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
@@ -21,8 +22,8 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
 
     // Equipment types
     const equipmentTypes = [
-        'Consumable',
-        'Non-Consumable'
+        { value: 'Bulk', label: 'Bulk (Multiple units in one entry)' },
+        { value: 'Serialized', label: 'Serialized (Individual unit tracking)' }
     ];
 
     const fetchCategories = useCallback(async () => {
@@ -109,12 +110,10 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         const user_admin_id = SecureStorage.getSessionItem('user_id');
         const requestData = {
             operation: "saveEquipment",
-            data: {
-                name: equipmentName,
-                equipments_category_id: selectedCategory,
-                equip_type: equipmentType,
-                user_admin_id: user_admin_id
-            }
+            name: equipmentName,
+            equipments_category_id: selectedCategory,
+            equip_type: equipmentType,
+            user_admin_id: user_admin_id
         };
 
         
@@ -124,7 +123,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
         try {
             const response = await axios.post(
-                `${baseUrl}/insert_master.php`,
+                `${baseUrl}/user.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {
@@ -156,6 +155,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
     return (
         <>
             <Modal
+                className="enhanced-detail-modal"
                 title={
                     <div className="flex items-center">
                         <FaTools className="mr-2 text-green-900" /> 
@@ -225,8 +225,8 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
                             placeholder="Select equipment type"
                         >
                             {equipmentTypes.map(type => (
-                                <Option key={type} value={type}>
-                                    {type}
+                                <Option key={type.value} value={type.value}>
+                                    {type.label}
                                 </Option>
                             ))}
                         </Select>

@@ -51,7 +51,7 @@ const EquipmentCard = React.forwardRef(({ equipment, isSelected, onClick, isMobi
         className={`
           overflow-hidden border border-gray-50/20 hover:border-gray-100 
           shadow-sm hover:shadow-md transition-all
-          ${currentQuantity > 0 ? 'ring-2 ring-green-500 bg-green-50/30' : 'bg-white/80 hover:bg-gray-50/50'}
+          ${currentQuantity > 0 ? 'ring-2 ring-green-500 bg-green-500/20' : 'bg-white/80 hover:bg-gray-50/50'}
           flex
           ${isMobile ? 'py-1 px-2' : 'p-2'}
           backdrop-blur-sm
@@ -183,19 +183,34 @@ const ResourceEquipment = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
+  const prevEquipmentQuantities = useRef(equipmentQuantities);
 
   const firstEquipmentRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
   const handleEquipmentQuantityChange = (equipId, value) => {
     const numericValue = parseInt(value) || 0;
-    const equip = equipment.find(e => e.equipment_id.toString() === equipId.toString());
+    const equip = equipment.find(e => 
+      e.equipment_id.toString() === equipId.toString() || 
+      e.equip_id?.toString() === equipId.toString()
+    );
+    
     if (!equip) return;
 
     const availableQuantity = parseInt(equip.available_quantity) || 0;
-    if (numericValue > availableQuantity) return;
-
-    onQuantityChange(equipId, numericValue);
+    const validatedValue = Math.min(Math.max(0, numericValue), availableQuantity);
+    
+    // Update the quantities object
+    const updatedQuantities = { ...equipmentQuantities };
+    
+    if (validatedValue > 0) {
+      updatedQuantities[equipId] = validatedValue;
+    } else {
+      delete updatedQuantities[equipId];
+    }
+    
+    // Send the entire updated quantities object to parent
+    onQuantityChange(updatedQuantities);
   };
 
   const fetchAllEquipments = async () => {
@@ -208,7 +223,7 @@ const ResourceEquipment = ({
       }
 
       const response = await axios.post(
-        `${encryptedUrl}fetch2.php`,
+        `${encryptedUrl}user.php`,
         { operation: 'fetchEquipments' },
         { headers: { 'Content-Type': 'application/json' } }
       );
@@ -246,6 +261,55 @@ const ResourceEquipment = ({
     }
   };
 
+  // Handle equipmentQuantities changes from parent (validation)
+  useEffect(() => {
+    // Skip initial render
+    if (Object.keys(prevEquipmentQuantities.current).length === 0) {
+      prevEquipmentQuantities.current = equipmentQuantities;
+      return;
+    }
+
+    // Check if equipmentQuantities was updated by validation
+    if (JSON.stringify(equipmentQuantities) !== JSON.stringify(prevEquipmentQuantities.current)) {
+      const updatedQuantities = { ...equipmentQuantities };
+      let hasChanges = false;
+      
+      // Check each equipment in the current quantities
+      Object.entries(equipmentQuantities).forEach(([equipId, quantity]) => {
+        const equip = equipment.find(e => 
+          String(e.equipment_id) === equipId || 
+          String(e.equip_id) === equipId
+        );
+        
+        // If equipment doesn't exist or quantity is invalid, remove it
+        if (!equip) {
+          delete updatedQuantities[equipId];
+          hasChanges = true;
+        } 
+        // If quantity exceeds available, adjust it
+        else if (quantity > (equip.available_quantity || 0)) {
+          updatedQuantities[equipId] = equip.available_quantity || 0;
+          hasChanges = true;
+        }
+        // If quantity is 0 or negative, remove it
+        else if (quantity <= 0) {
+          delete updatedQuantities[equipId];
+          hasChanges = true;
+        }
+      });
+      
+      // If changes were made, update the parent
+      if (hasChanges) {
+        // Create a new object to ensure state update is triggered
+        onQuantityChange({...updatedQuantities});
+      }
+      
+      // Update the ref for next comparison
+      prevEquipmentQuantities.current = updatedQuantities;
+    }
+  }, [equipmentQuantities, equipment, onQuantityChange]);
+  
+  // Fetch equipment data
   useEffect(() => {
     fetchAllEquipments();
   }, []);

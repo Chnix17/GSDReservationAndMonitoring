@@ -23,7 +23,7 @@ import Equipmentc from './pages/equipmentCategory';
 
 import VehicleModel from './pages/vehiclemodel';
 import ViewReserve from './page_user/viewReserve';
-import Calendar from './pages/calendar';    
+
 import Record from './pages/Admin/Record';
 import ViewApproval from './page_dean/viewApproval';
 import DeanViewReserve from './page_dean/viewReserve';
@@ -46,6 +46,7 @@ import Driver from './pages/Drivers';
 import Holiday from './pages/Admin/Holiday';
 import DriverDashboard from './pages/Driver/DriverDashboard';
 import DriverTrips from './pages/Driver/Trips'
+import AdminNotification from './pages/Admin/notification';
 
 import VenueSchedule from './page_dean/VenueSchedule'
 
@@ -60,6 +61,8 @@ const App = () => {
     if (!storedUrl || storedUrl !== defaultUrl) {
         SecureStorage.setLocalItem("url", defaultUrl);
     }
+
+    
 
     // Register service worker
     useEffect(() => {
@@ -107,7 +110,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips'
+            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -139,6 +142,7 @@ const App = () => {
                         <Route path="/vehiclemake" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclem /></ProtectedRoute>} />
                         <Route path="/vehiclecategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclec /></ProtectedRoute>} />
                         <Route path="/equipmentCategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
+                        <Route path="/Admin/Notification" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminNotification /></ProtectedRoute>} />
           
                         <Route path="/vehiclemodel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><VehicleModel /></ProtectedRoute>} />
                         <Route path="/AssignPersonnel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AssignPersonnel /></ProtectedRoute>} />
@@ -169,7 +173,7 @@ const App = () => {
                         <Route path="/Faculty/Notification" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><NotificationUser /></ProtectedRoute>} />
                         {/* Shared Routes (accessible by all authenticated users) */}
                         
-                        <Route path="/calendar" element={<ProtectedRoute allowedRoles={['Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Calendar /></ProtectedRoute>} />
+                       
                         <Route path="/chat" element={<ProtectedRoute allowedRoles={['Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Chat /></ProtectedRoute>} />
 
                         {/* Personnel Routes */}

@@ -68,7 +68,7 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
         });
 
         // Calculate total issues from usage statistics
-        const totalIssues = usage_statistics.broken_count + usage_statistics.missing_count;
+        const totalIssues = usage_statistics.broken_count + usage_statistics.missing_count + usage_statistics.inspection_count;
         
         // Distribute issues proportionally across months based on utilization
         const totalUtilizations = usage_statistics.total_usage;

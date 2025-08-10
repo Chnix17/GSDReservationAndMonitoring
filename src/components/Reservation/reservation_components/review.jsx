@@ -131,9 +131,19 @@ const ReviewSection = ({
         <div className="space-y-3">
           {selectedVehicleDetails.map(vehicle => {
             let driverName = null;
+            let driverType = null;
             if (formData.driverType === 'own' && Array.isArray(formData.ownDrivers)) {
               const driverObj = formData.ownDrivers.find(d => d.vehicle_id === vehicle.vehicle_id);
               driverName = driverObj ? driverObj.name : null;
+              driverType = 'Own Driver';
+            } else if (formData.driverType === 'mixed' && Array.isArray(formData.mixedDrivers)) {
+              const mixedDriverObj = formData.mixedDrivers.find(d => d.vehicle_id === vehicle.vehicle_id);
+              if (mixedDriverObj) {
+                driverType = mixedDriverObj.driverType === 'own' ? 'Own Driver' : 'Default Driver';
+                driverName = mixedDriverObj.driverType === 'own' ? mixedDriverObj.name : null;
+              }
+            } else {
+              driverType = 'Default Driver';
             }
             return (
               <div key={vehicle.vehicle_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
@@ -142,37 +152,20 @@ const ReviewSection = ({
                     {vehicle.vehicle_make_name} {vehicle.vehicle_model_name}
                   </Text>
                   <Text type="secondary" className="text-sm">{vehicle.vehicle_description}</Text>
-                  {formData.driverType === 'own' && (
-                    <div className="mt-1">
-                      <Text type="secondary" className="text-xs">Assigned Driver: </Text>
-                      <Text strong className="text-blue-700 text-xs">{driverName || 'No driver assigned'}</Text>
-                    </div>
-                  )}
+                  <div className="mt-1">
+                    <Text type="secondary" className="text-xs">Driver Type: </Text>
+                    <Text strong className="text-blue-700 text-xs">{driverType}</Text>
+                    {driverType === 'Own Driver' && (
+                      <><Text type="secondary" className="text-xs ml-2">Name: </Text><Text strong className="text-blue-700 text-xs">{driverName || 'No driver assigned'}</Text></>)
+                    }
+                  </div>
                 </div>
                 <Tag color="blue">{vehicle.vehicle_license}</Tag>
               </div>
             );
           })}
         </div>
-        <div className="flex items-center gap-2 mb-2 mt-6">
-          <UserOutlined className="text-blue-500" />
-          <Text strong className="text-lg">Driver</Text>
-        </div>
-        <div className="p-3 bg-gray-50 rounded-lg">
-          {formData.driverType === 'own' && Array.isArray(formData.ownDrivers) && formData.ownDrivers.length > 0 ? (
-            <div>
-              {formData.ownDrivers.map((driver, idx) => (
-                <Text key={driver.vehicle_id || idx} strong className="text-blue-700 block">
-                  {driver.name} {driver.vehicle_id ? `- Vehicle: ${(() => { const v = selectedVehicleDetails.find(veh => veh.vehicle_id === driver.vehicle_id); return v ? `${v.vehicle_make_name} ${v.vehicle_model_name} (${v.vehicle_license})` : '' })()}` : ''}
-                </Text>
-              ))}
-            </div>
-          ) : formData.driverType === 'default' ? (
-            <Text strong className="text-blue-700">Default driver will be assigned by admin.</Text>
-          ) : (
-            <Text type="secondary">No driver selected</Text>
-          )}
-        </div>
+        
         <div className="flex items-center gap-2 mb-4 mt-6">
           <TeamOutlined className="text-blue-500" />
           <Text strong className="text-lg">Passengers ({formData.passengers.length})</Text>

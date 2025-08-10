@@ -39,7 +39,7 @@ self.addEventListener('push', event => {
     let icon = '/images/assets/phinma.png';
     let badge = '/images/assets/phinma.png';
     let data = {
-        url: '/viewRequest',
+        url: '/ViewRequest',
         timestamp: Date.now()
     };
 
@@ -64,18 +64,18 @@ self.addEventListener('push', event => {
         tag: `gsd-notification-${Date.now()}`, // Using a timestamp tag helps prevent duplicate notifications
         data: data,
         renotify: true,
-        actions: [
-            {
-                action: 'view',
-                title: 'View',
-                icon: '/images/assets/phinma.png'
-            },
-            {
-                action: 'dismiss',
-                title: 'Dismiss',
-                icon: '/images/assets/phinma.png'
-            }
-        ]
+        // actions: [
+        //     {
+        //         action: 'view',
+        //         title: 'View',
+        //         icon: '/images/assets/phinma.png'
+        //     },
+        //     {
+        //         action: 'dismiss',
+        //         title: 'Dismiss',
+        //         icon: '/images/assets/phinma.png'
+        //     }
+        // ]
     };
 
     event.waitUntil(
