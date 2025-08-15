@@ -338,3 +338,36 @@
   border-bottom: 1px solid #e5e7eb;
   margin: 18px 0;
 }
+
+/* Force light scheme within a container (prevents OS dark mode overrides) */
+.force-light {
+  color-scheme: light;
+}
+
+/* Vehicle Form - responsive tuning (no extra wrappers) */
+.vehicle-form .ant-form-item { margin-bottom: 14px; }
+@media (min-width: 768px){ .vehicle-form .ant-form-item { margin-bottom: 18px; } }
+
+.vehicle-form .ant-form-item-label > label { font-weight: 600; color: #374151; }
+
+/* Inputs */
+.vehicle-form .ant-input,
+.vehicle-form .ant-input-affix-wrapper { border-radius: 8px; }
+.vehicle-form .ant-input-textarea textarea { border-radius: 8px; min-height: 96px; }
+
+/* Radio groups wrap nicely on small screens */
+.vehicle-form .ant-radio-group { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+@media (max-width: 640px) {
+  .vehicle-form .ant-radio-group { flex-direction: column; align-items: flex-start; }
+}
+
+/* Ensure driver cards (children from renderDriverDropdown) do not overflow */
+.vehicle-form .driver-grid > * { width: 100%; min-width: 0; }
+.vehicle-form .ant-form-item-control { min-width: 0; }
+
+@media (max-width: 640px) {
+  .vehicle-form .ant-input,
+  .vehicle-form .ant-input-affix-wrapper { padding: 8px 10px; }
+  .vehicle-form textarea { font-size: 14px; }
+  .vehicle-form .ant-form-item-label { padding-bottom: 6px; }
+}

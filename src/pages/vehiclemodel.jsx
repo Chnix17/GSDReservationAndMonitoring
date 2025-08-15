@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, Button, Form, Tooltip, Input,  Pagination, Empty, Select } from 'antd';
 import { toast } from 'sonner';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
 
 import { useNavigate } from 'react-router-dom';
@@ -212,10 +212,15 @@ const VehicleModels = () => {
     
     setIsSubmitting(true);
     try {
+      // Include current user id for auditing
+      const userId =
+        SecureStorage.getSessionItem('user_id') ||
+        SecureStorage.getLocalItem('user_id') || null;
       let response;
       if (editMode) {
         const requestData = {
           operation: 'updateVehicleModel',
+          userid: userId,
           modelData: {
             id: formData.id,
             name: sanitizedName,
@@ -223,7 +228,7 @@ const VehicleModels = () => {
             category_id: parseInt(formData.categoryId)
           }
         };
-        response = await axios.post(`${encryptedUrl}update_master1.php`, 
+        response = await axios.post(`${encryptedUrl}user.php`, 
           requestData,
           {
             headers: {
@@ -236,7 +241,8 @@ const VehicleModels = () => {
           operation: 'saveModelData',
           name: sanitizedName,
           category_id: parseInt(formData.categoryId),
-          make_id: parseInt(formData.makeId)
+          make_id: parseInt(formData.makeId),
+          userid: userId
         };
         response = await axios.post(`${encryptedUrl}user.php`, 
           requestData,

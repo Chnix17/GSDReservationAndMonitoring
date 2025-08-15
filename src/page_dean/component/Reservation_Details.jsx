@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal, Tag, Table, Button, Space } from 'antd';
 import {
     UserOutlined,
@@ -6,8 +6,7 @@ import {
     BuildOutlined,
     CarOutlined,
     ToolOutlined,
-    CheckOutlined,
-    CloseOutlined
+    CheckOutlined
 } from '@ant-design/icons';
 
 const formatDateRange = (startDate, endDate) => {
@@ -41,6 +40,20 @@ const ReservationDetails = ({
     onDecline,
     isApprovalView = false
 }) => {
+    // Local submitting state for Approve action
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    const handleApprove = async () => {
+        try {
+            setIsSubmitting(true);
+            if (typeof onApprove === 'function') {
+                await onApprove();
+            }
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
     if (!reservationDetails) return null;
 
     // Resource table columns definitions
@@ -149,26 +162,16 @@ const ReservationDetails = ({
                     {isApprovalView && (
                         <>
                             <Button
-                                icon={<CloseOutlined />}
-                                onClick={onDecline}
-                                danger
-                                className="px-4 py-2"
-                            >
-                                Decline
-                            </Button>
-                            <Button
                                 icon={<CheckOutlined />}
                                 type="primary"
-                                onClick={onApprove}
+                                onClick={handleApprove}
+                                loading={isSubmitting}
                                 className="px-4 py-2 bg-green-600 hover:bg-green-700"
                             >
                                 Approve
                             </Button>
                         </>
                     )}
-                    <Button key="close" onClick={onClose} className="px-4 py-2">
-                        Close
-                    </Button>
                 </Space>
             ]}
             className="reservation-detail-modal"

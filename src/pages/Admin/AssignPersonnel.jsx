@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import axios from 'axios';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import {  Button, Input, Tooltip, Empty, Pagination } from 'antd';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faUserPlus, faEye } from '@fortawesome/free-solid-svg-icons';

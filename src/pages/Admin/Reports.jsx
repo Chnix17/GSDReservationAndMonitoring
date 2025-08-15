@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import {Table, Tag, Button, Tabs, Input, Tooltip,  Dropdown, Modal } from 'antd';
+import {Table, Tag, Button, Tabs, Input, Tooltip,  Dropdown, Modal, Descriptions, Divider, Row, Col, Skeleton, Typography, Badge, Popconfirm, Space} from 'antd';
 import { motion } from 'framer-motion';
 import {
   // CarOutlined,
@@ -15,7 +15,7 @@ import {
 } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'sonner';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import {SecureStorage} from '../../utils/encryption';
 
 const Reports = () => {
@@ -33,6 +33,7 @@ const Reports = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedResource, setSelectedResource] = useState(null);
+  const [isDoneContext, setIsDoneContext] = useState(false); // track if modal opened from Done tab
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
@@ -66,12 +67,13 @@ const Reports = () => {
     }
   }, [baseUrl]);
 
-  const handleScheduleMaintenance = (record) => {
+  const handleScheduleMaintenance = (record, originTab = 'unset') => {
     const resourceWithRecordId = {
       ...record,
       record_id: record.record_id || record.maintenance_id
     };
     setSelectedResource(resourceWithRecordId);
+    setIsDoneContext(originTab === 'done');
     setIsModalOpen(true);
   };
 
@@ -83,6 +85,7 @@ const Reports = () => {
         type: selectedResource.resource_type,
         resourceId: selectedResource.resource_id, // or the correct field for your resource
         recordId: selectedResource.record_id || selectedResource.maintenance_id,
+        user_personnel_id: SecureStorage.getSessionItem("user_id"),
         isFixed: isFixed
       });
       toast.success(isFixed ? "Resource marked as available for use." : "Resource marked as unavailable.");
@@ -196,11 +199,36 @@ const Reports = () => {
           title: 'Action',
           key: 'action',
           render: (_, record) => (
+            // Hide action for bulk/consumable equipment
+            isBulkEquipment(record)
+              ? null
+              : (
+                <Button
+                  type="primary"
+                  size="small"
+                  onClick={() => handleScheduleMaintenance(record)}
+                  icon={<ExclamationCircleOutlined />}
+                >
+                  View Details
+                </Button>
+              )
+          )
+        }
+      ];
+    }
+
+    // Add a simple View Details action for the Done tab (no status buttons in modal)
+    if (tabKey === 'done') {
+      return [
+        ...baseColumns,
+        {
+          title: 'Action',
+          key: 'action',
+          render: (_, record) => (
             <Button
-              type="primary"
+              type="default"
               size="small"
-              onClick={() => handleScheduleMaintenance(record)}
-              icon={<ExclamationCircleOutlined />}
+              onClick={() => handleScheduleMaintenance(record, 'done')}
             >
               View Details
             </Button>
@@ -211,6 +239,77 @@ const Reports = () => {
 
     return baseColumns;
   };
+
+  // Detect Bulk/Consumable equipment entries
+  const isBulkEquipment = (resource) => {
+    const type = resource?.resource_type?.toLowerCase();
+    // Direct type of equipment_bulk should also be treated as bulk equipment
+    if (type === 'equipment_bulk') return true;
+    const marker = (resource?.equip_type || resource?.type || resource?.category || '').toLowerCase();
+    return type === 'equipment' && (marker === 'bulk' || marker === 'consumable');
+  };
+
+  // Consider items with condition_name that includes 'completed' or 'good' as done
+  const isCompletedOrGood = (resource) => {
+    const status = (resource?.condition_name || '').toLowerCase();
+    return status.includes('completed') || status.includes('good');
+  };
+
+  // Columns for Bulk Equipment (display-only)
+  const getBulkColumns = () => [
+    {
+      title: 'Equipment',
+      dataIndex: 'resource_name',
+      key: 'resource_name',
+    },
+    {
+      title: 'Status',
+      dataIndex: 'condition_name',
+      key: 'condition_name',
+      render: (status) => (
+        <Tag color={
+          status?.toLowerCase().includes('completed') || status?.toLowerCase().includes('good')
+            ? 'green'
+            : status?.toLowerCase().includes('pending') || status?.toLowerCase().includes('inspection')
+              ? 'orange'
+              : status?.toLowerCase() === 'damaged'
+                ? 'red'
+                : 'default'
+        }>
+          {status || 'Unset'}
+        </Tag>
+      )
+    },
+    {
+      title: 'Details',
+      key: 'details',
+      render: (_, record) => (
+        <span className="text-gray-700">
+          {record?.reservation_title || record?.reservation_description || 'No description'}
+        </span>
+      )
+    },
+    {
+      title: 'Reported By',
+      dataIndex: 'requester_name',
+      key: 'requester_name',
+      render: (val) => val || '—'
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_, record) => (
+        <Button
+          type="default"
+          size="small"
+          onClick={() => handleScheduleMaintenance(record)}
+          icon={<ExclamationCircleOutlined />}
+        >
+          View Details
+        </Button>
+      )
+    }
+  ];
 
   const handleRefresh = () => {
     fetchMaintenanceResources();
@@ -375,10 +474,12 @@ const Reports = () => {
                           responsive: true
                         }}
                         columns={getColumnsForTab('unset')}
-                        dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset').map(resource => ({
-                          key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
-                          ...resource
-                        }))}
+                        dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset')
+                          .filter(resource => !isBulkEquipment(resource))
+                          .map(resource => ({
+                            key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                            ...resource
+                          }))}
                         className="maintenance-table"
                         scroll={{ x: 'max-content' }}
                       />
@@ -414,91 +515,182 @@ const Reports = () => {
                       />
                     </div>
                   ),
+                },
+                {
+                  key: 'bulk',
+                  label: (
+                    <span className="flex items-center">
+                      <ExclamationCircleOutlined className="mr-2 text-orange-500" />
+                      <span className="hidden sm:inline">Bulk Equipment</span>
+                      <span className="sm:hidden">Bulk</span>
+                    </span>
+                  ),
+                  children: (
+                    <div className="overflow-x-auto">
+                      <Table
+                        loading={false}
+                        pagination={{ 
+                          pageSize: 10,
+                          showSizeChanger: true,
+                          showTotal: (total) => `Total ${total} items`,
+                          responsive: true
+                        }}
+                        columns={getBulkColumns()}
+                        dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset')
+                          .filter(isBulkEquipment)
+                          .map(resource => ({
+                            key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                            ...resource
+                          }))}
+                        className="maintenance-table"
+                        scroll={{ x: 'max-content' }}
+                      />
+                    </div>
+                  ),
                 }
               ]}
             />
-            {/* Minimal Modal for Available/Unavailable */}
+            {/* Enhanced View Details Modal */}
             <Modal
               title={
-                <div className="flex items-center space-x-2">
-                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                  <span className="text-lg font-semibold text-gray-800">
-                    {selectedResource ? selectedResource.resource_name : 'Resource Details'}
-                  </span>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center bg-green-100">
+                      <Badge color="green" />
+                    </div>
+                    <div className="flex flex-col">
+                      <span className="text-[15px] font-semibold text-gray-900">
+                        {selectedResource ? selectedResource.resource_name : 'Resource Details'}
+                      </span>
+                      {selectedResource?.resource_type && (
+                        <span className="text-xs text-gray-500">{selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1)}</span>
+                      )}
+                    </div>
+                  </div>
+                  {selectedResource?.condition_name && (
+                    <Tag color={selectedResource.condition_name?.toLowerCase().includes('available') ? 'green' : 'red'} className="text-xs">
+                      {selectedResource.condition_name}
+                    </Tag>
+                  )}
                 </div>
               }
               open={isModalOpen}
               onCancel={() => setIsModalOpen(false)}
               className="custom-modal"
-              width={500}
-              footer={[
-                <Button
-                  key="unavailable"
-                  danger
-                  onClick={() => handleUpdateResourceStatus(false)}
-                  className="mr-2"
-                >
-                  Set to Unavailable
-                </Button>,
-                <Button
-                  key="available"
-                  type="primary"
-                  onClick={() => handleUpdateResourceStatus(true)}
-                  className="bg-green-600 border-green-600 hover:bg-green-700"
-                >
-                  Available for Use
-                </Button>
-              ]}
+              width={720}
+              footer={
+                selectedResource && (isBulkEquipment(selectedResource) || isCompletedOrGood(selectedResource) || isDoneContext)
+                  ? null
+                  : (
+                    <div className="w-full flex items-center justify-between">
+                      <span className="text-xs text-gray-500">Update availability status</span>
+                      <Space>
+                        <Popconfirm
+                          title="Mark resource as Unavailable?"
+                          okText="Yes"
+                          cancelText="No"
+                          onConfirm={() => handleUpdateResourceStatus(false)}
+                        >
+                          <Button key="unavailable" danger>
+                            Set to Unavailable
+                          </Button>
+                        </Popconfirm>
+                        <Popconfirm
+                          title="Mark resource as Available for use?"
+                          okText="Yes"
+                          cancelText="No"
+                          onConfirm={() => handleUpdateResourceStatus(true)}
+                        >
+                          <Button key="available" type="primary" className="bg-green-600 border-green-600 hover:bg-green-700">
+                            Available for Use
+                          </Button>
+                        </Popconfirm>
+                      </Space>
+                    </div>
+                  )
+              }
             >
-              {selectedResource && (
-                <div className="space-y-4">
-                  {/* Resource Info */}
-                  <div className="bg-white p-4 rounded-lg border border-gray-200">
-                    <div className="flex items-center justify-between mb-3">
-                      <h4 className="text-sm font-semibold text-gray-800">Resource Details</h4>
-                      <Tag color="green" className="text-xs">
-                        {selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1)}
-                      </Tag>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-500">Status:</span>
-                        <span className="font-medium text-gray-800">{selectedResource.condition_name || 'Unset'}</span>
-                      </div>
-                      {selectedResource.requester_name && (
-                        <div className="flex justify-between text-sm">
-                          <span className="text-gray-500">Responsible:</span>
-                          <span className="font-medium text-green-600">{selectedResource.requester_name}</span>
+              {!selectedResource ? (
+                <Skeleton active paragraph={{ rows: 4 }} />
+              ) : (
+                <div>
+                  <Row gutter={[16, 16]}>
+                    <Col xs={24} md={14}>
+                      <Descriptions
+                        column={1}
+                        size="small"
+                        colon
+                        bordered
+                        labelStyle={{ width: 140, color: '#6b7280' }}
+                      >
+                        <Descriptions.Item label="Resource Name">
+                          <Typography.Text strong>{selectedResource.resource_name || '-'}</Typography.Text>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Type">
+                          <Tag color="green" className="text-xs">
+                            {selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1) || '-'}
+                          </Tag>
+                        </Descriptions.Item>
+                        <Descriptions.Item label="Status">
+                          <Typography.Text>{selectedResource.condition_name || 'Unset'}</Typography.Text>
+                        </Descriptions.Item>
+                        {isBulkEquipment(selectedResource) && (
+                          <Descriptions.Item label="Quantity Issue">
+                            <Typography.Text strong>
+                              {selectedResource.quantity ?? '—'}
+                            </Typography.Text>
+                          </Descriptions.Item>
+                        )}
+                        {selectedResource.requester_name && (
+                          <Descriptions.Item label="Responsible">
+                            <Typography.Text className="text-green-600">{selectedResource.requester_name}</Typography.Text>
+                          </Descriptions.Item>
+                        )}
+                      </Descriptions>
+                    </Col>
+                    <Col xs={24} md={10}>
+                      {(selectedResource.reservation_title || selectedResource.reservation_description) ? (
+                        <div className="bg-white rounded-lg border border-gray-100 p-3">
+                          <Typography.Text className="text-gray-700 font-medium text-sm">Reservation</Typography.Text>
+                          <Divider className="my-2" />
+                          {selectedResource.reservation_title && (
+                            <div className="mb-1">
+                              <Typography.Text strong>{selectedResource.reservation_title}</Typography.Text>
+                            </div>
+                          )}
+                          {selectedResource.reservation_description && (
+                            <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
+                              {selectedResource.reservation_description}
+                            </Typography.Paragraph>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 rounded-lg p-4 text-center border border-dashed border-gray-200">
+                          <Typography.Text type="secondary" className="text-xs">No reservation details</Typography.Text>
                         </div>
                       )}
-                    </div>
-                  </div>
+                    </Col>
+                  </Row>
 
-                  {/* Reservation Info */}
-                  {(selectedResource.reservation_title || selectedResource.reservation_description) && (
-                    <div className="bg-white p-4 rounded-lg border border-gray-200">
-                      <h4 className="text-sm font-semibold text-gray-800 mb-3">Reservation Info</h4>
-                      {selectedResource.reservation_title && (
-                        <div className="mb-2">
-                          <p className="text-sm font-medium text-gray-800">{selectedResource.reservation_title}</p>
-                        </div>
-                      )}
-                      {selectedResource.reservation_description && (
-                        <div>
-                          <p className="text-xs text-gray-600 leading-relaxed">{selectedResource.reservation_description}</p>
-                        </div>
-                      )}
+                  {selectedResource.remarks && (
+                    <div className="mt-4 bg-white rounded-lg border border-gray-100 p-3">
+                      <Typography.Text className="text-gray-700 font-medium text-sm">Remarks</Typography.Text>
+                      <Divider className="my-2" />
+                      <Typography.Paragraph className="!mb-0 text-xs text-gray-600">
+                        {selectedResource.remarks}
+                      </Typography.Paragraph>
                     </div>
                   )}
 
-                  {/* Action Section */}
-                  <div className="bg-gray-50 p-4 rounded-lg border border-gray-200">
-                    <div className="flex items-center space-x-2 mb-2">
-                      <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                      <h4 className="text-sm font-semibold text-gray-700">Action Required</h4>
+                  {!isBulkEquipment(selectedResource) && !isCompletedOrGood(selectedResource) && !isDoneContext && (
+                    <div className="mt-4 bg-gray-50 rounded-lg border border-gray-200 p-3">
+                      <Typography.Text className="text-gray-700 font-medium text-sm">Action</Typography.Text>
+                      <Divider className="my-2" />
+                      <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
+                        Choose the appropriate status for this resource using the buttons below.
+                      </Typography.Paragraph>
                     </div>
-                    <p className="text-xs text-gray-600">Choose the appropriate status for this resource.</p>
-                  </div>
+                  )}
                 </div>
               )}
             </Modal>

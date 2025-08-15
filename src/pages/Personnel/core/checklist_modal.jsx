@@ -17,85 +17,102 @@ const ReturnConditionModal = ({
   item,
   type,
 }) => {
-  const [selectedCondition, setSelectedCondition] = useState("");
+  const [selectedCondition, setSelectedCondition] = useState(null); // store numeric condition_id
   const [badQuantity, setBadQuantity] = useState("");
   const [remarks, setRemarks] = useState("");
+  const [conditions, setConditions] = useState([]); // fetched list
+  const [isLoadingConditions, setIsLoadingConditions] = useState(false);
   const totalQuantity = parseInt(item?.quantity || 0);
   const isEquipmentConsumable = type === "equipment_bulk";
   const isVenue = type === "venue";
 
-  // Venue-specific options
-  const venueConditions = [
-    {
-      value: "good",
-      label: "Good Condition",
-      icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-    },
-    {
-      value: "other",
-      label: "Other",
-      icon: "M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z",
-    },
-  ];
-  // Default options for other types
-  const defaultConditions = [
-    {
-      value: "good",
-      label: "Good",
-      icon: "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z",
-    },
-    {
-      value: "damage",
-      label: "Damage",
-      icon: "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z",
-    },
-    {
-      value: "missing",
-      label: "Missing",
-      icon: "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
-    },
-  ];
-  const conditionOptions = isVenue ? venueConditions : defaultConditions;
+  // Fetch condition list from backend
+  useEffect(() => {
+    if (!isOpen) return;
+    const fetchConditions = async () => {
+      try {
+        setIsLoadingConditions(true);
+        const payload = { operation: "fetchConditions" };
+        const res = await axios.post(`${BASE_URL}user.php`, payload);
+        if (res?.data?.status === "success" && Array.isArray(res.data.data)) {
+          setConditions(res.data.data);
+        } else {
+          setConditions([]);
+        }
+      } catch (e) {
+        console.error("Failed to fetch conditions", e);
+        setConditions([]);
+      } finally {
+        setIsLoadingConditions(false);
+      }
+    };
+    fetchConditions();
+  }, [isOpen]);
+
+  // Build condition options based on type
+  const conditionIdsForType = isVenue ? [2, 7] : [7, 2, 3, 4];
+  const conditionOptions = conditions
+    .filter((c) => conditionIdsForType.includes(Number(c.id)))
+    .sort(
+      (a, b) =>
+        conditionIdsForType.indexOf(Number(a.id)) -
+        conditionIdsForType.indexOf(Number(b.id)),
+    )
+    .map((c) => ({
+      value: Number(c.id),
+      label: c.condition_name,
+      // simple icon mapping
+      icon:
+        Number(c.id) === 2
+          ? "M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          : Number(c.id) === 7
+          ? "M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z"
+          : Number(c.id) === 4
+          ? "M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+          : "M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z",
+    }));
 
   const handleSubmit = () => {
-    if (!selectedCondition) {
+    if (selectedCondition === null) {
       toast.error("Please select a return condition");
       return;
     }
     if (isVenue) {
-      if (selectedCondition === "other" && !remarks.trim()) {
-        toast.error('Please enter remarks for "Other" condition');
-        return;
-      }
-      onSubmit(selectedCondition, null, null, remarks); // Pass remarks
+      onSubmit(selectedCondition, null, null, remarks);
       return;
     }
-    if (isEquipmentConsumable && selectedCondition !== "good") {
-      if (!badQuantity) {
-        toast.error("Please specify the quantity of damaged/missing items");
+    if (isEquipmentConsumable) {
+      // For equipment bulk: Good (2) => all good; Damaged (4) or Missing (3) => require bad qty; For Inspection (7) => no qty
+      if (selectedCondition === 2) {
+        onSubmit(selectedCondition, totalQuantity, 0, remarks);
         return;
       }
-      // Calculate good quantity as remaining items
-      const badQty = parseInt(badQuantity);
-      const goodQty = totalQuantity - badQty;
-      if (badQty > totalQuantity) {
-        toast.error(
-          `Bad quantity cannot exceed total quantity (${totalQuantity})`,
-        );
+      if (selectedCondition === 3 || selectedCondition === 4) {
+        if (!badQuantity && badQuantity !== 0) {
+          toast.error("Please specify the quantity of damaged/missing items");
+          return;
+        }
+        const badQty = parseInt(badQuantity || 0);
+        const goodQty = totalQuantity - badQty;
+        if (badQty > totalQuantity) {
+          toast.error(
+            `Bad quantity cannot exceed total quantity (${totalQuantity})`,
+          );
+          return;
+        }
+        if (badQty < 0) {
+          toast.error("Bad quantity cannot be negative");
+          return;
+        }
+        onSubmit(selectedCondition, goodQty, badQty, remarks);
         return;
       }
-      if (badQty < 0) {
-        toast.error("Bad quantity cannot be negative");
-        return;
-      }
-      onSubmit(selectedCondition, goodQty, badQty);
-    } else if (isEquipmentConsumable) {
-      // For 'good' condition, all items are in good condition
-      onSubmit(selectedCondition, totalQuantity, 0);
-    } else {
-      // For non-equipment items (venues, vehicles), just submit the condition
-      onSubmit(selectedCondition, null, null);
+      // e.g. For Inspection (7)
+      onSubmit(selectedCondition, null, null, remarks);
+      return;
     }
+    // For non-equipment items (vehicles, equipment units): just submit the condition
+    onSubmit(selectedCondition, null, null, remarks);
   };
 
   const handleBadQuantityChange = (e) => {
@@ -156,7 +173,10 @@ const ReturnConditionModal = ({
               Please select the condition of the returned item:
             </p>
             <div className="grid grid-cols-1 gap-3">
-              {conditionOptions.map((condition) => (
+              {isLoadingConditions && (
+                <div className="text-sm text-gray-500">Loading conditions...</div>
+              )}
+              {!isLoadingConditions && conditionOptions.map((condition) => (
                 <button
                   key={condition.value}
                   onClick={() => setSelectedCondition(condition.value)}
@@ -199,26 +219,24 @@ const ReturnConditionModal = ({
                 </button>
               ))}
             </div>
-            {isVenue && selectedCondition === "other" && (
-              <div className="mt-4">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Remarks
-                </label>
-                <textarea
-                  value={remarks}
-                  onChange={(e) => setRemarks(e.target.value)}
-                  placeholder="Enter remarks"
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
-                  rows={2}
-                />
-              </div>
-            )}
-            {isEquipmentConsumable && selectedCondition !== "good" && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Remarks (optional)
+              </label>
+              <textarea
+                value={remarks}
+                onChange={(e) => setRemarks(e.target.value)}
+                placeholder="Enter remarks"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
+                rows={2}
+              />
+            </div>
+            {isEquipmentConsumable && (selectedCondition === 3 || selectedCondition === 4) && (
               <div className="mt-4 space-y-3">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Quantity{" "}
-                    {selectedCondition === "damage" ? "Damaged" : "Missing"}
+                    {selectedCondition === 4 ? "Damaged" : "Missing"}
                   </label>
                   <div className="flex items-center gap-2">
                     <input
@@ -257,10 +275,10 @@ const ReturnConditionModal = ({
               onClick={handleSubmit}
               disabled={
                 isSubmitting ||
-                !selectedCondition ||
+                selectedCondition === null ||
                 (isEquipmentConsumable &&
-                  selectedCondition !== "good" &&
-                  !badQuantity)
+                  (selectedCondition === 3 || selectedCondition === 4) &&
+                  (badQuantity === "" || badQuantity === null))
               }
               className={`px-4 py-2 text-sm font-medium text-white rounded-lg flex items-center gap-2 ${
                 selectedCondition &&
@@ -322,6 +340,46 @@ const ChecklistModal = ({
 
   const [selectedItemForReturn, setSelectedItemForReturn] = useState(null);
   const [showReturnModal, setShowReturnModal] = useState(false);
+
+  const primaryAssignedBy = React.useMemo(() => {
+    const names = new Set();
+    try {
+      for (const v of selectedTask?.venues || []) {
+        for (const c of v.checklists || []) {
+          if (c?.assigned_by && String(c.assigned_by).trim() !== "") {
+            names.add(String(c.assigned_by).trim());
+          }
+        }
+      }
+      for (const v of selectedTask?.vehicles || []) {
+        for (const c of v.checklists || []) {
+          if (c?.assigned_by && String(c.assigned_by).trim() !== "") {
+            names.add(String(c.assigned_by).trim());
+          }
+        }
+      }
+      for (const e of selectedTask?.equipments || []) {
+        for (const c of e.checklists || []) {
+          if (c?.assigned_by && String(c.assigned_by).trim() !== "") {
+            names.add(String(c.assigned_by).trim());
+          }
+        }
+        for (const u of e.units || []) {
+          for (const c of u.checklists || []) {
+            if (c?.assigned_by && String(c.assigned_by).trim() !== "") {
+              names.add(String(c.assigned_by).trim());
+            }
+          }
+        }
+      }
+    } catch (e) {
+      // no-op: defensive against unexpected shapes
+    }
+    const arr = Array.from(names);
+    if (arr.length === 0) return null;
+    if (arr.length === 1) return arr[0];
+    return "Multiple";
+  }, [selectedTask]);
 
   const idMapping = {
     venue: "reservation_checklist_venue_id",
@@ -623,6 +681,7 @@ const ChecklistModal = ({
           operation: "updateTask",
           type: type,
           id: reservationChecklistId,
+          user_personnel_id: SecureStorage.getSessionItem("user_id"),
           isActive: Number(newValue),
         },
         {
@@ -659,6 +718,7 @@ const ChecklistModal = ({
       const updateStatusPayload = {
         operation: "updateReservationStatus",
         reservation_id: selectedTask.reservation_id,
+        user_personnel_id: SecureStorage.getSessionItem("user_id"),
       };
 
       const statusResponse = await axios.post(
@@ -743,6 +803,7 @@ const ChecklistModal = ({
         type: type,
         reservation_id: reservationId,
         resource_id: resourceId,
+        user_personnel_id: SecureStorage.getSessionItem("user_id"),
         ...(quantity && { quantity: quantity }),
       };
 
@@ -1008,15 +1069,14 @@ const ChecklistModal = ({
         return;
       }
 
-      const isOther = condition === "other" || condition === "Other";
       const payload = {
         operation: "updateReturn",
         type: type,
         reservation_id: reservation_id,
         resource_id: resource_id,
-        condition: isOther ? null : condition,
+        condition: condition,
         user_personnel_id: SecureStorage.getSessionItem("user_id"),
-        remarks: isOther ? remarks : null,
+        remarks: remarks && remarks.trim() !== "" ? remarks : null,
         good_quantity: goodQuantity,
         bad_quantity: badQuantity,
       };
@@ -1396,6 +1456,16 @@ const ChecklistModal = ({
                           {formatDateTime(selectedTask?.reservation_end_date)}
                         </p>
                       </div>
+                      {primaryAssignedBy && (
+                        <div>
+                          <label className="block text-xs font-medium text-gray-400 mb-1">
+                            Assigned by
+                          </label>
+                          <p className="text-xs sm:text-sm text-gray-700">
+                            {primaryAssignedBy === "Multiple" ? "Multiple Assignees" : primaryAssignedBy}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
@@ -1424,15 +1494,7 @@ const ChecklistModal = ({
                                 </span>
                               );
                             }
-                            return (
-                              <button
-                                onClick={() => handleRelease("venue", venue)}
-                                disabled={isSubmitting}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
-                              >
-                                {isSubmitting ? "Releasing..." : "Release"}
-                              </button>
-                            );
+                            return null;
                           })()}
                           {!venue.is_returned && renderReturnButton("venue", venue)}
                         </div>
@@ -1479,19 +1541,9 @@ const ChecklistModal = ({
                                 </span>
                               );
                             }
-                            return (
-                              <button
-                                onClick={() =>
-                                  handleRelease("vehicle", vehicle)
-                                }
-                                disabled={isSubmitting}
-                                className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
-                              >
-                                {isSubmitting ? "Releasing..." : "Release"}
-                              </button>
-                            );
+                            return null;
                           })()}
-                                                          {!vehicle.is_returned && renderReturnButton("vehicle", vehicle)}
+                          {!vehicle.is_returned && renderReturnButton("vehicle", vehicle)}
                         </div>
                       </div>
                       {/* Show vehicle checklists if active */}
@@ -1538,28 +1590,14 @@ const ChecklistModal = ({
                                     </span>
                                   );
                                 }
-                                return (
-                                  <button
-                                    onClick={() => {
-                                      console.log("Equipment data:", equipment); // Debug log
-                                      handleRelease("equipment_bulk", {
-                                        ...equipment,
-                                        quantity_id: equipment.quantity_id, // Ensure quantity_id is included
-                                      });
-                                    }}
-                                    disabled={isSubmitting}
-                                    className="px-3 py-1.5 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50"
-                                  >
-                                    {isSubmitting ? "Releasing..." : "Release"}
-                                  </button>
-                                );
+                                return null;
                               })()}
-                                                                      {equipment.active === 1 &&
-                                          !equipment.is_returned &&
-                                          renderReturnButton(
-                                            "equipment_bulk",
-                                            equipment,
-                                          )}
+                              {equipment.active === 1 &&
+                                !equipment.is_returned &&
+                                renderReturnButton(
+                                  "equipment_bulk",
+                                  equipment,
+                                )}
                             </>
                           ) : (
                             // Show condition dropdown for non-consumable equipment with units
@@ -1695,19 +1733,7 @@ const ChecklistModal = ({
                                             </span>
                                           );
                                         }
-                                        return (
-                                          <button
-                                            onClick={() =>
-                                              handleRelease("equipment", unit)
-                                            }
-                                            disabled={isSubmitting}
-                                            className="px-3 py-1 text-xs font-medium text-white bg-lime-500 rounded-lg hover:bg-lime-600 disabled:opacity-50 transition-colors"
-                                          >
-                                            {isSubmitting
-                                              ? "Releasing..."
-                                              : "Release"}
-                                          </button>
-                                        );
+                                        return null;
                                       })()}
                                       {canBeReturned(unit, "equipment") &&
                                         !unit.is_returned &&

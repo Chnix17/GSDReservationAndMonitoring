@@ -6,7 +6,7 @@ import {
   FiCalendar
 } from 'react-icons/fi';
 
-import Sidebar from './component/sidebar';  // Updated import path
+import Sidebar from '../../components/core/Sidebar';  // Updated import path
 import { format } from 'timeago.js';
 import { SecureStorage } from '../../utils/encryption'; // Ensure this path is correct
 

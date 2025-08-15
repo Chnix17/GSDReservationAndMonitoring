@@ -305,27 +305,38 @@ const ReservationDetails = ({
                                         <div className="space-y-4">
                                             {reservationDetails.status_history
                                                 .sort((a, b) => new Date(b.reservation_updated_at) - new Date(a.reservation_updated_at))
-                                                .map((status, index) => (
-                                                    <div key={status.reservation_status_id} className="flex">
-                                                        <div className="flex flex-col items-center mr-4">
-                                                            <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                                            {index !== reservationDetails.status_history.length - 1 && (
-                                                                <div className="w-0.5 h-full bg-green-300"></div>
-                                                            )}
-                                                        </div>
-                                                        <div className="flex-1 mb-4">
-                                                            <div className="flex justify-between items-center mb-1">
-                                                                <span className="font-medium text-gray-800">{status.status_name}</span>
-                                                                <span className="text-sm text-gray-500">
-                                                                    {new Date(status.reservation_updated_at).toLocaleString()}
-                                                                </span>
+                                                .map((status, index) => {
+                                                    const rawStatus = (status.reservation_active ?? status.is_approved ?? 0);
+                                                    const statusVal = Number(rawStatus);
+                                                    const dotClass = statusVal === 1 ? 'bg-green-500' : (statusVal === -1 ? 'bg-red-500' : 'bg-yellow-500');
+                                                    const lineClass = statusVal === 1 ? 'bg-green-300' : (statusVal === -1 ? 'bg-red-300' : 'bg-yellow-300');
+                                                    const tagColor = statusVal === 1 ? 'green' : (statusVal === -1 ? 'red' : 'gold');
+                                                    const tagLabel = statusVal === 1 ? 'Approved' : (statusVal === -1 ? 'Declined' : 'Pending');
+                                                    return (
+                                                        <div key={status.reservation_status_id} className="flex">
+                                                            <div className="flex flex-col items-center mr-4">
+                                                                <div className={`w-3 h-3 rounded-full ${dotClass}`}></div>
+                                                                {index !== reservationDetails.status_history.length - 1 && (
+                                                                    <div className={`w-0.5 h-full ${lineClass}`}></div>
+                                                                )}
                                                             </div>
-                                                            <div className="text-sm text-gray-600">
-                                                                Updated by: {status.updated_by_name}
+                                                            <div className="flex-1 mb-4">
+                                                                <div className="flex justify-between items-center mb-1">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="font-medium text-gray-800">{status.status_name}</span>
+                                                                        <Tag color={tagColor}>{tagLabel}</Tag>
+                                                                    </div>
+                                                                    <span className="text-sm text-gray-500">
+                                                                        {new Date(status.reservation_updated_at).toLocaleString()}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="text-sm text-gray-600">
+                                                                    Updated by: {status.updated_by_name}
+                                                                </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                ))}
+                                                    );
+                                                })}
                                         </div>
                                     </div>
                                 ) : (
@@ -350,17 +361,45 @@ const ReservationDetails = ({
                                                         </div>
                                                     ) : (
                                                         <ul className="divide-y divide-blue-100">
-                                                            {deansApproval.map((approval, index) => (
-                                                                <li key={index} className="py-3 flex items-center justify-between">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <UserOutlined className="text-blue-400 text-lg" />
-                                                                        <span className="text-gray-700">{approval.dean_name}</span>
-                                                                    </div>
-                                                                    <Tag color={approval.is_approved === 1 || approval.is_approved === '1' ? 'green' : 'red'}>
-                                                                        {approval.is_approved === 1 || approval.is_approved === '1' ? 'Approved' : 'Pending'}
-                                                                    </Tag>
-                                                                </li>
-                                                            ))}
+                                                            {deansApproval.map((approval, index) => {
+                                                                // Determine status from reservation_active with fallback to is_approved
+                                                                const rawStatus = (approval.reservation_active ?? approval.is_approved ?? 0);
+                                                                const statusVal = Number(rawStatus);
+                                                                const statusLabel = statusVal === 1 ? 'Approved' : (statusVal === -1 ? 'Declined' : 'Pending');
+                                                                const statusColor = statusVal === 1 ? 'green' : (statusVal === -1 ? 'red' : 'gold');
+
+                                                                const departmentName = approval.department_name || 'Unknown Department';
+                                                                const approverName = approval.user_name && approval.user_name.trim() !== ''
+                                                                    ? approval.user_name
+                                                                    : null;
+
+                                                                return (
+                                                                    <li key={index} className="py-3 flex items-center justify-between">
+                                                                        <div className="flex items-center gap-3">
+                                                                            <UserOutlined className="text-blue-400 text-lg" />
+                                                                            <div>
+                                                                                <div className="text-gray-800 font-medium">{departmentName}</div>
+                                                                                <div className="text-gray-600 text-sm">
+                                                                                    {statusVal === 1
+                                                                                        ? (approverName
+                                                                                            ? `Approved by ${approverName}`
+                                                                                            : 'Approved (no approver name on record)')
+                                                                                        : statusVal === -1
+                                                                                            ? (approverName
+                                                                                                ? `Declined by ${approverName}`
+                                                                                                : 'Declined (no approver name on record)')
+                                                                                            : (approverName
+                                                                                                ? `Pending (assigned to ${approverName})`
+                                                                                                : 'Pending (no approver name on record)')}
+                                                                                </div>
+                                                                            </div>
+                                                                        </div>
+                                                                        <Tag color={statusColor}>
+                                                                            {statusLabel}
+                                                                        </Tag>
+                                                                    </li>
+                                                                );
+                                                            })}
                                                         </ul>
                                                     )}
                                                 </div>

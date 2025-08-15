@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import { Dialog } from '@headlessui/react';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom';
 
@@ -346,7 +346,7 @@ const Calendar = () => {
                   animate={{ opacity: 0.5 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <span className="text-xs text-gray-400">No events</span>
+                  <span className="text-xs text-gray-400">No Reservations</span>
                 </motion.div>
               )}
 

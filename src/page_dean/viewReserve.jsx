@@ -7,7 +7,7 @@ import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import Sidebar from './component/dean_sidebar';
+import Sidebar from '../components/core/Sidebar';
 import {  Input, Button, Tooltip,  Pagination, Empty, Dropdown, Menu } from 'antd';
 import { SecureStorage } from '../utils/encryption';
 import {  SearchOutlined, ReloadOutlined, FilterOutlined } from '@ant-design/icons';

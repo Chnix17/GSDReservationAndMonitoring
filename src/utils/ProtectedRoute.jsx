@@ -9,16 +9,21 @@ const ProtectedRoute = ({ children, allowedRoles, requiredDepartment }) => {
     // Check both regular localStorage and SecureStorage for backward compatibility
     const isLoggedIn = SecureStorage.getLocalItem('loggedIn') === 'true' || SecureStorage.getSessionItem('loggedIn');
     const userRole = SecureStorage.getLocalItem('user_level');
+    // Fallback to numeric role id when role name is missing
+    const userLevelId = SecureStorage.getLocalItem('user_level_id') || SecureStorage.getSessionItem('user_level_id');
+    // Minimal mapping to ensure Admin access even if only the id is present
+    const roleMap = { '1': 'Admin' };
+    const resolvedUserRole = userRole || roleMap[String(userLevelId)] || '';
     const userDepartment = SecureStorage.getSessionItem('Department Name');
 
     useEffect(() => {
         if (
-            (allowedRoles && !allowedRoles.includes(userRole)) ||
+            (allowedRoles && !allowedRoles.includes(resolvedUserRole)) ||
             (requiredDepartment && userDepartment !== requiredDepartment)
         ) {
             setShowModal(true);
         }
-    }, [allowedRoles, userRole, requiredDepartment, userDepartment]);
+    }, [allowedRoles, resolvedUserRole, requiredDepartment, userDepartment]);
 
     const handleModalClose = () => {
         setShowModal(false);
@@ -33,16 +38,16 @@ const ProtectedRoute = ({ children, allowedRoles, requiredDepartment }) => {
     }
 
     const getRedirectPath = () => {
-        if (userRole === 'Super Admin' || userRole === 'Admin') return '/adminDashboard';
-        if (userRole === 'Personnel') return '/personnelDashboard';
-        if (userRole === 'Dean' || userRole === 'Secretary' || userRole === 'Department Head') return '/Department/Dashboard';
-        if (userRole === 'Faculty/Staff' || userRole === 'School Head' || userRole === 'SBO PRESIDENT' || userRole === 'CSG PRESIDENT') return '/Faculty/Dashboard';
-        if (userRole === 'Driver') return '/Driver/Dashboard';
+        if (resolvedUserRole === 'Super Admin' || resolvedUserRole === 'Admin') return '/adminDashboard';
+        if (resolvedUserRole === 'Personnel') return '/personnelDashboard';
+        if (resolvedUserRole === 'Dean' || resolvedUserRole === 'Secretary' || resolvedUserRole === 'Department Head') return '/Department/Dashboard';
+        if (resolvedUserRole === 'Faculty/Staff' || resolvedUserRole === 'School Head' || resolvedUserRole === 'SBO PRESIDENT' || resolvedUserRole === 'CSG PRESIDENT') return '/Faculty/Dashboard';
+        if (resolvedUserRole === 'Driver') return '/Driver/Dashboard';
         return '/gsd';
     };
 
     if (
-        (allowedRoles && !allowedRoles.includes(userRole)) ||
+        (allowedRoles && !allowedRoles.includes(resolvedUserRole)) ||
         (requiredDepartment && userDepartment !== requiredDepartment)
     ) {
         return (

@@ -94,11 +94,20 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 return;
             }
 
+            // Prevent decreasing stock: new quantity must be >= current on-hand
+            const newQty = parseInt(quickAdjustment.quantity, 10);
+            const currentQty = parseInt(equipment.on_hand_quantity || 0, 10);
+            if (isNaN(newQty)) {
+                message.error('Please enter a valid quantity');
+                return;
+            }
+            
+
             try {
                 const params = new URLSearchParams({
                     operation: "saveStock",
                     equip_id: equipmentId,
-                    quantity: parseInt(quickAdjustment.quantity),
+                    quantity: newQty,
                     user_admin_id: SecureStorage.getSessionItem('user_id')
                 });
 
@@ -249,14 +258,18 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         if (!selectedUnits.length) return;
         
         try {
+            const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
             const archiveData = {
                 operation: "archiveResource",
                 resourceType: "equipment",
                 resourceId: selectedUnits,
-                is_serialize: true
+                is_serialize: true,
+                userid: userId
             };
 
-            const response = await axios.post(`${baseUrl}/delete_master.php`, archiveData);
+            const response = await axios.post(`${baseUrl}/delete_master.php`, archiveData, {
+                headers: { 'Content-Type': 'application/json' }
+            });
 
             if (response.data.status === 'success') {
                 message.success(selectedUnits.length > 1 ? 'Units archived successfully' : 'Unit archived successfully');
@@ -365,13 +378,13 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                         onClick={() => {
                                             setQuickAdjustment(prev => ({
                                                 ...prev,
-                                                quantity: equipment.on_hand_quantity || 0
+                                                quantity: 0
                                             }));
                                             setIsAddModalVisible(true);
                                         }}
                                         className="bg-green-600 hover:bg-green-700"
                                     >
-                                        Adjust Stock
+                                        Add Quantity
                                     </Button>
                                 </Space>
                             </div>
@@ -600,14 +613,14 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         <>
                             <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    Adjust Quantity *
+                                    Add Quantity *
                                 </label>
                                 <Input
                                     type="number"
-                                    min="0"
+                                    min={0}
                                     value={quickAdjustment.quantity}
                                     onChange={(e) => setQuickAdjustment(prev => ({ ...prev, quantity: e.target.value }))}
-                                    placeholder="Enter quantity"
+                                    placeholder="Enter new stock quantity"
                                 />
                             </div>
 
@@ -621,7 +634,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                     }}
                                     className="flex-1 bg-green-600 hover:bg-green-700"
                                 >
-                                    Save Changes
+                                    Add Quantity
                                 </Button>
                                 <Button
                                     onClick={() => setIsAddModalVisible(false)}

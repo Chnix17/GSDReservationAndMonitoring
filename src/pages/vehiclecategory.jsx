@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import { FaCar } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
@@ -91,15 +91,20 @@ const VehicleCategories = () => {
     setIsSubmitting(true);
     try {
       // Always use user.php for both save and update
+      const userId =
+        SecureStorage.getSessionItem('user_id') ||
+        SecureStorage.getLocalItem('user_id') || null;
       const requestData = editMode
         ? {
             operation: 'updateVehicleCategory',
             id: formData.id,
-            name: sanitizedName
+            name: sanitizedName,
+            userid: userId
           }
         : {
             operation: 'saveCategoryData',
-            vehicle_category_name: sanitizedName
+            vehicle_category_name: sanitizedName,
+            userid: userId
           };
 
       const response = await axios.post(`${encryptedUrl}user.php`, requestData, {

@@ -94,16 +94,21 @@ const Holiday = () => {
                 ? `${baseUrl}user.php`
                 : `${baseUrl}user.php`;
             
+            const userId =
+                SecureStorage.getSessionItem('user_id') ||
+                SecureStorage.getLocalItem('user_id') || null;
+
             const payload = editMode ? {
                 operation: 'updateHoliday',
                 holiday_id: formData.id,
                 holiday_name: formData.name,
-                holiday_date: formData.date
+                holiday_date: formData.date,
+                userid: userId
             } : {
                 operation: 'saveHoliday',
                 holiday_name: formData.name,
-                holiday_date: formData.date
-         
+                holiday_date: formData.date,
+                userid: userId
             };
 
             console.log(payload);

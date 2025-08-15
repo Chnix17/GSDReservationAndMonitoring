@@ -10,7 +10,7 @@ import {
   FaFilter,
   FaEye 
 } from 'react-icons/fa';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import {SecureStorage} from '../../utils/encryption';
 
 const NotificationPage = () => {

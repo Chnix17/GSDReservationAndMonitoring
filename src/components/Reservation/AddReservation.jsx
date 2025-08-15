@@ -9,7 +9,6 @@ import { Button } from 'primereact/button';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
-import { Tag } from 'primereact/tag';
 import {  TeamOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
 import {  Form, Input, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
 import { format } from 'date-fns';
@@ -541,82 +540,82 @@ const renderBasicInformation = () => {
 };
 
 
-const checkResourceAvailability = async (resourceType, resourceIds, quantities = []) => {
-  try {
-    // Get availability information including existing reservations
-    const response = await axios.post(
-      `${encryptedUrl}/user.php`,
-      {
-        operation: 'fetchAvailability',
-        itemType: resourceType,
-        itemId: resourceIds,
-        ...(resourceType === 'equipment' && { quantity: quantities }),
-        startDateTime: format(formData.startDate, 'yyyy-MM-dd HH:mm:ss'),
-        endDateTime: format(formData.endDate, 'yyyy-MM-dd HH:mm:ss')
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
-        }
-      }
-    );
+// const checkResourceAvailability = async (resourceType, resourceIds, quantities = []) => {
+//   try {
+//     // Get availability information including existing reservations
+//     const response = await axios.post(
+//       `${encryptedUrl}/user.php`,
+//       {
+//         operation: 'fetchAvailability',
+//         itemType: resourceType,
+//         itemId: resourceIds,
+//         ...(resourceType === 'equipment' && { quantity: quantities }),
+//         startDateTime: format(formData.startDate, 'yyyy-MM-dd HH:mm:ss'),
+//         endDateTime: format(formData.endDate, 'yyyy-MM-dd HH:mm:ss')
+//       },
+//       {
+//         headers: {
+//           'Content-Type': 'application/json'
+//         }
+//       }
+//     );
 
-    if (response.data.status !== 'success') {
-      throw new Error('Failed to check availability');
-    }
+//     if (response.data.status !== 'success') {
+//       throw new Error('Failed to check availability');
+//     }
 
-    // Check for existing reservations with status_id = 1 in the response
-    const existingReservations = response.data.data.filter(item => 
-      item.reservation_status_status_id === 1 && 
-      item.reservation_start_date && 
-      item.reservation_end_date
-    );
+//     // Check for existing reservations with status_id = 1 in the response
+//     const existingReservations = response.data.data.filter(item => 
+//       item.reservation_status_status_id === 1 && 
+//       item.reservation_start_date && 
+//       item.reservation_end_date
+//     );
 
-    // If there are existing reservations with status_id 1, check for overlaps
-    if (existingReservations.length > 0) {
-      const selectedStart = new Date(formData.startDate);
-      const selectedEnd = new Date(formData.endDate);
+//     // If there are existing reservations with status_id 1, check for overlaps
+//     if (existingReservations.length > 0) {
+//       const selectedStart = new Date(formData.startDate);
+//       const selectedEnd = new Date(formData.endDate);
       
-      // Check if the selected date range overlaps with any existing reservation
-      const hasOverlap = existingReservations.some(reservation => {
-        const resStart = new Date(reservation.reservation_start_date);
-        const resEnd = new Date(reservation.reservation_end_date);
+//       // Check if the selected date range overlaps with any existing reservation
+//       const hasOverlap = existingReservations.some(reservation => {
+//         const resStart = new Date(reservation.reservation_start_date);
+//         const resEnd = new Date(reservation.reservation_end_date);
         
-        // Check for overlap
-        return (
-          (selectedStart >= resStart && selectedStart < resEnd) || // New start is during existing reservation
-          (selectedEnd > resStart && selectedEnd <= resEnd) ||    // New end is during existing reservation
-          (selectedStart <= resStart && selectedEnd >= resEnd)     // New range completely contains existing reservation
-        );
-      });
+//         // Check for overlap
+//         return (
+//           (selectedStart >= resStart && selectedStart < resEnd) || // New start is during existing reservation
+//           (selectedEnd > resStart && selectedEnd <= resEnd) ||    // New end is during existing reservation
+//           (selectedStart <= resStart && selectedEnd >= resEnd)     // New range completely contains existing reservation
+//         );
+//       });
 
-      if (hasOverlap) {
-        return {
-          isAvailable: false,
-          unavailableItems: [{
-            message: 'The selected date range overlaps with an existing active reservation.'
-          }]
-        };
-      }
-    }
+//       if (hasOverlap) {
+//         return {
+//           isAvailable: false,
+//           unavailableItems: [{
+//             message: 'The selected date range overlaps with an existing active reservation.'
+//           }]
+//         };
+//       }
+//     }
 
-    // Check if any items are not available based on quantity or availability
-    const unavailableItems = response.data.data.filter(item => {
-      if (resourceType === 'equipment') {
-        return item.available_quantity < (quantities[resourceIds.indexOf(item.equip_id)] || 0);
-      }
-      return !item.is_available;
-    });
+//     // Check if any items are not available based on quantity or availability
+//     const unavailableItems = response.data.data.filter(item => {
+//       if (resourceType === 'equipment') {
+//         return item.available_quantity < (quantities[resourceIds.indexOf(item.equip_id)] || 0);
+//       }
+//       return !item.is_available;
+//     });
 
-    return {
-      isAvailable: unavailableItems.length === 0,
-      unavailableItems
-    };
-  } catch (error) {
-    console.error('Error checking availability:', error);
-    throw error;
-  }
-};
+//     return {
+//       isAvailable: unavailableItems.length === 0,
+//       unavailableItems
+//     };
+//   } catch (error) {
+//     console.error('Error checking availability:', error);
+//     throw error;
+//   }
+// };
 
 const handleAddReservation = async () => {
   try {
@@ -629,32 +628,9 @@ const handleAddReservation = async () => {
       return false;
     }
 
-    // Check resource availability based on type
-    let availabilityCheck;
-    if (resourceType === 'venue' && formData.venues?.length > 0) {
-      availabilityCheck = await checkResourceAvailability('venue', formData.venues);
-    } else if (resourceType === 'vehicle' && selectedModels?.length > 0) {
-      availabilityCheck = await checkResourceAvailability('vehicle', selectedModels);
-    } else if (resourceType === 'equipment' && Object.keys(equipmentQuantities).length > 0) {
-      const equipmentIds = Object.keys(equipmentQuantities).filter(id => equipmentQuantities[id] > 0);
-      const quantities = equipmentIds.map(id => equipmentQuantities[id]);
-      availabilityCheck = await checkResourceAvailability('equipment', equipmentIds, quantities);
-    }
-
-    if (availabilityCheck && !availabilityCheck.isAvailable) {
-      const resourceName = resourceType === 'venue' ? 'Venue' : 
-                         resourceType === 'vehicle' ? 'Vehicle' : 'Equipment';
-      
-      const errorMessage = availabilityCheck.unavailableItems.length > 0
-        ? `The following ${resourceType}(s) are no longer available: ` +
-          availabilityCheck.unavailableItems.map(item => 
-            item.name || `ID: ${item.id || item.equip_id || item.vehicle_id}`
-          ).join(', ')
-        : `The selected ${resourceType}(s) are no longer available for the chosen time slot.`;
-      
-      toast.error(errorMessage, { duration: 5000 });
-      return false;
-    }
+    // Skip client-side availability checks.
+    // Availability and time conflicts will be validated by insert_reservation.php on the backend.
+    // We proceed directly to submission and surface any backend message to the user.
 
     // Resource type specific validation and submission
     if (resourceType === 'venue') {
@@ -1852,14 +1828,6 @@ const EquipmentSelectionModal = ({
                 <h3 className="font-medium text-gray-800 truncate text-base">
                   {item.equip_name || 'Equipment Name Not Available'}
                 </h3>
-                {currentQuantity > 0 && (
-                  <Tag 
-                    color="green"
-                    className="flex items-center font-medium whitespace-nowrap text-xs px-2 py-0.5"
-                  >
-                    {currentQuantity} selected
-                  </Tag>
-                )}
               </div>
               <div className="flex flex-wrap gap-3">
                 <div className="flex items-center gap-1 text-gray-600">
@@ -2223,8 +2191,8 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
               const vehicle = safeVehicles.find(v => v.vehicle_id === vehicle_id);
               const driverObj = formData.ownDrivers?.find(d => d.vehicle_id === vehicle_id) || { name: '' };
               return (
-                <div key={vehicle_id} className="flex items-center gap-2">
-                  <span className="text-sm text-gray-700 min-w-[120px]">
+                <div key={vehicle_id} className="flex flex-col md:flex-row md:items-center gap-2">
+                  <span className="text-sm text-gray-700 md:min-w-[220px] mb-1 md:mb-0">
                     {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
                   </span>
                   <Input
@@ -2239,7 +2207,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
                         ),
                       }));
                     }}
-                    className="rounded"
+                    className="rounded w-full"
                     size={isMobile ? 'middle' : 'large'}
                     required
                   />
@@ -2769,7 +2737,7 @@ return (
             className="p-button-text flex items-center gap-2 hover:bg-green-50 transition-colors"
             icon={<i className="pi pi-arrow-left text-green-500" />}
           >
-            <span className="font-medium text-green-600">Back to Dashboard</span>
+            <span className="font-medium text-green-600">Back Dashboard</span>
           </Button>
           <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-xl mt-2' : 'text-3xl'}`}>
             Create Reservation

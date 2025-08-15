@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import axios from 'axios';
 import { toast } from 'sonner';
@@ -435,8 +435,14 @@ const ReservationRequests = () => {
                 return;
             }
 
+            // Determine if current action is Department Approval (only then insert units)
+            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+            const departmentApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Department Approval');
+            const isDepartmentApprover = !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId));
+            const isDeptApprovalPending = departmentApproval?.reservation_active === 0;
+
             // First, prepare equipment units if equipment exists in reservation details
-            if (reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
+            if (isDepartmentApprover && isDeptApprovalPending && reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
                 try {
                     // Format the data to match backend expectations
                     const equipIds = reservationDetails.equipment.map(eq => parseInt(eq.equipment_id));
@@ -539,7 +545,13 @@ const ReservationRequests = () => {
             }
 
             // First, prepare equipment units if equipment exists in reservation details
-            if (reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
+            // Only insert units when Department approver is approving and department is pending
+            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+            const departmentApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Department Approval');
+            const isDepartmentApprover = !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId));
+            const isDeptApprovalPending = departmentApproval?.reservation_active === 0;
+
+            if (isDepartmentApprover && isDeptApprovalPending && reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
                 try {
                     // Format the data to match backend expectations
                     const equipIds = reservationDetails.equipment.map(eq => parseInt(eq.equipment_id));
@@ -803,14 +815,16 @@ const ReservationRequests = () => {
                     return (
                         <Tag color={
                             isExpired ? 'red' :
+                            (record.active === -1) ? 'red' :
                             (record.active === 1) ? 'gold' :
-                            status === 'Pending' ? 'blue' :
+                            status === 'Pending' ? 'gold' :
                             status === 'Approved' ? 'green' :
                             status === 'Declined' ? 'red' : 'default'
                         }
                         className="rounded-full px-2 py-1 text-xs font-medium flex items-center justify-center whitespace-nowrap"
                         >
                         {isExpired ? "Expired" :
+                         (record.active === -1) ? "Declined" :
                          (record.active === 1) ? "Final Confirmation" : "Pending Department Approval"}
                         </Tag>
                     );
@@ -1082,7 +1096,23 @@ const ReservationRequests = () => {
                         title="Confirm Decline"
                         visible={isDeclineModalOpen}
                         onCancel={() => setIsDeclineModalOpen(false)}
-                        onOk={() => setIsDeclineReasonModalOpen(true)}
+                        onOk={() => {
+                            // Determine if the current user is the Admin approver
+                            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+                            const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+                            const isAdminApprover = !!(adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId));
+
+                            if (isAdminApprover) {
+                                // Admin declines should bypass the reason modal
+                                if (typeof handleDecline === 'function') {
+                                    handleDecline();
+                                }
+                                setIsDeclineModalOpen(false);
+                            } else {
+                                // Department declines should show the reason modal
+                                setIsDeclineReasonModalOpen(true);
+                            }
+                        }}
                         okText="Continue"
                         cancelText="Cancel"
                     >
@@ -1487,51 +1517,67 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             status => status.status_name === 'Pending Department Approval'
         );
 
+        // Identify current approver roles for downstream logic (normalize to string for safe comparison)
+        const isAdminApprover = !!(adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId));
+        const isDepartmentApprover = !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId));
+        const isAdminPending = adminApproval?.reservation_active === 0;
+
         const priorityCheck = checkPriority();
         const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
         const anyVenueNotAvailable = reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
+        // Department Approval Progress gating: Admin waits until all department approvers finish
+        const hasDeptProgress = Array.isArray(deansApproval) && deansApproval.length > 0;
+        const allDeptProgressApproved = !hasDeptProgress || deansApproval.every(a => a.is_approved === 1 || a.is_approved === '1');
+        
+        // If the logged-in approver has already taken action (Approved), do not show action buttons again
+        const hasUserAlreadyApproved = (
+            (adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId) && adminApproval.reservation_active === 1) ||
+            (departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId) && departmentApproval.reservation_active === 1)
+        );
+        if (hasUserAlreadyApproved) {
+            return [
+                <Button key="close" onClick={onClose} size="large">Close</Button>
+            ];
+        }
 
         // Base case for expired requests
         if (isExpired) {
             return [
-                <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
-                    Decline
-                </Button>
+                isAdminApprover
+                    ? (
+                        isAdminPending
+                            ? (
+                                <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); if (typeof onDecline === 'function') { onDecline(); } }} size="large" icon={<CloseCircleOutlined />}>
+                                    Decline
+                                </Button>
+                            )
+                            : (
+                                <Button key="close" onClick={onClose} size="large">Close</Button>
+                            )
+                    )
+                    : (
+                        <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                            Decline
+                        </Button>
+                    )
             ];
         }
 
         // Sequential Approval Logic
         if (adminApproval && departmentApproval) {
-            const isAdminApprover = adminApproval.reservation_users_id === currentUserId;
-            const isDepartmentApprover = departmentApproval.reservation_users_id === currentUserId;
 
-            // Admin's turn to approve
+            // Admin must approve first
             if (adminApproval.reservation_active === 0) {
                 if (isAdminApprover) {
+                    // If department progress is not fully approved, admin must wait
+                    if (!allDeptProgressApproved) {
+                        return [
+                            <Button key="waiting_dept_progress" disabled>Waiting for Department Approval Progress</Button>
+                        ];
+                    }
                     return [
-                        <Button
-                            key="accept"
-                            type="primary"
-                            loading={isAccepting}
-                            onClick={handleAcceptWithDriverCheck}
-                            size="large"
-                            icon={<CheckCircleOutlined />}
-                            disabled={!!driverError || !priorityCheck.hasPriority || anyVenueNotAvailable}
-                            className="bg-green-900 hover:bg-lime-900"
-                        >
-                            Approve
-                        </Button>,
-                    ];
-                } else {
-                    return [<Button key="waiting_admin" disabled>Waiting for Admin Approval</Button>];
-                }
-            }
-
-            // Department's turn to approve
-            if (adminApproval.reservation_active === 1 && departmentApproval.reservation_active === 0) {
-                if (isDepartmentApprover) {
-                    return [
-                        <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                        // Admin decline should NOT open the decline reason modal
+                        <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); if (typeof onDecline === 'function') { onDecline(); } }} size="large" icon={<CloseCircleOutlined />}>
                             Decline
                         </Button>,
                         <Button
@@ -1547,19 +1593,58 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             Approve
                         </Button>,
                     ];
-                } else {
-                    return [<Button key="waiting_dept" disabled>Waiting for Department Approval</Button>];
                 }
+                return [<Button key="waiting_admin" disabled>Waiting for Admin Approval</Button>];
+            }
+
+            // After admin approval is complete, it's Department's turn
+            if (adminApproval.reservation_active === 1 && departmentApproval.reservation_active === 0) {
+                if (isDepartmentApprover) {
+                    return [
+                        <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                            Decline
+                        </Button>,
+                        <Button
+                            key="accept"
+                            type="primary"
+                            loading={isAccepting}
+                            onClick={handleAcceptWithDriverCheck}
+                            size="large"
+                            icon={<CheckCircleOutlined />}
+                            disabled={adminApproval?.reservation_active === -1 || !!driverError || !priorityCheck.hasPriority || anyVenueNotAvailable}
+                            className="bg-green-900 hover:bg-lime-900"
+                        >
+                            Approve
+                        </Button>,
+                    ];
+                }
+                return [<Button key="waiting_dept" disabled>Waiting for Department Approval</Button>];
             }
         }
 
         // Fallback for other statuses or if the above logic doesn't apply
         if (reservationDetails.active === 0 || reservationDetails.active === 1) {
-            const bothApprovalsActive = adminApproval?.reservation_active === 1 && departmentApproval?.reservation_active === 1;
+            // Treat missing approvals as not required.
+            // Additionally, if Department approval exists but deansApproval is empty, treat department as satisfied.
+            const adminSatisfied = (adminApproval ? adminApproval.reservation_active === 1 : true);
+            const departmentSatisfied = (departmentApproval
+                ? (deansApproval.length === 0 ? true : departmentApproval.reservation_active === 1)
+                : true);
+            const approvalsSatisfied = adminSatisfied && departmentSatisfied;
             return [
-                <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
-                    Decline
-                </Button>,
+                // Show decline: Admin (only if pending) skips modal; Department opens modal
+                isAdminApprover
+                    ? (isAdminPending ? (
+                        <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); if (typeof onDecline === 'function') { onDecline(); } }} size="large" icon={<CloseCircleOutlined />}>
+                            Decline
+                        </Button>
+                    ) : null)
+                    : (
+                        <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                            Decline
+                        </Button>
+                    ),
+                (!isAdminApprover || isAdminPending) && (
                 <Button
                     key="accept"
                     type="primary"
@@ -1567,11 +1652,12 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     onClick={handleAcceptWithDriverCheck}
                     size="large"
                     icon={<CheckCircleOutlined />}
-                    disabled={!bothApprovalsActive || !!driverError || !priorityCheck.hasPriority || anyVenueNotAvailable}
+                    disabled={!approvalsSatisfied || !!driverError || !priorityCheck.hasPriority || anyVenueNotAvailable}
                     className="bg-green-900 hover:bg-lime-900"
                 >
                     Approve
-                </Button>,
+                </Button>
+                ),
             ];
         }
 
@@ -2420,59 +2506,73 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             <div className="mt-6 px-4 sm:px-6">
                                 <h3 className="text-lg font-medium text-gray-900 mb-3">Final Approval Progress</h3>
                                 <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-4">
-                                    {/* Admin Approval */}
-                                    <div className="flex items-center justify-between p-3 bg-white rounded-md border border-gray-300 shadow-sm">
-                                        <div className="flex items-center">
-                                            {adminApproval.reservation_active === 1 ? (
-                                                <CheckCircleOutlined className="text-green-500 text-xl mr-3" />
-                                            ) : (
-                                                <ClockCircleOutlined className="text-blue-500 text-xl mr-3" />
-                                            )}
-                                            <div>
-                                                <div className="font-medium text-gray-800">Pending Admin Approval</div>
-                                                <div className="text-sm text-gray-600">
-                                                    Approver: {adminApproval.updated_by_name}
-                                                    {adminApproval.reservation_users_id === currentUserId && (
-                                                        <Tag color="blue" className="ml-2">You</Tag>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Tag 
-                                            color={adminApproval.reservation_active === 1 ? 'green' : 'blue'}
-                                            className="font-medium"
-                                        >
-                                            {adminApproval.reservation_active === 1 ? 'Approved' : 'Pending'}
-                                        </Tag>
-                                    </div>
+                                     {/* Admin Approval */}
+                                     <div className="flex items-center justify-between p-3 bg-white rounded-md border border-gray-300 shadow-sm">
+                                         <div className="flex items-center">
+                                             {adminApproval.reservation_active === 1 ? (
+                                                 <CheckCircleOutlined className="text-green-500 text-xl mr-3" />
+                                             ) : adminApproval.reservation_active === -1 ? (
+                                                 <CloseCircleOutlined className="text-red-500 text-xl mr-3" />
+                                             ) : (
+                                                 <ClockCircleOutlined className="text-yellow-500 text-xl mr-3" />
+                                             )}
+                                             <div>
+                                                 <div className="font-medium text-gray-800">Pending Admin Approval</div>
+                                                 <div className="text-sm text-gray-600">
+                                                     Approver: {adminApproval.updated_by_name}
+                                                     {adminApproval.reservation_users_id === currentUserId && (
+                                                         <Tag color="blue" className="ml-2">You</Tag>
+                                                     )}
+                                                 </div>
+                                             </div>
+                                         </div>
+                                         <Tag 
+                                             color={adminApproval.reservation_active === 1 ? 'green' : (adminApproval.reservation_active === -1 ? 'red' : 'gold')}
+                                             className="font-medium"
+                                         >
+                                             {adminApproval.reservation_active === 1 ? 'Approved' : (adminApproval.reservation_active === -1 ? 'Declined' : 'Pending')}
+                                         </Tag>
+                                     </div>
 
-                                    {/* Department Approval */}
-                                    <div className="flex items-center justify-between p-3 bg-white rounded-md border border-gray-300 shadow-sm">
-                                        <div className="flex items-center">
-                                            {departmentApproval.reservation_active === 1 ? (
-                                                <CheckCircleOutlined className="text-green-500 text-xl mr-3" />
-                                            ) : (
-                                                <ClockCircleOutlined 
-                                                    className={`text-xl mr-3 ${adminApproval.reservation_active === 1 ? 'text-blue-500' : 'text-gray-400'}`} 
-                                                />
-                                            )}
-                                            <div>
-                                                <div className="font-medium text-gray-800">Pending Department Approval</div>
-                                                <div className="text-sm text-gray-600">
-                                                    Approver: {departmentApproval.updated_by_name}
-                                                    {departmentApproval.reservation_users_id === currentUserId && (
-                                                        <Tag color="blue" className="ml-2">You</Tag>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Tag 
-                                            color={departmentApproval.reservation_active === 1 ? 'green' : (adminApproval.reservation_active === 1 ? 'blue' : 'default')}
-                                            className="font-medium"
-                                        >
-                                            {departmentApproval.reservation_active === 1 ? 'Approved' : (adminApproval.reservation_active === 1 ? 'Pending' : 'Waiting for Admin')}
-                                        </Tag>
-                                    </div>
+                                     {/* Department Approval */}
+                                     <div className="flex items-center justify-between p-3 bg-white rounded-md border border-gray-300 shadow-sm">
+                                         <div className="flex items-center">
+                                             {departmentApproval.reservation_active === 1 ? (
+                                                 <CheckCircleOutlined className="text-green-500 text-xl mr-3" />
+                                             ) : departmentApproval.reservation_active === -1 ? (
+                                                 <CloseCircleOutlined className="text-red-500 text-xl mr-3" />
+                                             ) : (
+                                                 <ClockCircleOutlined 
+                                                    className={`text-xl mr-3 ${adminApproval.reservation_active === 1 ? 'text-yellow-500' : 'text-gray-400'}`} 
+                                                 />
+                                             )}
+                                             <div>
+                                                 <div className="font-medium text-gray-800">Pending Department Approval</div>
+                                                 <div className="text-sm text-gray-600">
+                                                     Approver: {departmentApproval.updated_by_name}
+                                                     {departmentApproval.reservation_users_id === currentUserId && (
+                                                         <Tag color="blue" className="ml-2">You</Tag>
+                                                     )}
+                                                 </div>
+                                             </div>
+                                         </div>
+                                         <Tag 
+                                             color={
+                                                 departmentApproval.reservation_active === 1
+                                                     ? 'green'
+                                                     : departmentApproval.reservation_active === -1
+                                                         ? 'red'
+                                                         : (adminApproval.reservation_active === 1 ? 'gold' : 'default')
+                                             }
+                                             className="font-medium"
+                                         >
+                                             {departmentApproval.reservation_active === 1
+                                                 ? 'Approved'
+                                                 : departmentApproval.reservation_active === -1
+                                                     ? 'Declined'
+                                                     : (adminApproval.reservation_active === 1 ? 'Pending' : 'Waiting for Admin')}
+                                         </Tag>
+                                     </div>
                                 </div>
                             </div>
                         )}

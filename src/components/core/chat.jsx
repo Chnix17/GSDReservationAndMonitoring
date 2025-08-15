@@ -2,26 +2,53 @@ import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from '
 import { format } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
-  FiMessageCircle, FiMoreVertical, FiPaperclip, 
+  FiMessageCircle, FiPaperclip, 
   FiSend, FiX, FiChevronLeft, 
   FiSmile, FiImage, FiVideo, FiFile,
   FiSearch, 
-  FiMoreHorizontal,  FiEdit,
-  FiArchive,  FiStar, 
+  FiMoreHorizontal,
   FiCheck, FiCheckCircle, FiUserPlus, FiRefreshCw,
-  FiAlertCircle, FiHeart, FiThumbsUp, FiCornerUpRight,
- FiTrash,  FiPlus
+  FiAlertCircle, FiHeart, FiThumbsUp, FiCornerUpRight, FiChevronDown, 
+  FiPlus
 } from 'react-icons/fi';
 import {  FaRegLaughBeam} from 'react-icons/fa';
 import { useInView } from 'react-intersection-observer';
-import Sidebar from '../components/core/Sidebar';
-import {SecureStorage} from '../utils/encryption';
+import Sidebar from './Sidebar';
+import {SecureStorage} from '../../utils/encryption';
+import { useNavigate } from 'react-router-dom'; 
+import { toast } from 'sonner';
+
 
 const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPicker, onReaction, currentUser }) => {
   const { ref, inView } = useInView({
     threshold: 0,
     triggerOnce: true
   });
+
+  const navigate = useNavigate();
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+        const fetchData = async () => {
+          setLoading(true);
+          try {
+            const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
+            const decryptedUserLevel = parseInt(encryptedUserLevel);
+            console.log("this is encryptedUserLevel", encryptedUserLevel);
+            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1) {
+                sessionStorage.clear();
+                localStorage.clear();
+                navigate('/gsd');
+            }
+          } catch (error) {
+            toast.error("An error occurred while fetching data.");
+          } finally {
+            setLoading(false);
+          }
+        };
+    
+        fetchData();
+      }, [navigate]);
 
   // Get the appropriate avatar URL based on whether it's own message or not
   const getAvatarUrl = (picture) => {
@@ -43,6 +70,9 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
     }
     return null;
   };
+
+  // While verifying access, don't render the message item
+  if (loading) return null;
 
   return (
     <motion.div 
@@ -206,6 +236,7 @@ const Chat = () => {
     picture: SecureStorage.getLocalItem('profile_pic')
   });
 
+  const navigate = useNavigate();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const fileInputRef = useRef(null);
@@ -223,13 +254,11 @@ const Chat = () => {
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [chatFilter, setChatFilter] = useState('all'); // all, unread, personal, groups
   const [attachmentPreview, setAttachmentPreview] = useState(null);
-  const [showChatMenu, setShowChatMenu] = useState(false);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
 
   const [viewMode, setViewMode] = useState('list');
   const [conversationSearch, setConversationSearch] = useState('');
-
-  const [shouldAutoScroll, setShouldAutoScroll] = useState(false);
 
   const wsRef = useRef(null);
 
@@ -260,6 +289,27 @@ const Chat = () => {
       window.removeEventListener('mobile-sidebar-toggle', handleMobileSidebarToggle);
     };
   }, []);
+
+  // Check user level access on mount (redirect if unauthorized)
+  useEffect(() => {
+    const checkAccess = async () => {
+      setIsLoading(true);
+      try {
+        const encryptedUserLevel = SecureStorage.getLocalItem('user_level_id');
+        const decryptedUserLevel = parseInt(encryptedUserLevel);
+        const allowed = [1, 3, 5, 6, 15, 16, 17, 18];
+        if (!allowed.includes(decryptedUserLevel)) {
+          localStorage.clear();
+          navigate('/gsd');
+        }
+      } catch (error) {
+        toast.error('An error occurred while fetching data.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    checkAccess();
+  }, [navigate]);
 
   // Search filter for conversations
   const filteredConversations = useMemo(() => {
@@ -322,9 +372,14 @@ const Chat = () => {
             (msg.receiverId === currentUser.id && msg.senderId === activeConversation.id)
           );
           
-          setMessages(
-            conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
-          );
+          const sortedMessages = conversationMessages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          
+          // Check if there are new messages
+          if (messages.length > 0 && sortedMessages.length > messages.length) {
+            setHasNewMessages(true);
+          }
+          
+          setMessages(sortedMessages);
         }
 
         // Update conversations list
@@ -358,7 +413,7 @@ const Chat = () => {
     } catch (error) {
       console.error('Error fetching chat history:', error);
     }
-  }, [currentUser.id, activeConversation, apiUrl]);
+  }, [currentUser.id, activeConversation, apiUrl, messages.length]);
 
   useEffect(() => {
     if (activeConversation) {
@@ -367,14 +422,8 @@ const Chat = () => {
   }, [activeConversation, memorizeFetchAllChats]);
 
   useEffect(() => {
+    // Initial load of conversations/messages on mount
     memorizeFetchAllChats();
-    // Reduce refresh interval to 30 seconds and add debounce
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        memorizeFetchAllChats();
-      }
-    }, 30000);
-    return () => clearInterval(intervalId);
   }, [memorizeFetchAllChats]);
 
 
@@ -414,7 +463,7 @@ const Chat = () => {
                 </div>
                 <div>
                   <h4 className="font-semibold text-white text-sm sm:text-base">{activeConversation?.name || 'Chat'}</h4>
-                  <p className="text-xs text-white/70">Online</p>
+                  
                 </div>
               </div>
             </div>
@@ -426,34 +475,6 @@ const Chat = () => {
                 onClick={() => setShowSearch(!showSearch)}
               >
                 <FiSearch className="w-4 h-4 text-white" />
-              </button>
-              <button 
-                onClick={() => setShowChatMenu(!showChatMenu)}
-                className="w-9 h-9 flex items-center justify-center rounded-full bg-white/10 hover:bg-white/20 transition-all duration-200 relative"
-                aria-label="More options"
-              >
-                <FiMoreVertical className="w-4 h-4 text-white" />
-                {showChatMenu && (
-                  <div className="absolute top-full right-0 mt-2 w-48 bg-white rounded-lg shadow-xl overflow-hidden z-50">
-                    <div className="py-1">
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiUserPlus className="w-4 h-4" /> Add members
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiEdit className="w-4 h-4" /> Edit chat
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiStar className="w-4 h-4" /> Pin conversation
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-gray-700 hover:bg-gray-100">
-                        <FiArchive className="w-4 h-4" /> Archive chat
-                      </button>
-                      <button className="flex items-center gap-2 w-full px-4 py-2 text-sm text-left text-red-600 hover:bg-gray-100">
-                        <FiTrash className="w-4 h-4" /> Delete chat
-                      </button>
-                    </div>
-                  </div>
-                )}
               </button>
             </div>
           </div>
@@ -532,11 +553,11 @@ const Chat = () => {
                 className="h-12 w-12 sm:h-16 sm:w-16 object-cover rounded-lg flex-shrink-0"
               />
             ) : attachmentPreview.type.startsWith('video/') ? (
-              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center">
                 <FiVideo className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
               </div>
             ) : (
-              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center">
                 <FiFile className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
               </div>
             )}
@@ -572,7 +593,7 @@ const Chat = () => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 transition={{ duration: 0.15 }}
-                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 w-40 sm:w-48 z-10"
+                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 sm:p-3 w-40 sm:w-48 z-10"
               >
                 <div className="flex flex-col gap-1">
                   <button 
@@ -705,6 +726,35 @@ const Chat = () => {
       timestamp: new Date().toISOString()
     };
 
+    // Optimistically insert the message into the current chat
+    const optimisticMessage = {
+      id: tempMessageId,
+      text: messageText,
+      timestamp: new Date(),
+      status: 'sending',
+      isOwn: true,
+      senderName: currentUser.name,
+      senderId: parseInt(currentUser.id),
+      receiverId: parseInt(activeConversation.id)
+    };
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    // Update conversations list immediately (last message and timestamp)
+    setConversations(prev => {
+      const otherId = parseInt(activeConversation.id);
+      const ts = new Date();
+      const existing = Array.isArray(prev) ? prev.find(c => c.id === otherId) : undefined;
+      const updated = {
+        id: otherId,
+        name: activeConversation.name || existing?.name,
+        lastMessage: messageText,
+        timestamp: ts,
+        unread: 0
+      };
+      const rest = Array.isArray(prev) ? prev.filter(c => c.id !== otherId) : [];
+      return [updated, ...rest];
+    });
+
     try {
       // Send message via fetch
       const formData = new URLSearchParams();
@@ -725,6 +775,16 @@ const Chat = () => {
         throw new Error('Network response was not ok');
       }
 
+      // Try to read response to update optimistic message status / ID
+      try {
+        const resJson = await response.json();
+        const serverMsgId = resJson?.data?.message_id || resJson?.message_id || resJson?.data?.chat_id || resJson?.chat_id || null;
+        setMessages(prev => prev.map(m => m.id === tempMessageId
+          ? { ...m, id: serverMsgId || m.id, status: 'sent' }
+          : m
+        ));
+      } catch {}
+
       // Try to send through WebSocket if available
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(messageData));
@@ -734,10 +794,21 @@ const Chat = () => {
       setSelectedMessages([]);
       setMessageToReply(null);
       setAttachmentPreview(null);
+      
+      // Scroll to bottom after sending message
+      setTimeout(() => {
+        if (messagesEndRef.current) {
+          messagesEndRef.current.scrollIntoView({ 
+            behavior: 'smooth',
+            block: 'end'
+          });
+        }
+      }, 100);
     } catch (error) {
       console.error('Error sending message:', error);
       // Optionally, show error to user
       setErrorMessage('Failed to send message');
+      setMessages(prev => prev.map(m => m.id === tempMessageId ? { ...m, status: 'failed' } : m));
     }
   };
 
@@ -911,27 +982,71 @@ const Chat = () => {
           // Process the incoming message
           if (data.message && (data.sender_id || data.receiver_id)) {
             const messageId = data.message_id || Date.now().toString();
-            
-            // Add the message to state if it doesn't exist already
-            setMessages(prev => {
-              // Check if message already exists
-              if (prev.some(msg => msg.id === messageId)) {
-                return prev;
-              }
-              
-              const newMessage = {
-                id: messageId,
-                text: data.message,
-                timestamp: new Date(data.timestamp || Date.now()),
-                status: 'received',
-                isOwn: data.sender_id === parseInt(currentUser.id),
-                senderPic: data.sender_pic,
-                senderName: data.sender_name || (data.sender_id === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
-                senderId: data.sender_id,
-                receiverId: data.receiver_id
+
+            // Determine if this message belongs to the currently active conversation
+            const activeId = activeConversation ? parseInt(activeConversation.id) : null;
+            const belongsToActive = !!activeConversation && (
+              (data.sender_id === parseInt(currentUser.id) && data.receiver_id === activeId) ||
+              (data.receiver_id === parseInt(currentUser.id) && data.sender_id === activeId)
+            );
+
+            const newMessage = {
+              id: messageId,
+              text: data.message,
+              timestamp: new Date(data.timestamp || Date.now()),
+              status: 'received',
+              isOwn: data.sender_id === parseInt(currentUser.id),
+              senderPic: data.sender_pic,
+              senderName: data.sender_name || (data.sender_id === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
+              senderId: data.sender_id,
+              receiverId: data.receiver_id
+            };
+
+            if (belongsToActive) {
+              // Add the message to the open chat if not already present
+              setMessages(prev => {
+                if (prev.some(msg => msg.id === messageId)) return prev;
+
+                // If this is our own message, attempt to merge with an optimistic one
+                if (newMessage.isOwn) {
+                  const idx = prev.findIndex(m => (
+                    m.isOwn === true &&
+                    m.receiverId === newMessage.receiverId &&
+                    m.text === newMessage.text &&
+                    (m.status === 'sending' || m.status === 'sent')
+                  ));
+                  if (idx !== -1) {
+                    const copy = [...prev];
+                    copy[idx] = { ...newMessage, status: 'delivered' };
+                    return copy;
+                  }
+                }
+                return [...prev, newMessage];
+              });
+            } else {
+              // Not the active chat: flag new messages for the list
+              setHasNewMessages(true);
+            }
+
+            // Update conversations list (last message, timestamp, unread counter)
+            setConversations(prev => {
+              const otherId = data.sender_id === parseInt(currentUser.id) ? data.receiver_id : data.sender_id;
+              const otherName = data.sender_id === parseInt(currentUser.id) ? data.receiver_name : data.sender_name;
+              const ts = new Date(data.timestamp || Date.now());
+
+              const existing = Array.isArray(prev) ? prev.find(c => c.id === otherId) : undefined;
+              const unreadIncrement = belongsToActive ? 0 : 1;
+
+              const updated = {
+                id: otherId,
+                name: otherName || existing?.name,
+                lastMessage: data.message,
+                timestamp: ts,
+                unread: (existing?.unread || 0) + unreadIncrement
               };
-              
-              return [...prev, newMessage];
+
+              const rest = Array.isArray(prev) ? prev.filter(c => c.id !== otherId) : [];
+              return [updated, ...rest];
             });
           }
         } catch (error) {
@@ -969,7 +1084,7 @@ const Chat = () => {
       const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
       reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
     }
-  }, [activeConversation?.name, currentUser.id, currentUser.name, reconnectAttempts]);
+  }, [activeConversation, currentUser.id, currentUser.name, reconnectAttempts]);
 
   useEffect(() => {
     const cleanup = connectWebSocket();
@@ -1001,14 +1116,13 @@ const Chat = () => {
   const handleConversationClick = (conversation) => {
     setActiveConversation(conversation);
     setViewMode('conversation');
-    setShouldAutoScroll(true); // Trigger auto-scroll when conversation opens
+    setHasNewMessages(false); // Reset new messages indicator
   };
 
   // Add a handler for back button click
   const handleBackClick = () => {
     setSearchQuery('');
     setShowSearch(false);
-    setShowChatMenu(false);
     setViewMode('list');
     setActiveConversation(null);
     setMessages([]); // Clear current conversation messages
@@ -1088,30 +1202,19 @@ const Chat = () => {
     );
   };
 
-  // Add a useEffect for polling new messages
-  useEffect(() => {
-    if (!activeConversation || !currentUser.id) return;
-    
-    // Poll for new messages every second
-    const pollingInterval = setInterval(() => {
-      // Use the existing memorizeFetchAllChats function to update messages
-      memorizeFetchAllChats();
-    }, 1000); // Poll every second
-    
-    // Clean up on unmount or when conversation changes
-    return () => clearInterval(pollingInterval);
-  }, [activeConversation, currentUser.id, memorizeFetchAllChats]);
+  // Removed frequent polling; rely on WebSocket push updates and explicit fetch on mount/conversation change
 
-  // Auto-scroll to bottom only when conversation is first opened
+
+  // Auto-scroll to bottom when new messages arrive or conversation opens
   useEffect(() => {
-    if (shouldAutoScroll && messagesEndRef.current) {
+    if (messagesEndRef.current) {
+      // Always scroll to bottom when messages change
       messagesEndRef.current.scrollIntoView({ 
         behavior: 'smooth',
         block: 'end'
       });
-      setShouldAutoScroll(false); // Reset the flag after scrolling
     }
-  }, [shouldAutoScroll, messages]);
+  }, [messages]);
 
   // Add error handling component
   const ErrorMessage = ({ message, onClose }) => (
@@ -1307,7 +1410,44 @@ const Chat = () => {
             {renderChatHeader()}
 
             {/* Messages container with proper spacing */}
-            <div className="flex-1 overflow-y-auto px-4 py-6 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 border border-gray-900 relative shadow-md">
+            <div 
+              className="flex-1 overflow-y-auto px-4 py-6 bg-gradient-to-br from-white/90 via-gray-50/90 to-green-100/50 border border-gray-900 relative shadow-md"
+              onScroll={(e) => {
+                const { scrollTop, scrollHeight, clientHeight } = e.target;
+                // If user scrolls to bottom, hide new messages indicator
+                if (scrollTop + clientHeight >= scrollHeight - 10) {
+                  setHasNewMessages(false);
+                }
+              }}
+            >
+              {/* New Messages Indicator */}
+              <AnimatePresence>
+                {hasNewMessages && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    className="absolute top-4 right-4 z-10"
+                  >
+                    <button
+                      onClick={() => {
+                        if (messagesEndRef.current) {
+                          messagesEndRef.current.scrollIntoView({ 
+                            behavior: 'smooth',
+                            block: 'end'
+                          });
+                          setHasNewMessages(false);
+                        }
+                      }}
+                      className="bg-primary hover:bg-primary-dark text-white px-4 py-2 rounded-full shadow-lg flex items-center gap-2 text-sm font-medium transition-all"
+                    >
+                      <FiChevronDown className="w-4 h-4" />
+                      New Messages
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              
               {/* Messages will be displayed here */}
               {messages
                 .filter((msg) => {

@@ -10,8 +10,8 @@ import {
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
-import { SecureStorage } from '../utils/encryption';
-import ProfileAdminModal from '../components/core/profile_admin';
+import { SecureStorage } from '../../utils/encryption';
+import ProfileAdminModal from './profile_admin';
 
 const SidebarContext = createContext();
 
@@ -32,9 +32,9 @@ const Sidebar = () => {
   const [isSubscribing, setIsSubscribing] = useState(false);
 
   const name = SecureStorage.getLocalItem('name') || 'Admin User';
+  const userLevelName = SecureStorage.getSessionItem('user_level') || SecureStorage.getLocalItem('user_level');
+  const departmentName = SecureStorage.getSessionItem('Department Name') || SecureStorage.getLocalItem('Department Name');
 
-
-  
   useEffect(() => {
     setActiveItem(location.pathname);
     const handleResize = () => {
@@ -46,8 +46,6 @@ const Sidebar = () => {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [location]);
-
-
 
   const toggleDesktopSidebar = () => {
     const newState = !isDesktopSidebarOpen;
@@ -71,8 +69,6 @@ const Sidebar = () => {
     window.dispatchEvent(event);
   };
 
-  
-
   const handleLogout = async () => {
     // Preserve critical data before clearing
     const loginAttempts = localStorage.getItem('loginAttempts');
@@ -83,7 +79,7 @@ const Sidebar = () => {
     // Log the logout to backend (best-effort)
     try {
       if (baseUrl && usersId) {
-        await fetch(`${baseUrl}/login.php`, {
+        await fetch(`${baseUrl}/user.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -117,8 +113,21 @@ const Sidebar = () => {
       const baseUrl = SecureStorage.getLocalItem("url");
       const currentUserId = SecureStorage.getSessionItem('user_id');
       
+      // Fetch regular notifications
+      const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'fetchNotification',
+          userId: currentUserId
+        })
+      });
+      const data = await response.json();
+
       // Fetch approval notifications
-      const approvalResponse = await fetch(`${baseUrl}/user.php`, {
+      const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -130,10 +139,9 @@ const Sidebar = () => {
         })
       });
       const approvalData = await approvalResponse.json();
-      console.log('Approval notification fetch response:', approvalData);
 
       // Fetch read notifications for current user
-      const readResponse = await fetch(`${baseUrl}/user.php`, {
+      const readResponse = await fetch(`${baseUrl}/process_reservation.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -143,9 +151,8 @@ const Sidebar = () => {
         })
       });
       const readData = await readResponse.json();
-      console.log('Read notifications response:', readData);
 
-      // Create a map of read notification IDs for the current user
+      // Create a map of read approval notification IDs for the current user
       const readNotificationMap = new Map();
       if (readData.status === 'success') {
         readData.data.forEach(read => {
@@ -155,24 +162,30 @@ const Sidebar = () => {
         });
       }
       
-      // Process approval notifications and set read status
-      let processedNotifications = [];
+      // Combine both notification types
+      let combinedNotifications = [];
+      
+      if (data.status === 'success') {
+        combinedNotifications = [...data.data];
+      }
+      
       if (approvalData.status === 'success') {
-        processedNotifications = approvalData.data.map(notification => ({
+        // Process approval notifications and set read status
+        const processedApprovalNotifications = approvalData.data.map(notification => ({
           ...notification,
           is_read: readNotificationMap.has(notification.notification_id) ? 1 : 0
         }));
+        combinedNotifications = [...combinedNotifications, ...processedApprovalNotifications];
       }
       
       // Sort notifications by creation date
-      processedNotifications.sort((a, b) => {
+      combinedNotifications.sort((a, b) => {
         const dateA = new Date(a.notification_created_at || a.notification_create);
         const dateB = new Date(b.notification_created_at || b.notification_create);
         return dateB - dateA;
       });
       
-      console.log('Processed notifications:', processedNotifications);
-      setNotifications(processedNotifications);
+      setNotifications(combinedNotifications);
       
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -180,25 +193,54 @@ const Sidebar = () => {
   };
 
   // Mark notifications as read
-  const markNotificationsAsRead = async (notificationIds) => {
+  const markNotificationsAsRead = async () => {
     try {
       const baseUrl = SecureStorage.getLocalItem("url");
       const currentUserId = SecureStorage.getSessionItem('user_id');
 
-      // Update approval notifications
-      const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'updateReadApprovalNotification',
-          notification_ids: notificationIds,
-          user_id: currentUserId
-        })
+      // Separate regular and approval notifications
+      const regularNotificationIds = [];
+      const approvalNotificationIds = [];
+
+      notifications.forEach(notification => {
+        if (notification.notification_reservation_id) {
+          regularNotificationIds.push(notification.notification_reservation_id);
+        } else if (notification.notification_id) {
+          approvalNotificationIds.push(notification.notification_id);
+        }
       });
-      const approvalData = await approvalResponse.json();
-      console.log('Approval notifications update response:', approvalData);
+
+      // Update regular notifications if any exist
+      if (regularNotificationIds.length > 0) {
+        const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            operation: 'updateReadNotification',
+            notificationIds: regularNotificationIds,
+            userId: currentUserId
+          })
+        });
+        await response.json();
+      }
+
+      // Update approval notifications if any exist
+      if (approvalNotificationIds.length > 0) {
+        const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            operation: 'updateReadApprovalNotification',
+            notification_ids: approvalNotificationIds,
+            user_id: currentUserId
+          })
+        });
+        await approvalResponse.json();
+      }
 
       // Refresh notifications after marking as read
       fetchNotifications();
@@ -371,10 +413,7 @@ const Sidebar = () => {
                   {unreadCount > 0 && (
                     <button 
                       onClick={() => {
-                        const unreadIds = notifications
-                          .filter(n => n.is_read === 0)
-                          .map(n => n.notification_id);
-                        markNotificationsAsRead(unreadIds);
+                        markNotificationsAsRead();
                       }}
                       className="text-xs text-green-600 dark:text-green-400 hover:underline"
                     >
@@ -390,7 +429,7 @@ const Sidebar = () => {
                   ) : (
                     notifications.map((notification) => (
                       <div 
-                        key={notification.notification_id}
+                        key={notification.notification_reservation_id || notification.notification_id}
                         className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
                           notification.is_read === 0 ? 'bg-green-50 dark:bg-green-900/20' : ''
                         }`}
@@ -404,7 +443,7 @@ const Sidebar = () => {
                   )}
                 </div>
                 <div className="p-2 text-center border-t border-gray-100 dark:border-gray-700">
-                  <Link to="/Admin/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                  <Link to="/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
                     View all notifications
                   </Link>
                 </div>
@@ -463,6 +502,82 @@ const Sidebar = () => {
     );
   };
 
+  // Build role-based menu definitions and renderer
+  const roleKey = (() => {
+    const r = (userLevelName || '').trim().toUpperCase();
+    if (r === 'ADMIN' || r === 'ADMINISTRATOR') return 'admin';
+    if (['SBO ADVISER', 'CSG PRESIDENT', 'SBO PRESIDENT'].includes(r)) return 'user';
+    if (['DEAN', 'SECRETARY', 'DEPARTMENT HEAD'].includes(r)) return 'department';
+    if (r === 'PERSONNEL') return 'personnel';
+    if (r === 'DRIVER') return 'driver';
+    return 'user';
+  })();
+
+  const menus = {
+    admin: [], // use existing static admin menu below
+    user: [
+      { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Faculty/Dashboard' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'section', text: 'Reservation' },
+      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/addReservation' },
+      { type: 'link', icon: FaFileAlt, text: 'My Reservations', link: '/Faculty/Myreservation' },
+    ],
+    department: [
+      { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Department/Dashboard' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'section', text: 'Reservation Management' },
+      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/addReservation' },
+      { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/Department/Myreservation' },
+      { type: 'link', icon: FaFileAlt, text: 'View Approvals', link: '/Department/ViewApproval' },
+      ...(((departmentName || '').trim().toUpperCase() === 'REGISTRAR' && (userLevelName || '').trim().toUpperCase() === 'DEPARTMENT HEAD')
+        ? [{ type: 'section', text: 'Venue Management' }, { type: 'link', icon: FaCalendarAlt, text: 'Venue Schedule', link: '/Department/VenueSchedule' }]
+        : []),
+    ],
+    personnel: [
+      { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Personnel/Dashboard' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'link', icon: FaFileAlt, text: 'View Task', link: '/Personnel/ViewTask' },
+    ],
+    driver: [
+      { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Driver/Dashboard' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'link', icon: FaFileAlt, text: 'Trips', link: '/Driver/Trips' },
+    ]
+  };
+
+  const renderMenu = (isExpanded) => (
+    <>
+      {menus[roleKey].map((item, idx) => {
+        if (item.type === 'section') {
+          return <SectionLabel key={`sec-${idx}`} text={item.text} />;
+        }
+        if (item.type === 'dropdown') {
+          return (
+            <SidebarDropdown
+              key={`dd-${idx}`}
+              icon={item.icon}
+              text={item.text}
+              isExpanded={isExpanded}
+              active={item.items?.some(it => it.link === activeItem)}
+              items={item.items || []}
+            />
+          );
+        }
+        // default link
+        return (
+          <MiniSidebarItem
+            key={`lnk-${idx}`}
+            icon={item.icon}
+            text={item.text}
+            link={item.link}
+            active={activeItem === item.link}
+            isExpanded={isExpanded}
+          />
+        );
+      })}
+    </>
+  );
+
   return (
     <SidebarContext.Provider value={contextValue}>
       <div className={`flex flex-col h-screen `}>
@@ -498,7 +613,6 @@ const Sidebar = () => {
                     <Popover.Panel className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                         <p className="font-medium text-sm">{name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
                       </div>
                       <div className="p-2">
                         <button 
@@ -639,7 +753,11 @@ const Sidebar = () => {
             
             {/* Navigation */}
             <nav className={`flex-grow overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`}>
-              {/* Main Menu Items */}
+              {/* Dynamic: non-admin roles */}
+              {roleKey !== 'admin' && renderMenu(isDesktopSidebarOpen)}
+              {/* Admin: keep existing static menu */}
+              {roleKey === 'admin' && (
+                <>
               <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
@@ -659,7 +777,7 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaComments} 
                 text="Chat" 
-                link="/chatAdmin" 
+                link="/chat" 
                 active={activeItem === '/chat'}
                 isExpanded={isDesktopSidebarOpen}
               />
@@ -753,6 +871,8 @@ const Sidebar = () => {
                 active={activeItem === '/Admin/AuditLog'}
                 isExpanded={isDesktopSidebarOpen}
               />
+              </>
+              )}
             </nav>
 
             {/* User Profile - Show only icon when collapsed */}
@@ -778,7 +898,12 @@ const Sidebar = () => {
 
             {/* Navigation - Same as desktop but separate instance */}
             <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
-            <MiniSidebarItem 
+            {/* Dynamic: non-admin roles */}
+              {roleKey !== 'admin' && renderMenu(true)}
+              {/* Admin: keep existing static menu */}
+              {roleKey === 'admin' && (
+                <>
+              <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
                 link="/adminDashboard" 
@@ -797,7 +922,7 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaComments} 
                 text="Chat" 
-                link="/chatAdmin" 
+                link="/chat" 
                 active={activeItem === '/chat'}
                 isExpanded={isDesktopSidebarOpen}
               />
@@ -882,6 +1007,8 @@ const Sidebar = () => {
                 active={activeItem === '/record'}
                 isExpanded={isDesktopSidebarOpen}
               />
+              </>
+              )}
             </nav>
           </div>
 

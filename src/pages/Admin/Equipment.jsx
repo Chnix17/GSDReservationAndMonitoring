@@ -6,7 +6,7 @@ import { motion } from 'framer-motion';
 import { SecureStorage } from '../../utils/encryption';
 import UpdateEquipmentModal from './lib/Equipment/Update_Modal';
 import MasterEquipmentModal from './lib/Equipment/Master_Modal';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import axios from 'axios';
 import TrackingModal from './lib/Equipment/core/view';
 

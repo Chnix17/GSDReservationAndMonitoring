@@ -151,7 +151,8 @@ const Sidebar = () => {
           },
           body: JSON.stringify({
             operation: 'updateReadNotification',
-            notificationIds: regularNotificationIds
+            notificationIds: regularNotificationIds,
+            userId: SecureStorage.getSessionItem('user_id')
           })
         });
         const data = await response.json();
@@ -168,7 +169,7 @@ const Sidebar = () => {
           body: JSON.stringify({
             operation: 'updateReadApprovalNotification',
             notification_ids: approvalNotificationIds,
-            user_id: currentUserId
+            user_id: SecureStorage.getSessionItem('user_id')
           })
         });
         const approvalData = await approvalResponse.json();
@@ -490,22 +491,41 @@ const Sidebar = () => {
     window.dispatchEvent(event);
   };
 
-  const handleLogout = () => {
-    // Save loginAttempts
+  const handleLogout = async () => {
+    // Preserve critical data before clearing
     const loginAttempts = localStorage.getItem('loginAttempts');
     const url = localStorage.getItem('url');
+    const baseUrl = SecureStorage.getLocalItem('url') || url;
+    const usersId = SecureStorage.getSessionItem('user_id');
     
-    // Clear everything
-    sessionStorage.clear();
-    localStorage.clear();
-    
-    // Restore critical data
-    if (loginAttempts) localStorage.setItem('loginAttempts', loginAttempts);
-    if (url) localStorage.setItem('url', url);
-    
-    // Navigate to login
-    navigate('/gsd');
-    window.location.reload();
+    // Log the logout to backend (non-blocking on failure)
+    try {
+      if (baseUrl && usersId) {
+        await fetch(`${baseUrl}/user.php`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operation: 'logout',
+            json: { users_id: Number(usersId) }
+          })
+        });
+      }
+    } catch (err) {
+      // Silently continue with logout
+      console.warn('Logout log failed:', err);
+    } finally {
+      // Clear everything
+      sessionStorage.clear();
+      localStorage.clear();
+      
+      // Restore critical data
+      if (loginAttempts) localStorage.setItem('loginAttempts', loginAttempts);
+      if (url) localStorage.setItem('url', url);
+      
+      // Navigate to login
+      navigate('/gsd');
+      window.location.reload();
+    }
   };
 
   const contextValue = useMemo(() => ({ isDesktopSidebarOpen }), [isDesktopSidebarOpen]);
@@ -563,9 +583,6 @@ const Sidebar = () => {
                         >
                           My Profile
                         </button>
-                        <Link to="/settings" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                          Settings
-                        </Link>
                         <button
                           onClick={handleLogout}
                           className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"
@@ -633,9 +650,7 @@ const Sidebar = () => {
                         >
                           My Profile
                         </button>
-                        <Link to="/settings" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                          Settings
-                        </Link>
+                      
                         <button
                           onClick={handleLogout}
                           className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"

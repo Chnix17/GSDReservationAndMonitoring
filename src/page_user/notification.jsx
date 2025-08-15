@@ -7,7 +7,9 @@ import {
   FaCheckCircle, 
   FaFilter
 } from 'react-icons/fa';
-import Sidebar from './component/user_sidebar';
+
+import Sidebar from '../components/core/Sidebar';
+
 import { SecureStorage } from '../utils/encryption';
 
 const NotificationPage = () => {

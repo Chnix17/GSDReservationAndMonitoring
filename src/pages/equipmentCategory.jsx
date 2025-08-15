@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Modal, Button, Form, Input,  Tooltip, Empty, Pagination } from 'antd';
 import { toast, Toaster } from 'sonner';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 
 import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -105,10 +105,14 @@ const EquipmentCategories = () => {
 
         setIsSubmitting(true);
         try {
+            const userId =
+                SecureStorage.getSessionItem('user_id') ||
+                SecureStorage.getLocalItem('user_id') || null;
             let requestData;
             if (editMode) {
                 requestData = {
                     operation: 'updateEquipmentCategory',
+                    userid: userId,
                     categoryData: {
                         categoryId: formData.categoryId,
                         name: sanitizedName.trim()
@@ -117,7 +121,8 @@ const EquipmentCategories = () => {
             } else {
                 requestData = {
                     operation: 'saveEquipmentCategory',
-                    equipments_category_name: sanitizedName.trim()
+                    equipments_category_name: sanitizedName.trim(),
+                    userid: userId
                 };
             }
 
@@ -256,16 +261,6 @@ const EquipmentCategories = () => {
                                 <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
                                     <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('equipments_category_id')}>
-                                                <div className="flex items-center cursor-pointer">
-                                                    ID
-                                                    {sortField === 'equipments_category_id' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
                                             <th scope="col" className="px-4 py-4" onClick={() => handleSort('equipments_category_name')}>
                                                 <div className="flex items-center cursor-pointer">
                                                     CATEGORY NAME
@@ -292,12 +287,8 @@ const EquipmentCategories = () => {
                                                         key={category.equipments_category_id}
                                                         className="bg-white border-b last:border-b-0 border-gray-200"
                                                     >
-                                                        <td className="px-4 py-6 font-medium">
-                                                            {category.equipments_category_id}
-                                                        </td>
                                                         <td className="px-4 py-6">
                                                             <div className="flex items-center">
-                                                              
                                                                 <span className="font-bold truncate block max-w-[200px]">{category.equipments_category_name}</span>
                                                             </div>
                                                         </td>
@@ -318,7 +309,7 @@ const EquipmentCategories = () => {
                                                 ))
                                         ) : (
                                             <tr>
-                                                <td colSpan={3} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                                                <td colSpan={2} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
                                                     <Empty
                                                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                                                         description={

@@ -28,7 +28,7 @@ import Record from './pages/Admin/Record';
 import ViewApproval from './page_dean/viewApproval';
 import DeanViewReserve from './page_dean/viewReserve';
 import DeanDashboard from './page_dean/dashboard';
-import Chat from './pages/chat';
+import Chat from './components/core/chat';
 import ProtectedRoute from './utils/ProtectedRoute';
 import AssignPersonnel from './pages/Admin/AssignPersonnel';
 import LandCalendar from './pages/landCalendar';
@@ -47,6 +47,8 @@ import Holiday from './pages/Admin/Holiday';
 import DriverDashboard from './pages/Driver/DriverDashboard';
 import DriverTrips from './pages/Driver/Trips'
 import AdminNotification from './pages/Admin/notification';
+import AuditTrail from './pages/Admin/audit_trail';
+import Notification from './components/core/main_notification';
 
 import VenueSchedule from './page_dean/VenueSchedule'
 
@@ -55,7 +57,7 @@ import VenueSchedule from './page_dean/VenueSchedule'
 export const ThemeContext = createContext();
 
 const App = () => {
-    const defaultUrl = "http://localhost/coc/gsd/";
+    const defaultUrl = "http://192.168.1.10/coc/gsd/";
     const storedUrl = SecureStorage.getLocalItem("url");
     
     if (!storedUrl || storedUrl !== defaultUrl) {
@@ -110,7 +112,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification'
+            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification', '/Admin/AuditLog', '/Notification'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -143,6 +145,8 @@ const App = () => {
                         <Route path="/vehiclecategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclec /></ProtectedRoute>} />
                         <Route path="/equipmentCategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
                         <Route path="/Admin/Notification" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminNotification /></ProtectedRoute>} />
+                        <Route path="/Admin/AuditLog" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AuditTrail /></ProtectedRoute>} />
+                        <Route path="/Notification" element={<ProtectedRoute allowedRoles={['Admin', 'Faculty/Staff', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head', 'Personnel', 'Driver']}><Notification /></ProtectedRoute>} />
           
                         <Route path="/vehiclemodel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><VehicleModel /></ProtectedRoute>} />
                         <Route path="/AssignPersonnel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AssignPersonnel /></ProtectedRoute>} />
@@ -168,14 +172,14 @@ const App = () => {
                         {/* User Routes */}
                         <Route path="/Faculty/Dashboard" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><Dashboard /></ProtectedRoute>} />
                         <Route path="/Faculty/Myreservation" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><ViewReserve /></ProtectedRoute>} />
-                        <Route path="/addReservation" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head']}><AddReservation /></ProtectedRoute>} />
+                        <Route path="/addReservation" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head']}><AddReservation /></ProtectedRoute>} />
                         <Route path="/Faculty/Chat" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><ChatUser /></ProtectedRoute>} />
                         <Route path="/Faculty/Notification" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><NotificationUser /></ProtectedRoute>} />
                         {/* Shared Routes (accessible by all authenticated users) */}
                         
                        
-                        <Route path="/chat" element={<ProtectedRoute allowedRoles={['Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Chat /></ProtectedRoute>} />
-
+                        <Route path="/chat" element={<ProtectedRoute allowedRoles={['Admin', 'Faculty/Staff', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head', 'Personnel', 'Driver']}><Chat /></ProtectedRoute>} />
+                        
                         {/* Personnel Routes */}
                         <Route path="/Personnel/Dashboard" element={<ProtectedRoute allowedRoles={['Personnel']}><PersonnelDashboard /></ProtectedRoute>} />
                         <Route path="/Personnel/ViewTask" element={<ProtectedRoute allowedRoles={['Personnel']}><ViewTask /></ProtectedRoute>} />

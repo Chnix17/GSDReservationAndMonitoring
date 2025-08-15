@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { Button, Modal, Form, Input, Tooltip, Empty, Pagination } from 'antd';
 import { toast } from 'sonner';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
@@ -142,10 +142,14 @@ const VehicleMakes = () => {
     try {
       const endpoint = 'user.php';
       const operation = editMode ? 'updateVehicleMake' : 'saveMakeData';
+      // Include current user id for auditing
+      const userId =
+        SecureStorage.getSessionItem('user_id') ||
+        SecureStorage.getLocalItem('user_id') || null;
       
       const requestBody = editMode 
-        ? { operation, id: formData.id, name: sanitizedName }
-        : { operation, vehicle_make_name: sanitizedName };
+        ? { operation, id: formData.id, name: sanitizedName, userid: userId }
+        : { operation, vehicle_make_name: sanitizedName, userid: userId };
 
       const response = await fetch(`${encryptedUrl}${endpoint}`, {
         method: 'POST',

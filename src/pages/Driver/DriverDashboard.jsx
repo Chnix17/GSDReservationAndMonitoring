@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import Sidebar from './component/sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import axios from 'axios';
 import { SecureStorage } from '../../utils/encryption';
 import { FiCalendar } from 'react-icons/fi';

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
@@ -85,13 +85,20 @@ const VenueEntry = () => {
     const confirmDelete = async () => {
         setLoading(true);
         try {
+            const userId =
+                SecureStorage.getSessionItem('user_id') ||
+                SecureStorage.getLocalItem('user_id') || null;
+
+            const payload = {
+                operation: "archiveResource",
+                resourceType: "venue",
+                resourceId: selectedVenues,
+                userid: userId
+            };
+
             const response = await axios.post(
                 `${encryptedUrl}/delete_master.php`,
-                {
-                    operation: "archiveResource",
-                    resourceType: "venue",
-                    resourceId: selectedVenues
-                },
+                payload,
                 {
                     headers: {
                         'Content-Type': 'application/json'

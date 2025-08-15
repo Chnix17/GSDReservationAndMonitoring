@@ -8,7 +8,7 @@ import { Modal, Tabs, Pagination } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 
-import Sidebar from './component/user_sidebar';
+import Sidebar from '../components/core/Sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { toast } from 'react-toastify';
 

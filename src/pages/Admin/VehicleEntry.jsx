@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'; // Add useCallback to imports
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import { toast } from 'sonner';
 import axios from 'axios';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -212,11 +212,11 @@ const VehicleEntry = () => {
             
             const requestData = {
                 operation: "updateVehicleLicense",
-                vehicleData: formData
+                ...formData
             };
 
             const response = await axios.post(
-                `${encryptedUrl}/update_master1.php`,
+                `${encryptedUrl}/user.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {
@@ -252,11 +252,16 @@ const VehicleEntry = () => {
     const confirmDelete = async () => {
         if (selectedVehicles.length > 0) {
             try {
+                const userId =
+                    SecureStorage.getSessionItem('user_id') ||
+                    SecureStorage.getLocalItem('user_id') || null;
+
                 const response = await axios.post(`${encryptedUrl}/delete_master.php`, 
                     JSON.stringify({
                         operation: "archiveResource",
                         resourceType: "vehicle",
-                        resourceId: selectedVehicles
+                        resourceId: selectedVehicles,
+                        userid: userId
                     }), {
                         headers: {
                             'Content-Type': 'application/json'

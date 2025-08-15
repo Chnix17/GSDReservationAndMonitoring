@@ -1,6 +1,6 @@
     import React, { useEffect, useState, useCallback } from 'react';
     import { useNavigate } from 'react-router-dom';
-    import Sidebar from '../Sidebar';
+    import Sidebar from '../../components/core/Sidebar';
     import {
     FaCar, FaUsers, FaBuilding, FaTools
     } from 'react-icons/fa';
@@ -284,7 +284,7 @@
 
         return (
             <motion.div 
-                className={`flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white ${fadeIn ? 'fade-in' : ''} ${darkMode ? 'dark' : ''}`}
+                className={`${!darkMode ? 'force-light' : ''} flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white ${fadeIn ? 'fade-in' : ''} ${darkMode ? 'dark' : ''}`}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.5 }}

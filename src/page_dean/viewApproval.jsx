@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import DeanSidebar from './component/dean_sidebar';
+import DeanSidebar from '../components/core/Sidebar';
 import { motion, AnimatePresence } from 'framer-motion';
 import { SecureStorage } from '../utils/encryption';
 import { useNavigate } from 'react-router-dom';

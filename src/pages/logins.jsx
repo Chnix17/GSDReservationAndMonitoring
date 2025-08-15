@@ -559,6 +559,7 @@ function Logins() {
                                 break;
                             case "Dean":
                             case "Department Head":
+                            case "Secretary":
                                 notify("Dean Login Successful");
                                 setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                                 break;
@@ -638,6 +639,7 @@ function Logins() {
                             break;
                         case "Dean":
                         case "Department Head":
+                        case "Secretary":
                             notify("Dean Login Successful");
                             setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                             break;

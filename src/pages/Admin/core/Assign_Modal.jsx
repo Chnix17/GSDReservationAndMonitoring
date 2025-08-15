@@ -213,6 +213,7 @@ const AssignModal = ({
         data: {
           admin_id: SecureStorage.getSessionItem("user_id"),
           personnel_id: selectedPersonnelObj.users_id,
+          notification_reservation_reservation_id: selectedReservation.id,
           checklist_ids: checklistIds
         }
       };

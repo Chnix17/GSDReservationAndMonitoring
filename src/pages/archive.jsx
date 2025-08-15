@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Table, Button, Space, Popconfirm, message, Tag, Empty, Skeleton, Input, Tooltip } from 'antd';
 import { UndoOutlined, UserOutlined, CarOutlined, HomeOutlined, ToolOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import axios from 'axios';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../utils/encryption';
@@ -174,14 +174,18 @@ const Archive = () => {
       userIds = selectedRowKeys;
     }
     
+    const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
     const payload = {
       operation: "unarchiveUser",
       userType: "user",
-      userId: userIds
+      userId: userIds,
+      userid: userId
     };
     console.log('Restore Users Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
 
       if (response.data.status === 'success') {
         message.success(`${userIds.length} users restored successfully`);
@@ -206,14 +210,18 @@ const Archive = () => {
       resourceIds = selectedRowKeys;
     }
     
+    const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
     const payload = {
       operation: "unarchiveResource",
       resourceType: "vehicle",
-      resourceId: resourceIds
+      resourceId: resourceIds,
+      userid: userId
     };
     console.log('Restore Vehicles Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
 
       if (response.data.status === 'success') {
         message.success(`${resourceIds.length} vehicles restored successfully`);
@@ -238,14 +246,18 @@ const Archive = () => {
       resourceIds = selectedRowKeys;
     }
     
+    const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
     const payload = {
       operation: "unarchiveResource",
       resourceType: "venue",
-      resourceId: resourceIds
+      resourceId: resourceIds,
+      userid: userId
     };
     console.log('Restore Venues Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
 
       if (response.data.status === 'success') {
         message.success(`${resourceIds.length} venues restored successfully`);
@@ -274,14 +286,18 @@ const Archive = () => {
     } else {
       resourceIds = selectedRowKeys;
     }
+    const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
     const payload = {
       operation: "unarchiveResource",
       resourceType: "equipment",
-      resourceId: resourceIds
+      resourceId: resourceIds,
+      userid: userId
     };
     console.log('Restore Equipment Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload);
+      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
       if (response.data.status === 'success') {
         message.success(`${resourceIds.length} equipment items restored successfully`);
         setSelectedRowKeys([]);

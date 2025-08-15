@@ -3,7 +3,7 @@ import axios from 'axios';
 import { Table, Input, Button, Tooltip, Empty, Pagination, Spin } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import { format, differenceInSeconds } from 'date-fns';
-import Sidebar from './component/sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import { SecureStorage } from '../../utils/encryption';
 
 const Countdown = ({ startDate }) => {

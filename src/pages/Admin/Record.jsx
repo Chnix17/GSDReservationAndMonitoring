@@ -22,7 +22,7 @@ import {
 import { ToastContainer, toast } from "react-toastify";
 import { useEffect, useState, useCallback } from "react";
 import { DatePicker } from "antd";
-import Sidebar from "../Sidebar";
+import Sidebar from '../../components/core/Sidebar';
 import axios from "axios";
 import moment from "moment";
 import { motion } from "framer-motion";
@@ -172,6 +172,7 @@ const Record = () => {
         {
           operation: "fetchReservationGenerateReport",
           month: monthStr,
+          user_personnel_id: SecureStorage.getSessionItem("user_id"),
         },
         {
           headers: {
@@ -198,14 +199,7 @@ const Record = () => {
   };
 
   const columns = [
-    {
-      title: "ID",
-      dataIndex: "reservation_id",
-      key: "reservation_id",
-      sorter: true,
-      sortOrder: sortField === "reservation_id" ? sortOrder : null,
-      render: (text) => <span className="font-mono font-bold text-green-800">#{text}</span>,
-    },
+    // ID column removed
     {
       title: "Title",
       dataIndex: "title",

@@ -3,7 +3,7 @@ import { Tabs,  Button,  Space,  Modal, Select, Input, List, message, Tooltip, P
 import { PlusOutlined, EditOutlined, EyeOutlined, SearchOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 
 import { motion } from 'framer-motion';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import { SecureStorage } from '../utils/encryption';
 import { useNavigate } from 'react-router-dom';
 
@@ -19,6 +19,7 @@ function Checklist() {
   const [resources, setResources] = useState([]);
   const [checklistItems, setChecklistItems] = useState([]);
   const [newItem, setNewItem] = useState('');
+  const [editItemName, setEditItemName] = useState('');
   const [venueData, setVenueData] = useState([]);
   const [equipmentData, setEquipmentData] = useState([]);
   const [vehicleData, setVehicleData] = useState([]);
@@ -132,6 +133,10 @@ function Checklist() {
       message.error('Missing required information for editing checklist');
       return;
     }
+    if (!editItemName || !editItemName.trim()) {
+      message.error('Please enter a checklist name to update');
+      return;
+    }
     
     try {
       const response = await fetch(`${storedUrl}user.php`, {
@@ -142,11 +147,12 @@ function Checklist() {
         },
         body: JSON.stringify({
           operation: 'updateChecklist',
+          user_personnel_id: SecureStorage.getSessionItem("user_id"),
           data: {
             checklist_updates: [{
               type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
               id: item.checklist_id,
-              checklist_name: newItem,
+              checklist_name: editItemName,
               resource_id: resourceId // Add resource_id to the request
             }]
           }
@@ -156,7 +162,7 @@ function Checklist() {
       const result = await response.json();
       if (result.status === 'success') {
         message.success('Checklist item updated successfully');
-        setNewItem('');
+        setEditItemName('');
         setIsEditMode(false);
         setCurrentEditItem(null);
         // Refresh the checklist view with the correct resource ID
@@ -174,13 +180,13 @@ function Checklist() {
   const startEdit = (item) => {
     setIsEditMode(true);
     setCurrentEditItem(item);
-    setNewItem(item.checklist_name);
+    setEditItemName(item.checklist_name);
   };
 
   const cancelEdit = () => {
     setIsEditMode(false);
     setCurrentEditItem(null);
-    setNewItem('');
+    setEditItemName('');
   };
 
   const handleSort = (field) => {
@@ -313,7 +319,8 @@ function Checklist() {
           operation: 'saveMasterChecklist',
           checklistNames: checklistItems,
           type: resourceType,
-          id: selectedResource
+          id: selectedResource,
+          user_personnel_id: SecureStorage.getSessionItem("user_id")
         })
       });
 
@@ -456,7 +463,8 @@ function Checklist() {
           operation: 'saveMasterChecklist',
           checklistNames: [newItem.trim()],
           type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
-          id: selectedResource
+          id: selectedResource,
+          user_personnel_id: SecureStorage.getLocalItem("user_id")
         })
       });
 
@@ -760,8 +768,10 @@ function Checklist() {
           <Select
             style={{ width: '100%' }}
             placeholder="Select Type"
+            value={resourceType}
             onChange={handleTypeChange}
             className="rounded-md"
+            allowClear
             options={[
               { value: 'venue', label: 'Venue' },
               { value: 'equipment', label: 'Equipment' },
@@ -777,6 +787,7 @@ function Checklist() {
             options={resources}
             disabled={!resourceType}
             className="rounded-md"
+            allowClear
           />
           
           <Space.Compact style={{ width: '100%' }}>
@@ -840,6 +851,7 @@ function Checklist() {
               value={newItem}
               onChange={(e) => setNewItem(e.target.value)}
               placeholder="Add new checklist item"
+              disabled={isEditMode}
               onPressEnter={() => {
                 if (newItem.trim()) {
                   handleAddToExistingChecklist();
@@ -850,7 +862,7 @@ function Checklist() {
             <Button 
               type="primary" 
               onClick={handleAddToExistingChecklist}
-              disabled={!newItem.trim() || loading} 
+              disabled={isEditMode || !newItem.trim() || loading} 
               className="bg-green-900 hover:bg-lime-900"
             >
               {loading ? 'Adding...' : 'Add'}
@@ -916,8 +928,8 @@ function Checklist() {
         {isEditMode && (
           <div className="mt-4">
             <Input
-              value={newItem}
-              onChange={(e) => setNewItem(e.target.value)}
+              value={editItemName}
+              onChange={(e) => setEditItemName(e.target.value)}
               placeholder="Edit checklist item"
               className="rounded-md mb-2"
             />

@@ -14,7 +14,7 @@ import {
 } from 'react-icons/fi';
 import {  FaRegLaughBeam} from 'react-icons/fa';
 import { useInView } from 'react-intersection-observer';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import {SecureStorage} from '../utils/encryption';
 
 const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPicker, onReaction, currentUser }) => {
@@ -373,14 +373,8 @@ const Chat = () => {
   }, [activeConversation, memorizeFetchAllChats]);
 
   useEffect(() => {
+    // Initial load of conversations/messages on mount
     memorizeFetchAllChats();
-    // Reduce refresh interval to 30 seconds and add debounce
-    const intervalId = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        memorizeFetchAllChats();
-      }
-    }, 30000);
-    return () => clearInterval(intervalId);
   }, [memorizeFetchAllChats]);
 
 
@@ -538,11 +532,11 @@ const Chat = () => {
                 className="h-12 w-12 sm:h-16 sm:w-16 object-cover rounded-lg flex-shrink-0"
               />
             ) : attachmentPreview.type.startsWith('video/') ? (
-              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center">
                 <FiVideo className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
               </div>
             ) : (
-              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center">
                 <FiFile className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
               </div>
             )}
@@ -578,7 +572,7 @@ const Chat = () => {
                 animate={{ opacity: 1, scale: 1, y: 0 }}
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 transition={{ duration: 0.15 }}
-                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 w-40 sm:w-48 z-10"
+                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 sm:p-3 w-40 sm:w-48 z-10"
               >
                 <div className="flex flex-col gap-1">
                   <button 
@@ -711,6 +705,35 @@ const Chat = () => {
       timestamp: new Date().toISOString()
     };
 
+    // Optimistically insert the message into the current chat
+    const optimisticMessage = {
+      id: tempMessageId,
+      text: messageText,
+      timestamp: new Date(),
+      status: 'sending',
+      isOwn: true,
+      senderName: currentUser.name,
+      senderId: parseInt(currentUser.id),
+      receiverId: parseInt(activeConversation.id)
+    };
+    setMessages(prev => [...prev, optimisticMessage]);
+
+    // Update conversations list immediately (last message and timestamp)
+    setConversations(prev => {
+      const otherId = parseInt(activeConversation.id);
+      const ts = new Date();
+      const existing = Array.isArray(prev) ? prev.find(c => c.id === otherId) : undefined;
+      const updated = {
+        id: otherId,
+        name: activeConversation.name || existing?.name,
+        lastMessage: messageText,
+        timestamp: ts,
+        unread: 0
+      };
+      const rest = Array.isArray(prev) ? prev.filter(c => c.id !== otherId) : [];
+      return [updated, ...rest];
+    });
+
     try {
       // Send message via fetch
       const formData = new URLSearchParams();
@@ -730,6 +753,16 @@ const Chat = () => {
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
+
+      // Try to read response to update optimistic message status / ID
+      try {
+        const resJson = await response.json();
+        const serverMsgId = resJson?.data?.message_id || resJson?.message_id || resJson?.data?.chat_id || resJson?.chat_id || null;
+        setMessages(prev => prev.map(m => m.id === tempMessageId
+          ? { ...m, id: serverMsgId || m.id, status: 'sent' }
+          : m
+        ));
+      } catch {}
 
       // Try to send through WebSocket if available
       if (ws && ws.readyState === WebSocket.OPEN) {
@@ -754,6 +787,7 @@ const Chat = () => {
       console.error('Error sending message:', error);
       // Optionally, show error to user
       setErrorMessage('Failed to send message');
+      setMessages(prev => prev.map(m => m.id === tempMessageId ? { ...m, status: 'failed' } : m));
     }
   };
 
@@ -927,27 +961,71 @@ const Chat = () => {
           // Process the incoming message
           if (data.message && (data.sender_id || data.receiver_id)) {
             const messageId = data.message_id || Date.now().toString();
-            
-            // Add the message to state if it doesn't exist already
-            setMessages(prev => {
-              // Check if message already exists
-              if (prev.some(msg => msg.id === messageId)) {
-                return prev;
-              }
-              
-              const newMessage = {
-                id: messageId,
-                text: data.message,
-                timestamp: new Date(data.timestamp || Date.now()),
-                status: 'received',
-                isOwn: data.sender_id === parseInt(currentUser.id),
-                senderPic: data.sender_pic,
-                senderName: data.sender_name || (data.sender_id === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
-                senderId: data.sender_id,
-                receiverId: data.receiver_id
+
+            // Determine if this message belongs to the currently active conversation
+            const activeId = activeConversation ? parseInt(activeConversation.id) : null;
+            const belongsToActive = !!activeConversation && (
+              (data.sender_id === parseInt(currentUser.id) && data.receiver_id === activeId) ||
+              (data.receiver_id === parseInt(currentUser.id) && data.sender_id === activeId)
+            );
+
+            const newMessage = {
+              id: messageId,
+              text: data.message,
+              timestamp: new Date(data.timestamp || Date.now()),
+              status: 'received',
+              isOwn: data.sender_id === parseInt(currentUser.id),
+              senderPic: data.sender_pic,
+              senderName: data.sender_name || (data.sender_id === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
+              senderId: data.sender_id,
+              receiverId: data.receiver_id
+            };
+
+            if (belongsToActive) {
+              // Add the message to the open chat if not already present
+              setMessages(prev => {
+                if (prev.some(msg => msg.id === messageId)) return prev;
+
+                // If this is our own message, attempt to merge with an optimistic one
+                if (newMessage.isOwn) {
+                  const idx = prev.findIndex(m => (
+                    m.isOwn === true &&
+                    m.receiverId === newMessage.receiverId &&
+                    m.text === newMessage.text &&
+                    (m.status === 'sending' || m.status === 'sent')
+                  ));
+                  if (idx !== -1) {
+                    const copy = [...prev];
+                    copy[idx] = { ...newMessage, status: 'delivered' };
+                    return copy;
+                  }
+                }
+                return [...prev, newMessage];
+              });
+            } else {
+              // Not the active chat: flag new messages for the list
+              setHasNewMessages(true);
+            }
+
+            // Update conversations list (last message, timestamp, unread counter)
+            setConversations(prev => {
+              const otherId = data.sender_id === parseInt(currentUser.id) ? data.receiver_id : data.sender_id;
+              const otherName = data.sender_id === parseInt(currentUser.id) ? data.receiver_name : data.sender_name;
+              const ts = new Date(data.timestamp || Date.now());
+
+              const existing = Array.isArray(prev) ? prev.find(c => c.id === otherId) : undefined;
+              const unreadIncrement = belongsToActive ? 0 : 1;
+
+              const updated = {
+                id: otherId,
+                name: otherName || existing?.name,
+                lastMessage: data.message,
+                timestamp: ts,
+                unread: (existing?.unread || 0) + unreadIncrement
               };
-              
-              return [...prev, newMessage];
+
+              const rest = Array.isArray(prev) ? prev.filter(c => c.id !== otherId) : [];
+              return [updated, ...rest];
             });
           }
         } catch (error) {
@@ -1104,19 +1182,8 @@ const Chat = () => {
     );
   };
 
-  // Add a useEffect for polling new messages
-  useEffect(() => {
-    if (!activeConversation || !currentUser.id) return;
-    
-    // Poll for new messages every 2 seconds for better performance
-    const pollingInterval = setInterval(() => {
-      // Use the existing memorizeFetchAllChats function to update messages
-      memorizeFetchAllChats();
-    }, 2000); // Poll every 2 seconds
-    
-    // Clean up on unmount or when conversation changes
-    return () => clearInterval(pollingInterval);
-  }, [activeConversation, currentUser.id, memorizeFetchAllChats]);
+  // Removed frequent polling; rely on WebSocket push updates and explicit fetch on mount/conversation change
+
 
   // Auto-scroll to bottom when new messages arrive or conversation opens
   useEffect(() => {

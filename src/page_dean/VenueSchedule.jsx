@@ -9,7 +9,7 @@ import 'bootstrap/dist/css/bootstrap.min.css';
 import dayjs from 'dayjs';
 import VenueScheduleCalendar from './component/Venue_ScheduleCalendar';
 
-import Sidebar from './component/dean_sidebar';
+import Sidebar from '../components/core/Sidebar';
 
 
 

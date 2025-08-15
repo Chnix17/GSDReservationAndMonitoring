@@ -5,6 +5,29 @@ import { motion } from 'framer-motion';
 const AllAssignedPersonnel = ({ isOpen, onClose, reservationData }) => {
   if (!reservationData) return null;
 
+  // Derive admin name from nested checklists when not provided at root
+  const collectAdminNames = (groups) => {
+    const names = [];
+    if (Array.isArray(groups)) {
+      groups.forEach((g) => {
+        if (Array.isArray(g?.checklists)) {
+          g.checklists.forEach((cl) => {
+            if (cl?.admin_name) names.push(String(cl.admin_name).trim());
+          });
+        }
+      });
+    }
+    return names;
+  };
+
+  const adminNames = [
+    ...collectAdminNames(reservationData.venues),
+    ...collectAdminNames(reservationData.vehicles),
+    ...collectAdminNames(reservationData.equipments),
+  ].filter(Boolean);
+
+  const assignedBy = reservationData.admin_name || adminNames[0] || undefined;
+
   return (
     <Modal
       title={<div className="text-xl font-bold text-green-900">Checklist Details</div>}
@@ -19,6 +42,12 @@ const AllAssignedPersonnel = ({ isOpen, onClose, reservationData }) => {
       centered
     >
       <div className="mt-4 space-y-6">
+        <div className="bg-green-50 border border-green-100 rounded-md p-3">
+          <div className="text-sm text-green-900">
+            <span className="font-semibold">Assigned by:</span> {assignedBy || 'Unknown'}
+          </div>
+        </div>
+
         {/* Venues Section */}
         {reservationData.venues && reservationData.venues.length > 0 && (
           <div>

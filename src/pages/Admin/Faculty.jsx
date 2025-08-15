@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';

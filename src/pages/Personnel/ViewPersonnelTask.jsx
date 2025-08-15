@@ -1,16 +1,16 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
-import Sidebar from './component/sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { SecureStorage } from '../../utils/encryption';
 import ChecklistModal from './core/checklist_modal';
+import ChecklistCompleted from './core/checklist_completed';
 import { Input, Button, Tag, Empty, Pagination, Tooltip } from 'antd';
 import { SearchOutlined, ReloadOutlined, EditOutlined } from '@ant-design/icons';
 
 import { useLocation } from 'react-router-dom';
 import dayjs from 'dayjs';
-
 
 // Add custom styles for animations
 const styles = `
@@ -46,6 +46,7 @@ const ViewPersonnelTask = () => {
   const [error, setError] = useState(null);
   const [selectedTask, setSelectedTask] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCompletedModalOpen, setIsCompletedModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
   const [filter, setFilter] = useState('ongoing'); // 'ongoing' or 'completed'
@@ -115,6 +116,7 @@ const ViewPersonnelTask = () => {
           type,
           reservation_id,
           resource_id,
+          user_personnel_id: SecureStorage.getSessionItem('user_id'),
         };
         if (quantity) payload.quantity = quantity;
         await axios.post(`${baseUrl}personnel.php`, payload, {
@@ -212,6 +214,11 @@ const ViewPersonnelTask = () => {
     } finally {
       setReleasingAll(false);
     }
+  };
+
+  const handleOpenCompleted = (task) => {
+    setSelectedTask(task);
+    setIsCompletedModalOpen(true);
   };
 
   const handleRefresh = () => {
@@ -464,7 +471,7 @@ const ViewPersonnelTask = () => {
                           >
                             <td className="px-6 py-4 relative">
                               {String(task.reservation_id) === String(highlightedId) && (
-                                <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-9          00 rounded-full animate-ping"></div>
+                                <div className="absolute -left-1 top-1/2 transform -translate-y-1/2 w-2 h-2 bg-green-900 rounded-full animate-ping"></div>
                               )}
                               {task.reservation_id}
                             </td>
@@ -551,22 +558,16 @@ const ViewPersonnelTask = () => {
                                 <Button
                                   type="primary"
                                   icon={<EditOutlined />}
-                                  onClick={() => handleModalOpen(task)}
+                                  onClick={() => (filter === 'completed' ? handleOpenCompleted(task) : handleModalOpen(task))}
                                   size="middle"
                                   className="bg-green-700 hover:bg-green-800 border-none"
-                                  disabled={filter === 'completed' || !canOpenTask(task)}
+                                  disabled={filter !== 'completed' && !canOpenTask(task)}
                                 >
                                 </Button>
-                                {filter === 'completed' ? (
-                                  <Tooltip title="Actions are locked for completed tasks">
+                                {filter !== 'completed' && !canOpenTask(task) && (
+                                  <Tooltip title="You can only open this task within 5 minutes before its start time (Asia/Manila)">
                                     <span className="text-xs text-gray-400 ml-2">Locked</span>
                                   </Tooltip>
-                                ) : (
-                                  !canOpenTask(task) && (
-                                    <Tooltip title="You can only open this task within 5 minutes before its start time (Asia/Manila)">
-                                      <span className="text-xs text-gray-400 ml-2">Locked</span>
-                                    </Tooltip>
-                                  )
                                 )}
                               </div>
                             </td>
@@ -624,6 +625,14 @@ const ViewPersonnelTask = () => {
               }
             }}
             refreshTasks={fetchPersonnelTasks}
+          />
+          <ChecklistCompleted
+            isOpen={isCompletedModalOpen}
+            onClose={() => {
+              setIsCompletedModalOpen(false);
+              setSelectedTask(null);
+            }}
+            selectedTask={selectedTask}
           />
           <ToastContainer position="top-right" autoClose={3000} />
         </div>

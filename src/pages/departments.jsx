@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, Button, Form, Tooltip, Input, Empty, Pagination, Select } from 'antd';
 import { toast, Toaster } from 'sonner';
-import Sidebar from './Sidebar';
+import Sidebar from '../components/core/Sidebar';
 import {   FaBuilding } from 'react-icons/fa';
 import { PlusOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
@@ -91,9 +91,14 @@ const Departments = () => {
         try {
             const endpoint = editMode ? 'user.php' : 'user.php';
             const operation = editMode ? 'updateDepartment' : 'saveDepartmentData';
+            // Ensure we always include a concrete userid value.
+            // Some parts of the app store user data in session storage.
+            const userId =
+                SecureStorage.getSessionItem('user_id') ||
+                SecureStorage.getLocalItem('user_id') || null;
             const payload = editMode ? 
-                { operation, id: formData.id, name: sanitizedName.trim(), type: formData.department_type } :
-                { operation, departments_name: sanitizedName.trim(), department_type: formData.department_type };
+                { operation, id: formData.id, name: sanitizedName.trim(), type: formData.department_type, userid: userId } :
+                { operation, departments_name: sanitizedName.trim(), department_type: formData.department_type, userid: userId };
             
             console.log('Sending payload:', payload); // Debug log
             
