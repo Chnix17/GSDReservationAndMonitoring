@@ -291,7 +291,7 @@ const Create_Modal = ({
             title={
                 <div className="flex items-center">
                     <FaUser className="mr-2 text-green-900" /> 
-                    Add New Faculty
+                    Add New User
                 </div>
             }
             open={show}
@@ -378,7 +378,7 @@ const Create_Modal = ({
                 {/* School ID & Phone */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
                     <Form.Item
-                        label="School ID"
+                        label="School ID/ Employee ID"
                         name="users_school_id"
                         rules={[
                             { required: true, message: 'Please input school ID!' },

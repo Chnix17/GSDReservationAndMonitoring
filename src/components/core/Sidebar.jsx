@@ -127,7 +127,7 @@ const Sidebar = () => {
       const data = await response.json();
 
       // Fetch approval notifications
-      const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+      const approvalResponse = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -141,7 +141,7 @@ const Sidebar = () => {
       const approvalData = await approvalResponse.json();
 
       // Fetch read notifications for current user
-      const readResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+      const readResponse = await fetch(`${baseUrl}/user.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -520,14 +520,14 @@ const Sidebar = () => {
       { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
       { type: 'section', text: 'Reservation' },
       { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/addReservation' },
-      { type: 'link', icon: FaFileAlt, text: 'My Reservations', link: '/Faculty/Myreservation' },
+      { type: 'link', icon: FaFileAlt, text: 'My Reservations', link: '/MyReservations' },
     ],
     department: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Department/Dashboard' },
       { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
       { type: 'section', text: 'Reservation Management' },
       { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/addReservation' },
-      { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/Department/Myreservation' },
+      { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/MyReservations' },
       { type: 'link', icon: FaFileAlt, text: 'View Approvals', link: '/Department/ViewApproval' },
       ...(((departmentName || '').trim().toUpperCase() === 'REGISTRAR' && (userLevelName || '').trim().toUpperCase() === 'DEPARTMENT HEAD')
         ? [{ type: 'section', text: 'Venue Management' }, { type: 'link', icon: FaCalendarAlt, text: 'Venue Schedule', link: '/Department/VenueSchedule' }]

@@ -49,6 +49,7 @@ import DriverTrips from './pages/Driver/Trips'
 import AdminNotification from './pages/Admin/notification';
 import AuditTrail from './pages/Admin/audit_trail';
 import Notification from './components/core/main_notification';
+import MyReservation from './components/core/viewReserve';
 
 import VenueSchedule from './page_dean/VenueSchedule'
 
@@ -57,7 +58,7 @@ import VenueSchedule from './page_dean/VenueSchedule'
 export const ThemeContext = createContext();
 
 const App = () => {
-    const defaultUrl = "http://192.168.1.10/coc/gsd/";
+    const defaultUrl = "http://localhost/coc/gsd/";
     const storedUrl = SecureStorage.getLocalItem("url");
     
     if (!storedUrl || storedUrl !== defaultUrl) {
@@ -112,7 +113,7 @@ const App = () => {
             '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
             '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
             '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification', '/Admin/AuditLog', '/Notification'
+            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification', '/Admin/AuditLog', '/Notification', '/MyReservations'
         ];
 
         if (!validPaths.includes(location.pathname)) {
@@ -169,6 +170,8 @@ const App = () => {
                         <Route path="/Department/Notification" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><NotificationRequest /></ProtectedRoute>} />
                         <Route path="/Department/Chat" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><ChatDepartment /></ProtectedRoute>} />
                         <Route path="/Department/VenueSchedule" element={<ProtectedRoute allowedRoles={['Department Head']} requiredDepartment="REGISTRAR"><VenueSchedule /></ProtectedRoute>} />
+
+                        <Route path="/MyReservations" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head']}><MyReservation /></ProtectedRoute>} />
                         {/* User Routes */}
                         <Route path="/Faculty/Dashboard" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><Dashboard /></ProtectedRoute>} />
                         <Route path="/Faculty/Myreservation" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><ViewReserve /></ProtectedRoute>} />

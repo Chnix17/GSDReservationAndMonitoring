@@ -391,7 +391,7 @@ const Update_Modal = ({
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <Form.Item
-                        label="School ID"
+                        label="School ID/ Employee ID"
                         name="users_school_id"
                         rules={[
                             { required: true, message: 'Please input school ID!' },

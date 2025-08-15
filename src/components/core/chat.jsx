@@ -300,6 +300,7 @@ const Chat = () => {
         const allowed = [1, 3, 5, 6, 15, 16, 17, 18];
         if (!allowed.includes(decryptedUserLevel)) {
           localStorage.clear();
+          sessionStorage.clear();
           navigate('/gsd');
         }
       } catch (error) {

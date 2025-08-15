@@ -50,7 +50,7 @@ const NotificationPage = () => {
         const regularData = await regularResponse.json();
 
         // Approval notifications
-        const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+        const approvalResponse = await fetch(`${baseUrl}/user.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -62,7 +62,7 @@ const NotificationPage = () => {
         const approvalData = await approvalResponse.json();
 
         // Read approvals map for current user
-        const readResponse = await fetch(`${baseUrl}/process_reservation.php`, {
+        const readResponse = await fetch(`${baseUrl}/user.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ operation: 'fetchReadApprovalNotification' })
@@ -194,7 +194,7 @@ const NotificationPage = () => {
         });
       } else if (notif.notification_id) {
         // Approval notification
-        await fetch(`${baseUrl}/process_reservation.php`, {
+        await fetch(`${baseUrl}/user.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

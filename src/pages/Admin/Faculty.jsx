@@ -375,7 +375,7 @@ const Faculty = () => {
                                 onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
                             >
                                 <Space>
-                                    <span className="hidden sm:inline">Add Faculty</span>
+                                    <span className="hidden sm:inline">Add User</span>
                                     <span className="sm:hidden">Add</span>
                                     <DownOutlined />
                                 </Space>
