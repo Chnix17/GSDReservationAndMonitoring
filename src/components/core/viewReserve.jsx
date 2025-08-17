@@ -261,6 +261,20 @@ const ViewReserve = () => {
         setSearchTerm('');
     };
 
+    // Compact, readable date range (single line)
+    const formatDateRange = (start, end) => {
+        if (!start || !end) return '-';
+        try {
+            const sameDay = format(start, 'yyyy-MM-dd') === format(end, 'yyyy-MM-dd');
+            if (sameDay) {
+                return `${format(start, 'MMM dd, yyyy h:mm a')} – ${format(end, 'h:mm a')}`;
+            }
+            return `${format(start, 'MMM dd, yyyy h:mm a')} – ${format(end, 'MMM dd, yyyy h:mm a')}`;
+        } catch (e) {
+            return '-';
+        }
+    };
+
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
             <div className="flex-none">
@@ -335,118 +349,122 @@ const ViewReserve = () => {
                             </div>
                         ) : (
                             <>
-                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
-                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
-                                        <tr>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('title')}>
-                                                <div className="flex items-center cursor-pointer">
-                                                    TITLE
-                                                    {sortField === 'title' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('createdAt')}>
-                                                <div className="flex items-center cursor-pointer">
-                                                    CREATED AT
-                                                    {sortField === 'createdAt' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('startDate')}>
-                                                <div className="flex items-center cursor-pointer">
-                                                    START DATE
-                                                    {sortField === 'startDate' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('endDate')}>
-                                                <div className="flex items-center cursor-pointer">
-                                                    END DATE
-                                                    {sortField === 'endDate' && (
-                                                        <span className="ml-1">
-                                                            {sortOrder === "asc" ? "↑" : "↓"}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    PARTICIPANTS
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    STATUS
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    ACTIONS
-                                                </div>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredReservations && filteredReservations.length > 0 ? (
-                                            filteredReservations
-                                                .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                                                .map((reservation) => (
-                                                    <tr
-                                                        key={reservation.id}
-                                                        className="bg-white border-b last:border-b-0 border-gray-200"
-                                                    >
-                                                        <td className="px-4 py-6 font-bold">
-                                                            <span className="truncate block max-w-[140px]">{reservation.title}</span>
-                                                        </td>
-                                                        <td className="px-4 py-6">{reservation.createdAt}</td>
-                                                        <td className="px-4 py-6">{format(new Date(reservation.startDate), 'MMM dd, yyyy h:mm a')}</td>
-                                                        <td className="px-4 py-6">{format(new Date(reservation.endDate), 'MMM dd, yyyy h:mm a')}</td>
-                                                        <td className="px-4 py-6">{reservation.participants || 'Not specified'}</td>
-                                                        <td className="px-4 py-6">
-                                                            <span className="inline-flex items-center px-6 py-2 rounded-full text-base font-semibold bg-gray-100 text-gray-600">
-                                                                {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-6">
-                                                            <div className="flex justify-center">
-                                                                <Tooltip title="View Details">
-                                                                    <Button
-                                                                        shape="circle"
-                                                                        icon={<FaEye />}
-                                                                        onClick={() => handleViewReservation(reservation)}
-                                                                        size="large"
-                                                                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center"
-                                                                    />
-                                                                </Tooltip>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))
-                                        ) : (
+                                {/* Desktop / Tablet: Table */}
+                                <div className="hidden md:block">
+                                    <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                        <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                             <tr>
-                                                <td colSpan={7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
-                                                    <Empty
-                                                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                                        description={
-                                                            <span className="text-gray-500 dark:text-gray-400">
-                                                                No reservations found
-                                                            </span>
-                                                        }
-                                                    />
-                                                </td>
+                                                <th scope="col" className="px-4 py-4" onClick={() => handleSort('title')}>
+                                                    <div className="flex items-center cursor-pointer">
+                                                        TITLE
+                                                        {sortField === 'title' && (
+                                                            <span className="ml-1">{sortOrder === "asc" ? "↑" : "↓"}</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th scope="col" className="px-4 py-4" onClick={() => handleSort('createdAt')}>
+                                                    <div className="flex items-center cursor-pointer">
+                                                        CREATED AT
+                                                        {sortField === 'createdAt' && (
+                                                            <span className="ml-1">{sortOrder === "asc" ? "↑" : "↓"}</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th scope="col" className="px-4 py-4" onClick={() => handleSort('startDate')}>
+                                                    <div className="flex items-center cursor-pointer">
+                                                        DATE RANGE
+                                                        {sortField === 'startDate' && (
+                                                            <span className="ml-1">{sortOrder === "asc" ? "↑" : "↓"}</span>
+                                                        )}
+                                                    </div>
+                                                </th>
+                                                <th scope="col" className="px-4 py-4">PARTICIPANTS</th>
+                                                <th scope="col" className="px-4 py-4">STATUS</th>
+                                                <th scope="col" className="px-4 py-4">ACTIONS</th>
                                             </tr>
-                                        )}
-                                    </tbody>
-                                </table>
+                                        </thead>
+                                        <tbody>
+                                            {filteredReservations && filteredReservations.length > 0 ? (
+                                                filteredReservations
+                                                    .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                                                    .map((reservation) => (
+                                                        <tr key={reservation.id} className="bg-white border-b last:border-b-0 border-gray-200">
+                                                            <td className="px-4 py-5 font-semibold">
+                                                                <span className="truncate block max-w-[200px]">{reservation.title}</span>
+                                                            </td>
+                                                            <td className="px-4 py-5 whitespace-nowrap">{reservation.createdAt}</td>
+                                                            <td className="px-4 py-5 whitespace-nowrap">{formatDateRange(reservation.startDate, reservation.endDate)}</td>
+                                                            <td className="px-4 py-5">{reservation.participants || 'Not specified'}</td>
+                                                            <td className="px-4 py-5">
+                                                                <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-gray-100 text-gray-700">
+                                                                    {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-5">
+                                                                <div className="flex justify-center">
+                                                                    <Tooltip title="View Details">
+                                                                        <Button
+                                                                            shape="circle"
+                                                                            icon={<FaEye />}
+                                                                            onClick={() => handleViewReservation(reservation)}
+                                                                            size="large"
+                                                                            className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center"
+                                                                        />
+                                                                    </Tooltip>
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={6} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                                                        <Empty
+                                                            image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                                            description={<span className="text-gray-500 dark:text-gray-400">No reservations found</span>}
+                                                        />
+                                                    </td>
+                                                </tr>
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
+
+                                {/* Mobile: Card list */}
+                                <div className="md:hidden p-2">
+                                    {filteredReservations && filteredReservations.length > 0 ? (
+                                        filteredReservations
+                                            .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                                            .map((r) => (
+                                                <div key={r.id} className="mb-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                                                    <div className="flex items-start justify-between gap-3">
+                                                        <div className="min-w-0">
+                                                            <div className="text-xs text-gray-500">{r.createdAt}</div>
+                                                            <div className="text-base font-semibold text-gray-900 truncate">{r.title}</div>
+                                                            <div className="mt-1 text-xs text-gray-600">{formatDateRange(r.startDate, r.endDate)}</div>
+                                                            {r.participants && (
+                                                                <div className="mt-1 text-xs text-gray-500">Participants: {r.participants}</div>
+                                                            )}
+                                                        </div>
+                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 whitespace-nowrap">
+                                                            {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                                                        </span>
+                                                    </div>
+                                                    <div className="mt-3 flex justify-end">
+                                                        <Button size="small" type="primary" onClick={() => handleViewReservation(r)} className="bg-blue-600 hover:bg-blue-700">
+                                                            Details
+                                                        </Button>
+                                                    </div>
+                                                </div>
+                                            ))
+                                    ) : (
+                                        <div className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                                            <Empty
+                                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                                description={<span className="text-gray-500 dark:text-gray-400">No reservations found</span>}
+                                            />
+                                        </div>
+                                    )}
+                                </div>
 
                                 <div className="p-4 border-t border-gray-200 dark:border-gray-700">
                                     <Pagination

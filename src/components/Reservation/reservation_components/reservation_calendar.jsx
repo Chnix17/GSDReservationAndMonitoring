@@ -501,8 +501,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
   
     // Skip reservation status check for COO Department Head
     const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
-    if (!isCooDepartmentHead && !isSecretaryGSD) {
+    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+    if (!isCooDepartmentHead) {
       const status = getAvailabilityStatus(date, reservations);
       if (status === 'reserved') {
         toast.error('This date is already fully reserved for the business hours (4AM-10PM)', {
@@ -883,8 +883,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
     // After reservations/holidays are loaded, check if current month is fully unavailable
     if (!reservations || !holidays) return;
     const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
-    if (isCooDepartmentHead || isSecretaryGSD) return; // Exception: COO Department Head
+    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+    if (isCooDepartmentHead) return; // Exception: COO Department Head
 
     const minSelectableDate = getMinSelectableDate();
     const startOfMonth = new Date(currentDate.getFullYear(), currentDate.getMonth(), 1);
@@ -969,7 +969,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
 
           // Check if user is COO Department Head
           const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-          const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+          // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
 
           // Get reservations for this day
           const dayReservations = reservations.filter(res => {
@@ -1088,7 +1088,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
 
           // Determine cursor style based on user level and availability
           let cursorClass = '';
-          if (isCooDepartmentHead || isSecretaryGSD) {
+          if (isCooDepartmentHead) {
             // COO Department Head can always click unless it's a past date
             if (!isPastDate) {
               cursorClass = 'cursor-pointer hover:shadow-md hover:scale-[1.02] hover:z-10 transition-all duration-200';
@@ -1113,8 +1113,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
               transition={{ duration: 0.2, delay: index * 0.01 }}
               onClick={() => {
                 const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-                const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
-                if (isCooDepartmentHead || isSecretaryGSD || !isUnavailable) {
+                // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+                if (isCooDepartmentHead  || !isUnavailable) {
                   handleDateClick(day);
                 }
               }}
@@ -1689,11 +1689,11 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                     
                     // Check if user is COO Department Head
                     const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-                    const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+                    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
                     
                     // Determine cursor style based on user level and availability
                     let cursorClass = '';
-                    if (isCooDepartmentHead || isSecretaryGSD) {
+                    if (isCooDepartmentHead) {
                       // Privileged users can click unless it's a past hour, weekend, or past date
                       if (!isPastHour && !isPastDate && !isWeekend) {
                         cursorClass = 'cursor-pointer hover:shadow-md hover:scale-[1.02] hover:z-10 transition-all duration-200';
@@ -1824,7 +1824,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                           transition-colors duration-200 ease-in-out
                         `}
                         onClick={() => {
-                          if (!isPastHour && !isWeekend && !isPastDate && (isCooDepartmentHead || isSecretaryGSD || !isHoliday)) {
+                          if (!isPastHour && !isWeekend && !isPastDate && (isCooDepartmentHead || !isHoliday)) {
                             handleTimeSlotClick(day, hour);
                           }
                         }}
@@ -2048,11 +2048,11 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             
             // Check if user is COO Department Head
             const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-            const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+            // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
             
             // Determine cursor style based on user level and availability
             let cursorClass = '';
-            if (isCooDepartmentHead || isSecretaryGSD) {
+            if (isCooDepartmentHead) {
               // Privileged users can click unless it's a past hour or past day
               if (!isPastHour && !isPastDay) {
                 cursorClass = 'cursor-pointer hover:shadow-md hover:scale-[1.02] hover:z-10 transition-all duration-200';
@@ -2183,7 +2183,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                   ${borderClass}
                 `}
                 onClick={() => {
-                  if (!isPastHour && !isPastDay && (isCooDepartmentHead || isSecretaryGSD || !holidayInfo)) {
+                  if (!isPastHour && !isPastDay && (isCooDepartmentHead || !holidayInfo)) {
                     handleTimeSlotClick(currentDate, hour);
                   }
                 }}
@@ -3034,8 +3034,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   // Add this function to check if user can override
   const canOverrideReservation = () => {
     return (
-      (userLevel === 'Department Head' && userDepartment === 'COO') ||
-      (userLevel === 'Secretary' && userDepartment === 'GSD')
+      (userLevel === 'Department Head' && userDepartment === 'COO')
     );
   };
 
@@ -3897,8 +3896,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
 
     // Privileged roles (COO Department Head, GSD Secretary) bypass holiday-based full-day blocks
     const isBypassRole =
-      (userLevel === 'Department Head' && userDepartment === 'COO') ||
-      (userLevel === 'Secretary' && userDepartment === 'GSD');
+      (userLevel === 'Department Head' && userDepartment === 'COO') || (userLevel === 'Secretary' && userDepartment === 'GSD');
     if (isBypassRole) {
       allHoursBlocked = false;
     }
@@ -3945,8 +3943,8 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
 
     // Bypass blocked-hours checks for privileged roles
     const isBypassRole =
-      (userLevel === 'Department Head' && userDepartment === 'COO') ||
-      (userLevel === 'Secretary' && userDepartment === 'GSD');
+      (userLevel === 'Department Head' && userDepartment === 'COO');
+      
     if (isBypassRole) {
       return false;
     }
@@ -4193,12 +4191,12 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                   // - Department Head (COO)
                   // - Secretary (GSD)
                   const isBypassRole =
-                    (userLevel === 'Department Head' && userDepartment === 'COO') ||
-                    (userLevel === 'Secretary' && userDepartment === 'GSD');
+                    (userLevel === 'Department Head' && userDepartment === 'COO');
+                  const isBypassrole1 = (userLevel === 'Secretary' && userDepartment === 'GSD');
 
                   const formattedDate = current.format('YYYY-MM-DD');
                   // Holidays block only for non-privileged roles
-                  if (!isBypassRole && holidays.some(holiday => holiday.date === formattedDate)) {
+                  if (!isBypassRole && !isBypassrole1 && holidays.some(holiday => holiday.date === formattedDate)) {
                     return true;
                   }
                   // Only allow dates on or after the selected start date
@@ -4246,15 +4244,13 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                     null
                   }
                   disabled={
-                    ((userLevel === 'Department Head' && userDepartment === 'COO') ||
-                     (userLevel === 'Secretary' && userDepartment === 'GSD'))
+                    (userLevel === 'Department Head' && userDepartment === 'COO')
                       ? mustSelectEndDate
                       : (hasRangeConflict || mustSelectEndDate || allStartHoursDisabled)
                   }
                   disabledTime={() => {
                     const isBypassRole =
-                      (userLevel === 'Department Head' && userDepartment === 'COO') ||
-                      (userLevel === 'Secretary' && userDepartment === 'GSD');
+                      (userLevel === 'Department Head' && userDepartment === 'COO');
                     return {
                       disabledHours: () => (isBypassRole ? [] : startTimeDisabledHours),
                       disabledMinutes: (selectedHour) => {
@@ -4306,15 +4302,13 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                     null
                   }
                   disabled={
-                    ((userLevel === 'Department Head' && userDepartment === 'COO') ||
-                     (userLevel === 'Secretary' && userDepartment === 'GSD'))
+                    (userLevel === 'Department Head' && userDepartment === 'COO')
                       ? mustSelectEndDate
                       : (hasRangeConflict || mustSelectEndDate || allEndHoursDisabled)
                   }
                   disabledTime={() => {
                     const isBypassRole =
-                      (userLevel === 'Department Head' && userDepartment === 'COO') ||
-                      (userLevel === 'Secretary' && userDepartment === 'GSD');
+                      (userLevel === 'Department Head' && userDepartment === 'COO');
                     return {
                       disabledHours: () => (isBypassRole ? [] : endTimeDisabledHours),
                       disabledMinutes: (selectedHour) => {
@@ -4942,6 +4936,10 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     hours: [],
     minutes: {}
   };
+  const holidayblocked = {
+    hours: [],
+    minutes: {}
+  };
 
   // Return empty blocked slots if date is null or invalid
   if (!date || !(date instanceof Date) || isNaN(date.getTime())) {
@@ -4951,6 +4949,10 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   // Return empty blocked slots for Department Head from COO
   if (userLevel === 'Department Head' && userDepartment === 'COO') {
     return blockedSlots;
+  }
+
+  if (userLevel === 'Secretary' && userDepartment === 'GSD') {
+    return holidayblocked;
   }
 
   // Check if it's a holiday
@@ -5497,7 +5499,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   return (
     <div className="mt-16 p-1.5 sm:p-4 space-y-2 sm:space-y-4 bg-white dark:bg-gray-900 rounded-lg shadow-sm">
       {/* Unique advance booking reminder */}
-      {(userLevel === 'Department Head' && userDepartment === 'COO') || (userLevel === 'Secretary' && userDepartment === 'GSD') ? (
+      {(userLevel === 'Department Head' && userDepartment === 'COO') ? (
         <div className="mb-3 p-3 rounded-lg bg-yellow-100 border-l-4 border-yellow-400 flex items-center gap-3 shadow-sm">
           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-yellow-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M12 20a8 8 0 100-16 8 8 0 000 16z" />

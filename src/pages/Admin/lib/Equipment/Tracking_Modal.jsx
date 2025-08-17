@@ -83,7 +83,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
 
         setLoading(true);
         try {
-            const url = `${baseUrl}/gsd/update_master1.php`;
+            const url = `${baseUrl}/user.php`;
             const response = await axios.post(url, JSON.stringify({
                 operation: "updateEquipmentUnit",
                 unit_id: editingUnit.unit_id,

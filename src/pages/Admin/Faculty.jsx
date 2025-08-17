@@ -364,8 +364,7 @@ const Faculty = () => {
                                     icon={<ReloadOutlined />}
                                     onClick={fetchUsers}
                                     size="large"
-                                    className="hover:scale-105 transition-transform"
-                                    style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    className="bg-green-50 hover:bg-green-100 text-green-700"
                                 />
                             </Tooltip>
                             <AntButton
@@ -497,7 +496,7 @@ const Faculty = () => {
                                                                     icon={<EditOutlined />}
                                                                     onClick={() => handleEditClick(user)}
                                                                     size="large"
-                                                                    className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                                                                    className="bg-green-900 hover:bg-lime-900 text-white"
                                                                 />
                                                             </Tooltip>
                                                             <Tooltip title="Archive Faculty">
@@ -507,7 +506,6 @@ const Faculty = () => {
                                                                     icon={<DeleteOutlined />}
                                                                     onClick={() => handleArchiveClick(user.users_id)}
                                                                     size="large"
-                                                                    className="shadow-lg flex items-center justify-center"
                                                                 />
                                                             </Tooltip>
                                                         </div>

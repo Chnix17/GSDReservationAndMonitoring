@@ -199,22 +199,23 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         if (!editingUnitId) return;
 
         try {
-            const unitData = {
+            // Backend expects top-level JSON payload (not nested) sent to gsd/update_master1.php
+            const payload = {
                 operation: "updateEquipmentUnit",
-                unitData: {
-                    unit_id: editingUnitId,
-                    serial_number: quickAdjustment.tagNumber,
-                    status_availability_id: selectedStatus, // <-- add this
-                    is_active: true,
-                    user_admin_id: SecureStorage.getSessionItem('user_id')
-                }
+                unit_id: editingUnitId,
+                serial_number: quickAdjustment.tagNumber,
+                status_availability_id: selectedStatus
             };
 
-            console.log('Updating unit with data:', unitData);
+            console.log('Updating unit with data:', payload);
             console.log('Editing Unit ID:', editingUnitId);
             console.log('Form Data:', quickAdjustment);
 
-            const response = await axios.post(`${baseUrl}/update_master1.php`, unitData);
+            const response = await axios.post(
+                `${baseUrl}/user.php`,
+                JSON.stringify(payload),
+                { headers: { 'Content-Type': 'application/json' } }
+            );
             console.log('Update response:', response.data);
 
             if (response.data.status === 'success') {
@@ -326,10 +327,10 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 <div className="bg-white rounded-lg shadow-sm border border-gray-200">
                     <div className="p-6">
                         <h4 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
-                            <EditOutlined className="mr-2 text-blue-600" />
+                            <EditOutlined className="mr-2 text-green-900" />
                             Equipment Information
                         </h4>
-                        <div className="grid grid-cols-2 md:grid-cols-3 gap-6">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                             <div className="space-y-1">
                                 <span className="text-sm font-medium text-gray-500">Name</span>
                                 <p className="text-base text-gray-900">{equipment.equip_name || 'N/A'}</p>
@@ -344,7 +345,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                             </div>
                             <div className="space-y-1">
                                 <span className="text-sm font-medium text-gray-500">Total Quantity</span>
-                                <p className="text-xl font-bold text-blue-600">{equipment.equip_quantity || 0}</p>
+                                <p className="text-xl font-bold text-green-900">{equipment.equip_quantity || 0}</p>
                             </div>
                             <div className="space-y-1">
                                 <span className="text-sm font-medium text-gray-500">Created At</span>
@@ -360,15 +361,15 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                                    <CalendarOutlined className="mr-2 text-blue-600" />
+                                    <CalendarOutlined className="mr-2 text-green-900" />
                                     Stock Information
                                 </h4>
-                                <Space>
+                                <Space wrap size={[8, 8]}>
                                     <Button
                                         type="primary"
                                         icon={<EyeOutlined />}
                                         onClick={() => setIsViewUtilizationOpen(true)}
-                                        className="bg-blue-600 hover:bg-blue-700"
+                                        className="bg-green-900 hover:bg-lime-900"
                                     >
                                         View Usage
                                     </Button>
@@ -390,7 +391,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                             </div>
                             <div className="grid grid-cols-2 gap-6">
                                 <div className="bg-blue-50 p-6 rounded-lg">
-                                    <p className="text-3xl font-bold text-blue-600">{equipment.on_hand_quantity || 0}</p>
+                                    <p className="text-3xl font-bold text-green-600">{equipment.on_hand_quantity || 0}</p>
                                     <p className="text-sm text-gray-600 mt-1">Current Stock</p>
                                 </div>
                                 <div className="bg-gray-50 p-6 rounded-lg">
@@ -408,10 +409,10 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         <div className="p-6">
                             <div className="flex justify-between items-center mb-4">
                                 <h4 className="text-lg font-semibold text-gray-900 flex items-center">
-                                    <UserOutlined className="mr-2 text-blue-600" />
+                                    <UserOutlined className="mr-2 text-green-900" />
                                     Unit Details
                                 </h4>
-                                <Space>
+                                <Space wrap size={[8, 8]}>
                                     {selectedUnits.length > 0 && (
                                         <Button
                                             danger
@@ -433,84 +434,91 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                 </Space>
                             </div>
                             {equipment.units && equipment.units.length > 0 ? (
-                                <Table
-                                    dataSource={equipment.units}
-                                    rowKey="unit_id"
-                                    pagination={false}
-                                    className="unit-table"
-                                    rowSelection={{
-                                        type: 'checkbox',
-                                        selectedRowKeys: selectedUnits,
-                                        onChange: (selectedRowKeys) => setSelectedUnits(selectedRowKeys),
-                                    }}
-                                    columns={[
-                                        {
-                                            title: 'Serial Number',
-                                            dataIndex: 'serial_number',
-                                            key: 'serial_number',
-                                            render: (text) => (
-                                                <span className="font-mono">{text || 'N/A'}</span>
-                                            )
-                                        },
-                                        {
-                                            title: 'Status',
-                                            dataIndex: 'status_availability_id',
-                                            key: 'status',
-                                            render: (status) => {
-                                                // Status mapping: id -> { name, color }
-                                                const statusMap = {
-                                                    1: { name: 'Available', color: 'success' },
-                                                    2: { name: 'Unavailable', color: 'error' },
-                                                    5: { name: 'In Use', color: 'warning' },
-                                                    6: { name: 'For Inspection', color: 'processing' },
-                                                    7: { name: 'Missing', color: 'magenta' },
-                                                    8: { name: 'Damaged', color: 'volcano' },
-                                                    9: { name: 'Available Stock', color: 'cyan' },
-                                                    10: { name: 'Out of stock', color: 'default' },
-                                                };
-                                                const statusInfo = statusMap[status] || { name: 'Unknown', color: 'default' };
-                                                return (
-                                                    <Tag color={statusInfo.color}>
-                                                        {statusInfo.name}
-                                                    </Tag>
-                                                );
+                                <div className="overflow-x-auto">
+                                    <Table
+                                        dataSource={equipment.units}
+                                        rowKey="unit_id"
+                                        pagination={false}
+                                        size="middle"
+                                        scroll={{ x: true, y: 360 }}
+                                        className="unit-table"
+                                        rowSelection={{
+                                            type: 'checkbox',
+                                            selectedRowKeys: selectedUnits,
+                                            onChange: (selectedRowKeys) => setSelectedUnits(selectedRowKeys),
+                                        }}
+                                        columns={[
+                                            {
+                                                title: 'Serial Number',
+                                                dataIndex: 'serial_number',
+                                                key: 'serial_number',
+                                                ellipsis: true,
+                                                render: (text) => (
+                                                    <span className="font-mono">{text || 'N/A'}</span>
+                                                )
+                                            },
+                                            {
+                                                title: 'Status',
+                                                dataIndex: 'status_availability_id',
+                                                key: 'status',
+                                                render: (status) => {
+                                                    // Status mapping: id -> { name, color }
+                                                    const statusMap = {
+                                                        1: { name: 'Available', color: 'success' },
+                                                        2: { name: 'Unavailable', color: 'error' },
+                                                        5: { name: 'In Use', color: 'warning' },
+                                                        6: { name: 'For Inspection', color: 'processing' },
+                                                        7: { name: 'Missing', color: 'magenta' },
+                                                        8: { name: 'Damaged', color: 'volcano' },
+                                                        9: { name: 'Available Stock', color: 'cyan' },
+                                                        10: { name: 'Out of stock', color: 'default' },
+                                                    };
+                                                    const statusInfo = statusMap[status] || { name: 'Unknown', color: 'default' };
+                                                    return (
+                                                        <Tag color={statusInfo.color}>
+                                                            {statusInfo.name}
+                                                        </Tag>
+                                                    );
+                                                }
+                                            },
+                                            {
+                                                title: 'Created At',
+                                                dataIndex: 'unit_created_at',
+                                                key: 'created_at',
+                                                responsive: ['sm'],
+                                                render: (text) => text || 'N/A'
+                                            },
+                                            {
+                                                title: 'Actions',
+                                                key: 'actions',
+                                                render: (_, record) => (
+                                                    <Space size="middle">
+                                                        <Button
+                                                            type="default"
+                                                            icon={<EyeOutlined />}
+                                                            onClick={() => handleViewUnitUsage(record.unit_id)}
+                                                            title="View Usage"
+                                                            className="bg-green-50 hover:bg-green-100"
+                                                        />
+                                                        <Button
+                                                            type="primary"
+                                                            icon={<EditOutlined />}
+                                                            onClick={() => handleEditUnit(record)}
+                                                            title="Edit Unit"
+                                                            className="bg-green-900 hover:bg-lime-900"
+                                                        />
+                                                        <Button
+                                                            danger
+                                                            icon={<DeleteOutlined />}
+                                                            onClick={() => handleArchiveUnit(record)}
+                                                            title="Archive Unit"
+                                                        />
+                                                    </Space>
+                                                )
                                             }
-                                        },
-                                        {
-                                            title: 'Created At',
-                                            dataIndex: 'unit_created_at',
-                                            key: 'created_at',
-                                            render: (text) => text || 'N/A'
-                                        },
-                                        {
-                                            title: 'Actions',
-                                            key: 'actions',
-                                            render: (_, record) => (
-                                                <Space size="middle">
-                                                    <Button
-                                                        type="text"
-                                                        icon={<EyeOutlined className="text-green-600" />}
-                                                        onClick={() => handleViewUnitUsage(record.unit_id)}
-                                                        title="View Usage"
-                                                    />
-                                                    <Button
-                                                        type="text"
-                                                        icon={<EditOutlined className="text-blue-600" />}
-                                                        onClick={() => handleEditUnit(record)}
-                                                        title="Edit Unit"
-                                                    />
-                                                    <Button
-                                                        type="text"
-                                                        danger
-                                                        icon={<DeleteOutlined />}
-                                                        onClick={() => handleArchiveUnit(record)}
-                                                        title="Archive Unit"
-                                                    />
-                                                </Space>
-                                            )
-                                        }
-                                    ]}
-                                />
+                                        ]}
+                                    />
+                                </div>
                             ) : (
                                 <div className="text-center py-8 text-gray-500">
                                     No units available. Click "Add Unit" to add a new unit.
@@ -533,6 +541,9 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                         });
                     }}
                     footer={null}
+                    destroyOnClose
+                    getContainer={false}
+                    styles={{ body: { maxHeight: 'calc(90vh - 200px)', overflowY: 'auto' } }}
                 >
                     <div className="space-y-6">
                         <div>
@@ -553,6 +564,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                                 value={selectedStatus}
                                 onChange={setSelectedStatus}
                                 style={{ width: '100%' }}
+                                getPopupContainer={trigger => trigger.parentNode}
                             >
                                 {statusOptions.map(option => (
                                     <Select.Option key={option.status_availability_id} value={option.status_availability_id}>
@@ -565,7 +577,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                             <Button
                                 type="primary"
                                 onClick={handleUpdateUnit}
-                                className="flex-1 bg-blue-600 hover:bg-blue-700"
+                                className="flex-1 bg-green-600 hover:bg-green-700"
                             >
                                 Update Unit
                             </Button>
@@ -607,6 +619,9 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     });
                 }}
                 footer={null}
+                destroyOnClose
+                getContainer={false}
+                styles={{ body: { maxHeight: 'calc(90vh - 200px)', overflowY: 'auto' } }}
             >
                 <div className="space-y-6">
                     {equipment.equip_type === 'Bulk' ? (
@@ -693,8 +708,11 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             }
             open={isOpen}
             onCancel={onClose}
-            width={1000}
+            width={'min(1000px, 95vw)'}
             footer={null}
+            destroyOnClose
+            zIndex={1100}
+            styles={{ body: { maxHeight: 'calc(100vh - 200px)', overflowY: 'auto', paddingRight: 8 } }}
         >
             {loading ? (
                 <div className="flex justify-center items-center h-64">
@@ -724,6 +742,8 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                             setShowConfirmArchive(false);
                             setSelectedUnits([]);
                         }}
+                        destroyOnClose
+                        getContainer={false}
                         footer={[
                             <Button key="back" onClick={() => {
                                 setShowConfirmArchive(false);

@@ -125,6 +125,19 @@ const Record = () => {
     }
   };
 
+  // Compact human-friendly date range for table/cards
+  const formatDateRange = (start, end) => {
+    if (!start || !end) return "-";
+    const s = moment(start);
+    const e = moment(end);
+    if (!s.isValid() || !e.isValid()) return "-";
+    // Same-day: show end time only on the right for brevity
+    if (s.isSame(e, "day")) {
+      return `${s.format("MMM D, YYYY h:mm A")} – ${e.format("h:mm A")}`;
+    }
+    return `${s.format("MMM D, YYYY h:mm A")} – ${e.format("MMM D, YYYY h:mm A")}`;
+  };
+
   const handleSort = (field) => {
     if (sortField === field) {
       setSortOrder(sortOrder === "asc" ? "desc" : "asc");
@@ -223,10 +236,8 @@ const Record = () => {
       sorter: true,
       sortOrder: sortField === "start_date" ? sortOrder : null,
       render: (_, record) => (
-        <div className="text-gray-600">
-          <div>{moment(record.start_date).format("MMM D, YYYY h:mm A")}</div>
-          <div className="text-xs">to</div>
-          <div>{moment(record.end_date).format("MMM D, YYYY h:mm A")}</div>
+        <div className="text-gray-600 whitespace-nowrap">
+          {formatDateRange(record.start_date, record.end_date)}
         </div>
       ),
     },
@@ -331,7 +342,7 @@ const Record = () => {
             </div>
           </div>
 
-          {/* Table */}
+          {/* Responsive Table / Cards */}
           <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
             {loading ? (
               <div className="flex justify-center items-center h-64">
@@ -339,73 +350,90 @@ const Record = () => {
               </div>
             ) : (
               <>
-                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden responsive-table">
-                  <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
-                    <tr>
-                      {columns.map((column) => (
-                        <th
-                          key={column.key}
-                          scope="col"
-                          className="px-4 py-4"
-                          onClick={() =>
-                            column.sorter && handleSort(column.dataIndex)
-                          }
-                        >
-                          <div className="flex items-center cursor-pointer hover:text-gray-900">
-                            {column.title}
-                            {sortField === column.dataIndex && (
-                              <span className="ml-1">
-                                {sortOrder === "asc" ? "↑" : "↓"}
-                              </span>
-                            )}
-                          </div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredReservations.length > 0 ? (
-                      filteredReservations
-                        .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                        .map((reservation) => (
-                        <tr
-                          key={reservation.reservation_id}
-                          className="bg-white border-b last:border-b-0 border-gray-200"
-                        >
-                          {columns.map((column) => (
-                            <td
-                              key={`${reservation.reservation_id}-${column.key}`}
-                              className="px-4 py-6"
-                            >
-                              {column.render
-                                ? column.render(
-                                    reservation[column.dataIndex],
-                                    reservation
-                                  )
-                                : reservation[column.dataIndex]}
-                            </td>
-                          ))}
-                        </tr>
-                      ))
-                    ) : (
+                {/* Desktop / Tablet: Table */}
+                <div className="hidden md:block">
+                  <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                       <tr>
-                        <td
-                          colSpan={columns.length}
-                          className="px-2 py-12 sm:px-6 sm:py-24 text-center"
-                        >
-                          <Empty
-                            image={Empty.PRESENTED_IMAGE_SIMPLE}
-                            description={
-                              <span className="text-gray-500 dark:text-gray-400">
-                                No reservation records found
-                              </span>
-                            }
-                          />
-                        </td>
+                        {columns.map((column) => (
+                          <th
+                            key={column.key}
+                            scope="col"
+                            className="px-4 py-4"
+                            onClick={() => column.sorter && handleSort(column.dataIndex)}
+                          >
+                            <div className="flex items-center cursor-pointer hover:text-gray-900">
+                              {column.title}
+                              {sortField === column.dataIndex && (
+                                <span className="ml-1">{sortOrder === "asc" ? "↑" : "↓"}</span>
+                              )}
+                            </div>
+                          </th>
+                        ))}
                       </tr>
-                    )}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {filteredReservations.length > 0 ? (
+                        filteredReservations
+                          .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                          .map((reservation) => (
+                            <tr key={reservation.reservation_id} className="bg-white border-b last:border-b-0 border-gray-200">
+                              {columns.map((column) => (
+                                <td key={`${reservation.reservation_id}-${column.key}`} className="px-4 py-5">
+                                  {column.render
+                                    ? column.render(reservation[column.dataIndex], reservation)
+                                    : reservation[column.dataIndex]}
+                                </td>
+                              ))}
+                            </tr>
+                          ))
+                      ) : (
+                        <tr>
+                          <td colSpan={columns.length} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                            <Empty
+                              image={Empty.PRESENTED_IMAGE_SIMPLE}
+                              description={<span className="text-gray-500 dark:text-gray-400">No reservation records found</span>}
+                            />
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile: Card list */}
+                <div className="md:hidden p-2">
+                  {filteredReservations.length > 0 ? (
+                    filteredReservations
+                      .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                      .map((r) => (
+                        <div key={r.reservation_id} className="mb-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <div className="text-xs text-gray-500">{r.requester}</div>
+                              <div className="text-base font-semibold text-gray-900 truncate">{r.title}</div>
+                              <div className="mt-1 text-xs text-gray-600">{formatDateRange(r.start_date, r.end_date)}</div>
+                            </div>
+                            <Tag color={getStatusColor(r.status)} className="capitalize px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap">
+                              {r.status}
+                            </Tag>
+                          </div>
+                          <div className="mt-3 flex justify-end">
+                            <Button size="small" type="primary" onClick={() => showModal(r)} icon={<EyeOutlined />} className="bg-green-700 hover:bg-green-800">
+                              Details
+                            </Button>
+                          </div>
+                        </div>
+                      ))
+                  ) : (
+                    <div className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                      <Empty
+                        image={Empty.PRESENTED_IMAGE_SIMPLE}
+                        description={<span className="text-gray-500 dark:text-gray-400">No reservation records found</span>}
+                      />
+                    </div>
+                  )}
+                </div>
 
                 {/* Pagination */}
                 <div className="p-4 border-t border-gray-200 dark:border-gray-700">
@@ -418,9 +446,7 @@ const Record = () => {
                       setPageSize(size);
                     }}
                     showSizeChanger={true}
-                    showTotal={(total, range) =>
-                      `${range[0]}-${range[1]} of ${total} items`
-                    }
+                    showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} items`}
                     className="flex justify-end"
                   />
                 </div>

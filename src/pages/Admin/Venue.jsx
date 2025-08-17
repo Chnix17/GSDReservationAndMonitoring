@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import axios from 'axios';
 import {  FaChartBar, FaBuilding } from 'react-icons/fa';
 import { Modal, Input,  Button, Tooltip, Alert, Empty, Pagination } from 'antd';
-import { PlusOutlined, ExclamationCircleOutlined, InboxOutlined, EditOutlined, SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import { PlusOutlined, ExclamationCircleOutlined, InboxOutlined, EditOutlined, SearchOutlined, ReloadOutlined, DeleteOutlined } from '@ant-design/icons';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { motion } from 'framer-motion';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
@@ -204,7 +204,7 @@ const VenueEntry = () => {
                                     icon={<PlusOutlined />}
                                     size="large"
                                     onClick={handleAddVenue}
-                                    className="bg-lime-900 hover:bg-green-600"
+                                    className="bg-green-600 hover:bg-green-700"
                                 >
                                     Add Venue
                                 </Button>
@@ -451,9 +451,10 @@ const VenueEntry = () => {
                     </Button>,
                     <Button
                         key="archive"
+                        type="primary"
                         danger
                         onClick={confirmDelete}
-                        className="bg-red-600 hover:bg-red-700"
+                        icon={<DeleteOutlined />}
                     >
                         Archive
                     </Button>

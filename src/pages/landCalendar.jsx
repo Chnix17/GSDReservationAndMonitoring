@@ -346,7 +346,7 @@ const Calendar = () => {
                   animate={{ opacity: 0.5 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <span className="text-xs text-gray-400">No Reservations</span>
+                  <span className="text-xs text-gray-400"></span>
                 </motion.div>
               )}
 

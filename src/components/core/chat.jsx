@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
-import { format } from 'date-fns';
+import { format, parse, isToday, isYesterday } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   FiMessageCircle, FiPaperclip, 
@@ -35,7 +35,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
             const decryptedUserLevel = parseInt(encryptedUserLevel);
             console.log("this is encryptedUserLevel", encryptedUserLevel);
-            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1) {
+            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1 && decryptedUserLevel !== 2) {
                 sessionStorage.clear();
                 localStorage.clear();
                 navigate('/gsd');
@@ -57,7 +57,27 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
   };
   
   // Format timestamp
-  const messageTime = format(new Date(message.timestamp), 'HH:mm');
+  const formatMessageTimestamp = (value) => {
+    if (!value) return '';
+    let dt;
+    if (typeof value === 'string') {
+      const parsed = parse(value, 'yyyy-MM-dd HH:mm:ss', new Date());
+      dt = isNaN(parsed.getTime()) ? new Date(value) : parsed;
+    } else {
+      dt = new Date(value);
+    }
+    if (isNaN(dt.getTime())) return '';
+
+    if (isToday(dt)) {
+      return format(dt, 'h a').replace(' ', '').toLowerCase(); // e.g., 8am
+    }
+    if (isYesterday(dt)) {
+      return 'yesterday';
+    }
+    return format(dt, 'MMM d, yyyy'); // e.g., Jul 8, 2025
+  };
+
+  const messageTime = formatMessageTimestamp(message.created_at ?? message.timestamp);
   
   // Status icons based on message status
   const renderStatus = () => {
@@ -720,6 +740,7 @@ const Chat = () => {
     
     // Create message object
     const messageData = {
+      type: 'chat_message',
       sender_id: parseInt(currentUser.id),
       receiver_id: parseInt(activeConversation.id),
       message: messageText,
@@ -955,6 +976,20 @@ const Chat = () => {
         setIsConnected(true);
         setConnectionStatus('connected');
         setReconnectAttempts(0); // Reset attempts on successful connection
+        
+        // Register this connection with the backend to bind user_id to socket
+        try {
+          if (currentUser?.id) {
+            const registerPayload = {
+              type: 'register',
+              user_id: parseInt(currentUser.id)
+            };
+            socket.send(JSON.stringify(registerPayload));
+            console.log('Sent register payload to WebSocket server', registerPayload);
+          }
+        } catch (e) {
+          console.error('Failed to send register payload:', e);
+        }
       };
 
       socket.onclose = (event) => {

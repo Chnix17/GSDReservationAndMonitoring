@@ -220,7 +220,7 @@ const EquipmentEntry = () => {
                             <Button
                                 type="primary"
                                 size="large"
-                                className="bg-lime-900 hover:bg-green-600"
+                                className="bg-green-900 hover:bg-lime-900"
                                 onClick={() => setIsMasterModalOpen(true)}
                             >
                                 <Space>
@@ -298,20 +298,18 @@ const EquipmentEntry = () => {
                                                             <div className="flex justify-center space-x-2">
                                                                 <Tooltip title="View Details">
                                                                     <Button
-                                                                        shape="circle"
+                                                                        type="default"
                                                                         icon={<EyeOutlined />}
                                                                         onClick={() => handleTrackingClick(equipment)}
-                                                                        size="large"
-                                                                        className="bg-blue-600 hover:bg-blue-700 text-white shadow-lg flex items-center justify-center"
+                                                                        className="bg-green-50 hover:bg-green-100"
                                                                     />
                                                                 </Tooltip>
                                                                 <Tooltip title="Edit Equipment">
                                                                     <Button
-                                                                        shape="circle"
+                                                                        type="primary"
                                                                         icon={<EditOutlined />}
                                                                         onClick={() => handleEditClick(equipment)}
-                                                                        size="large"
-                                                                        className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                                                                        className="bg-green-900 hover:bg-lime-900"
                                                                     />
                                                                 </Tooltip>
                                                             </div>

@@ -2478,11 +2478,11 @@ const fetchEquipment = useCallback(async (startDate, endDate) => {
     const userLevel = SecureStorage.getLocalItem('user_level');
     const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
     
     // Prepare the API payload based on user role
     let payload;
-    if (isCOODepartmentHead || isSecretaryGSD) {
+    if (isCOODepartmentHead) {
       // For COO Department Head, use simplified call without date range
       payload = {
         operation: 'fetchEquipments'
@@ -2550,9 +2550,8 @@ useEffect(() => {
   const userLevel = SecureStorage.getLocalItem('user_level');
   const userDepartment = SecureStorage.getLocalItem('Department Name');
   const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-  const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
   
-  if (isCOODepartmentHead || isSecretaryGSD) {
+  if (isCOODepartmentHead) {
     // For COO Department Head, fetch equipment without dates
     fetchEquipment();
   } else if (formData.startDate && formData.endDate) {
@@ -2568,8 +2567,7 @@ useEffect(() => {
     const userLevel = SecureStorage.getLocalItem('user_level');
     const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';    
-    if (isCOODepartmentHead || isSecretaryGSD) {
+    if (isCOODepartmentHead) {
       // For COO Department Head, fetch equipment without dates
       fetchEquipment();
     } else if (formData.startDate && formData.endDate) {
@@ -2704,9 +2702,9 @@ useEffect(() => {
     const userLevel = SecureStorage.getLocalItem('user_level');
     const userDepartment = SecureStorage.getLocalItem('Department Name');
     const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
+    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
     
-    if (isCOODepartmentHead || isSecretaryGSD) {
+    if (isCOODepartmentHead ) {
       // For COO Department Head, fetch equipment without dates
       fetchEquipment();
     } else {
