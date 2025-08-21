@@ -19,7 +19,7 @@ export const SESSION_TIMEOUT = SESSION_TIMEOUTS.EXTENDED;
  * @param {number} duration - Duration in milliseconds
  */
 export const setSessionTimeoutDuration = (duration) => {
-  localStorage.setItem('sessionTimeoutDuration', duration.toString());
+  SecureStorage.setLocalItem('sessionTimeoutDuration', duration.toString());
 };
 
 /**
@@ -27,7 +27,7 @@ export const setSessionTimeoutDuration = (duration) => {
  * @returns {number} - Duration in milliseconds
  */
 export const getSessionTimeoutDuration = () => {
-  const stored = localStorage.getItem('sessionTimeoutDuration');
+  const stored = SecureStorage.getLocalItem('sessionTimeoutDuration');
   return stored ? parseInt(stored, 10) : SESSION_TIMEOUT;
 };
 
@@ -109,7 +109,7 @@ export const removeSessionCookie = (name) => {
  * @returns {boolean} - True if session has timed out
  */
 export const checkSessionTimeout = () => {
-  const lastActivity = localStorage.getItem('lastActivity');
+  const lastActivity = SecureStorage.getLocalItem('lastActivity');
   
   if (!lastActivity) return true;
   
@@ -122,7 +122,7 @@ export const checkSessionTimeout = () => {
 
 export const debugSession = () => {
   const cookieExists = document.cookie.split(';').some(c => c.trim().startsWith('userSession='));
-  const lastActivity = localStorage.getItem('lastActivity');
+  const lastActivity = SecureStorage.getLocalItem('lastActivity');
   const loggedIn = SecureStorage.getSessionItem('loggedIn') === 'true';
   const timeoutDuration = getSessionTimeoutDuration();
   

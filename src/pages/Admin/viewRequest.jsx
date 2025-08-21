@@ -21,11 +21,13 @@ import {
     SearchOutlined,
     DownOutlined,
     ClockCircleOutlined,
-    CloseOutlined
+    CloseOutlined,
+    ScheduleOutlined
 } from '@ant-design/icons';
 import { SecureStorage } from '../../utils/encryption';
 import AssignModal from './core/Assign_Modal';
-// import '../../styles/EnhancedDetailModal.css';
+import RescheduleModal from './core/reschedule_modal';
+import '../../styles/EnhancedDetailModal.css';
 
 const { Search } = Input;
 
@@ -1021,6 +1023,8 @@ const ReservationRequests = () => {
                         setIsDeclineReasonModalOpen={setIsDeclineReasonModalOpen}
                         declineReason={declineReason}
                         setDeclineReason={setDeclineReason}
+                        fetchReservationDetails={fetchReservationDetails}
+                        currentRequest={currentRequest}
                     />
 
                     {/* Decline Reason Modal */}
@@ -1029,6 +1033,7 @@ const ReservationRequests = () => {
                         visible={isDeclineReasonModalOpen}
                         onCancel={() => setIsDeclineReasonModalOpen(false)}
                         maskClosable={false}
+                        getContainer={false}
                         zIndex={1002}
                         footer={[
                             <Button key="back" onClick={() => setIsDeclineReasonModalOpen(false)}>
@@ -1096,6 +1101,8 @@ const ReservationRequests = () => {
                         title="Confirm Decline"
                         visible={isDeclineModalOpen}
                         onCancel={() => setIsDeclineModalOpen(false)}
+                        getContainer={false}
+                        zIndex={1002}
                         onOk={() => {
                             // Determine if the current user is the Admin approver
                             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
@@ -1156,15 +1163,19 @@ const formatDateRange = (startDate, endDate) => {
     }
 };
 
-const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetails, onAccept, onDecline, isAccepting, isDeclining, setIsDeclineReasonModalOpen, declineReason, setDeclineReason }) => {
+const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetails, onAccept, onDecline, isAccepting, isDeclining, setIsDeclineReasonModalOpen, declineReason, setDeclineReason, fetchReservationDetails, currentRequest }) => {
     const [deansApproval, setDeansApproval] = useState([]);
     const [isApproverListVisible, setIsApproverListVisible] = useState(false);
-        const [isLoadingDeans, setIsLoadingDeans] = useState(false);
+    const [isLoadingDeans, setIsLoadingDeans] = useState(false);
+    const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+    const [rescheduleResources, setRescheduleResources] = useState(null);
 
     const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
     const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
     const departmentApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Department Approval');
     const encryptedUrl = SecureStorage.getLocalItem("url");
+   
+    const isDepartmentStageForCurrentUser = !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId) && departmentApproval.reservation_active === 0);
 
     useEffect(() => {
         const fetchDeansApproval = async () => {
@@ -1503,6 +1514,13 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         }
     };
 
+    // Accept handler that bypasses driver checks (used for Admin stage only)
+    const handleAcceptWithoutDriverCheck = async () => {
+        if (typeof onAccept === 'function') {
+            await onAccept(vehicleDriverAssignments);
+        }
+    };
+
         const getModalFooter = () => {
         if (!reservationDetails) {
             return [<Button key="close" onClick={onClose} size="large">Close</Button>];
@@ -1584,10 +1602,10 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             key="accept"
                             type="primary"
                             loading={isAccepting}
-                            onClick={handleAcceptWithDriverCheck}
+                            onClick={handleAcceptWithoutDriverCheck}
                             size="large"
                             icon={<CheckCircleOutlined />}
-                            disabled={!!driverError || !priorityCheck.hasPriority || anyVenueNotAvailable}
+                            disabled={!priorityCheck.hasPriority || anyVenueNotAvailable}
                             className="bg-green-900 hover:bg-lime-900"
                         >
                             Approve
@@ -1600,10 +1618,191 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             // After admin approval is complete, it's Department's turn
             if (adminApproval.reservation_active === 1 && departmentApproval.reservation_active === 0) {
                 if (isDepartmentApprover) {
+                    // Require driver selection before rescheduling when vehicles exist
+                    const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
+                    const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
+                        // Check existing assignment
+                        const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                            driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
+                            (driver.driver_id || driver.driver_name)
+                        );
+                        if (existingDriver) return true;
+                        // Check new assignment in current session
+                        const assignedDriverId = vehicleDriverAssignments[vehicle.vehicle_id];
+                        return !!assignedDriverId;
+                    });
                     return [
                         <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
                             Decline
                         </Button>,
+                        <>
+                            <Button
+                                key="reschedule"
+                                type="default"
+                                onClick={() => {
+                                    // Extract resource IDs and quantities from reservationDetails
+                                    const resources = {
+                                        venueIds: (reservationDetails.venues || []).map(v => v.venue_id),
+                                        vehicleIds: (reservationDetails.vehicles || []).map(v => v.vehicle_id),
+                                        equipment: (reservationDetails.equipment || []).map(eq => ({
+                                            equipment_id: eq.equipment_id,
+                                            quantity: parseInt(eq.quantity, 10) || 0
+                                        }))
+                                    };
+                                    setRescheduleResources(resources);
+                                    setIsRescheduleModalOpen(true);
+                                }}
+                                size="large"
+                                className="mr-2"
+                                icon={<ScheduleOutlined />}
+                                disabled={hasVehicles && !allVehiclesHaveDriverAssigned}
+                            >
+                                Reschedule
+                            </Button>
+                            <RescheduleModal
+                                visible={isRescheduleModalOpen}
+                                onCancel={() => setIsRescheduleModalOpen(false)}
+                                onReschedule={async (newDates) => {
+                                    try {
+                                        const { startDate, endDate, newVenueIds, newVehicleIds } = newDates || {};
+
+                                        // Step 1: If dates provided, update reservation dates only
+                                        let didUpdateSomething = false;
+                                        if (startDate && endDate) {
+                                            const dateResp = await axios.post(`${encryptedUrl}/user.php`, {
+                                                operation: 'updateReservationReschedule',
+                                                reservation_id: reservationDetails?.reservation_id,
+                                                reschedule_start_date: startDate,
+                                                reschedule_end_date: endDate,
+                                                user_admin_id: SecureStorage.getSessionItem('user_id')
+                                            }, { headers: { 'Content-Type': 'application/json' } });
+                                            if (!(dateResp?.data?.status === 'success')) {
+                                                const msg = dateResp?.data?.message || 'Failed to update reservation dates';
+                                                toast.error(msg);
+                                                return;
+                                            }
+                                            didUpdateSomething = true;
+                                        }
+
+                                        // Step 2: Process venue changes with minimal payload per change (no dates)
+                                        const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+                                        const venue_changes = currentVenues
+                                            .map((v, idx) => {
+                                                const newId = Array.isArray(newVenueIds) ? newVenueIds[idx] : null;
+                                                if (!newId || String(newId) === String(v.venue_id)) return null;
+                                                return {
+                                                    reservation_venue_id: v.reservation_venue_id,
+                                                    reservation_change_venue_id: Number(newId)
+                                                };
+                                            })
+                                            .filter(Boolean);
+
+                                        if (venue_changes.length > 0) {
+                                            const requests = venue_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
+                                                operation: 'updateVenueReschedule',
+                                                reservation_venue_id: change.reservation_venue_id,
+                                                reservation_change_venue_id: change.reservation_change_venue_id
+                                            }, { headers: { 'Content-Type': 'application/json' } }));
+                                            const results = await Promise.allSettled(requests);
+                                            const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                                            if (!allOk) {
+                                                const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                                                    || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                                                    || 'Failed to reschedule reservation';
+                                                toast.error(firstError);
+                                                return;
+                                            }
+                                            didUpdateSomething = true;
+                                        }
+
+                                        // Step 3: Process vehicle changes (map reservation_vehicle_id -> selected vehicle_id)
+                                        const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+                                        const vehicle_changes = currentVehicles
+                                            .map((v, idx) => {
+                                                const newId = Array.isArray(newVehicleIds) ? newVehicleIds[idx] : null;
+                                                if (!newId || String(newId) === String(v.vehicle_id)) return null;
+                                                return {
+                                                    reservation_vehicle_id: v.reservation_vehicle_id,
+                                                    // Use vehicle_id as reservation_change_vehicle_id per backend contract
+                                                    reservation_change_vehicle_id: Number(newId)
+                                                };
+                                            })
+                                            .filter(Boolean);
+
+                                        if (vehicle_changes.length > 0) {
+                                            const requests = vehicle_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
+                                                operation: 'updateVehicleReschedule',
+                                                reservation_vehicle_id: change.reservation_vehicle_id,
+                                                reservation_change_vehicle_id: change.reservation_change_vehicle_id
+                                            }, { headers: { 'Content-Type': 'application/json' } }));
+                                            const results = await Promise.allSettled(requests);
+                                            const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                                            if (!allOk) {
+                                                const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                                                    || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                                                    || 'Failed to reschedule reservation vehicles';
+                                                toast.error(firstError);
+                                                return;
+                                            }
+                                            didUpdateSomething = true;
+                                        }
+
+                                        if (!didUpdateSomething) {
+                                            toast.info('No changes to update.');
+                                            return;
+                                        }
+
+                                        // After reschedule, persist driver assignments if vehicles exist
+                                        if (Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0) {
+                                            try {
+                                                for (const vehicle of reservationDetails.vehicles) {
+                                                    const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                                                        driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
+                                                        (driver.driver_id || driver.driver_name)
+                                                    );
+                                                    if (!existingDriver) {
+                                                        const driverId = vehicleDriverAssignments[vehicle.vehicle_id];
+                                                        if (driverId) {
+                                                            await axios.post(`${encryptedUrl}/user.php`, {
+                                                                operation: 'insertDriver',
+                                                                reservation_driver_user_id: driverId,
+                                                                reservation_vehicle_id: vehicle.reservation_vehicle_id
+                                                            });
+                                                        }
+                                                    }
+                                                }
+                                            } catch (err) {
+                                                console.error('Error assigning drivers after reschedule:', err);
+                                                toast.error('Failed to assign driver(s) after reschedule');
+                                                return;
+                                            }
+                                        }
+
+                                        // Success path
+                                        toast.success('Reservation rescheduled successfully');
+                                        setIsRescheduleModalOpen(false);
+                                        try {
+                                            await fetchReservationDetails(currentRequest?.reservation_id || reservationDetails?.reservation_id);
+                                        } catch (refreshErr) {
+                                            console.error('Error refreshing details after reschedule:', refreshErr);
+                                        }
+                                    } catch (error) {
+                                        console.error('Error during reschedule:', error);
+                                        toast.error('Error processing reschedule');
+                                    }
+                                }}
+                                reservation={reservationDetails}
+                                resourceType={
+                                    reservationDetails.venues?.length ? 'venue' : (
+                                        reservationDetails.vehicles?.length ? 'vehicle' : 'equipment'
+                                    )
+                                }
+                                resourceId={reservationDetails.venues?.[0]?.venue_id || reservationDetails.vehicles?.[0]?.vehicle_id}
+                                resources={rescheduleResources}
+                                originalStart={reservationDetails?.reservation_start_date}
+                                originalEnd={reservationDetails?.reservation_end_date}
+                            />
+                        </>,
                         <Button
                             key="accept"
                             type="primary"
@@ -1649,10 +1848,10 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     key="accept"
                     type="primary"
                     loading={isAccepting}
-                    onClick={handleAcceptWithDriverCheck}
+                    onClick={isAdminApprover ? handleAcceptWithoutDriverCheck : handleAcceptWithDriverCheck}
                     size="large"
                     icon={<CheckCircleOutlined />}
-                    disabled={!approvalsSatisfied || !!driverError || !priorityCheck.hasPriority || anyVenueNotAvailable}
+                    disabled={!approvalsSatisfied || (!isAdminApprover && !!driverError) || !priorityCheck.hasPriority || anyVenueNotAvailable}
                     className="bg-green-900 hover:bg-lime-900"
                 >
                     Approve
@@ -1776,7 +1975,11 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     return <span className="font-medium text-blue-600">{assignedDriver.full_name}</span>;
                 }
                 
-                // If no driver is assigned, show dropdown for assignment
+                // Only Department approver can assign; others see placeholder
+                if (!isDepartmentStageForCurrentUser) {
+                    return <span className="text-gray-500">—</span>;
+                }
+                // If no driver is assigned and it's the department approver, show dropdown for assignment
                 // Exclude drivers already assigned to other vehicles
                 const assignedDriverIds = Object.entries(vehicleDriverAssignments)
                     .filter(([vid, did]) => String(vid) !== String(vehicle.vehicle_id))
@@ -1861,6 +2064,9 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                 .filter(Boolean);
                             const availableForThisVehicle = availableDrivers.filter(driver => !assignedDriverIds.includes(String(driver.users_id)));
                             
+                            if (!isDepartmentStageForCurrentUser) {
+                                return <span className="assigned-driver pending">—</span>;
+                            }
                             return (
                                 <select
                                     value={vehicleDriverAssignments[resource.vehicle_id] || ''}
@@ -2635,6 +2841,8 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
             }
             visible={visible}
             onCancel={onClose}
+            getContainer={false}
+            zIndex={1002}
 
             footer={[
                 <Button key="close" onClick={onClose}>

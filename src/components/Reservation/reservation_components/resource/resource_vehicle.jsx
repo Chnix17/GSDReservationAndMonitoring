@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CarOutlined } from '@ant-design/icons';
-import { MdPeople } from 'react-icons/md';
 import { SearchOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
@@ -70,21 +69,19 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, isMobile }
             </div>
             
             <div className={`
-              flex flex-wrap
+              flex items-center
               ${isMobile ? 'gap-1' : 'gap-2'}
             `}>
-              <div className="flex items-center gap-1 text-gray-600">
-                <CarOutlined className={`text-green-500 ${isMobile ? 'text-xs' : 'text-sm'}`} />
-                <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-                  {vehicle.vehicle_license}
-                </span>
-              </div>
-              <div className="flex items-center gap-1 text-gray-600">
-                <MdPeople className={`text-green-500 ${isMobile ? 'text-xs' : 'text-sm'}`} />
-                <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-                  {vehicle.vehicle_capacity || 'N/A'}
-                </span>
-              </div>
+              <Tag 
+                color="green"
+                className={`
+                  font-medium whitespace-nowrap
+                  ${isMobile ? 'text-[10px] px-1 py-0' : 'text-xs px-2 py-0.5'}
+                  bg-green-100/80 border border-green-200/50
+                `}
+              >
+                {vehicle.vehicle_category_name}
+              </Tag>
             </div>
           </div>
         </div>
@@ -104,8 +101,11 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
   const scrollContainerRef = useRef(null);
 
   const filteredVehicles = vehicles.filter(vehicle =>
-    ((vehicle.vehicle_make_name + ' ' + vehicle.vehicle_model_name).toLowerCase().includes(searchQuery.toLowerCase()) ||
-    vehicle.vehicle_license.toLowerCase().includes(searchQuery.toLowerCase()))
+    (
+      (vehicle.vehicle_make_name + ' ' + vehicle.vehicle_model_name + ' ' + (vehicle.vehicle_category_name || ''))
+        .toLowerCase()
+        .includes(searchQuery.toLowerCase())
+    )
   );
 
   const totalItems = filteredVehicles.length;
@@ -204,7 +204,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
         {/* Search Input */}
         <div className={`${isMobile ? 'mt-1' : 'mt-2'}`}>
           <Input
-            placeholder="Search vehicles by name or license..."
+            placeholder="Search vehicles by make, model, or category..."
             prefix={<SearchOutlined className="text-gray-400" />}
             onChange={(e) => handleSearch(e.target.value)}
             value={searchQuery}

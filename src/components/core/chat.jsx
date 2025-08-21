@@ -36,8 +36,6 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             const decryptedUserLevel = parseInt(encryptedUserLevel);
             console.log("this is encryptedUserLevel", encryptedUserLevel);
             if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1 && decryptedUserLevel !== 2) {
-                sessionStorage.clear();
-                localStorage.clear();
                 navigate('/gsd');
             }
           } catch (error) {

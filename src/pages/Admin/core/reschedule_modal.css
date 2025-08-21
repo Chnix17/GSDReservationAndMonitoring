@@ -1,0 +1,38 @@
+/* Scoped overrides for AntD TimePicker inside RescheduleModal */
+/* Keep AntD defaults; only adjust sizing/centering to avoid cutting numbers */
+/* Reset list styles to avoid global UL/LI styles interfering */
+.reschedule-modal .ant-picker-time-panel-column > ul,
+.reschedule-modal-popup .ant-picker-time-panel-column > ul {
+  list-style: none !important;
+  padding-left: 0 !important;
+  margin: 0 !important;
+}
+
+.reschedule-modal .ant-picker-time-panel-column > ul > li,
+.reschedule-modal-popup .ant-picker-time-panel-column > ul > li {
+  list-style: none !important;
+  text-indent: 0 !important;
+}
+
+/* Ensure inner cell text has room to render */
+.reschedule-modal .ant-picker-time-panel-cell-inner,
+.reschedule-modal-popup .ant-picker-time-panel-cell-inner {
+  min-width: 48px;
+  padding: 0 8px;
+  width: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Make sure columns are visible and wide enough for AM/PM */
+.reschedule-modal-popup .ant-picker-time-panel { min-width: 180px; }
+
+.reschedule-modal .ant-picker-time-panel-column,
+.reschedule-modal-popup .ant-picker-time-panel-column { flex: 0 0 auto; width: 80px; }
+
+/* Do not hide minute/second columns via CSS to avoid DOM changes per AntD version */
+
+/* AM/PM column width (second column when minutes/seconds are hidden) */
+.reschedule-modal .ant-picker-time-panel-column:last-child,
+.reschedule-modal-popup .ant-picker-time-panel-column:last-child { width: 80px; }

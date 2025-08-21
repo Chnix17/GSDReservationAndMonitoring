@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, Tag, Table, Tabs, Button } from 'antd';
+import { Modal, Tag, Tabs, Button } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -101,80 +101,6 @@ const ReservationDetails = ({
     const hasVehicleAndEquipment = reservationDetails.vehicles?.length > 0 && reservationDetails.equipment?.length > 0;
 
     // Resource table columns definitions
-    const columns = {
-        venue: [
-            {
-                title: 'Venue Name',
-                dataIndex: 'venue_name',
-                key: 'venue_name',
-                render: (text, record) => (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <BuildOutlined className="mr-2 text-purple-500" />
-                            <span className="font-medium">{text}</span>
-                        </div>
-                        {showAvailability && (
-                            <Tag color={checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                            </Tag>
-                        )}
-                    </div>
-                )
-            }
-        ],
-        vehicle: [
-            {
-                title: 'Vehicle',
-                dataIndex: 'model',
-                key: 'model',
-                render: (text, record) => (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <CarOutlined className="mr-2 text-blue-500" />
-                            <span className="font-medium">{text}</span>
-                        </div>
-                        {showAvailability && (
-                            <Tag color={checkResourceAvailability('vehicle', record.vehicle_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('vehicle', record.vehicle_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                            </Tag>
-                        )}
-                    </div>
-                )
-            },
-            {
-                title: 'License Plate',
-                dataIndex: 'license',
-                key: 'license',
-                render: (text) => <Tag color="blue">{text}</Tag>
-            }
-        ],
-        equipment: [
-            {
-                title: 'Equipment',
-                dataIndex: 'name',
-                key: 'name',
-                render: (text, record) => (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <ToolOutlined className="mr-2 text-orange-500" />
-                            <span className="font-medium">{text}</span>
-                        </div>
-                        {showAvailability && (
-                            <Tag color={checkResourceAvailability('equipment', record.equipment_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('equipment', record.equipment_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                            </Tag>
-                        )}
-                    </div>
-                )
-            },
-            {
-                title: 'Quantity',
-                dataIndex: 'quantity',
-                key: 'quantity',
-                render: (text) => <Tag color="orange">Qty: {text}</Tag>
-            }
-        ],
-    };
 
     return (
         <>
@@ -277,58 +203,90 @@ const ReservationDetails = ({
                             {/* Resources Section */}
                             <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
                                 <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
-                                <div className="space-y-4">
+                                <div className="space-y-6">
                                     {/* Venues */}
                                     {reservationDetails.venues?.length > 0 && (
-                                        <Table 
-                                            title={() => "Venues"}
-                                            dataSource={reservationDetails.venues} 
-                                            columns={columns.venue}
-                                            pagination={false}
-                                            size="small"
-                                        />
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Venues</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.venues.map((record) => (
+                                                    <div key={record.venue_id} className="p-3 border rounded-lg flex items-start justify-between">
+                                                        <div className="flex items-start gap-2 min-w-0">
+                                                            <BuildOutlined className="mt-0.5 text-purple-500" />
+                                                            <div className="min-w-0">
+                                                                <p className="font-medium text-gray-800 break-words">{record.venue_name}</p>
+                                                            </div>
+                                                        </div>
+                                                        {showAvailability && (
+                                                            <Tag className="shrink-0" color={checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
+                                                                {checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
+                                                            </Tag>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     )}
 
                                     {/* Vehicles */}
                                     {reservationDetails.vehicles?.length > 0 && (
-                                        <Table 
-                                            title={() => "Vehicles"}
-                                            dataSource={reservationDetails.vehicles.map(vehicle => {
-                                                // Find the driver assigned to this vehicle by reservation_vehicle_id (compare as strings)
-                                                const assignedDriver = reservationDetails.drivers?.find(driver => String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id));
-                                                return {
-                                                    ...vehicle,
-                                                    driver: assignedDriver ? assignedDriver.driver_name : 'No driver assigned'
-                                                };
-                                            })} 
-                                            columns={[
-                                                ...columns.vehicle,
-                                                {
-                                                    title: 'Driver',
-                                                    dataIndex: 'driver',
-                                                    key: 'driver',
-                                                    render: (text) => (
-                                                        <div className="flex items-center">
-                                                            <UserOutlined className="mr-2 text-blue-500" />
-                                                            <span className="font-medium">{text}</span>
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Vehicles</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.vehicles.map((vehicle) => {
+                                                    const assignedDriver = reservationDetails.drivers?.find(
+                                                        (driver) => String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
+                                                    );
+                                                    const availability = checkResourceAvailability('vehicle', vehicle.vehicle_id, reservationDetails.availabilityData);
+                                                    return (
+                                                        <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="p-3 border rounded-lg">
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex items-start gap-2 min-w-0">
+                                                                    <CarOutlined className="mt-0.5 text-blue-500" />
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-medium text-gray-800 break-words">{vehicle.model}</p>
+                                                                    </div>
+                                                                </div>
+                                                                {showAvailability && (
+                                                                    <Tag className="shrink-0" color={availability ? 'green' : 'red'}>
+                                                                        {availability ? 'Available' : 'Not Available'}
+                                                                    </Tag>
+                                                                )}
+                                                            </div>
+                                                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                                                                <span className="inline-flex items-center">
+                                                                    <Tag color="blue" className="mr-2">Plate</Tag>{vehicle.license}
+                                                                </span>
+                                                                <span className="inline-flex items-center">
+                                                                    <UserOutlined className="mr-2 text-blue-500" />
+                                                                    {assignedDriver ? assignedDriver.driver_name : 'No driver assigned'}
+                                                                </span>
+                                                            </div>
                                                         </div>
-                                                    )
-                                                }
-                                            ]}
-                                            pagination={false}
-                                            size="small"
-                                        />
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
                                     )}
 
                                     {/* Equipment */}
                                     {reservationDetails.equipment?.length > 0 && (
-                                        <Table 
-                                            title={() => "Equipment"}
-                                            dataSource={reservationDetails.equipment} 
-                                            columns={columns.equipment}
-                                            pagination={false}
-                                            size="small"
-                                        />
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Equipment</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.equipment.map((item) => (
+                                                    <div key={item.equipment_id || item.name} className="p-3 border rounded-lg flex items-start justify-between">
+                                                        <div className="flex items-start gap-2 min-w-0">
+                                                            <ToolOutlined className="mt-0.5 text-orange-500" />
+                                                            <div className="min-w-0">
+                                                                <p className="font-medium text-gray-800 break-words">{item.name}</p>
+                                                            </div>
+                                                        </div>
+                                                        <Tag color="orange" className="shrink-0">Qty: {item.quantity}</Tag>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     )}
 
                                     {/* Gate Pass Download Button (if both vehicle and equipment) */}
@@ -357,24 +315,24 @@ const ReservationDetails = ({
                                 <div className="divide-y divide-gray-200">
                                     {reservationDetails.statusHistory && reservationDetails.statusHistory.map((status, index) => (
                                         <div key={index} className="p-4 hover:bg-gray-50 transition-colors">
-                                            <div className="flex items-center justify-between">
-                                                <div className="flex items-center space-x-3">
-                                                    <div className={`w-2 h-2 rounded-full ${
-                                                        status.status_name?.toLowerCase() === 'approved' ? 'bg-green-500' :
-                                                        status.status_name?.toLowerCase() === 'declined' ? 'bg-red-500' :
-                                                        'bg-yellow-500'
-                                                    }`} />
-                                                    <div>
-                                                        <p className="font-medium text-gray-900">{status.status_name}</p>
-                                                        <p className="text-sm text-gray-500">
+                                            <div className="flex items-start">
+                                                <div className={`mt-1 w-2 h-2 rounded-full ${
+                                                    status.status_name?.toLowerCase() === 'approved' ? 'bg-green-500' :
+                                                    status.status_name?.toLowerCase() === 'declined' ? 'bg-red-500' :
+                                                    'bg-yellow-500'
+                                                }`} />
+                                                <div className="ml-3 flex-1">
+                                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                                        <p className="font-medium text-gray-900 break-words">{status.status_name}</p>
+                                                        <span className="text-xs sm:text-sm text-gray-500 sm:whitespace-nowrap">
                                                             {format(new Date(status.updated_at), 'MMM dd, yyyy h:mm a')}
-                                                            {status.updated_by_full_name && status.status_name !== 'Pending' && (
-                                                                <span className="ml-2 text-gray-400">
-                                                                    • Updated by {status.updated_by_full_name}
-                                                                </span>
-                                                            )}
-                                                        </p>
+                                                        </span>
                                                     </div>
+                                                    {status.updated_by_full_name && status.status_name !== 'Pending' && (
+                                                        <p className="text-xs sm:text-sm text-gray-500 break-words">
+                                                            Updated by {status.updated_by_full_name}
+                                                        </p>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>

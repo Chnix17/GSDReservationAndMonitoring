@@ -50,8 +50,8 @@ const ViewReserve = () => {
     useEffect(() => {
         const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
         const decryptedUserLevel = parseInt(encryptedUserLevel);
-        if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18) {
-            localStorage.clear();
+        if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18 && decryptedUserLevel !== 17) {
+  
             navigate('/gsd');
         }
   }, [navigate]);

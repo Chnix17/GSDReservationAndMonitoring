@@ -676,7 +676,7 @@ const Sidebar = () => {
                     <Popover.Panel className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700">
                         <p className="font-medium text-sm">{name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">Administrator</p>
+                       
                       </div>
                       <div className="p-2">
                         <button 
@@ -688,9 +688,7 @@ const Sidebar = () => {
                         >
                           My Profile
                         </button>
-                        <Link to="/settings" className="block px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-md">
-                          Settings
-                        </Link>
+                       
                         <button
                           onClick={handleLogout}
                           className="w-full text-left px-3 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md"

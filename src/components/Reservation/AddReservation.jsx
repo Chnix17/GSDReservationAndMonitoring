@@ -203,7 +203,7 @@ const handleRemovePassenger = (passengerId) => {
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
           if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6) {
-              localStorage.clear();
+    
               navigate('/gsd');
           }
         } catch (error) {

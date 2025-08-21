@@ -417,8 +417,38 @@ const ChecklistModal = ({
   //   setEquipmentDefectQty(value);
   // };
 
+  // Centralized date helpers (with reschedule fallback + Asia/Manila timezone)
+  const getEffectiveStart = () => {
+    return (
+      selectedTask?.reschedule_start_date ||
+      selectedTask?.reservation_start_date ||
+      null
+    );
+  };
+
+  const getEffectiveEnd = () => {
+    return (
+      selectedTask?.reschedule_end_date ||
+      selectedTask?.reservation_end_date ||
+      null
+    );
+  };
+
+  const toManilaDate = (dateInput) => {
+    if (!dateInput) return null;
+    const d = new Date(dateInput);
+    if (isNaN(d)) return null;
+    return new Date(
+      d.toLocaleString("en-US", { timeZone: "Asia/Manila" })
+    );
+  };
+
+  const nowManila = () =>
+    new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+
   const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
+    const date = toManilaDate(dateString);
+    if (!date) return "-";
     const months = [
       "January",
       "February",
@@ -445,10 +475,14 @@ const ChecklistModal = ({
   };
 
   const isTaskInProgress = (task) => {
-    if (!task || !task.reservation_end_date) return false;
-    const currentDate = new Date();
-    const endDate = new Date(task.reservation_end_date);
-    return currentDate >= endDate;
+    if (!task) return false;
+    const endString =
+      task.reschedule_end_date || task.reservation_end_date || null;
+    if (!endString) return false;
+    const manilaNow = nowManila();
+    const manilaEnd = toManilaDate(endString);
+    if (!manilaEnd) return false;
+    return manilaNow >= manilaEnd;
   };
 
   const isAllChecklistsCompleted = (task) => {
@@ -963,17 +997,10 @@ const ChecklistModal = ({
     // Check if the item is active
     const isActive = item.active === 1 || item.active === "1";
 
-    // Get the end time and current time in Manila timezone (GMT+8)
-    const endTime = new Date(selectedTask?.reservation_end_date);
-    const currentTime = new Date();
-
-    // Convert to Manila timezone
-    const manilaEndTime = new Date(
-      endTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-    );
-    const manilaCurrentTime = new Date(
-      currentTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-    );
+    // Get the effective end time and current time in Manila timezone (GMT+8)
+    const endString = getEffectiveEnd();
+    const manilaEndTime = toManilaDate(endString);
+    const manilaCurrentTime = nowManila();
 
     // Check if all checklists for this resource are completed
     const checklistsCompleted = areResourceChecklistsCompleted(item, type);
@@ -993,16 +1020,20 @@ const ChecklistModal = ({
     // 1. Item is active
     // 2. Reservation has ended in Manila time
     // 3. All checklists for this resource are completed
-    return isActive && manilaCurrentTime >= manilaEndTime && checklistsCompleted;
+    return (
+      isActive &&
+      !!manilaEndTime &&
+      manilaCurrentTime >= manilaEndTime &&
+      checklistsCompleted
+    );
   };
 
   const isOverdue = (item) => {
-    if (!selectedTask?.reservation_end_date) return false;
-
-    const endTime = new Date(selectedTask.reservation_end_date);
-    const currentTime = new Date();
-
-    return currentTime >= endTime;
+    const endString = getEffectiveEnd();
+    if (!endString) return false;
+    const manilaEnd = toManilaDate(endString);
+    if (!manilaEnd) return false;
+    return nowManila() >= manilaEnd;
   };
 
   const handleReturnClick = (type, item) => {
@@ -1199,15 +1230,10 @@ const ChecklistModal = ({
     // Check if all checklists are completed for this resource
     const checklistsCompleted = areResourceChecklistsCompleted(item, type);
     const isActive = item.active === 1 || item.active === "1";
-    const endTime = new Date(selectedTask?.reservation_end_date);
-    const currentTime = new Date();
-    const manilaEndTime = new Date(
-      endTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-    );
-    const manilaCurrentTime = new Date(
-      currentTime.toLocaleString("en-US", { timeZone: "Asia/Manila" }),
-    );
-    const isPastEndTime = manilaCurrentTime >= manilaEndTime;
+    const endString = getEffectiveEnd();
+    const manilaEndTime = toManilaDate(endString);
+    const manilaCurrentTime = nowManila();
+    const isPastEndTime = !!manilaEndTime && manilaCurrentTime >= manilaEndTime;
 
     // If not active, show not active message
     if (!isActive) {
@@ -1445,7 +1471,7 @@ const ChecklistModal = ({
                           Start Date
                         </label>
                         <p className="text-xs sm:text-sm text-gray-700">
-                          {formatDateTime(selectedTask?.reservation_start_date)}
+                          {formatDateTime(getEffectiveStart())}
                         </p>
                       </div>
                       <div>
@@ -1453,7 +1479,7 @@ const ChecklistModal = ({
                           End Date
                         </label>
                         <p className="text-xs sm:text-sm text-gray-700">
-                          {formatDateTime(selectedTask?.reservation_end_date)}
+                          {formatDateTime(getEffectiveEnd())}
                         </p>
                       </div>
                       {primaryAssignedBy && (
@@ -1954,11 +1980,11 @@ const ChecklistModal = ({
                 <div className="space-y-2.5">
                     <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1">Start Date</label>
-                        <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(selectedTask?.reservation_start_date)}</p>
+                        <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(getEffectiveStart())}</p>
                     </div>
                     <div>
                         <label className="block text-xs font-medium text-gray-400 mb-1">End Date</label>
-                        <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(selectedTask?.reservation_end_date)}</p>
+                        <p className="text-xs sm:text-sm text-gray-700">{formatDateTime(getEffectiveEnd())}</p>
                     </div>
                 </div>
             </div>

@@ -26,7 +26,7 @@ const VehicleModels = () => {
   const [showModal, setShowModal] = useState(false);
   // const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   // const [selectedModelId, setSelectedModelId] = useState(null);
-  const [editMode, setEditMode] = useState(false);
+  const [editMode, setEditMode] = useState(false);  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [pageSize, setPageSize] = useState(10);
@@ -41,7 +41,6 @@ const VehicleModels = () => {
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     console.log("this is encryptedUserLevel", encryptedUserLevel);
     if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
-        localStorage.clear();
         navigate('/gsd');
     }
   }, [navigate]);

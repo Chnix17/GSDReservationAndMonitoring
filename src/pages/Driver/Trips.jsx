@@ -6,9 +6,26 @@ import { format, differenceInSeconds } from 'date-fns';
 import Sidebar from '../../components/core/Sidebar';
 import { SecureStorage } from '../../utils/encryption';
 
+// Safe date parser and formatter
+const parseDateSafe = (dateString) => {
+  if (!dateString) return null;
+  const d = new Date(String(dateString).replace(' ', 'T'));
+  return isNaN(d.getTime()) ? null : d;
+};
+
+const formatSafe = (dateString, fmt = 'MMM dd, yyyy h:mm a') => {
+  const d = parseDateSafe(dateString);
+  try {
+    return d ? format(d, fmt) : '-';
+  } catch {
+    return '-';
+  }
+};
+
 const Countdown = ({ startDate }) => {
   const [secondsLeft, setSecondsLeft] = useState(() => {
-    return Math.max(0, differenceInSeconds(new Date(startDate), new Date()));
+    const start = parseDateSafe(startDate);
+    return Math.max(0, differenceInSeconds(start || new Date(), new Date()));
   });
 
   useEffect(() => {
@@ -103,13 +120,19 @@ const Trips = () => {
       title: 'Start Date',
       dataIndex: 'reservation_start_date',
       key: 'reservation_start_date',
-      render: (date) => format(new Date(date), 'MMM dd, yyyy h:mm a'),
+      render: (_, record) => {
+        const effective = record.reschedule_start_date || record.reservation_start_date;
+        return formatSafe(effective);
+      },
     },
     {
       title: 'End Date',
       dataIndex: 'reservation_end_date',
       key: 'reservation_end_date',
-      render: (date) => format(new Date(date), 'MMM dd, yyyy h:mm a'),
+      render: (_, record) => {
+        const effective = record.reschedule_end_date || record.reservation_end_date;
+        return formatSafe(effective);
+      },
     },
     {
       title: 'Vehicle',
@@ -125,7 +148,10 @@ const Trips = () => {
     {
       title: 'Countdown',
       key: 'countdown',
-      render: (_, record) => <Countdown startDate={record.reservation_start_date} />,
+      render: (_, record) => {
+        const effective = record.reschedule_start_date || record.reservation_start_date;
+        return <Countdown startDate={effective} />;
+      },
     },
   ];
 

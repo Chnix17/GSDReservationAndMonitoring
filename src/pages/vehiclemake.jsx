@@ -29,7 +29,6 @@ const VehicleMakes = () => {
     const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
-        localStorage.clear();
         navigate('/gsd');
     }
   }, [navigate]);

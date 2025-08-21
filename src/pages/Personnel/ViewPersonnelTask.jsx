@@ -58,8 +58,13 @@ const ViewPersonnelTask = () => {
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
+  // Safely parse and format date strings like "YYYY-MM-DD HH:mm:ss"
   const formatDateTime = (dateString) => {
-    const date = new Date(dateString);
+    if (!dateString) return '-';
+    // Ensure cross-browser parse (Safari fix) by using ISO-like format
+    const isoLike = String(dateString).replace(' ', 'T');
+    const date = new Date(isoLike);
+    if (isNaN(date.getTime())) return '-';
     const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
     const month = months[date.getMonth()];
     const day = date.getDate();
@@ -68,9 +73,12 @@ const ViewPersonnelTask = () => {
     const minutes = String(date.getMinutes()).padStart(2, '0');
     const ampm = hours >= 12 ? 'PM' : 'AM';
     const formattedHours = hours % 12 || 12;
-
     return `${month} ${day}, ${year} at ${formattedHours}:${minutes} ${ampm}`;
   };
+
+  // Determine effective dates: prefer reschedule_* when present, else reservation_*
+  const getEffectiveStart = (task) => task?.reschedule_start_date || task?.reservation_start_date;
+  const getEffectiveEnd = (task) => task?.reschedule_end_date || task?.reservation_end_date;
 
   const fetchPersonnelTasks = useCallback(async () => {
     try {
@@ -89,8 +97,8 @@ const ViewPersonnelTask = () => {
           .filter(task => task.reservation_status === 'Reserved')
           .map(task => ({
             ...task,
-            formattedStartDate: formatDateTime(task.reservation_start_date),
-            formattedEndDate: formatDateTime(task.reservation_end_date)
+            formattedStartDate: formatDateTime(getEffectiveStart(task)),
+            formattedEndDate: formatDateTime(getEffectiveEnd(task))
           }));
         setTasks(tasksWithFormattedDates);
         setError(null);
@@ -182,8 +190,8 @@ const ViewPersonnelTask = () => {
         if (updatedTask) {
           updatedTask = {
             ...updatedTask,
-            formattedStartDate: formatDateTime(updatedTask.reservation_start_date),
-            formattedEndDate: formatDateTime(updatedTask.reservation_end_date),
+            formattedStartDate: formatDateTime(getEffectiveStart(updatedTask)),
+            formattedEndDate: formatDateTime(getEffectiveEnd(updatedTask)),
           };
         }
       }
@@ -243,8 +251,8 @@ const ViewPersonnelTask = () => {
           .filter(task => task.reservation_status === 'Completed')
           .map(task => ({
             ...task,
-            formattedStartDate: formatDateTime(task.reservation_start_date),
-            formattedEndDate: formatDateTime(task.reservation_end_date)
+            formattedStartDate: formatDateTime(getEffectiveStart(task)),
+            formattedEndDate: formatDateTime(getEffectiveEnd(task))
           }));
         setTasks(completedTasks);
         setError(null);
@@ -317,17 +325,19 @@ const ViewPersonnelTask = () => {
 
   // Helper: Only allow opening from 1 hour before start date (Asia/Manila) and onwards
   const canOpenTask = (task) => {
-    if (!task || !task.reservation_start_date) return false;
+    const start = getEffectiveStart(task);
+    if (!task || !start) return false;
     const now = dayjs().tz('Asia/Manila');
-    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(1, 'hour');
+    const openTime = dayjs(start).tz('Asia/Manila').subtract(1, 'hour');
     return now.isAfter(openTime) || now.isSame(openTime);
   };
 
   // Helper: Get minutes until checklist can be opened
   const getMinutesUntilOpen = (task) => {
-    if (!task || !task.reservation_start_date) return null;
+    const start = getEffectiveStart(task);
+    if (!task || !start) return null;
     const now = dayjs().tz('Asia/Manila');
-    const openTime = dayjs(task.reservation_start_date).tz('Asia/Manila').subtract(1, 'hour');
+    const openTime = dayjs(start).tz('Asia/Manila').subtract(1, 'hour');
     const diff = openTime.diff(now, 'minute');
     return diff > 0 ? diff : 0;
   };

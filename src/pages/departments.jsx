@@ -32,7 +32,6 @@ const Departments = () => {
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
             if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
-              localStorage.clear();
               navigate('/gsd');
           }
       }, [navigate]);

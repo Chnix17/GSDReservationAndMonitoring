@@ -1,5 +1,5 @@
 
-import { Modal, Tag, Table, Tabs, Spin, Collapse } from 'antd';
+import { Modal, Tag, Tabs, Spin, Collapse } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -45,81 +45,45 @@ const ReservationDetails = ({
 }) => {
     if (!reservationDetails) return null;
 
-    // Resource table columns definitions
-    const columns = {
-        venue: [
-            {
-                title: 'Venue Name',
-                dataIndex: 'venue_name',
-                key: 'venue_name',
-                render: (text, record) => (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <BuildOutlined className="mr-2 text-purple-500" />
-                            <span className="font-medium">{text}</span>
-                        </div>
-                        {showAvailability && (
-                            <Tag color={checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('venue', record.venue_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                            </Tag>
-                        )}
-                    </div>
-                )
-            }
-        ],
-        vehicle: [
-            {
-                title: 'Vehicle',
-                dataIndex: 'model',
-                key: 'model',
-                render: (text, record) => (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <CarOutlined className="mr-2 text-blue-500" />
-                            <span className="font-medium">{text}</span>
-                        </div>
-                        {showAvailability && (
-                            <Tag color={checkResourceAvailability('vehicle', record.vehicle_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('vehicle', record.vehicle_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                            </Tag>
-                        )}
-                    </div>
-                )
-            },
-            {
-                title: 'License Plate',
-                dataIndex: 'license',
-                key: 'license',
-                render: (text) => <Tag color="blue">{text}</Tag>
-            }
-        ],
-        equipment: [
-            {
-                title: 'Equipment',
-                dataIndex: 'name',
-                key: 'name',
-                render: (text, record) => (
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center">
-                            <ToolOutlined className="mr-2 text-orange-500" />
-                            <span className="font-medium">{text}</span>
-                        </div>
-                        {showAvailability && (
-                            <Tag color={checkResourceAvailability('equipment', record.equipment_id, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                {checkResourceAvailability('equipment', record.equipment_id, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                            </Tag>
-                        )}
-                    </div>
-                )
-            },
-            {
-                title: 'Quantity',
-                dataIndex: 'quantity',
-                key: 'quantity',
-                render: (text) => <Tag color="orange">Qty: {text}</Tag>
-            }
-        ],
-    };
+    // Detect reschedule and resource changes
+    const statusArr = reservationDetails.status_history || reservationDetails.statusHistory || [];
+    const pendingRescheduleStatus = statusArr.find(s => {
+        const name = (s.status_name || '').toLowerCase();
+        const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
+        return (name.includes('reschedule') || String(s.status_id) === '10') && activeVal === 0;
+    });
+    const venueChanges = Array.isArray(reservationDetails.venues)
+        ? reservationDetails.venues.filter(v => (
+            (v.change_venue_name && v.change_venue_name.trim() !== '') ||
+            (v.change_venue_id && String(v.change_venue_id) !== String(v.venue_id))
+        ))
+        : [];
+    const hasVenueChange = venueChanges.length > 0;
+    const vehicleChanges = Array.isArray(reservationDetails.vehicles)
+        ? reservationDetails.vehicles.filter(v => (
+            (v.change_vehicle_model && v.change_vehicle_model.trim() !== '') ||
+            (v.change_vehicle_id && String(v.change_vehicle_id) !== String(v.vehicle_id)) ||
+            (v.change_vehicle_license && String(v.change_vehicle_license).trim() !== '' && String(v.change_vehicle_license) !== String(v.license))
+        ))
+        : [];
+    const hasVehicleChange = vehicleChanges.length > 0;
+    const normalizedStatusHistory = Array.isArray(reservationDetails.status_history)
+        ? reservationDetails.status_history
+        : (Array.isArray(reservationDetails.statusHistory) ? reservationDetails.statusHistory : []);
+    const isReservedActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reserved' && Number(s.reservation_active) === 1);
+    const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
+    const hasRescheduleProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
+    const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
+    const showReschedulePendingCard = hasRescheduleProposal && !isReservedActive && !isCancelledActive;
+
+    // Effective dates
+    const startDateStr = (hasActiveReschedule && reservationDetails.reschedule_start_date)
+        ? reservationDetails.reschedule_start_date
+        : reservationDetails.reservation_start_date;
+    const endDateStr = (hasActiveReschedule && reservationDetails.reschedule_end_date)
+        ? reservationDetails.reschedule_end_date
+        : reservationDetails.reservation_end_date;
+    // Resources rendered as responsive list cards (no Antd Table columns needed)
 
     return (
         <Modal
@@ -205,8 +169,8 @@ const ReservationDetails = ({
                                                 <div>
                                                     <p className="text-sm text-gray-500">Date & Time</p>
                                                     <p className="font-medium">{formatDateRange(
-                                                        reservationDetails.reservation_start_date,
-                                                        reservationDetails.reservation_end_date
+                                                        startDateStr,
+                                                        endDateStr
                                                     )}</p>
                                                 </div>
                                             </div>
@@ -214,64 +178,164 @@ const ReservationDetails = ({
                                     </div>
                                 </div>
 
+                                {/* Reschedule Proposed Section */}
+                                {showReschedulePendingCard && (
+                                    <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200 shadow-sm mb-6">
+                                        <h3 className="text-lg font-medium text-gray-800 mb-4">Proposed Reschedule Pending Confirmation</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <p className="text-sm text-gray-500">Original Date & Time</p>
+                                                <p className="font-medium">{formatDateRange(
+                                                    reservationDetails.reservation_start_date,
+                                                    reservationDetails.reservation_end_date
+                                                )}</p>
+                                            </div>
+                                            {(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && (
+                                                <div>
+                                                    <p className="text-sm text-gray-500">Proposed Date & Time</p>
+                                                    <p className="font-medium">{formatDateRange(
+                                                        reservationDetails.reschedule_start_date || reservationDetails.reservation_start_date,
+                                                        reservationDetails.reschedule_end_date || reservationDetails.reservation_end_date
+                                                    )}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {hasVenueChange && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-500">Venue Change</p>
+                                                <div className="space-y-2">
+                                                    {venueChanges.map(vc => (
+                                                        <div key={vc.reservation_venue_id} className="flex items-center gap-2 text-sm">
+                                                            <Tag color="default">{vc.venue_name}</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="gold">{(vc.change_venue_name && vc.change_venue_name.trim()) || `ID ${vc.change_venue_id}`}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {hasVehicleChange && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-500">Vehicle Change</p>
+                                                <div className="space-y-2">
+                                                    {vehicleChanges.map(vc => (
+                                                        <div key={vc.reservation_vehicle_id} className="flex items-center gap-2 text-sm">
+                                                            <Tag color="default">{vc.model} ({vc.license})</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="gold">{(vc.change_vehicle_model && vc.change_vehicle_model.trim()) || `ID ${vc.change_vehicle_id}`}{vc.change_vehicle_license ? ` (${vc.change_vehicle_license})` : ''}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
                                 {/* Resources Section */}
                                 <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
                                     <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
-                                    <div className="space-y-4">
+                                    <div className="space-y-6">
                                         {/* Venues */}
                                         {reservationDetails.venues?.length > 0 && (
-                                            <Table 
-                                                title={() => "Venues"}
-                                                dataSource={reservationDetails.venues} 
-                                                columns={columns.venue}
-                                                pagination={false}
-                                                size="small"
-                                            />
+                                            <div>
+                                                <h4 className="text-base font-medium mb-2 text-gray-800">Venues</h4>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {reservationDetails.venues.map((venue) => {
+                                                        const changedCandidate = hasActiveReschedule && (
+                                                            (venue.change_venue_name && venue.change_venue_name.trim() !== '') ||
+                                                            (!!venue.change_venue_id && String(venue.change_venue_id) !== String(venue.venue_id))
+                                                        );
+                                                        const displayName = changedCandidate
+                                                            ? ((venue.change_venue_name && venue.change_venue_name.trim()) || `ID ${venue.change_venue_id}`)
+                                                            : venue.venue_name;
+                                                        const availabilityVenueId = changedCandidate ? (venue.change_venue_id || venue.venue_id) : venue.venue_id;
+                                                        return (
+                                                            <div key={venue.reservation_venue_id || venue.venue_id} className="p-3 border rounded-lg flex items-start justify-between">
+                                                                <div className="flex items-start gap-2 min-w-0">
+                                                                    <BuildOutlined className="mt-0.5 text-purple-500" />
+                                                                    <div className="min-w-0">
+                                                                        <p className="font-medium text-gray-800 break-words">{displayName}</p>
+                                                                    </div>
+                                                                </div>
+                                                                {showAvailability && (
+                                                                    <Tag className="shrink-0" color={checkResourceAvailability('venue', availabilityVenueId, reservationDetails.availabilityData) ? 'green' : 'red'}>
+                                                                        {checkResourceAvailability('venue', availabilityVenueId, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
+                                                                    </Tag>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         )}
 
                                         {/* Vehicles */}
                                         {reservationDetails.vehicles?.length > 0 && (
-                                            <Table 
-                                                title={() => "Vehicles"}
-                                                dataSource={reservationDetails.vehicles.map(vehicle => {
-                                                    // Always use driver_name for each driver
-                                                    let driverNames = 'No driver assigned';
-                                                    if (reservationDetails.drivers && reservationDetails.drivers.length > 0) {
-                                                        driverNames = reservationDetails.drivers.map(driver => driver.driver_name).join(', ');
-                                                    }
-                                                    return {
-                                                        ...vehicle,
-                                                        driver: driverNames
-                                                    };
-                                                })} 
-                                                columns={[...columns.vehicle, {
-                                                    title: 'Driver',
-                                                    dataIndex: 'driver',
-                                                    key: 'driver',
-                                                    render: (text, record) => (
-                                                        <div className="flex items-center justify-between">
-                                                            <div className="flex items-center">
-                                                                <UserOutlined className="mr-2 text-blue-500" />
-                                                                {/* Remove leading comma and space if present */}
-                                                                <span className="font-medium">{text.replace(/^,\s*/, '')}</span>
+                                            <div>
+                                                <h4 className="text-base font-medium mb-2 text-gray-800">Vehicles</h4>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {reservationDetails.vehicles.map((vehicle) => {
+                                                        const changedCandidate = hasActiveReschedule && (
+                                                            (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '') ||
+                                                            (!!vehicle.change_vehicle_id && String(vehicle.change_vehicle_id) !== String(vehicle.vehicle_id))
+                                                        );
+                                                        const displayModel = changedCandidate
+                                                            ? ((vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim()) || `ID ${vehicle.change_vehicle_id}`)
+                                                            : vehicle.model;
+                                                        const availabilityVehicleId = changedCandidate ? (vehicle.change_vehicle_id || vehicle.vehicle_id) : vehicle.vehicle_id;
+                                                        const assignedDriver = reservationDetails.drivers?.find(d => String(d.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id));
+                                                        const displayLicense = (hasActiveReschedule && vehicle.change_vehicle_license && String(vehicle.change_vehicle_license).trim() !== '')
+                                                            ? vehicle.change_vehicle_license
+                                                            : vehicle.license;
+                                                        return (
+                                                            <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="p-3 border rounded-lg">
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex items-start gap-2 min-w-0">
+                                                                        <CarOutlined className="mt-0.5 text-blue-500" />
+                                                                        <div className="min-w-0">
+                                                                            <p className="font-medium text-gray-800 break-words">{displayModel}</p>
+                                                                        </div>
+                                                                    </div>
+                                                                    {showAvailability && (
+                                                                        <Tag className="shrink-0" color={checkResourceAvailability('vehicle', availabilityVehicleId, reservationDetails.availabilityData) ? 'green' : 'red'}>
+                                                                            {checkResourceAvailability('vehicle', availabilityVehicleId, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
+                                                                        </Tag>
+                                                                    )}
+                                                                </div>
+                                                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
+                                                                    <span className="inline-flex items-center">
+                                                                        <Tag color="blue" className="mr-2">Plate</Tag>{displayLicense}
+                                                                    </span>
+                                                                    <span className="inline-flex items-center">
+                                                                        <UserOutlined className="mr-2 text-blue-500" />
+                                                                        {assignedDriver ? assignedDriver.driver_name : 'No driver assigned'}
+                                                                    </span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    )
-                                                }]}
-                                                pagination={false}
-                                                size="small"
-                                            />
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
                                         )}
 
                                         {/* Equipment */}
                                         {reservationDetails.equipment?.length > 0 && (
-                                            <Table 
-                                                title={() => "Equipment"}
-                                                dataSource={reservationDetails.equipment} 
-                                                columns={columns.equipment}
-                                                pagination={false}
-                                                size="small"
-                                            />
+                                            <div>
+                                                <h4 className="text-base font-medium mb-2 text-gray-800">Equipment</h4>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                    {reservationDetails.equipment.map((item) => (
+                                                        <div key={item.reservation_equipment_id || item.equipment_id || item.name} className="p-3 border rounded-lg flex items-start justify-between">
+                                                            <div className="flex items-start gap-2 min-w-0">
+                                                                <ToolOutlined className="mt-0.5 text-orange-500" />
+                                                                <div className="min-w-0">
+                                                                    <p className="font-medium text-gray-800 break-words">{item.name}</p>
+                                                                </div>
+                                                            </div>
+                                                            <Tag color="orange" className="shrink-0">Qty: {item.quantity}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
                                 </div>
@@ -302,7 +366,7 @@ const ReservationDetails = ({
                                 {reservationDetails.status_history && reservationDetails.status_history.length > 0 ? (
                                     <div className="bg-white p-4 rounded-lg border border-green-200 shadow-sm mb-6">
                                         <h3 className="text-lg font-medium mb-4 text-gray-800">Status History</h3>
-                                        <div className="space-y-4">
+                                        <div className="space-y-3 sm:space-y-4">
                                             {reservationDetails.status_history
                                                 .sort((a, b) => new Date(b.reservation_updated_at) - new Date(a.reservation_updated_at))
                                                 .map((status, index) => {
@@ -310,28 +374,27 @@ const ReservationDetails = ({
                                                     const statusVal = Number(rawStatus);
                                                     const dotClass = statusVal === 1 ? 'bg-green-500' : (statusVal === -1 ? 'bg-red-500' : 'bg-yellow-500');
                                                     const lineClass = statusVal === 1 ? 'bg-green-300' : (statusVal === -1 ? 'bg-red-300' : 'bg-yellow-300');
-                                                    const tagColor = statusVal === 1 ? 'green' : (statusVal === -1 ? 'red' : 'gold');
-                                                    const tagLabel = statusVal === 1 ? 'Approved' : (statusVal === -1 ? 'Declined' : 'Pending');
+                                                 
                                                     return (
-                                                        <div key={status.reservation_status_id} className="flex">
+                                                        <div key={status.reservation_status_id} className="flex items-start">
                                                             <div className="flex flex-col items-center mr-4">
                                                                 <div className={`w-3 h-3 rounded-full ${dotClass}`}></div>
                                                                 {index !== reservationDetails.status_history.length - 1 && (
-                                                                    <div className={`w-0.5 h-full ${lineClass}`}></div>
+                                                                    <div className={`w-0.5 flex-1 ${lineClass}`}></div>
                                                                 )}
                                                             </div>
                                                             <div className="flex-1 mb-4">
-                                                                <div className="flex justify-between items-center mb-1">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="font-medium text-gray-800">{status.status_name}</span>
-                                                                        <Tag color={tagColor}>{tagLabel}</Tag>
+                                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-1">
+                                                                    <div className="flex items-center gap-2 min-w-0 flex-wrap">
+                                                                        <span className="font-medium text-gray-800 break-words">{status.status_name}</span>
+                                                                       
                                                                     </div>
-                                                                    <span className="text-sm text-gray-500">
+                                                                    <span className="text-xs sm:text-sm text-gray-500 w-full sm:w-auto sm:text-right sm:whitespace-nowrap">
                                                                         {new Date(status.reservation_updated_at).toLocaleString()}
                                                                     </span>
                                                                 </div>
-                                                                <div className="text-sm text-gray-600">
-                                                                    Updated by: {status.updated_by_name}
+                                                                <div className="text-xs sm:text-sm text-gray-600">
+                                                                    Updated by: {status.updated_by_name || '—'}
                                                                 </div>
                                                             </div>
                                                         </div>

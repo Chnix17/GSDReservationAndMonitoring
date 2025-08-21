@@ -96,7 +96,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
             // Prevent decreasing stock: new quantity must be >= current on-hand
             const newQty = parseInt(quickAdjustment.quantity, 10);
-            const currentQty = parseInt(equipment.on_hand_quantity || 0, 10);
+         
             if (isNaN(newQty)) {
                 message.error('Please enter a valid quantity');
                 return;

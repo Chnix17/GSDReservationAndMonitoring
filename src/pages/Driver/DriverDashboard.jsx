@@ -5,9 +5,11 @@ import { SecureStorage } from '../../utils/encryption';
 import { FiCalendar } from 'react-icons/fi';
 import { motion } from 'framer-motion';
 
-// Helper to format date
+// Helper to format date (safe)
 const formatDateTime = (dateString) => {
-    const date = new Date(dateString.replace(' ', 'T'));
+    if (!dateString) return '-';
+    const date = new Date(String(dateString).replace(' ', 'T'));
+    if (isNaN(date.getTime())) return '-';
     return date.toLocaleString('en-US', {
         year: 'numeric',
         month: 'long',
@@ -23,8 +25,9 @@ const getStatus = (start, end) => {
     const now = new Date(
         new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })
     );
-    const startDate = new Date(start.replace(' ', 'T'));
-    const endDate = new Date(end.replace(' ', 'T'));
+    if (!start || !end) return 'N/A';
+    const startDate = new Date(String(start).replace(' ', 'T'));
+    const endDate = new Date(String(end).replace(' ', 'T'));
     if (now < startDate) return 'Upcoming';
     if (now >= startDate && now <= endDate) return 'Ongoing';
     return 'Ended';
@@ -85,7 +88,9 @@ const DriverDashboard = () => {
                                     </div>
                                 ) : (
                                     trips.map(trip => {
-                                        const status = getStatus(trip.reservation_start_date, trip.reservation_end_date);
+                                        const effectiveStart = trip.reschedule_start_date || trip.reservation_start_date;
+                                        const effectiveEnd = trip.reschedule_end_date || trip.reservation_end_date;
+                                        const status = getStatus(effectiveStart, effectiveEnd);
                                         return (
                                             <motion.div
                                                 key={trip.reservation_id}
@@ -111,7 +116,7 @@ const DriverDashboard = () => {
                                                 <div className="flex items-center mt-3 text-sm text-gray-500 space-x-4">
                                                     <div className="flex items-center">
                                                         <FiCalendar className="w-4 h-4 mr-2" />
-                                                        {formatDateTime(trip.reservation_start_date)} to {formatDateTime(trip.reservation_end_date)}
+                                                        {formatDateTime(effectiveStart)} to {formatDateTime(effectiveEnd)}
                                                     </div>
                                                 </div>
                                                 <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">

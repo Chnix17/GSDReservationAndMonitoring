@@ -164,7 +164,7 @@ const Update_Modal = ({
                 form.setFieldsValue({ year: yearDate });
             }
         }
-    }, [editingVehicle, open, form]);
+    }, [editingVehicle, open, form, resetForm]);
 
     // Ensure form is synchronized when modal opens
     useEffect(() => {

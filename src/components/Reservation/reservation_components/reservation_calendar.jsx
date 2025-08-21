@@ -252,16 +252,16 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             statusId: res.reservation_status_status_id,
             statusType: typeof res.reservation_status_status_id,
             isStatus6: res.reservation_status_status_id === '6',
-            isStatus1: res.reservation_status_status_id === '1',
+            isStatus1: res.reservation_status_status_id === '8',
             isStatus6Num: res.reservation_status_status_id === 6,
-            isStatus1Num: res.reservation_status_status_id === 1
+            isStatus1Num: res.reservation_status_status_id === 8
           });
           
           return {
             startDate: res.reservation_start_date,
             endDate: res.reservation_end_date,
             status: res.reservation_status_status_id,
-            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === 1,
+            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === 8,
             // Venue details
             venueName: res.ven_name,
             venueOccupancy: res.ven_occupancy,
@@ -3241,17 +3241,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   // };
   // Update renderAvailabilityLegend to include driver availability
   const renderAvailabilityLegend = () => {
-    // Calculate driver availability info for vehicle resources
-    let driverInfo = null;
-    if (selectedResource.type === 'vehicle') {
-      const numberOfVehicles = selectedResource.id ? selectedResource.id.length : 1;
-      const availableDrivers = driverAvailability ? driverAvailability.length : 0;
-      driverInfo = {
-        available: availableDrivers,
-        required: numberOfVehicles,
-        isSufficient: availableDrivers >= numberOfVehicles
-      };
-    }
+    
 
     return (
       <div className="flex flex-wrap gap-2 items-center mb-3 sm:mb-4 p-2 sm:p-3 bg-white dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700/30 shadow-sm text-[10px] sm:text-xs">
@@ -3716,6 +3706,9 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   const currentHour = now.getHours();
   const currentMinute = now.getMinutes();
   const isToday = dateRange.start && isSameDay(dateRange.start, now);
+  // Privileged roles that bypass most time-slot blocking in modal
+  const isBypassRoleTime =
+    (userLevel === 'Department Head' && userDepartment === 'COO')
   
   // Calculate blocked slots for start time (considering the entire date range for conflicts)
   const startBlockedSlots = (() => {
@@ -3913,6 +3906,37 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     }
   }
 
+  // Detect conflicts on any middle day in a multi-day selection for non-privileged users
+  const hasMiddleDayConflict = (() => {
+    if (!(dateRange.start && dateRange.end)) return false;
+    if (isSameDay(dateRange.start, dateRange.end)) return false;
+    if (isBypassRoleTime) return false; // privileged roles bypass
+
+    // Determine first and last middle days (exclude start and end dates)
+    const startDate = new Date(dateRange.start);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(dateRange.end);
+    endDate.setHours(0, 0, 0, 0);
+
+    const firstMiddle = new Date(startDate);
+    firstMiddle.setDate(firstMiddle.getDate() + 1);
+    const lastMiddle = new Date(endDate);
+    lastMiddle.setDate(lastMiddle.getDate() - 1);
+
+    if (firstMiddle > lastMiddle) return false; // no intermediate days
+
+    for (let current = new Date(firstMiddle); current <= lastMiddle; current.setDate(current.getDate() + 1)) {
+      const dayBlockedSlots = getBlockedTimeSlots(current);
+      const blockedHours = (dayBlockedSlots && dayBlockedSlots.hours) ? dayBlockedSlots.hours : [];
+      // If ANY business-hour (4-22) on a middle day is blocked, treat as conflict
+      const hasBusinessHourBlock = blockedHours.some(h => h >= 4 && h <= 22);
+      if (hasBusinessHourBlock) {
+        return true;
+      }
+    }
+    return false;
+  })();
+
   const handleCloseModal = () => {
     setIsDatePickerModalOpen(false);
     setDateRange({ start: null, end: null });
@@ -4096,7 +4120,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   })();
 
   const allStartHoursDisabled = startTimeDisabledHours.length === 24;
-  const allEndHoursDisabled = endTimeDisabledHours.length === 24;
+  const allEndHoursDisabled = hasMiddleDayConflict || endTimeDisabledHours.length === 24;
 
   return (
     <Dialog
@@ -4244,18 +4268,16 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                     null
                   }
                   disabled={
-                    (userLevel === 'Department Head' && userDepartment === 'COO')
+                    isBypassRoleTime
                       ? mustSelectEndDate
                       : (hasRangeConflict || mustSelectEndDate || allStartHoursDisabled)
                   }
                   disabledTime={() => {
-                    const isBypassRole =
-                      (userLevel === 'Department Head' && userDepartment === 'COO');
                     return {
-                      disabledHours: () => (isBypassRole ? [] : startTimeDisabledHours),
+                      disabledHours: () => (isBypassRoleTime ? [] : startTimeDisabledHours),
                       disabledMinutes: (selectedHour) => {
                         const disabledMinutes = [];
-                        if (!isBypassRole) {
+                        if (!isBypassRoleTime) {
                           if (startBlockedSlots.minutes[selectedHour]) {
                             disabledMinutes.push(...startBlockedSlots.minutes[selectedHour]);
                           }
@@ -4302,18 +4324,16 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                     null
                   }
                   disabled={
-                    (userLevel === 'Department Head' && userDepartment === 'COO')
+                    isBypassRoleTime
                       ? mustSelectEndDate
                       : (hasRangeConflict || mustSelectEndDate || allEndHoursDisabled)
                   }
                   disabledTime={() => {
-                    const isBypassRole =
-                      (userLevel === 'Department Head' && userDepartment === 'COO');
                     return {
-                      disabledHours: () => (isBypassRole ? [] : endTimeDisabledHours),
+                      disabledHours: () => (isBypassRoleTime ? [] : endTimeDisabledHours),
                       disabledMinutes: (selectedHour) => {
                         const disabledMinutes = [];
-                        if (!isBypassRole) {
+                        if (!isBypassRoleTime) {
                           if (endBlockedSlots.minutes[selectedHour]) {
                             disabledMinutes.push(...endBlockedSlots.minutes[selectedHour]);
                           }
@@ -4392,6 +4412,11 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                 }
                 if (!selectedTimes.startTime || !selectedTimes.endTime) {
                   toast.error('Please select both start and end times');
+                  return;
+                }
+                // Prevent confirmation for non-privileged users when middle-day conflicts exist
+                if (!isBypassRoleTime && hasMiddleDayConflict) {
+                  toast.error('End time not available. Start time slots are available, but no end time slots can be selected for this date range. This may be due to existing reservations or business hour restrictions.');
                   return;
                 }
                 const startDateTime = dayjs(dateRange.start)
@@ -4951,14 +4976,15 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     return blockedSlots;
   }
 
-  if (userLevel === 'Secretary' && userDepartment === 'GSD') {
-    return holidayblocked;
-  }
 
   // Check if it's a holiday
   const formattedDate = format(date, 'yyyy-MM-dd');
   if (holidays.some(h => h.date === formattedDate)) {
-    // Block all hours for holidays (0-23)
+    // Secretary (GSD) bypasses holiday blocks; others get all hours blocked
+    if (userLevel === 'Secretary' && userDepartment === 'GSD') {
+      return holidayblocked; // empty blocked slots on holidays for GSD Secretary
+    }
+    // Block all hours for holidays (0-23) for non-privileged roles
     for (let hour = 0; hour < 24; hour++) {
       blockedSlots.hours.push(hour);
     }
@@ -4972,11 +4998,18 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   compareDate.setHours(0, 0, 0, 0);
   const minSelectableDate = getMinSelectableDate();
   if (compareDate < minSelectableDate) {
-    // Block all hours for past or not allowed dates (0-23)
-    for (let hour = 0; hour < 24; hour++) {
-      blockedSlots.hours.push(hour);
+    // Privileged roles (COO Dept Head and GSD Secretary) bypass min-date blocking in time pickers
+    const isPrivileged =
+      (userLevel === 'Department Head' && userDepartment === 'COO') ||
+      (userLevel === 'Secretary' && userDepartment === 'GSD');
+    if (!isPrivileged) {
+      // Block all hours for past or not allowed dates (0-23)
+      for (let hour = 0; hour < 24; hour++) {
+        blockedSlots.hours.push(hour);
+      }
+      return blockedSlots;
     }
-    return blockedSlots;
+    // fall through for privileged roles
   }
 
   // For equipment resources
