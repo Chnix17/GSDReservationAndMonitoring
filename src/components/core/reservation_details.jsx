@@ -1,5 +1,5 @@
-
-import { Modal, Tag, Tabs, Spin, Collapse } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Modal, Tag, Tabs, Spin, Collapse, Button } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -9,6 +9,7 @@ import {
     DownOutlined,
     RightOutlined
 } from '@ant-design/icons';
+import { DriversTicket } from './trip_ticket';
 
 const formatDateRange = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -43,6 +44,42 @@ const ReservationDetails = ({
     showAvailability = false,
     checkResourceAvailability = () => true
 }) => {
+    // Trip Ticket export state
+    const [isExporting, setIsExporting] = useState(false);
+    const ticketInitialData = useMemo(() => {
+        const details = reservationDetails || {};
+        // Map destination (from title) and purpose (from description)
+        const destination = details.reservation_title || details.title || details.destination || details.reservation_destination || '';
+        const purpose = details.reservation_description || details.description || details.purpose || details.reservation_purpose || '';
+
+        // Drivers: join names
+        const driverName = Array.isArray(details.drivers)
+            ? details.drivers.map(d => d.driver_name || d.name).filter(Boolean).join(', ')
+            : '';
+
+        // Vehicles: prefer change_vehicle_license if provided, else license
+        const plateNo = Array.isArray(details.vehicles)
+            ? details.vehicles
+                .map(v => (v.change_vehicle_license && String(v.change_vehicle_license).trim() !== '') ? v.change_vehicle_license : v.license)
+                .filter(Boolean)
+                .join(', ')
+            : '';
+
+        // Passengers: join names
+        const authorizedPassenger = Array.isArray(details.passengers)
+            ? details.passengers.map(p => p.name || p).filter(Boolean).join(', ')
+            : '';
+
+        return {
+            date: '',
+            driverName,
+            plateNo,
+            authorizedPassenger,
+            destination,
+            purpose,
+        };
+    }, [reservationDetails]);
+
     if (!reservationDetails) return null;
 
     // Detect reschedule and resource changes
@@ -117,6 +154,16 @@ const ReservationDetails = ({
                         <div className="text-white text-right">
                             <p className="text-white opacity-90 text-sm">Created on</p>
                             <p className="font-semibold">{new Date(reservationDetails.reservation_created_at).toLocaleString()}</p>
+                            {isReservedActive && (reservationDetails.vehicles?.length || 0) > 0 && (
+                                <div className="mt-3">
+                                    <Button 
+                                        onClick={() => setIsExporting(true)}
+                                        loading={isExporting}
+                                    >
+                                        {isExporting ? 'Preparing Ticket...' : 'Download Trip Ticket'}
+                                    </Button>
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -475,6 +522,16 @@ const ReservationDetails = ({
                     </Tabs>
                 </div>
             </div>
+            {/* Hidden DriversTicket component for direct export */}
+            {isExporting && (
+                <div style={{ position: 'absolute', left: '-9999px' }}>
+                    <DriversTicket
+                        initialData={ticketInitialData}
+                        autoExport
+                        onExported={() => setIsExporting(false)}
+                    />
+                </div>
+            )}
         </Modal>
     );
 };
