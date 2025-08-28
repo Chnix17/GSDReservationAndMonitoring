@@ -1336,7 +1336,7 @@ const Chat = () => {
               {/* Chat filter tabs */}
               <div className="bg-white border-b border-gray-200 px-2 overflow-x-auto">
                 <div className="flex items-center space-x-1 py-2">
-                  {["all", "unread", "groups"].map((filter) => (
+                  {["all"].map((filter) => (
                     <button
                       key={filter}
                       onClick={() => setChatFilter(filter)}
@@ -1347,8 +1347,7 @@ const Chat = () => {
                       }`}
                     >
                       {filter === "all" && "All Chats"}
-                      {filter === "unread" && "Unread"}
-                      {filter === "groups" && "Groups"}
+
                     </button>
                   ))}
                 </div>

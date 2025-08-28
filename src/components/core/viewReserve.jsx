@@ -213,7 +213,7 @@ const ViewReserve = () => {
                 console.log("Status API Response:", statusResult);
 
                 // Fetch maintenance resources
-                const maintenanceResponse = await fetch(`${baseUrl}faculty&staff.php`, {
+                const maintenanceResponse = await fetch(`${baseUrl}user.php`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',

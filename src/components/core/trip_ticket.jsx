@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Button, Spin } from "antd";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -70,7 +70,7 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
     );
   };
 
-  const exportToPDF = async () => {
+  const exportToPDF = useCallback(async () => {
     setIsGeneratingPdf(true);
     const element = document.getElementById("drivers-ticket");
     if (!element) {
@@ -120,7 +120,7 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
     } finally {
       setIsGeneratingPdf(false);
     }
-  };
+  }, [onExported]);
 
   useEffect(() => {
     if (autoExport) {
@@ -138,7 +138,7 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [autoExport]);
+  }, [autoExport, exportToPDF]);
 
   return (
     <div className="w-full max-w-7xl mx-auto p-6 bg-document-background">
@@ -268,7 +268,7 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
                 </div>
               </div>
 
-              <p className="text-document-text text-xs mt-4 mb-2">
+              <p className="text-document-text text-xs mt-4 mb-5">
                 I hereby certify the correctness of the above statements of records of travel.
               </p>
 
@@ -307,20 +307,20 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
           </div>
 
           {/* Right Column - Trip Details Table */}
-          <div>
+          <div className="ml-4">
             <h3 className="text-document-header font-bold text-sm mb-4 text-center">
               TRIP DETAILS
             </h3>
-            <div className="border border-document-line">
+            <div className="border border-document-line w-full">
               {/* Table Header */}
               <div className="grid grid-cols-12 border-b border-document-line bg-form-field">
-                <div className="p-2 border-r border-document-line text-center col-span-1">
+                <div className="p-2 border-r border-document-line text-center col-span-2 whitespace-nowrap">
                   <span className="text-document-text text-xs font-bold">TIME</span>
                 </div>
-                <div className="p-2 border-r border-document-line text-center col-span-2">
+                <div className="p-2 border-r border-document-line text-center col-span-3">
                   <span className="text-document-text text-xs font-bold">STOP OVER</span>
                 </div>
-                <div className="p-2 border-r border-document-line text-center col-span-7">
+                <div className="p-2 border-r border-document-line text-center col-span-5">
                   <span className="text-document-text text-xs font-bold">PURPOSE</span>
                 </div>
                 <div className="p-2 text-center col-span-2">
@@ -334,15 +334,15 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
                   key={index}
                   className="grid grid-cols-12 border-b border-document-line last:border-b-0"
                 >
-                  <div className="p-1 border-r border-document-line col-span-1">
+                  <div className="p-1 border-r border-document-line col-span-2">
                     <input
-                      type="date"
+                      type="time"
                       value={detail.date}
                       onChange={(e) => updateTripDetail(index, "date", e.target.value)}
-                      className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1"
+                      className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1 text-center"
                     />
                   </div>
-                  <div className="p-1 border-r border-document-line col-span-2">
+                  <div className="p-1 border-r border-document-line col-span-3">
                     <input
                       type="text"
                       value={detail.stopOver}
@@ -350,7 +350,7 @@ export const DriversTicket = ({ initialData = {}, autoExport = false, onExported
                       className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1"
                     />
                   </div>
-                  <div className="p-1 border-r border-document-line col-span-7">
+                  <div className="p-1 border-r border-document-line col-span-5">
                     <input
                       type="text"
                       value={detail.purpose}

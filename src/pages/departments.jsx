@@ -249,7 +249,7 @@ const Departments = () => {
                                 <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
                                     <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                                         <tr>
-                                            <th scope="col" className="px-4 py-4" onClick={() => handleSort('departments_name')}>
+                                            <th scope="col" className="px-3 py-3" onClick={() => handleSort('departments_name')}>
                                                 <div className="flex items-center cursor-pointer">
                                                     DEPARTMENT NAME
                                                     {sortField === 'departments_name' && (
@@ -259,13 +259,13 @@ const Departments = () => {
                                                     )}
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-4 py-4">
+                                            <th scope="col" className="px-3 py-3">
                                                 <div className="flex items-center">
                                                     DEPARTMENT TYPE
                                                 </div>
                                             </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
+                                            <th scope="col" className="px-3 py-3">
+                                                <div className="flex items-left">
                                                     ACTIONS
                                                 </div>
                                             </th>
@@ -277,18 +277,18 @@ const Departments = () => {
                                                 .slice((currentPage - 1) * pageSize, currentPage * pageSize)
                                                 .map((department) => (
                                                     <tr key={department.departments_id} className="bg-white border-b last:border-b-0 border-gray-200">
-                                                        <td className="px-4 py-6">
+                                                        <td className="px-3 py-4">
                                                             <div className="flex items-center">
                                                                 <FaBuilding className="mr-2 text-green-900" />
                                                                 <span className="font-bold truncate block max-w-[140px]">{department.departments_name}</span>
                                                             </div>
                                                         </td>
-                                                        <td className="px-4 py-6">
+                                                        <td className="px-3 py-4">
                                                             <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
                                                                 {department.department_type || 'N/A'}
                                                             </span>
                                                         </td>
-                                                        <td className="px-4 py-6">
+                                                        <td className="px-3 py-4">
                                                             <div className="flex justify-center space-x-2">
                                                                 <Tooltip title="Edit Department">
                                                                     <Button

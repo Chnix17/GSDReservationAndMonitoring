@@ -144,9 +144,7 @@ const ReservationDetails = ({
                     <div className="flex justify-between items-center">
                         <div>
                             <div className="flex items-center gap-2">
-                                <h2 className="text-2xl font-bold text-white">
-                                    Reservation #{reservationDetails.reservation_id}
-                                </h2>
+                          
                               
                             </div>
                            
@@ -322,42 +320,79 @@ const ReservationDetails = ({
                                                 <h4 className="text-base font-medium mb-2 text-gray-800">Vehicles</h4>
                                                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                                     {reservationDetails.vehicles.map((vehicle) => {
-                                                        const changedCandidate = hasActiveReschedule && (
-                                                            (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '') ||
-                                                            (!!vehicle.change_vehicle_id && String(vehicle.change_vehicle_id) !== String(vehicle.vehicle_id))
-                                                        );
-                                                        const displayModel = changedCandidate
-                                                            ? ((vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim()) || `ID ${vehicle.change_vehicle_id}`)
-                                                            : vehicle.model;
-                                                        const availabilityVehicleId = changedCandidate ? (vehicle.change_vehicle_id || vehicle.vehicle_id) : vehicle.vehicle_id;
+                                                        // const changedCandidate = hasActiveReschedule && (
+                                                        //     (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '') ||
+                                                        //     (!!vehicle.change_vehicle_id && String(vehicle.change_vehicle_id) !== String(vehicle.vehicle_id))
+                                                        // );
+                                                        const displayModel = (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '')
+                                                            ? vehicle.change_vehicle_model
+                                                            : vehicle.model || `ID ${vehicle.vehicle_id}`;
+                                                        const displayMake = (vehicle.change_vehicle_make && vehicle.change_vehicle_make.trim() !== '')
+                                                            ? vehicle.change_vehicle_make
+                                                            : vehicle.make || 'N/A';
+                                                        const displayCategory = (vehicle.change_vehicle_category && vehicle.change_vehicle_category.trim() !== '')
+                                                            ? vehicle.change_vehicle_category
+                                                            : vehicle.category || 'N/A';
+                                                        const displayYear = (vehicle.change_vehicle_year && vehicle.change_vehicle_year.trim() !== '')
+                                                            ? vehicle.change_vehicle_year
+                                                            : vehicle.year || 'N/A';
+                                                        const availabilityVehicleId = (vehicle.change_vehicle_id && String(vehicle.change_vehicle_id) !== '')
+                                                            ? vehicle.change_vehicle_id
+                                                            : vehicle.vehicle_id;
                                                         const assignedDriver = reservationDetails.drivers?.find(d => String(d.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id));
-                                                        const displayLicense = (hasActiveReschedule && vehicle.change_vehicle_license && String(vehicle.change_vehicle_license).trim() !== '')
+                                                        const displayLicense = (vehicle.change_vehicle_license && String(vehicle.change_vehicle_license).trim() !== '')
                                                             ? vehicle.change_vehicle_license
-                                                            : vehicle.license;
+                                                            : vehicle.license || 'N/A';
                                                         return (
-                                                            <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="p-3 border rounded-lg">
-                                                                <div className="flex items-start justify-between">
-                                                                    <div className="flex items-start gap-2 min-w-0">
-                                                                        <CarOutlined className="mt-0.5 text-blue-500" />
-                                                                        <div className="min-w-0">
-                                                                            <p className="font-medium text-gray-800 break-words">{displayModel}</p>
+                                                            <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow duration-200">
+                                                                <div className="flex items-start justify-between mb-3">
+                                                                    <div className="flex items-center gap-3">
+                                                                        <div className="bg-blue-100 p-2 rounded-lg">
+                                                                            <CarOutlined className="text-blue-600 text-lg" />
+                                                                        </div>
+                                                                        <div>
+                                                                            <h5 className="font-semibold text-gray-900 text-lg">{displayModel}</h5>
+                                                                            <p className="text-gray-600 text-sm">{displayMake} • {displayYear}</p>
                                                                         </div>
                                                                     </div>
                                                                     {showAvailability && (
-                                                                        <Tag className="shrink-0" color={checkResourceAvailability('vehicle', availabilityVehicleId, reservationDetails.availabilityData) ? 'green' : 'red'}>
+                                                                        <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                                                            checkResourceAvailability('vehicle', availabilityVehicleId, reservationDetails.availabilityData) 
+                                                                                ? 'bg-green-100 text-green-700' 
+                                                                                : 'bg-red-100 text-red-700'
+                                                                        }`}>
                                                                             {checkResourceAvailability('vehicle', availabilityVehicleId, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                                                                        </Tag>
+                                                                        </div>
                                                                     )}
                                                                 </div>
-                                                                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
-                                                                    <span className="inline-flex items-center">
-                                                                        <Tag color="blue" className="mr-2">Plate</Tag>{displayLicense}
-                                                                    </span>
-                                                                    <span className="inline-flex items-center">
-                                                                        <UserOutlined className="mr-2 text-blue-500" />
-                                                                        {assignedDriver ? assignedDriver.driver_name : 'No driver assigned'}
-                                                                    </span>
+                                                                
+                                                                <div className="mb-3 space-y-2">
+                                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-sm text-gray-500">License Plate:</span>
+                                                                            <span className="font-mono font-semibold text-gray-800">{displayLicense}</span>
+                                                                        </div>
+                                                                        <span className="hidden sm:inline text-sm text-gray-500">•</span>
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-sm text-gray-500">Category:</span>
+                                                                            <span className="text-sm text-gray-800 font-medium break-words">{displayCategory}</span>
+                                                                        </div>
+                                                                    </div>
                                                                 </div>
+                                                                
+                                                                {assignedDriver && (
+                                                                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                                                        <UserOutlined className="text-gray-400" />
+                                                                        <span className="text-sm text-gray-600">Driver: </span>
+                                                                        <span className="text-sm font-medium text-gray-800">{assignedDriver.driver_name}</span>
+                                                                    </div>
+                                                                )}
+                                                                {!assignedDriver && (
+                                                                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                                                        <UserOutlined className="text-gray-300" />
+                                                                        <span className="text-sm text-gray-400 italic">No driver assigned</span>
+                                                                    </div>
+                                                                )}
                                                             </div>
                                                         );
                                                     })}

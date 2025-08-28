@@ -165,10 +165,32 @@ const ReservationDetails = ({
     const normalizedStatusHistory = Array.isArray(reservationDetails.status_history)
         ? reservationDetails.status_history
         : (Array.isArray(reservationDetails.statusHistory) ? reservationDetails.statusHistory : []);
-    const isReservedActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reserved' && Number(s.reservation_active) === 1);
-    const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
-    const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
-    const showReschedulePendingCard = hasRescheduleProposal && !isReservedActive && !isCancelledActive;
+        
+    // Check if there's any Reschedule status (active or inactive)
+    // const hasRescheduleStatus = normalizedStatusHistory.some(s => 
+    //     String(s.status_name).toLowerCase() === 'reschedule'
+    // );
+    
+    // Check if there's an active Reschedule status
+    const hasActiveReschedule = normalizedStatusHistory.some(s => 
+        String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1
+    );
+    
+    // Check if there's a pending Reschedule status (active: 0)
+    const hasPendingReschedule = normalizedStatusHistory.some(s => 
+        String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 0
+    );
+    
+    const isReservedActive = normalizedStatusHistory.some(s => 
+        String(s.status_name).toLowerCase() === 'reserved' && Number(s.reservation_active) === 1
+    );
+    
+    const isCancelledActive = normalizedStatusHistory.some(s => 
+        String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1
+    );
+    
+    // Show reschedule card if there's a pending reschedule OR if there's a reschedule proposal
+    const showReschedulePendingCard = hasPendingReschedule || (hasRescheduleProposal && !isReservedActive && !isCancelledActive);
 
     // Effective schedule window: if there's an active reschedule, use reschedule dates; otherwise use original
     const startDateStr = (hasActiveReschedule && reservationDetails.reschedule_start_date)
@@ -441,41 +463,142 @@ const ReservationDetails = ({
                                                     const assignedDriver = reservationDetails.drivers?.find(
                                                         (driver) => String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
                                                     );
-                                                    const changedCandidate = hasActiveReschedule && (
-                                                        (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '') ||
-                                                        (!!vehicle.change_vehicle_id && String(vehicle.change_vehicle_id) !== String(vehicle.vehicle_id))
-                                                    );
-                                                    const displayModel = changedCandidate
-                                                        ? ((vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim()) || `ID ${vehicle.change_vehicle_id}`)
-                                                        : vehicle.model;
-                                                    const availabilityVehicleId = changedCandidate ? (vehicle.change_vehicle_id || vehicle.vehicle_id) : vehicle.vehicle_id;
-                                                    const displayLicense = (hasActiveReschedule && vehicle.change_vehicle_license && String(vehicle.change_vehicle_license).trim() !== '')
-                                                        ? vehicle.change_vehicle_license
-                                                        : vehicle.license;
+                                                    const displayModel = (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '')
+                                                        ? vehicle.change_vehicle_model
+                                                        : vehicle.model || `ID ${vehicle.vehicle_id}`;
+                                                    const displayMake = (vehicle.change_vehicle_make && vehicle.change_vehicle_make.trim() !== '')
+                                                        ? vehicle.change_vehicle_make
+                                                        : vehicle.make || 'N/A';
+                                                    const displayCategory = (vehicle.change_vehicle_category && vehicle.change_vehicle_category.trim() !== '')
+                                                        ? vehicle.change_vehicle_category
+                                                        : vehicle.category || 'N/A';
+                                                    const displayYear = (vehicle.change_vehicle_year && vehicle.change_vehicle_year.trim() !== '')
+                                                        ? vehicle.change_vehicle_year
+                                                        : vehicle.year || 'N/A';
+                                                    const availabilityVehicleId = (vehicle.change_vehicle_id && String(vehicle.change_vehicle_id) !== '')
+                                                        ? vehicle.change_vehicle_id
+                                                        : vehicle.vehicle_id;
                                                     const availability = checkResourceAvailability('vehicle', availabilityVehicleId, reservationDetails.availabilityData);
                                                     return (
-                                                        <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="p-3 border rounded-lg">
-                                                            <div className="flex items-start justify-between">
-                                                                <div className="flex items-start gap-2 min-w-0">
-                                                                    <CarOutlined className="mt-0.5 text-blue-500" />
-                                                                    <div className="min-w-0">
-                                                                        <p className="font-medium text-gray-800 break-words">{displayModel}</p>
+                                                        <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow duration-200">
+                                                            <div className="flex items-start justify-between mb-3">
+                                                                <div className="flex items-center gap-3">
+                                                                    <div className="bg-blue-100 p-2 rounded-lg">
+                                                                        <CarOutlined className="text-blue-600 text-lg" />
+                                                                    </div>
+                                                                    <div>
+                                                                        <h5 className="font-semibold text-gray-900 text-lg">{displayModel}</h5>
+                                                                        <p className="text-gray-600 text-sm">{displayMake} • {displayYear}</p>
                                                                     </div>
                                                                 </div>
                                                                 {showAvailability && (
-                                                                    <Tag className="shrink-0" color={availability ? 'green' : 'red'}>
+                                                                    <div className={`px-3 py-1 rounded-full text-xs font-medium ${
+                                                                        availability 
+                                                                            ? 'bg-green-100 text-green-700' 
+                                                                            : 'bg-red-100 text-red-700'
+                                                                    }`}>
                                                                         {availability ? 'Available' : 'Not Available'}
-                                                                    </Tag>
+                                                                    </div>
                                                                 )}
                                                             </div>
-                                                            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-gray-600">
-                                                                <span className="inline-flex items-center">
-                                                                    <Tag color="blue" className="mr-2">Plate</Tag>{displayLicense}
-                                                                </span>
-                                                                <span className="inline-flex items-center">
-                                                                    <UserOutlined className="mr-2 text-blue-500" />
-                                                                    {assignedDriver ? assignedDriver.driver_name : 'No driver assigned'}
-                                                                </span>
+                                                            
+                                                            <div className="mb-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <span className="text-sm text-gray-500">Category:</span>
+                                                                    <span className="text-sm text-gray-800 font-medium break-words">{displayCategory}</span>
+                                                                </div>
+                                                            </div>
+                                                            
+                                                            {assignedDriver && (
+                                                                <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                                                    <UserOutlined className="text-gray-400" />
+                                                                    <span className="text-sm text-gray-600">Driver: </span>
+                                                                    <span className="text-sm font-medium text-gray-800">{assignedDriver.driver_name}</span>
+                                                                </div>
+                                                            )}
+                                                            {!assignedDriver && (
+                                                                <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                                                    <UserOutlined className="text-gray-300" />
+                                                                    <span className="text-sm text-gray-400 italic">No driver assigned</span>
+                                                                </div>
+                                                            )}
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Maintenance Resources */}
+                                    {reservationDetails.maintenanceResources?.length > 0 && (
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Resource Condition After Use</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.maintenanceResources.map((item, index) => {
+                                                    const isBulk = item.resource_type?.includes('_bulk');
+                                                    const isSerialized = item.resource_type?.includes('_serialized');
+                                                    const resourceType = isBulk ? 'Bulk Equipment' : 
+                                                                       isSerialized ? 'Serialized Equipment' : 
+                                                                       item.resource_type || 'Resource';
+
+                                                    return (
+                                                        <div key={`maintenance-${index}`} className="p-3 border rounded-lg">
+                                                            <div className="flex items-start justify-between">
+                                                                <div className="flex items-start gap-2 min-w-0">
+                                                                    <ToolOutlined className={`mt-0.5 ${
+                                                                        item.condition_name?.toLowerCase() === 'good' ? 'text-green-500' :
+                                                                        item.condition_name?.toLowerCase() === 'damaged' ? 'text-red-500' :
+                                                                        item.condition_name?.toLowerCase() === 'inspection' ? 'text-blue-500' :
+                                                                        item.condition_name?.toLowerCase() === 'missing' ? 'text-purple-500' : 'text-orange-500'
+                                                                    }`} />
+                                                                    <div className="min-w-0">
+                                                                        <div className="flex flex-wrap items-baseline gap-2">
+                                                                            <p className="font-medium text-gray-800 break-words">
+                                                                                {item.resource_name}
+                                                                            </p>
+                                                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
+                                                                                {resourceType}
+                                                                            </span>
+                                                                        </div>
+                                                                        
+                                                                        {isBulk && item.quantity !== null && (
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Bad Quantity:</span> {item.quantity}
+                                                                            </p>
+                                                                        )}
+                                                                        
+                                                                        {isSerialized && item.serial_number && (
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Serial #:</span> {item.serial_number}
+                                                                            </p>
+                                                                        )}
+                                                                        
+                                                                        <p className="text-sm text-gray-600 mt-1">
+                                                                            <span className="font-medium">Condition:</span> {item.condition_name}
+                                                                        </p>
+                                                                        
+                                                                        {item.remarks && (
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Remarks:</span> {item.remarks}
+                                                                            </p>
+                                                                        )}
+                                                                        
+                                                                        <p className="text-xs text-gray-500 mt-1">
+                                                                            Recorded on: {new Date(item.created_at || new Date()).toLocaleString()}
+                                                                        </p>
+                                                                    </div>
+                                                                </div>
+                                                                <Tag 
+                                                                    color={
+                                                                        item.condition_name?.toLowerCase() === 'good' ? 'green' :
+                                                                        item.condition_name?.toLowerCase() === 'damaged' ? 'red' :
+                                                                        item.condition_name?.toLowerCase() === 'inspection' ? 'blue' :
+                                                                        item.condition_name?.toLowerCase() === 'missing' ? 'purple' : 'orange'
+                                                                    }
+                                                                    className="shrink-0"
+                                                                >
+                                                                    {item.condition_name}
+                                                                </Tag>
                                                             </div>
                                                         </div>
                                                     );

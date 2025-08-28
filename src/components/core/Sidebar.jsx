@@ -1005,6 +1005,14 @@ const Sidebar = () => {
                 active={activeItem === '/record'}
                 isExpanded={isDesktopSidebarOpen}
               />
+
+              <MiniSidebarItem 
+                icon={FaHistory} 
+                text="Audit Trail" 
+                link="/Admin/AuditLog" 
+                active={activeItem === '/Admin/AuditLog'}
+                isExpanded={isDesktopSidebarOpen}
+              />
               </>
               )}
             </nav>

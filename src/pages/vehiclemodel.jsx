@@ -429,28 +429,32 @@ const VehicleModels = () => {
                               {(model.vehicle_category_name?.trim() || "")}
                             </td>
                             <td className="px-4 py-6">
-                              <div className="flex justify-center space-x-2">
-                                <Tooltip title="Edit Model">
-                                  <Button
-                                    shape="circle"
-                                    icon={<EditOutlined />}
-                                    onClick={() => handleEdit(model.vehicle_model_id)}
-                                    size="large"
-                                    className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
-                                  />
-                                </Tooltip>
+                              <div className="flex flex-col items-center justify-center space-y-2 w-full">
+                                <div className="flex justify-center w-full">
+                                  <Tooltip title="Edit Model">
+                                    <Button
+                                      shape="circle"
+                                      icon={<EditOutlined />}
+                                      onClick={() => handleEdit(model.vehicle_model_id)}
+                                      size="large"
+                                      className="bg-green-900 hover:bg-lime-900 text-white shadow-lg flex items-center justify-center"
+                                    />
+                                  </Tooltip>
+                                </div>
                                 {/* Delete button is disabled/commented out to prevent deletion */}
                                 {/*
-                                <Tooltip title="Delete Model">
-                                  <Button
-                                    shape="circle"
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => handleDelete(model.vehicle_model_id)}
-                                    size="large"
-                                    className="shadow-lg flex items-center justify-center"
-                                  />
-                                </Tooltip>
+                                <div className="flex justify-center w-full">
+                                  <Tooltip title="Delete Model">
+                                    <Button
+                                      shape="circle"
+                                      danger
+                                      icon={<DeleteOutlined />}
+                                      onClick={() => handleDelete(model.vehicle_model_id)}
+                                      size="large"
+                                      className="shadow-lg flex items-center justify-center"
+                                    />
+                                  </Tooltip>
+                                </div>
                                 */}
                               </div>
                             </td>

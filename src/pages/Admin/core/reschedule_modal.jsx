@@ -142,7 +142,7 @@ const RescheduleModal = ({
   }, [parseBlocks]);
 
   // Fetch available resources by selected date-time range
-  const fetchAvailableVenuesByRange = useCallback(async (startDateTimeStr, endDateTimeStr) => {
+  const fetchAvailableVenuesByRange = useCallback(async (startDateTimeStr, endDateTimeStr, excludeIds = []) => {
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
       if (!encryptedUrl) {
@@ -153,6 +153,7 @@ const RescheduleModal = ({
         operation: 'fetchAvailableVenues',
         startDateTime: startDateTimeStr,
         endDateTime: endDateTimeStr,
+        excludeIds: excludeIds
       }, { headers: { 'Content-Type': 'application/json' } });
       if (resp?.data?.status === 'success') {
         return Array.isArray(resp.data.data) ? resp.data.data : [];
@@ -166,7 +167,7 @@ const RescheduleModal = ({
     }
   }, []);
 
-  const fetchAvailableVehiclesByRange = useCallback(async (startDateTimeStr, endDateTimeStr) => {
+  const fetchAvailableVehiclesByRange = useCallback(async (startDateTimeStr, endDateTimeStr, excludeIds = []) => {
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
       if (!encryptedUrl) {
@@ -177,6 +178,7 @@ const RescheduleModal = ({
         operation: 'fetchAvailableVehicles',
         startDateTime: startDateTimeStr,
         endDateTime: endDateTimeStr,
+        excludeIds: excludeIds
       }, { headers: { 'Content-Type': 'application/json' } });
       if (resp?.data?.status === 'success') {
         return Array.isArray(resp.data.data) ? resp.data.data : [];

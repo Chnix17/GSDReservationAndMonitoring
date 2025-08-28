@@ -414,31 +414,43 @@ const ReservationRequests = () => {
     const handleAccept = async (vehicleDriverAssignments = {}) => {
         setIsAccepting(true);
         try {
-            const priorityCheckResult = await handlePriorityCheck();
+            // Check if current stage is Pending Admin Approval
+            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+            const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+            const isAdminApprover = !!(adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId));
+            const isAdminApprovalPending = adminApproval?.reservation_active === 0;
 
-            console.log("this is priorityCheckResult", priorityCheckResult);
-            
-            // If no priority, show error
-            if (!priorityCheckResult.hasPriority) {
-                Modal.error({
-                    title: 'Cannot Accept Reservation',
-                    content: priorityCheckResult.message,
-                    centered: true,
-                });
-                setIsAccepting(false);
-                return;
-            }
+            // If it's Admin Approval stage, skip priority check and proceed directly
+            if (isAdminApprover && isAdminApprovalPending) {
+                // Skip priority check for Admin Approval - proceed directly to handleRequest
+                console.log("Admin Approval stage - proceeding directly without conflict check");
+            } else {
+                // For other stages, perform priority check
+                const priorityCheckResult = await handlePriorityCheck();
 
-            // If there are conflicts, show conflict modal
-            if (priorityCheckResult.needsOverride && priorityCheckResult.conflictingUsers.length > 0) {
-                setConflictingReservations(priorityCheckResult.conflictingUsers);
-                setIsPriorityConflictModalOpen(true);
-                setIsAccepting(false);
-                return;
+                console.log("this is priorityCheckResult", priorityCheckResult);
+                
+                // If no priority, show error
+                if (!priorityCheckResult.hasPriority) {
+                    Modal.error({
+                        title: 'Cannot Accept Reservation',
+                        content: priorityCheckResult.message,
+                        centered: true,
+                    });
+                    setIsAccepting(false);
+                    return;
+                }
+
+                // If there are conflicts, show conflict modal
+                if (priorityCheckResult.needsOverride && priorityCheckResult.conflictingUsers.length > 0) {
+                    setConflictingReservations(priorityCheckResult.conflictingUsers);
+                    setIsPriorityConflictModalOpen(true);
+                    setIsAccepting(false);
+                    return;
+                }
             }
 
             // Determine if current action is Department Approval (only then insert units)
-            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
             const departmentApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Department Approval');
             const isDepartmentApprover = !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId));
             const isDeptApprovalPending = departmentApproval?.reservation_active === 0;
@@ -530,22 +542,6 @@ const ReservationRequests = () => {
     const handleAcceptWithOverride = async () => {
         setIsAccepting(true);
         try {
-            // Process to cancel existing lower priority reservations
-            if (reservationDetails.availabilityData?.reservation_users) {
-                for (const user of reservationDetails.availabilityData.reservation_users) {
-                    try {
-                        await axios.post(`${encryptedUrl}/process_reservation.php`, {
-                            operation: 'handleCancelReservation',
-                            reservation_id: user.reservation_id,
-                            user_id: SecureStorage.getLocalItem('user_id')
-                        });
-                    } catch (cancelError) {
-                        console.error('Error canceling reservation:', cancelError);
-                        throw new Error('Failed to cancel existing reservations');
-                    }
-                }
-            }
-
             // First, prepare equipment units if equipment exists in reservation details
             // Only insert units when Department approver is approving and department is pending
             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
@@ -1080,6 +1076,7 @@ const ReservationRequests = () => {
                         onClose={() => setIsPriorityConflictModalOpen(false)}
                         conflictingReservations={conflictingReservations}
                         onConfirm={handleAcceptWithOverride}
+                        reservationDetails={reservationDetails}
                     />
 
                     {/* Assign Personnel Modal */}
@@ -1528,11 +1525,29 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
         const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
 
-        const adminApproval = reservationDetails.status_history?.find(
-            status => status.status_name === 'Pending Admin Approval'
-        );
+        // Check for reschedule request waiting for department approval confirmation
+        const isRescheduleStatus = reservationDetails.status_name === "Reschedule";
         const departmentApproval = reservationDetails.status_history?.find(
             status => status.status_name === 'Pending Department Approval'
+        );
+        const isRescheduleWaitingConfirmation = isRescheduleStatus && 
+            departmentApproval && 
+            departmentApproval.reservation_active === 0;
+
+        // If reschedule is waiting for department approval confirmation, disable all buttons
+        if (isRescheduleWaitingConfirmation) {
+            return [
+                <div key="reschedule-waiting" className="flex flex-col space-y-2">
+        
+                    {/* <div className="flex justify-center">
+                        <Button key="close" onClick={onClose} size="large">Close</Button>
+                    </div> */}
+                </div>
+            ];
+        }
+
+        const adminApproval = reservationDetails.status_history?.find(
+            status => status.status_name === 'Pending Admin Approval'
         );
 
         // Identify current approver roles for downstream logic (normalize to string for safe comparison)
@@ -2432,8 +2447,20 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                 className="border border-blue-200 shadow-sm"
                             />
                         )}
-
-
+                        {reservationDetails.status_name === "Reschedule" && (() => {
+                            const departmentApproval = reservationDetails.status_history?.find(
+                                status => status.status_name === 'Pending Department Approval'
+                            );
+                            return departmentApproval && departmentApproval.reservation_active === 0;
+                        })() && (
+                            <Alert
+                                message={<span className="font-semibold">Reschedule Request Pending</span>}
+                                description="This reschedule request is waiting for department approval confirmation. All actions are temporarily disabled until the department responds."
+                                type="warning"
+                                showIcon
+                                className="border border-orange-200 shadow-sm"
+                            />
+                        )}
 
                         {/* Priority Status Section */}
                         {(reservationDetails.active === 0 || reservationDetails.active === 1) && (
@@ -2801,33 +2828,170 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
     );
 };
 
-const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onConfirm }) => {
+const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onConfirm, reservationDetails }) => {
     const encryptedUrl = SecureStorage.getLocalItem("url");
+    const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
 
-    const handleCancelAndReserve = async () => {
-        try {
-            // First cancel the existing reservations
-            for (const reservation of conflictingReservations) {
-                await axios.post(`${encryptedUrl}/process_reservation.php`, {
-                    operation: 'handleCancelReservation',
-                    reservation_id: reservation.reservation_id,
-                    user_id: SecureStorage.getLocalItem('user_id')
-                });
-                // Send notification to the cancelled reservation's requester
-                await axios.post(`${encryptedUrl}/user.php`, {
-                    operation: 'insertNotificationTouser',
-                    notification_message: 'Your reservation has been cancelled due to a higher-priority override.',
-                    notification_user_id: reservation.user_id,
-                    reservation_id: reservation.reservation_id
-                });
-            }
+    // Check if current user is Department Head from COO and if reservation is in Pending Department Approval stage
+    const isDepartmentHeadFromCOO = reservationDetails?.user_level_name === "Department Head" && reservationDetails?.department_name === "COO";
+    
+    // Check if the reservation is currently in Pending Department Approval stage (not Admin Approval)
+    const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+    const departmentApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Department Approval');
+    const isPendingAdminApproval = adminApproval?.reservation_active === 0;
+    const isPendingDepartmentApproval = departmentApproval?.reservation_active === 0;
+    
+    // Only show "Approve and Reschedule" if user is COO Department Head AND reservation is in Pending Department Approval stage (NOT Admin Approval)
+    const showApproveAndReschedule = isDepartmentHeadFromCOO && isPendingDepartmentApproval && !isPendingAdminApproval;
+
+    // const handleCancelAndReserve = async () => {
+    //     try {
+    //         // First cancel the existing reservations
+    //         for (const reservation of conflictingReservations) {
+    //             await axios.post(`${encryptedUrl}/process_reservation.php`, {
+    //                 operation: 'handleCancelReservation',
+    //                 reservation_id: reservation.reservation_id,
+    //                 user_id: SecureStorage.getLocalItem('user_id')
+    //             });
+    //             // Send notification to the cancelled reservation's requester
+    //             await axios.post(`${encryptedUrl}/user.php`, {
+    //                 operation: 'insertNotificationTouser',
+    //                 notification_message: 'Your reservation has been cancelled due to a higher-priority override.',
+    //                 notification_user_id: reservation.user_id,
+    //                 reservation_id: reservation.reservation_id
+    //             });
+    //         }
             
-            // After cancelling, proceed with the new reservation
+    //         // After cancelling, proceed with the new reservation
+    //         onConfirm();
+    //         toast.success('Successfully cancelled existing reservations and created new reservation.');
+    //     } catch (error) {
+    //         console.error('Error in cancel and reserve process:', error);
+    //         toast.error('Failed to process the request. Please try again.');
+    //     }
+    // };
+
+    const handleApproveAndReschedule = () => {
+        // Open reschedule modal for the conflicting reservation
+        setIsRescheduleModalOpen(true);
+    };
+
+    const handleRescheduleComplete = async (rescheduleData) => {
+        try {
+            const conflictingReservation = conflictingReservations[0]; // Assuming single conflict for COO override
+            const { startDate, endDate, newVenueIds, newVehicleIds } = rescheduleData || {};
+
+            let didUpdateSomething = false;
+
+            // Step 1: Update reservation dates if provided
+            if (startDate && endDate) {
+                const dateResp = await axios.post(`${encryptedUrl}/user.php`, {
+                    operation: 'updateReservationReschedule',
+                    reservation_id: conflictingReservation.reservation_id,
+                    reschedule_start_date: startDate,
+                    reschedule_end_date: endDate,
+                    user_admin_id: SecureStorage.getLocalItem('user_id')
+                }, { headers: { 'Content-Type': 'application/json' } });
+                
+                if (!(dateResp?.data?.status === 'success')) {
+                    const msg = dateResp?.data?.message || 'Failed to update reservation dates';
+                    toast.error(msg);
+                    return;
+                }
+                didUpdateSomething = true;
+            }
+
+            // Step 2: Process venue changes (optional)
+            if (newVenueIds && Array.isArray(newVenueIds) && newVenueIds.length > 0) {
+                const currentVenues = Array.isArray(conflictingReservation.venues) ? conflictingReservation.venues : [];
+                const venue_changes = currentVenues
+                    .map((v, idx) => {
+                        const newId = newVenueIds[idx];
+                        if (!newId || String(newId) === String(v.venue_id)) return null;
+                        return {
+                            reservation_venue_id: v.reservation_venue_id,
+                            reservation_change_venue_id: Number(newId)
+                        };
+                    })
+                    .filter(Boolean);
+
+                if (venue_changes.length > 0) {
+                    const requests = venue_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
+                        operation: 'updateVenueReschedule',
+                        reservation_venue_id: change.reservation_venue_id,
+                        reservation_change_venue_id: change.reservation_change_venue_id
+                    }, { headers: { 'Content-Type': 'application/json' } }));
+                    
+                    const results = await Promise.allSettled(requests);
+                    const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                    if (!allOk) {
+                        const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                            || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                            || 'Failed to reschedule venue';
+                        toast.error(firstError);
+                        return;
+                    }
+                    didUpdateSomething = true;
+                }
+            }
+
+            // Step 3: Process vehicle changes (optional)
+            if (newVehicleIds && Array.isArray(newVehicleIds) && newVehicleIds.length > 0) {
+                const currentVehicles = Array.isArray(conflictingReservation.vehicles) ? conflictingReservation.vehicles : [];
+                const vehicle_changes = currentVehicles
+                    .map((v, idx) => {
+                        const newId = newVehicleIds[idx];
+                        if (!newId || String(newId) === String(v.vehicle_id)) return null;
+                        return {
+                            reservation_vehicle_id: v.reservation_vehicle_id,
+                            reservation_change_vehicle_id: Number(newId)
+                        };
+                    })
+                    .filter(Boolean);
+
+                if (vehicle_changes.length > 0) {
+                    const requests = vehicle_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
+                        operation: 'updateVehicleReschedule',
+                        reservation_vehicle_id: change.reservation_vehicle_id,
+                        reservation_change_vehicle_id: change.reservation_change_vehicle_id
+                    }, { headers: { 'Content-Type': 'application/json' } }));
+                    
+                    const results = await Promise.allSettled(requests);
+                    const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                    if (!allOk) {
+                        const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                            || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                            || 'Failed to reschedule vehicle';
+                        toast.error(firstError);
+                        return;
+                    }
+                    didUpdateSomething = true;
+                }
+            }
+
+            // If no changes were made, still proceed with approval
+            if (!didUpdateSomething && (!startDate || !endDate)) {
+                toast.info('No changes made to the existing reservation.');
+            }
+
+            // Send notification about rescheduling
+            await axios.post(`${encryptedUrl}/user.php`, {
+                operation: 'insertNotificationTouser',
+                notification_message: 'Your reservation has been rescheduled due to a higher-priority request.',
+                notification_user_id: conflictingReservation.user_id,
+                reservation_id: conflictingReservation.reservation_id
+            });
+
+            // Close reschedule modal
+            setIsRescheduleModalOpen(false);
+            
+            // Now approve the current request
             onConfirm();
-            toast.success('Successfully cancelled existing reservations and created new reservation.');
+            
+            toast.success('Successfully rescheduled existing reservation and approved new request.');
         } catch (error) {
-            console.error('Error in cancel and reserve process:', error);
-            toast.error('Failed to process the request. Please try again.');
+            console.error('Error in reschedule and approve process:', error);
+            toast.error('Failed to reschedule and approve. Please try again.');
         }
     };
 
@@ -2848,22 +3012,26 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                 <Button key="close" onClick={onClose}>
                     Close
                 </Button>,
-                <Button
-                    key="cancelAndReserve"
-                    type="primary"
-                    danger
-                    onClick={handleCancelAndReserve}
-                    icon={<CloseCircleOutlined />}
-                >
-                    <span className="hidden sm:inline">Cancel Existing & Approve This</span>
-                    <span className="sm:hidden">Override</span>
-                </Button>,
-            ]}
+                showApproveAndReschedule && (
+                    <Button
+                        key="approveAndReschedule"
+                        type="primary"
+                        onClick={handleApproveAndReschedule}
+                        icon={<ScheduleOutlined />}
+                    >
+                        <span className="hidden sm:inline">Approve and Reschedule</span>
+                        <span className="sm:hidden">Reschedule</span>
+                    </Button>
+                ),
+            ].filter(Boolean)}
         >
             <Alert
-                message="Warning"
-                description="The following reservation is currently using these resources for the requested time slot. You can override this reservation based on priority level."
-                type="warning"
+                message={showApproveAndReschedule ? "Priority Status: Approved" : "Conflict Information"}
+                description={showApproveAndReschedule ? 
+                    "As Department Head from COO department, you can override any existing reservation. The conflicting reservation will be rescheduled to a new time slot." :
+                    "The following reservation is currently using these resources for the requested time slot. Please review the conflict and use the main Approve/Decline buttons to proceed."
+                }
+                type={showApproveAndReschedule ? "success" : "info"}
                 showIcon
                 className="mb-4"
             />
@@ -2876,6 +3044,53 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                     </div>
                 ))}
             </div>
+            
+            {/* Reschedule Modal for conflicting reservation */}
+            {isRescheduleModalOpen && conflictingReservations.length > 0 && (
+                <RescheduleModal
+                    visible={isRescheduleModalOpen}
+                    onCancel={() => setIsRescheduleModalOpen(false)}
+                    onReschedule={handleRescheduleComplete}
+                    reservation={{
+                        ...conflictingReservations[0],
+                        // Use the detailed reservation data from reservation_users
+                        reservation_id: conflictingReservations[0].reservation_id,
+                        reservation_title: conflictingReservations[0].reservation_title || conflictingReservations[0].title,
+                        reservation_start_date: conflictingReservations[0].reservation_start_date,
+                        reservation_end_date: conflictingReservations[0].reservation_end_date,
+                        // Map venues from unavailable_venues if available
+                        venues: reservationDetails?.availabilityData?.unavailable_venues?.map(venue => ({
+                            venue_id: venue.ven_id,
+                            venue_name: venue.ven_name,
+                            ven_name: venue.ven_name,
+                            reservation_venue_id: `temp_${venue.ven_id}` // Temporary ID for reschedule
+                        })) || [],
+                        // Map vehicles from unavailable_vehicles if available  
+                        vehicles: reservationDetails?.availabilityData?.unavailable_vehicles?.map(vehicle => ({
+                            vehicle_id: vehicle.vehicle_id,
+                            model: vehicle.model || vehicle.vehicle_model_name,
+                            license: vehicle.license || vehicle.vehicle_license_plate,
+                            reservation_vehicle_id: `temp_${vehicle.vehicle_id}` // Temporary ID for reschedule
+                        })) || [],
+                        // Map equipment from unavailable_equipment if available
+                        equipment: reservationDetails?.availabilityData?.unavailable_equipment?.map(equip => ({
+                            equipment_id: equip.equip_id,
+                            name: equip.equip_name,
+                            quantity: equip.reserved_quantity || 1
+                        })) || []
+                    }}
+                    resources={{
+                        venueIds: reservationDetails?.availabilityData?.unavailable_venues?.map(v => v.ven_id) || [],
+                        vehicleIds: reservationDetails?.availabilityData?.unavailable_vehicles?.map(v => v.vehicle_id) || [],
+                        equipment: reservationDetails?.availabilityData?.unavailable_equipment?.map(eq => ({
+                            equipment_id: eq.equip_id,
+                            quantity: eq.reserved_quantity || 1
+                        })) || []
+                    }}
+                    originalStart={conflictingReservations[0].reservation_start_date}
+                    originalEnd={conflictingReservations[0].reservation_end_date}
+                />
+            )}
         </Modal>
     );
 };
