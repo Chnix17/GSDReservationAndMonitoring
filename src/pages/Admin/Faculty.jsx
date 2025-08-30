@@ -236,7 +236,7 @@ const Faculty = () => {
         
         try {
             const response = await axios.post(
-                `${encryptedUrl}delete_master.php`,
+                `${encryptedUrl}user.php`,
                 {
                     operation: 'archiveUser',
                     userType: 'user',

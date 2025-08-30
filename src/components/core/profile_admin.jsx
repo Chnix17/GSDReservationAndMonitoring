@@ -163,7 +163,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIs2FALoading(true);
       const userId = SecureStorage.getLocalItem('user_id') || '42';
       
-      const response = await fetch(`${baseUrl}/update_master2.php`, {
+      const response = await fetch(`${baseUrl}/login.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -450,7 +450,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         setIsDisabling2FA(true);
         const userId = SecureStorage.getSessionItem('user_id') || '42';
         
-        const response = await fetch(`${baseUrl}/update_master2.php`, {
+        const response = await fetch(`${baseUrl}/login.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -515,7 +515,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIsVerifying(true);
       const userId = SecureStorage.getSessionItem('user_id') || userData.users_id;
       
-      const response = await fetch(`${baseUrl}/update_master2.php`, {
+      const response = await fetch(`${baseUrl}/login.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -580,7 +580,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       const userId = SecureStorage.getSessionItem('user_id') || userData.users_id;
 
       console.log("userId", userId);
-      const response = await fetch(`${baseUrl}/update_master2.php`, {
+      const response = await fetch(`${baseUrl}/login.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'

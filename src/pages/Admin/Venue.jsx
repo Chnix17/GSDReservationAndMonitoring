@@ -97,7 +97,7 @@ const VenueEntry = () => {
             };
 
             const response = await axios.post(
-                `${encryptedUrl}/delete_master.php`,
+                `${encryptedUrl}/user.php`,
                 payload,
                 {
                     headers: {

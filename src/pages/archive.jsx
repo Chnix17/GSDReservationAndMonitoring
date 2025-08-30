@@ -51,8 +51,8 @@ const Archive = () => {
   const fetchUsers = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`,
-        { operation: "fetchAllUserTypes" },
+      const response = await axios.post(`${encryptedUrl}/user.php`,
+        { operation: "fetchInactiveUser" },
         {
           headers: { 'Content-Type': 'application/json' }
         }
@@ -88,8 +88,8 @@ const Archive = () => {
   const fetchVehicles = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`,
-        { operation: "fetchAllVehicles" },
+      const response = await axios.post(`${encryptedUrl}/user.php`,
+        { operation: "fetchInactiveVehicle" },
         { headers: { 'Content-Type': 'application/json' } }
       );
       if (response.data.status === 'success') {
@@ -105,8 +105,8 @@ const Archive = () => {
   const fetchVenues = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`,
-        { operation: "fetchVenue" },
+      const response = await axios.post(`${encryptedUrl}/user.php`,
+        { operation: "fetchInactiveVenue" },
         { headers: { 'Content-Type': 'application/json' } }
       );
       if (response.data.status === 'success') {
@@ -122,7 +122,7 @@ const Archive = () => {
   const fetchEquipment = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`,
+      const response = await axios.post(`${encryptedUrl}/user.php`,
         { operation: "fetchEquipmentAndInactiveUnits" },
         { headers: { 'Content-Type': 'application/json' } }
       );
@@ -182,7 +182,7 @@ const Archive = () => {
     };
     console.log('Restore Users Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+      const response = await axios.post(`${encryptedUrl}/user.php`, payload, {
         headers: { 'Content-Type': 'application/json' }
       });
 
@@ -218,7 +218,7 @@ const Archive = () => {
     };
     console.log('Restore Vehicles Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+      const response = await axios.post(`${encryptedUrl}/user.php`, payload, {
         headers: { 'Content-Type': 'application/json' }
       });
 
@@ -254,7 +254,7 @@ const Archive = () => {
     };
     console.log('Restore Venues Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+      const response = await axios.post(`${encryptedUrl}/user.php`, payload, {
         headers: { 'Content-Type': 'application/json' }
       });
 
@@ -294,7 +294,7 @@ const Archive = () => {
     };
     console.log('Restore Equipment Payload:', payload);
     try {
-      const response = await axios.post(`${encryptedUrl}/delete_master.php`, payload, {
+      const response = await axios.post(`${encryptedUrl}/user.php`, payload, {
         headers: { 'Content-Type': 'application/json' }
       });
       if (response.data.status === 'success') {

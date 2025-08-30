@@ -256,7 +256,7 @@ const VehicleEntry = () => {
                     SecureStorage.getSessionItem('user_id') ||
                     SecureStorage.getLocalItem('user_id') || null;
 
-                const response = await axios.post(`${encryptedUrl}/delete_master.php`, 
+                const response = await axios.post(`${encryptedUrl}/user.php`, 
                     JSON.stringify({
                         operation: "archiveResource",
                         resourceType: "vehicle",

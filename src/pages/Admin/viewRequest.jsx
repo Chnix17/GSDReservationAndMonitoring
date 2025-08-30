@@ -351,16 +351,17 @@ const ReservationRequests = () => {
 
                     console.log("This is the current user level and department", currentUserLevel, currentUserDepartment);
 
-                    // Check if user is a Department Head from COO department
+                    // Check if user is a Department Head from COO department or Secretary from GSD department
                     const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
-                    console.log("Can override reservation:", isDepartmentHeadFromCOO);
+                    const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
+                    console.log("Can override reservation:", isDepartmentHeadFromCOO || isSecretaryFromGSD);
 
-                    // If user is Department Head from COO, they can override any reservation
-                    if (isDepartmentHeadFromCOO) {
+                    // If user is Department Head from COO or Secretary from GSD, they can override any reservation
+                    if (isDepartmentHeadFromCOO || isSecretaryFromGSD) {
                         return {
                             hasPriority: true,
                             conflictingUsers,
-                            message: `As Department Head from COO department, you can override any existing reservation.`,
+                            message: `As ${isDepartmentHeadFromCOO ? 'Department Head from COO department' : 'Secretary from GSD department'}, you can override any existing reservation.`,
                             needsOverride: true
                         };
                     }
@@ -1395,15 +1396,16 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
         console.log("This is the current user level and department", currentUserLevel, currentUserDepartment);
 
-        // Check if user is a Department Head from COO department
+        // Check if user is a Department Head from COO department or Secretary from GSD department
         const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
-        console.log("Can override reservation:", isDepartmentHeadFromCOO);
+        const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
+        console.log("Can override reservation:", isDepartmentHeadFromCOO || isSecretaryFromGSD);
 
-        // If user is Department Head from COO, they can override any reservation
-        if (isDepartmentHeadFromCOO) {
+        // If user is Department Head from COO or Secretary from GSD, they can override any reservation
+        if (isDepartmentHeadFromCOO || isSecretaryFromGSD) {
             return {
                 hasPriority: true,
-                message: "As Department Head from COO department, you can override any existing reservation."
+                message: `As ${isDepartmentHeadFromCOO ? 'Department Head from COO department' : 'Secretary from GSD department'}, you can override any existing reservation.`
             };
         }
 
@@ -1554,6 +1556,13 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         const isAdminApprover = !!(adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId));
         const isDepartmentApprover = !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId));
         const isAdminPending = adminApproval?.reservation_active === 0;
+        const isDepartmentPending = departmentApproval?.reservation_active === 0;
+        
+        // Check if current user is part of the current pending approval stage
+        const isCurrentUserPartOfPendingStage = (
+            (isAdminPending && isAdminApprover) || 
+            (isDepartmentPending && isDepartmentApprover && adminApproval?.reservation_active === 1)
+        );
 
         const priorityCheck = checkPriority();
         const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
@@ -1568,6 +1577,13 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             (departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId) && departmentApproval.reservation_active === 1)
         );
         if (hasUserAlreadyApproved) {
+            return [
+                <Button key="close" onClick={onClose} size="large">Close</Button>
+            ];
+        }
+
+        // If current user is not part of the pending approval stage, hide action buttons
+        if (!isCurrentUserPartOfPendingStage) {
             return [
                 <Button key="close" onClick={onClose} size="large">Close</Button>
             ];
@@ -2832,8 +2848,9 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
     const encryptedUrl = SecureStorage.getLocalItem("url");
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
 
-    // Check if current user is Department Head from COO and if reservation is in Pending Department Approval stage
+    // Check if current user is Department Head from COO or Secretary from GSD and if reservation is in Pending Department Approval stage
     const isDepartmentHeadFromCOO = reservationDetails?.user_level_name === "Department Head" && reservationDetails?.department_name === "COO";
+    const isSecretaryFromGSD = reservationDetails?.user_level_name === "Secretary" && reservationDetails?.department_name === "GSD";
     
     // Check if the reservation is currently in Pending Department Approval stage (not Admin Approval)
     const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
@@ -2841,8 +2858,8 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
     const isPendingAdminApproval = adminApproval?.reservation_active === 0;
     const isPendingDepartmentApproval = departmentApproval?.reservation_active === 0;
     
-    // Only show "Approve and Reschedule" if user is COO Department Head AND reservation is in Pending Department Approval stage (NOT Admin Approval)
-    const showApproveAndReschedule = isDepartmentHeadFromCOO && isPendingDepartmentApproval && !isPendingAdminApproval;
+    // Only show "Approve and Reschedule" if user is COO Department Head or GSD Secretary AND reservation is in Pending Department Approval stage (NOT Admin Approval)
+    const showApproveAndReschedule = (isDepartmentHeadFromCOO || isSecretaryFromGSD) && isPendingDepartmentApproval && !isPendingAdminApproval;
 
     // const handleCancelAndReserve = async () => {
     //     try {
@@ -3028,7 +3045,7 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
             <Alert
                 message={showApproveAndReschedule ? "Priority Status: Approved" : "Conflict Information"}
                 description={showApproveAndReschedule ? 
-                    "As Department Head from COO department, you can override any existing reservation. The conflicting reservation will be rescheduled to a new time slot." :
+                    `As ${isDepartmentHeadFromCOO ? 'Department Head from COO department' : 'Secretary from GSD department'}, you can override any existing reservation. The conflicting reservation will be rescheduled to a new time slot.` :
                     "The following reservation is currently using these resources for the requested time slot. Please review the conflict and use the main Approve/Decline buttons to proceed."
                 }
                 type={showApproveAndReschedule ? "success" : "info"}

@@ -118,7 +118,12 @@ const RescheduleModal = ({
       .filter(it => it.reservation_start_date && it.reservation_end_date)
       .map(it => ({
         start: dayjs(it.reservation_start_date),
-        end: dayjs(it.reservation_end_date)
+        end: dayjs(it.reservation_end_date),
+        reservation_id: it.reservation_id,
+        // Include resource IDs for exclusion logic
+        ven_id: it.ven_id,
+        vehicle_id: it.vehicle_id,
+        equipment_id: it.equipment_id
       }))
       .filter(b => b.start.isValid() && b.end.isValid() && b.end.isAfter(b.start));
   }, []);
@@ -215,13 +220,23 @@ const RescheduleModal = ({
         fetchAvailabilityFor('equipment', equipIds, quantities)
       ]);
 
-      // Exclude the current reservation's own block from conflicts
+      // Use ALL blocks from fetchAvailability - no filtering based on reservation ID
+      // This will block all hours/days that have any existing reservations
       const allBlocks = [...(venBlocks || []), ...(vehBlocks || []), ...(eqBlocks || [])];
-      const oStart = dayjs(originalStart);
-      const oEnd = dayjs(originalEnd);
-      const filtered = (oStart.isValid() && oEnd.isValid())
-        ? allBlocks.filter(b => !(b.start.isSame(oStart) && b.end.isSame(oEnd)))
-        : allBlocks;
+      const filtered = allBlocks;
+      
+      console.log('[RescheduleModal] All availability blocks (no filtering):', {
+        totalBlocks: allBlocks.length,
+        blockedPeriods: filtered.map(b => ({
+          start: b.start.format('YYYY-MM-DD HH:mm:ss'),
+          end: b.end.format('YYYY-MM-DD HH:mm:ss'),
+          reservation_id: b.reservation_id,
+          ven_id: b.ven_id,
+          vehicle_id: b.vehicle_id,
+          equipment_id: b.equipment_id
+        }))
+      });
+      
       setAvailabilityBlocks(filtered);
     } catch (err) {
       console.error('Error fetching availability:', err);
@@ -332,13 +347,26 @@ const RescheduleModal = ({
     const end = dayjs(endDateVal).hour(dayjs(endTimeVal).hour()).minute(0).second(0);
     const startStr = start.format('YYYY-MM-DD HH:mm:ss');
     const endStr = end.format('YYYY-MM-DD HH:mm:ss');
+    
+    // Use the same resource IDs that are being checked for availability
+    const toNums = (arr) => (arr || []).map(v => Number(v)).filter(v => !Number.isNaN(v));
+    const selectedVenueIds = Array.isArray(form.getFieldValue('venueIds')) 
+      ? toNums(form.getFieldValue('venueIds').filter(Boolean)) 
+      : null;
+    const selectedVehicleIds = Array.isArray(form.getFieldValue('vehicleIds')) 
+      ? toNums(form.getFieldValue('vehicleIds').filter(Boolean)) 
+      : null;
+
+    const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources.venueIds || []);
+    const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources.vehicleIds || []);
+    
     let cancelled = false;
     const run = async () => {
       setResourceLoading(true);
       try {
         const [v1, v2] = await Promise.all([
-          fetchAvailableVenuesByRange(startStr, endStr),
-          fetchAvailableVehiclesByRange(startStr, endStr),
+          fetchAvailableVenuesByRange(startStr, endStr, venueIds),
+          fetchAvailableVehiclesByRange(startStr, endStr, vehicleIds),
         ]);
         if (!cancelled) {
           setVenues(v1 || []);
@@ -355,7 +383,7 @@ const RescheduleModal = ({
     };
     run();
     return () => { cancelled = true; };
-  }, [visible, isDateTimeRangeReady, startDateVal, startTimeVal, endDateVal, endTimeVal, fetchAvailableVenuesByRange, fetchAvailableVehiclesByRange]);
+  }, [visible, isDateTimeRangeReady, startDateVal, startTimeVal, endDateVal, endTimeVal, fetchAvailableVenuesByRange, fetchAvailableVehiclesByRange, availabilityBlocks]);
 
   const checkAvailability = async (values) => {
     const { startDate, startTime, endDate, endTime } = values;

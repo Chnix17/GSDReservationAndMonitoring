@@ -268,7 +268,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 userid: userId
             };
 
-            const response = await axios.post(`${baseUrl}/delete_master.php`, archiveData, {
+            const response = await axios.post(`${baseUrl}/user.php`, archiveData, {
                 headers: { 'Content-Type': 'application/json' }
             });
 

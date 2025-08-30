@@ -451,7 +451,7 @@ function Logins() {
                 });
     
                 // Now we'll check for 2FA status
-                const otpResponse = await axios.post(`${apiUrl}update_master2.php`, {
+                const otpResponse = await axios.post(`${apiUrl}login.php`, {
                     operation: "sendLoginOTP",
                     json: { 
                         id: userData.user_id
@@ -734,7 +734,7 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${SecureStorage.getLocalItem("url")}update_master2.php`, {
+            const response = await axios.post(`${SecureStorage.getLocalItem("url")}login.php`, {
                 operation: "send_password_reset_otp",
                 email: email
             });
@@ -816,7 +816,7 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${SecureStorage.getLocalItem("url")}update_master2.php`, {
+            const response = await axios.post(`${SecureStorage.getLocalItem("url")}login.php`, {
                 operation: "validate_otp",
                 otp: otpValue,
                 email: email // Add email parameter to the request
@@ -846,7 +846,7 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${SecureStorage.getLocalItem("url")}update_master2.php`, {
+            const response = await axios.post(`${SecureStorage.getLocalItem("url")}login.php`, {
                 operation: "update_password",
                 email: email,
                 password: newPassword
@@ -954,7 +954,7 @@ function Logins() {
             const apiUrl = SecureStorage.getLocalItem("url");
             
             // Verify OTP
-            const response = await axios.post(`${apiUrl}update_master2.php`, {
+            const response = await axios.post(`${apiUrl}login.php`, {
                 operation: "validateLoginOTP",
                 json: { 
                     id: userData,
@@ -1184,7 +1184,7 @@ function Logins() {
             const userData = SecureStorage.getSessionItem("temp_user_id");
             const apiUrl = SecureStorage.getLocalItem("url");
             
-            const response = await axios.post(`${apiUrl}update_master2.php`, {
+            const response = await axios.post(`${apiUrl}login.php`, {
                 operation: "sendLoginOTP",
                 json: { 
                     id: userData || username
