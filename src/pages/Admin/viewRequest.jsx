@@ -1457,6 +1457,10 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
     // Handler for driver assignment change
     const handleDriverAssign = (vehicleId, driverId) => {
         setVehicleDriverAssignments(prev => ({ ...prev, [vehicleId]: driverId }));
+        // Clear driver error when assignment is made
+        if (driverError) {
+            setDriverError("");
+        }
     };
 
     // Modified Accept handler to check driver assignments and available drivers
@@ -1471,7 +1475,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) && driver.driver_name
                 );
                 
-                // Check if there's a new assignment in the current session
+                // Check if there's a new assignment in the current session using vehicle_id
                 const newAssignment = vehicleDriverAssignments[vehicle.vehicle_id];
                 
                 // Vehicle needs a driver if there's no existing assignment with name and no new assignment
@@ -1694,11 +1698,47 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                 visible={isRescheduleModalOpen}
                                 onCancel={() => setIsRescheduleModalOpen(false)}
                                 onReschedule={async (newDates) => {
+                                    console.log('[ViewRequest] ===== onReschedule ENTRY POINT =====');
+                                    console.log('[ViewRequest] onReschedule called with:', newDates);
                                     try {
-                                        const { startDate, endDate, newVenueIds, newVehicleIds } = newDates || {};
+                                        const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts } = newDates || {};
+                                        console.log('[ViewRequest] Destructured values:', { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts });
+
+                                        // Step 0: If overriding conflicts, handle conflicting reservations first
+                                        if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
+                                            console.log('Processing conflict override for COO Department Head', {
+                                                conflictingUsers: conflictData.reservation_users,
+                                                unavailableVenues: conflictData.unavailable_venues,
+                                                unavailableVehicles: conflictData.unavailable_vehicles
+                                            });
+                                            
+                                            // Handle conflicting reservations by rescheduling them
+                                            try {
+                                                const overrideResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                                                    operation: 'handleRequest',
+                                                    reservation_id: reservationDetails?.reservation_id,
+                                                    is_accepted: true,
+                                                    user_id: SecureStorage.getLocalItem("user_id"),
+                                                    override_lower_priority: true,
+                                                    reschedule_mode: true,
+                                                    new_start_datetime: startDate,
+                                                    new_end_datetime: endDate
+                                                });
+
+                                                if (overrideResponse.data?.status !== 'success') {
+                                                    toast.error('Failed to override conflicting reservations');
+                                                    return;
+                                                }
+                                            } catch (overrideError) {
+                                                console.error('Error overriding conflicts:', overrideError);
+                                                toast.error('Failed to override conflicting reservations');
+                                                return;
+                                            }
+                                        }
 
                                         // Step 1: If dates provided, update reservation dates only
                                         let didUpdateSomething = false;
+                                        console.log('[ViewRequest] Checking if dates provided:', { startDate, endDate, hasStartDate: !!startDate, hasEndDate: !!endDate });
                                         if (startDate && endDate) {
                                             const dateResp = await axios.post(`${encryptedUrl}/user.php`, {
                                                 operation: 'updateReservationReschedule',
@@ -1717,10 +1757,34 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
                                         // Step 2: Process venue changes with minimal payload per change (no dates)
                                         const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+                                        
+                                        console.log('[ViewRequest] Processing venue changes:', {
+                                            currentVenues: currentVenues.map(v => ({ venue_id: v.venue_id, venue_name: v.venue_name, reservation_venue_id: v.reservation_venue_id })),
+                                            newVenueIds,
+                                            newVenueIdsType: typeof newVenueIds,
+                                            isArray: Array.isArray(newVenueIds),
+                                            newVenueIdsLength: Array.isArray(newVenueIds) ? newVenueIds.length : 'N/A',
+                                            newVenueIdsContent: newVenueIds
+                                        });
+                                        
                                         const venue_changes = currentVenues
                                             .map((v, idx) => {
                                                 const newId = Array.isArray(newVenueIds) ? newVenueIds[idx] : null;
-                                                if (!newId || String(newId) === String(v.venue_id)) return null;
+                                                
+                                                console.log(`[ViewRequest] Venue ${idx}:`, {
+                                                    currentVenueId: v.venue_id,
+                                                    currentVenueName: v.venue_name,
+                                                    reservationVenueId: v.reservation_venue_id,
+                                                    newId,
+                                                    newIdType: typeof newId,
+                                                    isNull: newId == null,
+                                                    isUndefined: newId === undefined,
+                                                    isSame: String(newId) === String(v.venue_id),
+                                                    willProcess: newId != null && newId !== undefined && String(newId) !== String(v.venue_id)
+                                                });
+                                                
+                                                // Only process if newId is explicitly provided and different from current
+                                                if (newId == null || newId === undefined || String(newId) === String(v.venue_id)) return null;
                                                 return {
                                                     reservation_venue_id: v.reservation_venue_id,
                                                     reservation_change_venue_id: Number(newId)
@@ -1728,30 +1792,68 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                             })
                                             .filter(Boolean);
 
+                                        console.log('[ViewRequest] Venue changes to process:', venue_changes);
+
                                         if (venue_changes.length > 0) {
-                                            const requests = venue_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
-                                                operation: 'updateVenueReschedule',
-                                                reservation_venue_id: change.reservation_venue_id,
-                                                reservation_change_venue_id: change.reservation_change_venue_id
-                                            }, { headers: { 'Content-Type': 'application/json' } }));
+                                            console.log('[ViewRequest] Executing updateVenueReschedule for', venue_changes.length, 'venues');
+                                            const requests = venue_changes.map(change => {
+                                                console.log('[ViewRequest] Making updateVenueReschedule request:', change);
+                                                return axios.post(`${encryptedUrl}/user.php`, {
+                                                    operation: 'updateVenueReschedule',
+                                                    reservation_venue_id: change.reservation_venue_id,
+                                                    reservation_change_venue_id: change.reservation_change_venue_id
+                                                }, { headers: { 'Content-Type': 'application/json' } });
+                                            });
                                             const results = await Promise.allSettled(requests);
+                                            console.log('[ViewRequest] updateVenueReschedule results:', results.map(r => ({
+                                                status: r.status,
+                                                data: r.status === 'fulfilled' ? r.value?.data : r.reason
+                                            })));
                                             const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
                                             if (!allOk) {
                                                 const firstError = results.find(r => r.status === 'rejected')?.reason?.message
                                                     || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
                                                     || 'Failed to reschedule reservation';
+                                                console.error('[ViewRequest] updateVenueReschedule failed:', firstError);
                                                 toast.error(firstError);
                                                 return;
                                             }
+                                            console.log('[ViewRequest] updateVenueReschedule completed successfully');
                                             didUpdateSomething = true;
+                                        } else {
+                                            console.log('[ViewRequest] No venue changes to process');
                                         }
 
                                         // Step 3: Process vehicle changes (map reservation_vehicle_id -> selected vehicle_id)
                                         const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+                                        
+                                        console.log('[ViewRequest] Processing vehicle changes:', {
+                                            currentVehicles: currentVehicles.map(v => ({ vehicle_id: v.vehicle_id, vehicle_model_name: v.vehicle_model_name, reservation_vehicle_id: v.reservation_vehicle_id })),
+                                            newVehicleIds,
+                                            newVehicleIdsType: typeof newVehicleIds,
+                                            isArray: Array.isArray(newVehicleIds),
+                                            newVehicleIdsLength: Array.isArray(newVehicleIds) ? newVehicleIds.length : 'N/A',
+                                            newVehicleIdsContent: newVehicleIds
+                                        });
+                                        
                                         const vehicle_changes = currentVehicles
                                             .map((v, idx) => {
                                                 const newId = Array.isArray(newVehicleIds) ? newVehicleIds[idx] : null;
-                                                if (!newId || String(newId) === String(v.vehicle_id)) return null;
+                                                
+                                                console.log(`[ViewRequest] Vehicle ${idx}:`, {
+                                                    currentVehicleId: v.vehicle_id,
+                                                    currentVehicleName: v.vehicle_model_name,
+                                                    reservationVehicleId: v.reservation_vehicle_id,
+                                                    newId,
+                                                    newIdType: typeof newId,
+                                                    isNull: newId == null,
+                                                    isUndefined: newId === undefined,
+                                                    isSame: String(newId) === String(v.vehicle_id),
+                                                    willProcess: newId != null && newId !== undefined && String(newId) !== String(v.vehicle_id)
+                                                });
+                                                
+                                                // Only process if newId is explicitly provided and different from current
+                                                if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
                                                 return {
                                                     reservation_vehicle_id: v.reservation_vehicle_id,
                                                     // Use vehicle_id as reservation_change_vehicle_id per backend contract
@@ -1760,22 +1862,36 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                             })
                                             .filter(Boolean);
 
+                                        console.log('[ViewRequest] Vehicle changes to process:', vehicle_changes);
+                                        
                                         if (vehicle_changes.length > 0) {
-                                            const requests = vehicle_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
-                                                operation: 'updateVehicleReschedule',
-                                                reservation_vehicle_id: change.reservation_vehicle_id,
-                                                reservation_change_vehicle_id: change.reservation_change_vehicle_id
-                                            }, { headers: { 'Content-Type': 'application/json' } }));
+                                            console.log('[ViewRequest] Executing updateVehicleReschedule for', vehicle_changes.length, 'vehicles');
+                                            const requests = vehicle_changes.map(change => {
+                                                console.log('[ViewRequest] Making updateVehicleReschedule request:', change);
+                                                return axios.post(`${encryptedUrl}/user.php`, {
+                                                    operation: 'updateVehicleReschedule',
+                                                    reservation_vehicle_id: change.reservation_vehicle_id,
+                                                    reservation_change_vehicle_id: change.reservation_change_vehicle_id
+                                                }, { headers: { 'Content-Type': 'application/json' } });
+                                            });
                                             const results = await Promise.allSettled(requests);
+                                            console.log('[ViewRequest] updateVehicleReschedule results:', results.map(r => ({
+                                                status: r.status,
+                                                data: r.status === 'fulfilled' ? r.value?.data : r.reason
+                                            })));
                                             const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
                                             if (!allOk) {
                                                 const firstError = results.find(r => r.status === 'rejected')?.reason?.message
                                                     || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
                                                     || 'Failed to reschedule reservation vehicles';
+                                                console.error('[ViewRequest] updateVehicleReschedule failed:', firstError);
                                                 toast.error(firstError);
                                                 return;
                                             }
+                                            console.log('[ViewRequest] updateVehicleReschedule completed successfully');
                                             didUpdateSomething = true;
+                                        } else {
+                                            console.log('[ViewRequest] No vehicle changes to process');
                                         }
 
                                         if (!didUpdateSomething) {
@@ -1818,9 +1934,12 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                             console.error('Error refreshing details after reschedule:', refreshErr);
                                         }
                                     } catch (error) {
-                                        console.error('Error during reschedule:', error);
+                                        console.error('[ViewRequest] ===== ERROR IN onReschedule =====');
+                                        console.error('[ViewRequest] Error during reschedule:', error);
+                                        console.error('[ViewRequest] Error stack:', error.stack);
                                         toast.error('Error processing reschedule');
                                     }
+                                    console.log('[ViewRequest] ===== onReschedule EXIT POINT =====');
                                 }}
                                 reservation={reservationDetails}
                                 resourceType={
@@ -2090,10 +2209,12 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             }
                             
                             const assignedDriverIds = Object.entries(vehicleDriverAssignments)
-                                .filter(([vid, did]) => String(vid) !== String(resource.vehicle_id))
+                                .filter(([vid, did]) => String(vid) !== String(resource.vehicle_id) && did)
                                 .map(([_, did]) => did)
                                 .filter(Boolean);
-                            const availableForThisVehicle = availableDrivers.filter(driver => !assignedDriverIds.includes(String(driver.users_id)));
+                            const availableForThisVehicle = availableDrivers.filter(driver => 
+                                !assignedDriverIds.includes(String(driver.users_id))
+                            );
                             
                             if (!isDepartmentStageForCurrentUser) {
                                 return <span className="assigned-driver pending">—</span>;
@@ -2101,7 +2222,14 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             return (
                                 <select
                                     value={vehicleDriverAssignments[resource.vehicle_id] || ''}
-                                    onChange={e => handleDriverAssign(resource.vehicle_id, e.target.value)}
+                                    onChange={e => {
+                                        handleDriverAssign(resource.vehicle_id, e.target.value);
+                                        // Force a state update to ensure the UI reflects the change
+                                        setVehicleDriverAssignments(prev => ({
+                                            ...prev,
+                                            [resource.vehicle_id]: e.target.value
+                                        }));
+                                    }}
                                     className="mobile-driver-select"
                                 >
                                     <option value="">Select Driver</option>
@@ -2894,9 +3022,13 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
     };
 
     const handleRescheduleComplete = async (rescheduleData) => {
+        console.log('[ViewRequest] ===== handleRescheduleComplete ENTRY =====');
+        console.log('[ViewRequest] handleRescheduleComplete called with:', rescheduleData);
         try {
             const conflictingReservation = conflictingReservations[0]; // Assuming single conflict for COO override
             const { startDate, endDate, newVenueIds, newVehicleIds } = rescheduleData || {};
+            console.log('[ViewRequest] Conflict reschedule - destructured:', { startDate, endDate, newVenueIds, newVehicleIds });
+            console.log('[ViewRequest] Conflicting reservation:', conflictingReservation);
 
             let didUpdateSomething = false;
 
@@ -2919,12 +3051,22 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
             }
 
             // Step 2: Process venue changes (optional)
+            console.log('[ViewRequest] Checking venue changes in conflict reschedule:', { newVenueIds, hasNewVenueIds: !!(newVenueIds && Array.isArray(newVenueIds) && newVenueIds.length > 0) });
             if (newVenueIds && Array.isArray(newVenueIds) && newVenueIds.length > 0) {
-                const currentVenues = Array.isArray(conflictingReservation.venues) ? conflictingReservation.venues : [];
+                // Get venues from doubleCheckAvailability response instead of conflicting reservation
+                const unavailableVenues = reservationDetails?.availabilityData?.unavailable_venues || [];
+                const currentVenues = unavailableVenues.map(venue => ({
+                    venue_id: venue.ven_id,
+                    venue_name: venue.ven_name,
+                    reservation_venue_id: venue.reservation_venue_id // Use the actual reservation_venue_id from response
+                }));
+                console.log('[ViewRequest] Conflict reschedule - current venues from unavailable_venues:', currentVenues);
+                console.log('[ViewRequest] Conflict reschedule - unavailable_venues raw:', unavailableVenues);
                 const venue_changes = currentVenues
                     .map((v, idx) => {
                         const newId = newVenueIds[idx];
-                        if (!newId || String(newId) === String(v.venue_id)) return null;
+                        // Only process if newId is explicitly provided and different from current
+                        if (newId == null || newId === undefined || String(newId) === String(v.venue_id)) return null;
                         return {
                             reservation_venue_id: v.reservation_venue_id,
                             reservation_change_venue_id: Number(newId)
@@ -2932,12 +3074,17 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                     })
                     .filter(Boolean);
 
+                console.log('[ViewRequest] Conflict reschedule - venue changes to process:', venue_changes);
                 if (venue_changes.length > 0) {
-                    const requests = venue_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
-                        operation: 'updateVenueReschedule',
-                        reservation_venue_id: change.reservation_venue_id,
-                        reservation_change_venue_id: change.reservation_change_venue_id
-                    }, { headers: { 'Content-Type': 'application/json' } }));
+                    console.log('[ViewRequest] Executing updateVenueReschedule for conflict reschedule');
+                    const requests = venue_changes.map(change => {
+                        console.log('[ViewRequest] Making conflict venue reschedule request:', change);
+                        return axios.post(`${encryptedUrl}/user.php`, {
+                            operation: 'updateVenueReschedule',
+                            reservation_venue_id: change.reservation_venue_id,
+                            reservation_change_venue_id: change.reservation_change_venue_id
+                        }, { headers: { 'Content-Type': 'application/json' } });
+                    });
                     
                     const results = await Promise.allSettled(requests);
                     const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
@@ -2953,12 +3100,22 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
             }
 
             // Step 3: Process vehicle changes (optional)
+            console.log('[ViewRequest] Checking vehicle changes in conflict reschedule:', { newVehicleIds, hasNewVehicleIds: !!(newVehicleIds && Array.isArray(newVehicleIds) && newVehicleIds.length > 0) });
             if (newVehicleIds && Array.isArray(newVehicleIds) && newVehicleIds.length > 0) {
-                const currentVehicles = Array.isArray(conflictingReservation.vehicles) ? conflictingReservation.vehicles : [];
+                // Get vehicles from doubleCheckAvailability response instead of conflicting reservation
+                const unavailableVehicles = reservationDetails?.availabilityData?.unavailable_vehicles || [];
+                const currentVehicles = unavailableVehicles.map(vehicle => ({
+                    vehicle_id: vehicle.vehicle_id,
+                    vehicle_model_name: vehicle.vehicle_model_name || vehicle.model,
+                    reservation_vehicle_id: vehicle.reservation_vehicle_id // Use the actual reservation_vehicle_id from response
+                }));
+                console.log('[ViewRequest] Conflict reschedule - current vehicles from unavailable_vehicles:', currentVehicles);
+                console.log('[ViewRequest] Conflict reschedule - unavailable_vehicles raw:', unavailableVehicles);
                 const vehicle_changes = currentVehicles
                     .map((v, idx) => {
                         const newId = newVehicleIds[idx];
-                        if (!newId || String(newId) === String(v.vehicle_id)) return null;
+                        // Only process if newId is explicitly provided and different from current
+                        if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
                         return {
                             reservation_vehicle_id: v.reservation_vehicle_id,
                             reservation_change_vehicle_id: Number(newId)
@@ -2966,12 +3123,17 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                     })
                     .filter(Boolean);
 
+                console.log('[ViewRequest] Conflict reschedule - vehicle changes to process:', vehicle_changes);
                 if (vehicle_changes.length > 0) {
-                    const requests = vehicle_changes.map(change => axios.post(`${encryptedUrl}/user.php`, {
-                        operation: 'updateVehicleReschedule',
-                        reservation_vehicle_id: change.reservation_vehicle_id,
-                        reservation_change_vehicle_id: change.reservation_change_vehicle_id
-                    }, { headers: { 'Content-Type': 'application/json' } }));
+                    console.log('[ViewRequest] Executing updateVehicleReschedule for conflict reschedule');
+                    const requests = vehicle_changes.map(change => {
+                        console.log('[ViewRequest] Making conflict vehicle reschedule request:', change);
+                        return axios.post(`${encryptedUrl}/user.php`, {
+                            operation: 'updateVehicleReschedule',
+                            reservation_vehicle_id: change.reservation_vehicle_id,
+                            reservation_change_vehicle_id: change.reservation_change_vehicle_id
+                        }, { headers: { 'Content-Type': 'application/json' } });
+                    });
                     
                     const results = await Promise.allSettled(requests);
                     const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
@@ -3052,15 +3214,7 @@ const PriorityConflictModal = ({ visible, onClose, conflictingReservations, onCo
                 showIcon
                 className="mb-4"
             />
-            <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-                {conflictingReservations.map(res => (
-                    <div key={res.reservation_id} className="border p-4 rounded-lg mb-4">
-                        <p><strong>Requester:</strong> {res.user_name}</p>
-                        <p><strong>Purpose:</strong> {res.title}</p>
-                        <p><strong>Schedule:</strong> {formatDateRange(res.reservation_start_date, res.reservation_end_date)}</p>
-                    </div>
-                ))}
-            </div>
+          
             
             {/* Reschedule Modal for conflicting reservation */}
             {isRescheduleModalOpen && conflictingReservations.length > 0 && (

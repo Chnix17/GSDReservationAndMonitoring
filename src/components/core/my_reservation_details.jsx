@@ -44,6 +44,15 @@ const ReservationDetails = ({
             showAvailability,
             onRefresh
         });
+        
+        // Log conditions data specifically
+        if (reservationDetails?.conditions) {
+            console.log("Conditions data:", reservationDetails.conditions);
+            console.log("Equipment conditions:", reservationDetails.conditions.equipment);
+            console.log("Vehicle conditions:", reservationDetails.conditions.vehicle);
+            console.log("Venue conditions:", reservationDetails.conditions.venue);
+            console.log("Unit conditions:", reservationDetails.conditions.unit);
+        }
     }, [visible, reservationDetails, showAvailability, onRefresh]);
 
     // Fetch Department Approval (Dean's) similar to Admin/Record.jsx DetailModal
@@ -121,18 +130,22 @@ const ReservationDetails = ({
     };
 
     // Check if reservation is cancelled or completed
-    const isCancelled = reservationDetails.statusHistory?.some(
+    const statusHistory = reservationDetails.status_history || reservationDetails.statusHistory || [];
+    
+    const isCancelled = statusHistory.some(
         status => status.status_name === "Cancelled"
     );
     
-    const isCompleted = reservationDetails.statusHistory?.some(
+    const isCompleted = statusHistory.some(
         status => {
-            const completedById = status.status_id === "4";
+            const completedById = status.status_id === 4;
             const completedByName = status.status_name === "Completed";
-            const isActiveStatus = status.active === "1";
+            const isActiveStatus = status.reservation_active === 1;
             return (completedById || completedByName) && isActiveStatus;
         }
-    ) || (reservationDetails.reservation_status?.toLowerCase() === "completed");
+    ) || (reservationDetails.status_name?.toLowerCase() === "completed");
+
+    console.log(isCompleted);
 
     // Helper: Check if both vehicle and equipment are present
     const hasVehicleAndEquipment = reservationDetails.vehicles?.length > 0 && reservationDetails.equipment?.length > 0;
@@ -529,80 +542,265 @@ const ReservationDetails = ({
                                         </div>
                                     )}
 
-                                    {/* Maintenance Resources */}
-                                    {reservationDetails.maintenanceResources?.length > 0 && (
+                                    {/* Equipment Conditions */}
+                                    {reservationDetails.conditions?.equipment?.length > 0 && (
                                         <div>
-                                            <h4 className="text-base font-medium mb-2 text-gray-800">Resource Condition After Use</h4>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Equipment Conditions</h4>
                                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                                {reservationDetails.maintenanceResources.map((item, index) => {
-                                                    const isBulk = item.resource_type?.includes('_bulk');
-                                                    const isSerialized = item.resource_type?.includes('_serialized');
-                                                    const resourceType = isBulk ? 'Bulk Equipment' : 
-                                                                       isSerialized ? 'Serialized Equipment' : 
-                                                                       item.resource_type || 'Resource';
+                                                {reservationDetails.conditions.equipment
+                                                    .map((condition, index) => {
+                                                        // Find matching equipment by reservation_equipment_id
+                                                        const matchingEquipment = reservationDetails.equipment?.find(
+                                                            eq => String(eq.reservation_equipment_id) === String(condition.reservation_equipment_id)
+                                                        );
+                                                        
+                                                        return (
+                                                            <div key={`equipment-condition-${condition.id || index}`} className="p-3 border rounded-lg">
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex items-start gap-2 min-w-0">
+                                                                        <ToolOutlined className={`mt-0.5 ${
+                                                                            condition.condition_name?.toLowerCase() === 'good condition' ? 'text-green-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'damaged' ? 'text-red-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'text-orange-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'minor issues' ? 'text-yellow-500' : 'text-blue-500'
+                                                                        }`} />
+                                                                        <div className="min-w-0">
+                                                                            <p className="font-medium text-gray-800 break-words">
+                                                                                {matchingEquipment?.name || `Equipment ID: ${condition.reservation_equipment_id}`}
+                                                                            </p>
+                                                                            
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Condition:</span> {condition.condition_name}
+                                                                            </p>
+                                                                            
+                                                                            {condition.qty_bad && condition.qty_bad !== "0" && (
+                                                                                <p className="text-sm text-gray-600 mt-1">
+                                                                                    <span className="font-medium">Damaged Quantity:</span> {condition.qty_bad}
+                                                                                </p>
+                                                                            )}
+                                                                            
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Personnel:</span> {condition.personnel_name}
+                                                                            </p>
+                                                                            
+                                                                            {condition.remarks && (
+                                                                                <p className="text-sm text-gray-600 mt-1">
+                                                                                    <span className="font-medium">Remarks:</span> {condition.remarks}
+                                                                                </p>
+                                                                            )}
+                                                                            
+                                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                                Recorded on: {new Date(condition.created_at).toLocaleString()}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <Tag 
+                                                                        color={
+                                                                            condition.condition_name?.toLowerCase() === 'good condition' ? 'green' :
+                                                                            condition.condition_name?.toLowerCase() === 'damaged' ? 'red' :
+                                                                            condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'orange' :
+                                                                            condition.condition_name?.toLowerCase() === 'minor issues' ? 'yellow' : 'blue'
+                                                                        }
+                                                                        className="shrink-0"
+                                                                    >
+                                                                        {condition.condition_name}
+                                                                    </Tag>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    )}
 
-                                                    return (
-                                                        <div key={`maintenance-${index}`} className="p-3 border rounded-lg">
+                                    {/* Vehicle Conditions */}
+                                    {reservationDetails.conditions?.vehicle?.length > 0 && (
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Vehicle Conditions</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.conditions.vehicle
+                                                    .map((condition, index) => {
+                                                        // Find matching vehicle by reservation_vehicle_id
+                                                        const matchingVehicle = reservationDetails.vehicles?.find(
+                                                            vehicle => String(vehicle.reservation_vehicle_id) === String(condition.reservation_vehicle_id)
+                                                        );
+                                                        
+                                                        return (
+                                                            <div key={`vehicle-condition-${condition.id || index}`} className="p-3 border rounded-lg">
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex items-start gap-2 min-w-0">
+                                                                        <CarOutlined className={`mt-0.5 ${
+                                                                            condition.condition_name?.toLowerCase() === 'good condition' ? 'text-green-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'damaged' ? 'text-red-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'text-orange-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'minor issues' ? 'text-yellow-500' : 'text-blue-500'
+                                                                        }`} />
+                                                                        <div className="min-w-0">
+                                                                            <p className="font-medium text-gray-800 break-words">
+                                                                                {matchingVehicle ? `${matchingVehicle.model} (${matchingVehicle.license})` : `Vehicle ID: ${condition.reservation_vehicle_id}`}
+                                                                            </p>
+                                                                            
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Condition:</span> {condition.condition_name}
+                                                                            </p>
+                                                                            
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Personnel:</span> {condition.personnel_name}
+                                                                            </p>
+                                                                            
+                                                                            {condition.remarks && (
+                                                                                <p className="text-sm text-gray-600 mt-1">
+                                                                                    <span className="font-medium">Remarks:</span> {condition.remarks}
+                                                                                </p>
+                                                                            )}
+                                                                            
+                                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                                Recorded on: {new Date(condition.created_at).toLocaleString()}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <Tag 
+                                                                        color={
+                                                                            condition.condition_name?.toLowerCase() === 'good condition' ? 'green' :
+                                                                            condition.condition_name?.toLowerCase() === 'damaged' ? 'red' :
+                                                                            condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'orange' :
+                                                                            condition.condition_name?.toLowerCase() === 'minor issues' ? 'yellow' : 'blue'
+                                                                        }
+                                                                        className="shrink-0"
+                                                                    >
+                                                                        {condition.condition_name}
+                                                                    </Tag>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Venue Conditions */}
+                                    {reservationDetails.conditions?.venue?.length > 0 && (
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Venue Conditions</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.conditions.venue
+                                                    .map((condition, index) => {
+                                                        // Find matching venue by reservation_venue_id
+                                                        const matchingVenue = reservationDetails.venues?.find(
+                                                            venue => String(venue.reservation_venue_id) === String(condition.reservation_venue_id)
+                                                        );
+                                                        
+                                                        return (
+                                                            <div key={`venue-condition-${condition.id || index}`} className="p-3 border rounded-lg">
+                                                                <div className="flex items-start justify-between">
+                                                                    <div className="flex items-start gap-2 min-w-0">
+                                                                        <BuildOutlined className={`mt-0.5 ${
+                                                                            condition.condition_name?.toLowerCase() === 'good condition' ? 'text-green-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'damaged' ? 'text-red-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'text-orange-500' :
+                                                                            condition.condition_name?.toLowerCase() === 'minor issues' ? 'text-yellow-500' : 'text-blue-500'
+                                                                        }`} />
+                                                                        <div className="min-w-0">
+                                                                            <p className="font-medium text-gray-800 break-words">
+                                                                                {matchingVenue?.venue_name || `Venue ID: ${condition.reservation_venue_id}`}
+                                                                            </p>
+                                                                            
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Condition:</span> {condition.condition_name}
+                                                                            </p>
+                                                                            
+                                                                            <p className="text-sm text-gray-600 mt-1">
+                                                                                <span className="font-medium">Personnel:</span> {condition.personnel_name}
+                                                                            </p>
+                                                                            
+                                                                            {condition.remarks && (
+                                                                                <p className="text-sm text-gray-600 mt-1">
+                                                                                    <span className="font-medium">Remarks:</span> {condition.remarks}
+                                                                                </p>
+                                                                            )}
+                                                                            
+                                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                                Recorded on: {new Date(condition.created_at).toLocaleString()}
+                                                                            </p>
+                                                                        </div>
+                                                                    </div>
+                                                                    <Tag 
+                                                                        color={
+                                                                            condition.condition_name?.toLowerCase() === 'good condition' ? 'green' :
+                                                                            condition.condition_name?.toLowerCase() === 'damaged' ? 'red' :
+                                                                            condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'orange' :
+                                                                            condition.condition_name?.toLowerCase() === 'minor issues' ? 'yellow' : 'blue'
+                                                                        }
+                                                                        className="shrink-0"
+                                                                    >
+                                                                        {condition.condition_name}
+                                                                    </Tag>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Unit Conditions - Always display if available */}
+                                    {reservationDetails.conditions?.unit?.length > 0 && (
+                                        <div>
+                                            <h4 className="text-base font-medium mb-2 text-gray-800">Unit Conditions</h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                {reservationDetails.conditions.unit
+                                                    .map((condition, index) => (
+                                                        <div key={`unit-condition-${condition.id || index}`} className="p-3 border rounded-lg">
                                                             <div className="flex items-start justify-between">
                                                                 <div className="flex items-start gap-2 min-w-0">
                                                                     <ToolOutlined className={`mt-0.5 ${
-                                                                        item.condition_name?.toLowerCase() === 'good' ? 'text-green-500' :
-                                                                        item.condition_name?.toLowerCase() === 'damaged' ? 'text-red-500' :
-                                                                        item.condition_name?.toLowerCase() === 'inspection' ? 'text-blue-500' :
-                                                                        item.condition_name?.toLowerCase() === 'missing' ? 'text-purple-500' : 'text-orange-500'
+                                                                        condition.condition_name?.toLowerCase() === 'good condition' ? 'text-green-500' :
+                                                                        condition.condition_name?.toLowerCase() === 'damaged' ? 'text-red-500' :
+                                                                        condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'text-orange-500' :
+                                                                        condition.condition_name?.toLowerCase() === 'minor issues' ? 'text-yellow-500' : 'text-blue-500'
                                                                     }`} />
                                                                     <div className="min-w-0">
-                                                                        <div className="flex flex-wrap items-baseline gap-2">
-                                                                            <p className="font-medium text-gray-800 break-words">
-                                                                                {item.resource_name}
-                                                                            </p>
-                                                                            <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">
-                                                                                {resourceType}
-                                                                            </span>
-                                                                        </div>
-                                                                        
-                                                                        {isBulk && item.quantity !== null && (
-                                                                            <p className="text-sm text-gray-600 mt-1">
-                                                                                <span className="font-medium">Bad Quantity:</span> {item.quantity}
-                                                                            </p>
-                                                                        )}
-                                                                        
-                                                                        {isSerialized && item.serial_number && (
-                                                                            <p className="text-sm text-gray-600 mt-1">
-                                                                                <span className="font-medium">Serial #:</span> {item.serial_number}
-                                                                            </p>
-                                                                        )}
-                                                                        
-                                                                        <p className="text-sm text-gray-600 mt-1">
-                                                                            <span className="font-medium">Condition:</span> {item.condition_name}
+                                                                        <p className="font-medium text-gray-800 break-words">
+                                                                            Unit ID: {condition.reservation_unit_id}
                                                                         </p>
                                                                         
-                                                                        {item.remarks && (
+                                                                        <p className="text-sm text-gray-600 mt-1">
+                                                                            <span className="font-medium">Condition:</span> {condition.condition_name}
+                                                                        </p>
+                                                                        
+                                                                        <p className="text-sm text-gray-600 mt-1">
+                                                                            <span className="font-medium">Personnel:</span> {condition.personnel_name}
+                                                                        </p>
+                                                                        
+                                                                        {condition.remarks && (
                                                                             <p className="text-sm text-gray-600 mt-1">
-                                                                                <span className="font-medium">Remarks:</span> {item.remarks}
+                                                                                <span className="font-medium">Remarks:</span> {condition.remarks}
                                                                             </p>
                                                                         )}
                                                                         
                                                                         <p className="text-xs text-gray-500 mt-1">
-                                                                            Recorded on: {new Date(item.created_at || new Date()).toLocaleString()}
+                                                                            Recorded on: {new Date(condition.created_at).toLocaleString()}
+                                                                        </p>
+                                                                        
+                                                                        <p className="text-xs text-gray-500 mt-1">
+                                                                            Status: {condition.is_active === "1" ? "Active" : "Inactive"} (is_active: {condition.is_active})
                                                                         </p>
                                                                     </div>
                                                                 </div>
                                                                 <Tag 
                                                                     color={
-                                                                        item.condition_name?.toLowerCase() === 'good' ? 'green' :
-                                                                        item.condition_name?.toLowerCase() === 'damaged' ? 'red' :
-                                                                        item.condition_name?.toLowerCase() === 'inspection' ? 'blue' :
-                                                                        item.condition_name?.toLowerCase() === 'missing' ? 'purple' : 'orange'
+                                                                        condition.condition_name?.toLowerCase() === 'good condition' ? 'green' :
+                                                                        condition.condition_name?.toLowerCase() === 'damaged' ? 'red' :
+                                                                        condition.condition_name?.toLowerCase() === 'needs maintenance' ? 'orange' :
+                                                                        condition.condition_name?.toLowerCase() === 'minor issues' ? 'yellow' : 'blue'
                                                                     }
                                                                     className="shrink-0"
                                                                 >
-                                                                    {item.condition_name}
+                                                                    {condition.condition_name}
                                                                 </Tag>
                                                             </div>
                                                         </div>
-                                                    );
-                                                })}
+                                                    ))}
                                             </div>
                                         </div>
                                     )}

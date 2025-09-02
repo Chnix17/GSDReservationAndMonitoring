@@ -14,8 +14,6 @@ const RescheduleModal = ({
   onCancel, 
   onReschedule, 
   reservation,
-  resourceType,
-  resourceId,
   resources,
   originalStart, // ISO string or parseable datetime
   originalEnd    // ISO string or parseable datetime
@@ -24,6 +22,7 @@ const RescheduleModal = ({
   const [loading, setLoading] = useState(false);
   const [venues, setVenues] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [, setDrivers] = useState([]);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
   const [resourceLoading, setResourceLoading] = useState(false);
   const [availabilityBlocks, setAvailabilityBlocks] = useState([]); // [{start: dayjs, end: dayjs}]
@@ -197,6 +196,28 @@ const RescheduleModal = ({
     }
   }, []);
 
+  const fetchAvailableDrivers = useCallback(async () => {
+    try {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      if (!encryptedUrl) {
+        toast.error("API URL configuration is missing");
+        return [];
+      }
+      const resp = await axios.post(`${encryptedUrl}/user.php`, {
+        operation: 'fetchAvailableDrivers'
+      }, { headers: { 'Content-Type': 'application/json' } });
+      if (resp?.data?.status === 'success') {
+        return Array.isArray(resp.data.data) ? resp.data.data : [];
+      }
+      toast.error('Error fetching available drivers');
+      return [];
+    } catch (e) {
+      console.error('Error fetchAvailableDrivers:', e);
+      toast.error('An error occurred while fetching available drivers.');
+      return [];
+    }
+  }, []);
+
   const refetchBlocks = useCallback(async (formValues = {}) => {
     try {
       if (!resources) { setAvailabilityBlocks([]); return; }
@@ -209,31 +230,62 @@ const RescheduleModal = ({
         ? toNums(formValues.vehicleIds.filter(Boolean))
         : (Array.isArray(form.getFieldValue('vehicleIds')) ? toNums(form.getFieldValue('vehicleIds').filter(Boolean)) : null);
 
-      const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources.venueIds || []);
-      const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources.vehicleIds || []);
-      const equipIds = (resources.equipment || []).map(e => e.equipment_id);
-      const quantities = (resources.equipment || []).map(e => parseInt(e.quantity || 0, 10));
+      const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources?.venueIds || []);
+      const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources?.vehicleIds || []);
+      const equipIds = (resources?.equipment || []).map(e => e.equipment_id);
+      const quantities = (resources?.equipment || []).map(e => parseInt(e.quantity || 0, 10));
 
-      const [venBlocks, vehBlocks, eqBlocks] = await Promise.all([
+      const [venBlocks, vehBlocks, eqBlocks, driverData] = await Promise.all([
         fetchAvailabilityFor('venue', venueIds),
         fetchAvailabilityFor('vehicle', vehicleIds),
-        fetchAvailabilityFor('equipment', equipIds, quantities)
+        fetchAvailabilityFor('equipment', equipIds, quantities),
+        fetchAvailableDrivers()
       ]);
 
-      // Use ALL blocks from fetchAvailability - no filtering based on reservation ID
+      // Update drivers state with fresh data
+      setDrivers(driverData || []);
+
+      // Parse driver reservation blocks
+      const driverBlocks = [];
+      if (Array.isArray(driverData)) {
+        driverData.forEach(driver => {
+          if (Array.isArray(driver.reservations)) {
+            driver.reservations.forEach(reservation => {
+              if (reservation.reservation_start_date && reservation.reservation_end_date) {
+                const startDate = dayjs(reservation.reservation_start_date);
+                const endDate = dayjs(reservation.reservation_end_date);
+                if (startDate.isValid() && endDate.isValid() && endDate.isAfter(startDate)) {
+                  driverBlocks.push({
+                    start: startDate,
+                    end: endDate,
+                    reservation_id: reservation.reservation_id,
+                    driver_id: driver.users_id,
+                    driver_name: `${driver.users_fname} ${driver.users_lname}`.trim()
+                  });
+                }
+              }
+            });
+          }
+        });
+      }
+
+      // Use ALL blocks from fetchAvailability and driver reservations - no filtering based on reservation ID
       // This will block all hours/days that have any existing reservations
-      const allBlocks = [...(venBlocks || []), ...(vehBlocks || []), ...(eqBlocks || [])];
+      const allBlocks = [...(venBlocks || []), ...(vehBlocks || []), ...(eqBlocks || []), ...(driverBlocks || [])];
       const filtered = allBlocks;
       
       console.log('[RescheduleModal] All availability blocks (no filtering):', {
         totalBlocks: allBlocks.length,
+        driverBlocks: driverBlocks.length,
         blockedPeriods: filtered.map(b => ({
           start: b.start.format('YYYY-MM-DD HH:mm:ss'),
           end: b.end.format('YYYY-MM-DD HH:mm:ss'),
           reservation_id: b.reservation_id,
           ven_id: b.ven_id,
           vehicle_id: b.vehicle_id,
-          equipment_id: b.equipment_id
+          equipment_id: b.equipment_id,
+          driver_id: b.driver_id,
+          driver_name: b.driver_name
         }))
       });
       
@@ -244,7 +296,7 @@ const RescheduleModal = ({
     } finally {
       setCheckingAvailability(false);
     }
-  }, [form, resources, originalStart, originalEnd, fetchAvailabilityFor]);
+  }, [form, resources, fetchAvailabilityFor, fetchAvailableDrivers]);
 
   // Compute per-day status (available / partial / reserved) similar to reservation_calendar.jsx
   useEffect(() => {
@@ -331,6 +383,7 @@ const RescheduleModal = ({
       // Clear lists initially; will fetch available ones once full date-time range is selected
       setVenues([]);
       setVehicles([]);
+      setDrivers([]);
       refetchBlocks();
     }
   }, [visible, resources, form, refetchBlocks, fetchVenues, fetchVehicles, reservation?.vehicles, reservation?.venues]);
@@ -341,6 +394,7 @@ const RescheduleModal = ({
     if (!isDateTimeRangeReady) {
       setVenues([]);
       setVehicles([]);
+      setDrivers([]);
       return;
     }
     const start = dayjs(startDateVal).hour(dayjs(startTimeVal).hour()).minute(0).second(0);
@@ -357,25 +411,28 @@ const RescheduleModal = ({
       ? toNums(form.getFieldValue('vehicleIds').filter(Boolean)) 
       : null;
 
-    const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources.venueIds || []);
-    const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources.vehicleIds || []);
+    const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources?.venueIds || []);
+    const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources?.vehicleIds || []);
     
     let cancelled = false;
     const run = async () => {
       setResourceLoading(true);
       try {
-        const [v1, v2] = await Promise.all([
+        const [v1, v2, d1] = await Promise.all([
           fetchAvailableVenuesByRange(startStr, endStr, venueIds),
           fetchAvailableVehiclesByRange(startStr, endStr, vehicleIds),
+          fetchAvailableDrivers()
         ]);
         if (!cancelled) {
           setVenues(v1 || []);
           setVehicles(v2 || []);
+          setDrivers(d1 || []);
         }
       } catch (_) {
         if (!cancelled) {
           setVenues([]);
           setVehicles([]);
+          setDrivers([]);
         }
       } finally {
         if (!cancelled) setResourceLoading(false);
@@ -383,7 +440,7 @@ const RescheduleModal = ({
     };
     run();
     return () => { cancelled = true; };
-  }, [visible, isDateTimeRangeReady, startDateVal, startTimeVal, endDateVal, endTimeVal, fetchAvailableVenuesByRange, fetchAvailableVehiclesByRange, availabilityBlocks]);
+  }, [visible, isDateTimeRangeReady, startDateVal, startTimeVal, endDateVal, endTimeVal, fetchAvailableVenuesByRange, fetchAvailableVehiclesByRange, fetchAvailableDrivers, form, resources?.vehicleIds, resources?.venueIds]);
 
   const checkAvailability = async (values) => {
     const { startDate, startTime, endDate, endTime } = values;
@@ -431,25 +488,46 @@ const RescheduleModal = ({
 
   const handleSubmit = async () => {
     try {
+      console.log('[RescheduleModal] handleSubmit started');
       const values = await form.validateFields();
+      console.log('[RescheduleModal] Form values validated:', values);
+      
       const isAvailable = await checkAvailability(values);
+      console.log('[RescheduleModal] Availability check result:', isAvailable);
       
       if (!isAvailable) {
+        console.log('[RescheduleModal] Time slot not available, stopping submission');
         message.error('Selected time slot is not available. Please choose another time.');
         return;
       }
 
       const start = dayjs(values.startDate).hour(dayjs(values.startTime).hour()).minute(0).second(0);
       const end = dayjs(values.endDate).hour(dayjs(values.endTime).hour()).minute(0).second(0);
-      onReschedule({
+      
+      const processedVenueIds = Array.isArray(values.venueIds) ? values.venueIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
+      const processedVehicleIds = Array.isArray(values.vehicleIds) ? values.vehicleIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
+      
+      console.log('[RescheduleModal] Processing form data:', {
+        rawVenueIds: values.venueIds,
+        rawVehicleIds: values.vehicleIds,
+        processedVenueIds,
+        processedVehicleIds,
+        startDate: start.format('YYYY-MM-DD HH:mm:ss'),
+        endDate: end.format('YYYY-MM-DD HH:mm:ss')
+      });
+      
+      const rescheduleData = {
         ...values,
         startDate: start.format('YYYY-MM-DD HH:mm:ss'),
         endDate: end.format('YYYY-MM-DD HH:mm:ss'),
-        newVenueIds: (Array.isArray(values.venueIds) ? values.venueIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : []),
-        newVehicleIds: (Array.isArray(values.vehicleIds) ? values.vehicleIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : []),
-      });
+        newVenueIds: processedVenueIds,
+        newVehicleIds: processedVehicleIds,
+      };
+      
+      console.log('[RescheduleModal] Calling onReschedule with data:', rescheduleData);
+      onReschedule(rescheduleData);
     } catch (error) {
-      console.error('Error submitting form:', error);
+      console.error('[RescheduleModal] Error submitting form:', error);
     }
   };
 
@@ -752,6 +830,8 @@ const RescheduleModal = ({
                           valType: typeof val,
                           optionValue: option?.value,
                           derivedId,
+                          currentFormVenueIds: form.getFieldValue('venueIds'),
+                          allFormValues: form.getFieldsValue()
                         });
                       } catch (_) {}
                     }}
@@ -770,6 +850,7 @@ const RescheduleModal = ({
                           derivedId,
                           committed: idStr,
                           selectedArray: currentVenueIds,
+                          formAfterUpdate: form.getFieldsValue()
                         });
                       } catch (_) {}
                       refetchBlocks({ venueIds: currentVenueIds });
@@ -811,6 +892,8 @@ const RescheduleModal = ({
                           valType: typeof val,
                           optionValue: option?.value,
                           derivedId,
+                          currentFormVehicleIds: form.getFieldValue('vehicleIds'),
+                          allFormValues: form.getFieldsValue()
                         });
                       } catch (_) {}
                     }}
@@ -829,6 +912,7 @@ const RescheduleModal = ({
                           derivedId,
                           committed: idStr,
                           selectedArray: currentVehicleIds,
+                          formAfterUpdate: form.getFieldsValue()
                         });
                       } catch (_) {}
                       refetchBlocks({ vehicleIds: currentVehicleIds });

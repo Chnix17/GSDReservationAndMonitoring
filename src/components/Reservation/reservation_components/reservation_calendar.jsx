@@ -455,6 +455,10 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
   }, [userLevel, userDepartment, selectedResource, getVenueAdvanceDays]);
 
   const handleDateClick = (date) => {
+    console.log('🔵 handleDateClick called with date:', format(date, 'yyyy-MM-dd'));
+    console.log('🔵 Current dateRange state:', dateRange);
+    console.log('🔵 Current isDatePickerModalOpen:', isDatePickerModalOpen);
+    
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const compareDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -462,10 +466,12 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
 
     // Check if it's a holiday first
     if (isHoliday(date)) {
+      console.log('🔴 Holiday check - date is holiday');
       const isPrivileged =
         (userLevel === 'Department Head' && userDepartment === 'COO') ||
         (userLevel === 'Secretary' && userDepartment === 'GSD');
       if (!isPrivileged) {
+        console.log('🔴 BLOCKING: Non-privileged user trying to select holiday');
         const holiday = holidays.find(h => h.date === format(date, 'yyyy-MM-dd'));
         toast.error(`Cannot select ${holiday?.name || 'Holiday'} (Holiday)`, {
           position: 'top-center',
@@ -474,15 +480,18 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         });
         return;
       }
+      console.log('🟢 Holiday check passed - privileged user');
       // Privileged users can proceed on holidays
     }
   
     // Check if date is before min selectable date
     if (compareDate < minSelectableDate) {
+      console.log('🔴 Min date check - date is before min selectable date');
       const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
       const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
       // Only block non-privileged users
       if (!(isCooDepartmentHead || isSecretaryGSD)) {
+        console.log('🔴 BLOCKING: Non-privileged user trying to select date before min date');
         let advanceMsg = '';
         if (selectedResource?.type === 'venue') {
           const advDays = getVenueAdvanceDays();
@@ -501,6 +510,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         });
         return;
       }
+      console.log('🟢 Min date check passed - privileged user');
       // Privileged users (COO Dept Head, GSD Secretary) bypass min-date restriction
     }
     
@@ -536,19 +546,25 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
     const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
     if (!(isCooDepartmentHead || isSecretaryGSD)) {
-      const status = getAvailabilityStatus(date, reservations);
-      if (status === 'reserved') {
-        toast.error('This date is already fully reserved for the business hours (4AM-10PM)', {
-          position: 'top-center',
-          icon: '❌',
-          className: 'font-medium'
-        });
-        return;
+      // Only check availability status if this is the first date selection (start date)
+      // For end date selection in multi-day reservations, allow selection even if there are conflicts
+      if (!dateRange.start) {
+        const status = getAvailabilityStatus(date, reservations);
+        if (status === 'reserved') {
+          toast.error('This date is already fully reserved for the business hours (4AM-10PM)', {
+            position: 'top-center',
+            icon: '❌',
+            className: 'font-medium'
+          });
+          return;
+        }
       }
+      // For end date selection, we'll handle conflicts in the time selection modal instead
     }
     
     // Set the selected dates
     if (!dateRange.start) {
+      console.log('🟢 Setting START date:', format(date, 'yyyy-MM-dd'));
       setDateRange({ start: date, end: null });
       // Clear times when selecting first date
       setSelectedTimes({
@@ -558,6 +574,11 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         endMinute: null
       });
     } else {
+      console.log('🟢 Setting END date:', format(date, 'yyyy-MM-dd'));
+      console.log('🟢 Opening modal with date range:', {
+        start: format(dateRange.start, 'yyyy-MM-dd'),
+        end: format(date, 'yyyy-MM-dd')
+      });
       setDateRange({ ...dateRange, end: date });
       // Clear times when selecting end date
       setSelectedTimes({
@@ -566,6 +587,10 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         startMinute: null,
         endMinute: null
       });
+      
+      // Open the modal after setting end date
+      console.log('🟢 OPENING MODAL - setIsDatePickerModalOpen(true)');
+      setIsDatePickerModalOpen(true);
     }
     
     // Set default times based on current time if it's today
@@ -3949,13 +3974,17 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
         const rangeEnd = new Date(end);
         rangeEnd.setHours(23, 59, 59, 999);
         
-        // Check if the existing reservation completely covers the selected range
-        return (resStart <= rangeStart && resEnd >= rangeEnd);
+        // Only consider it a complete conflict if the existing reservation covers the ENTIRE range
+        // AND it's a full-day reservation (spans business hours completely)
+        const coversEntireRange = (resStart <= rangeStart && resEnd >= rangeEnd);
+        const isFullDayReservation = (resStart.getHours() <= 4 && resEnd.getHours() >= 22);
+        
+        return coversEntireRange && isFullDayReservation;
       });
       
       if (hasCompleteConflict) {
         hasRangeConflict = true;
-        disableReason = 'Existing reservations conflict with selected date range';
+        disableReason = 'Existing full-day reservations conflict with selected date range';
       }
     }
     
@@ -3988,10 +4017,19 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     }
     
     // Check if all business hours are blocked
-    // Business hours for booking are 4 AM to 10 PM (4-22)
+    // For multi-day reservations, don't block the entire modal just because some middle days have conflicts
+    // Only block if ALL days in the range are completely unavailable
     const businessHours = [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22];
-    const availableHours = businessHours.filter(hour => !rangeBlockedSlots.hours.includes(hour));
-    allHoursBlocked = availableHours.length === 0;
+    
+    // Check if start and end dates have any available hours
+    const startDateSlots = getBlockedTimeSlots(dateRange.start);
+    const endDateSlots = getBlockedTimeSlots(dateRange.end);
+    
+    const startAvailableHours = businessHours.filter(hour => !startDateSlots.hours.includes(hour));
+    const endAvailableHours = businessHours.filter(hour => !endDateSlots.hours.includes(hour));
+    
+    // Only block if BOTH start and end dates are completely unavailable
+    allHoursBlocked = startAvailableHours.length === 0 && endAvailableHours.length === 0;
 
     // Privileged roles (COO Department Head, GSD Secretary) bypass holiday-based full-day blocks
     const isBypassRole =
@@ -4002,8 +4040,8 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     
     console.log('Business hours check:', {
       businessHours,
-      rangeBlockedSlots: rangeBlockedSlots.hours,
-      availableHours,
+      startAvailableHours,
+      endAvailableHours,
       allHoursBlocked
     });
     
@@ -4066,78 +4104,6 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
     { label: 'Evening', startHour: 18, endHour: 22 },
     { label: 'Full Day', startHour: 4, endHour: 22 }, // 4AM to 10PM
   ];
-
-  const getPresetDisabled = (preset) => {
-    // Presets require both dates selected
-    if (!presetsEnabled) return true;
-
-    // Use the same bypass role flag as time pickers
-    const isBypass = isBypassRoleTime;
-
-    if (allHoursBlocked) return true;
-
-   
-
-    // Check if the start time of the preset is blocked
-    const startHoursArr = isBypass
-      ? (Array.isArray(startBlockedSlots.ownHours) ? startBlockedSlots.ownHours : [])
-      : (Array.isArray(startBlockedSlots.hours) ? startBlockedSlots.hours : []);
-    if (startHoursArr.includes(preset.startHour)) {
-      return true;
-    }
-    
-    // For single day selection, check if any hour in the preset range is blocked
-    if (dateRange.start && dateRange.end && isSameDay(dateRange.start, dateRange.end)) {
-      const singleDayHoursArr = isBypass
-        ? (Array.isArray(rangeBlockedSlots.ownHours) ? rangeBlockedSlots.ownHours : (Array.isArray(startBlockedSlots.ownHours) ? startBlockedSlots.ownHours : []))
-        : (Array.isArray(rangeBlockedSlots.hours) ? rangeBlockedSlots.hours : (Array.isArray(startBlockedSlots.hours) ? startBlockedSlots.hours : []));
-      for (let hour = preset.startHour; hour <= preset.endHour; hour++) {
-        if (singleDayHoursArr.includes(hour)) {
-          return true;
-        }
-      }
-      return false;
-    }
-    
-    // For multi-day selection, if end date exists, check range-wide/day-level blocks
-    if (dateRange.start && dateRange.end) {
-      const startDate = new Date(dateRange.start);
-      const endDate = new Date(dateRange.end);
-      
-      // Check each day in the range to see if the preset time range is available
-      for (let currentDate = new Date(startDate); currentDate <= endDate; currentDate.setDate(currentDate.getDate() + 1)) {
-        const dayBlockedSlots = getBlockedTimeSlots(currentDate);
-        
-        // Check if any hour in the preset range is blocked for this day
-        const dayHoursArr = isBypass
-          ? (Array.isArray(dayBlockedSlots.ownHours) ? dayBlockedSlots.ownHours : [])
-          : (Array.isArray(dayBlockedSlots.hours) ? dayBlockedSlots.hours : []);
-        for (let hour = preset.startHour; hour <= preset.endHour; hour++) {
-          if (dayHoursArr.includes(hour)) {
-            return true; // Preset is disabled if any day has conflicts
-          }
-        }
-      }
-    }
-    
-    return false;
-  };
-
-  const presetButtons = presetConfigs.map(preset => {
-    const disabled = getPresetDisabled(preset);
-    return {
-      ...preset,
-      disabled,
-      onClick: () => {
-        setSelectedTimes({
-          startTime: preset.startHour,
-          startMinute: 0,
-          endTime: preset.endHour,
-          endMinute: 0
-        });
-      }
-    };
-  });
 
   // Check if all hours are disabled for start time
   const startTimeDisabledHours = (() => {
@@ -4239,8 +4205,83 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   const allStartHoursDisabled = startTimeDisabledHours.length === 24;
   const allEndHoursDisabled = hasMiddleDayConflict || endTimeDisabledHours.length === 24;
 
-   // Disable all presets when no end time slots are available
-   if (hasMiddleDayConflict || allEndHoursDisabled) return true;
+  const getPresetDisabled = (preset) => {
+    // Presets require both dates selected
+    if (!presetsEnabled) return true;
+
+    // Disable all presets when end time slots are unavailable
+    if (allEndHoursDisabled) return true;
+
+    // Use the same bypass role flag as time pickers
+    const isBypass = isBypassRoleTime;
+
+    if (allHoursBlocked) return true;
+
+   
+
+    // Check if the start time of the preset is blocked
+    const startHoursArr = isBypass
+      ? (Array.isArray(startBlockedSlots.ownHours) ? startBlockedSlots.ownHours : [])
+      : (Array.isArray(startBlockedSlots.hours) ? startBlockedSlots.hours : []);
+    if (startHoursArr.includes(preset.startHour)) {
+      return true;
+    }
+    
+    // For single day selection, check if any hour in the preset range is blocked
+    if (dateRange.start && dateRange.end && isSameDay(dateRange.start, dateRange.end)) {
+      const singleDayHoursArr = isBypass
+        ? (Array.isArray(rangeBlockedSlots.ownHours) ? rangeBlockedSlots.ownHours : (Array.isArray(startBlockedSlots.ownHours) ? startBlockedSlots.ownHours : []))
+        : (Array.isArray(rangeBlockedSlots.hours) ? rangeBlockedSlots.hours : (Array.isArray(startBlockedSlots.hours) ? startBlockedSlots.hours : []));
+      for (let hour = preset.startHour; hour <= preset.endHour; hour++) {
+        if (singleDayHoursArr.includes(hour)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    
+    // For multi-day selection, if end date exists, check range-wide/day-level blocks
+    if (dateRange.start && dateRange.end) {
+      const startDate = new Date(dateRange.start);
+      const endDate = new Date(dateRange.end);
+      
+      // Check each day in the range to see if the preset time range is available
+      for (let currentDate = new Date(startDate); currentDate <= endDate; currentDate.setDate(currentDate.getDate() + 1)) {
+        const dayBlockedSlots = getBlockedTimeSlots(currentDate);
+        
+        // Check if any hour in the preset range is blocked for this day
+        const dayHoursArr = isBypass
+          ? (Array.isArray(dayBlockedSlots.ownHours) ? dayBlockedSlots.ownHours : [])
+          : (Array.isArray(dayBlockedSlots.hours) ? dayBlockedSlots.hours : []);
+        for (let hour = preset.startHour; hour <= preset.endHour; hour++) {
+          if (dayHoursArr.includes(hour)) {
+            return true; // Preset is disabled if any day has conflicts
+          }
+        }
+      }
+    }
+    
+    return false;
+  };
+
+  const presetButtons = presetConfigs.map(preset => {
+    const disabled = getPresetDisabled(preset);
+    return {
+      ...preset,
+      disabled,
+      onClick: () => {
+        setSelectedTimes({
+          startTime: preset.startHour,
+          startMinute: 0,
+          endTime: preset.endHour,
+          endMinute: 0
+        });
+      }
+    };
+  });
+
+   // Don't return early - let the modal render with warning messages instead
+   // if (hasMiddleDayConflict || allEndHoursDisabled) return true;
 
   return (
     <Dialog
@@ -5094,7 +5135,8 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   
     // Department Head from COO and Secretary from GSD: do not bypass own-reservation blocks; evaluate normally below
     const isDhCoo = (userLevel === 'Department Head' && userDepartment === 'COO');
-    // const isSecGsd = (userLevel === 'Secretary' && userDepartment === 'GSD');
+    const isSecGsd = (userLevel === 'Secretary' && userDepartment === 'GSD');
+    const isBypassRole = isDhCoo || isSecGsd;
   
     // Check if it's a holiday
     const formattedDate = format(date, 'yyyy-MM-dd');
@@ -5208,12 +5250,12 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
       });
   
       reservations.forEach(res => {
-        // For DH-COO, only own reservations block; for others, include reserved or own.
+        // For DH-COO and GSD Secretary, only own reservations block; for others, include reserved or own.
         const isOwnReservation = res.reservation_user_id === currentUserId || 
                                 parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                                 String(res.reservation_user_id) === String(currentUserId);
-  
-        const shouldInclude = isDhCoo ? isOwnReservation : (res.isReserved || isOwnReservation);
+
+        const shouldInclude = isBypassRole ? isOwnReservation : (res.isReserved || isOwnReservation);
         
         console.log('getBlockedTimeSlots - Checking reservation:', {
           reservationId: res.reservation_id,
