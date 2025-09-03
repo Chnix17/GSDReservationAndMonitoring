@@ -1,116 +1,148 @@
 // Service Worker for Push Notifications
-const CACHE_NAME = 'gsd-notifications-v1';
+console.log('Service Worker loaded');
 
 // Install event
-self.addEventListener('install', event => {
-  console.log('Service Worker installing...');
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => {
-        console.log('Cache opened');
-        return cache.addAll(['./']);
-      })
-  );
+self.addEventListener('install', function(event) {
+    console.log('Service Worker installing');
+    self.skipWaiting();
 });
 
 // Activate event
-self.addEventListener('activate', event => {
-  console.log('Service Worker activating...');
-  event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          if (cacheName !== CACHE_NAME) {
-            console.log('Deleting old cache:', cacheName);
-            return caches.delete(cacheName);
-          }
-        })
-      );
-    })
-  );
+self.addEventListener('activate', function(event) {
+    console.log('Service Worker activating');
+    event.waitUntil(self.clients.claim());
 });
 
-// Push event - SHOW the notification
-self.addEventListener('push', event => {
+// Push event handler
+self.addEventListener('push', function(event) {
     console.log('[Service Worker] Push Received:', event);
-
-    let title = 'GSD Notification';
-    let body = 'You have a new notification.';
-    let icon = '/images/assets/phinma.png';
-    let badge = '/images/assets/phinma.png';
-    let data = {
-        url: '/ViewRequest',
-        timestamp: Date.now()
+    
+    let notificationData = {
+        title: 'New Notification',
+        body: 'You have a new notification',
+        icon: '/uploads/profileni.png',
+        badge: '/uploads/profileni.png',
+        tag: 'notification',
+        requireInteraction: true,
+        data: {
+            url: '/',
+            timestamp: Date.now()
+        }
     };
 
+    // Parse the push data if available
     if (event.data) {
         try {
-            const payload = event.data.json();
-            title = payload.title || title;
-            body = payload.body || body;
-            if (payload.data) {
-                data = { ...data, ...payload.data };
+            const data = event.data.json();
+            console.log('[Service Worker] Push data received:', data);
+            
+            notificationData.title = data.title || notificationData.title;
+            notificationData.body = data.body || notificationData.body;
+            
+            if (data.data) {
+                notificationData.data = { ...notificationData.data, ...data.data };
             }
-        } catch (e) {
-            console.error('Push data is not valid JSON, treating as plain text.', e);
-            body = event.data.text();
+            
+            // Add action buttons for reservation notifications
+            if (data.data && data.data.type === 'reservation_confirmation') {
+                notificationData.actions = [
+                    {
+                        action: 'view',
+                        title: 'View Request',
+                        icon: '/uploads/profileni.png'
+                    },
+                    {
+                        action: 'dismiss',
+                        title: 'Dismiss',
+                        icon: '/uploads/profileni.png'
+                    }
+                ];
+                
+                // Set URL for reservation viewing
+                if (data.data.reservation_id) {
+                    notificationData.data.url = `/viewRequest?id=${data.data.reservation_id}`;
+                }
+            }
+        } catch (error) {
+            console.error('[Service Worker] Error parsing push data:', error);
         }
     }
-    
-    const options = {
-        body: body,
-        icon: icon,
-        badge: badge,
-        tag: `gsd-notification-${Date.now()}`, // Using a timestamp tag helps prevent duplicate notifications
-        data: data,
-        renotify: true,
-        // actions: [
-        //     {
-        //         action: 'view',
-        //         title: 'View',
-        //         icon: '/images/assets/phinma.png'
-        //     },
-        //     {
-        //         action: 'dismiss',
-        //         title: 'Dismiss',
-        //         icon: '/images/assets/phinma.png'
-        //     }
-        // ]
-    };
 
-    event.waitUntil(
-        self.registration.showNotification(title, options)
+    console.log('[Service Worker] Showing notification:', notificationData);
+
+    // Show the notification
+    const notificationPromise = self.registration.showNotification(
+        notificationData.title,
+        {
+            body: notificationData.body,
+            icon: notificationData.icon,
+            badge: notificationData.badge,
+            tag: notificationData.tag,
+            requireInteraction: notificationData.requireInteraction,
+            actions: notificationData.actions || [],
+            data: notificationData.data
+        }
     );
+
+    event.waitUntil(notificationPromise);
 });
 
 // Notification click handler
-self.addEventListener('notificationclick', event => {
-  console.log('[Service Worker] Notification click:', event);
+self.addEventListener('notificationclick', function(event) {
+    console.log('[Service Worker] Notification click received:', event);
+    
+    event.notification.close();
 
-  event.notification.close();
+    if (event.action === 'dismiss') {
+        console.log('[Service Worker] Notification dismissed');
+        return;
+    }
 
-  if (event.action === 'dismiss') {
-    return;
-  }
+    // Handle view action or notification click
+    const urlToOpen = event.notification.data?.url || '/';
+    
+    console.log('[Service Worker] Opening URL:', urlToOpen);
 
-  event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true })
-      .then(clientList => {
-        for (let client of clientList) {
-          if (client.url.includes(event.notification.data.url) && 'focus' in client) {
-            return client.focus();
-          }
-        }
-        if (clients.openWindow) {
-          return clients.openWindow(event.notification.data.url);
-        }
-      })
-  );
+    event.waitUntil(
+        clients.matchAll({
+            type: 'window',
+            includeUncontrolled: true
+        }).then(function(clientList) {
+            // Check if there's already a window open
+            for (let i = 0; i < clientList.length; i++) {
+                const client = clientList[i];
+                if (client.url.includes(window.location.origin) && 'focus' in client) {
+                    console.log('[Service Worker] Focusing existing window');
+                    return client.focus().then(() => {
+                        // Navigate to the URL if needed
+                        if (urlToOpen !== '/') {
+                            return client.navigate(urlToOpen);
+                        }
+                    });
+                }
+            }
+            
+            // Open a new window
+            console.log('[Service Worker] Opening new window');
+            if (clients.openWindow) {
+                return clients.openWindow(urlToOpen);
+            }
+        })
+    );
 });
 
-// Listen for skip waiting message
-self.addEventListener('message', event => {
-  if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
-  }
+// Background sync (optional)
+self.addEventListener('sync', function(event) {
+    console.log('[Service Worker] Background sync:', event.tag);
 });
+
+// Message handler for communication with main thread
+self.addEventListener('message', function(event) {
+    console.log('[Service Worker] Message received:', event.data);
+    
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+    }
+});
+
+console.log('Service Worker setup complete');

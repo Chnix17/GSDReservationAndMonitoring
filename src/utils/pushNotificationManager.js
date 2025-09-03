@@ -2,7 +2,7 @@
 class PushNotificationManager {
     constructor() {
         // Try to load VAPID key from server or use the hardcoded one
-        this.vapidPublicKey = 'BELqHYNGLPs3EIxn6y7lMopZIpyXAKWY84Kci2FvTIW_bBSBj2l7d6e8Hp1kFKYhwF2miGYrjj9kDSX_oUfa070';
+        this.vapidPublicKey = 'BNJzMVgF6ddVcZwqoQWEFEP2qRkxaLJAOBhfr9E8oo8HkS8w-2anVQ1O4rJQbdPpnlrRxwHb6UkrZJQrpRyFfVg';
         this.applicationServerKey = null; // Will be set in initialize
         this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
         this.registration = null;
@@ -293,7 +293,27 @@ class PushNotificationManager {
         console.log('Sending subscription data to server:', requestData);
 
         try {
-            const response = await fetch('http://localhost/coc/gsd/save-push-subscription.php', {
+            // Get baseURL from secure storage (same as used in App.js)
+            const getBaseUrl = () => {
+                try {
+                    // Try to get from secure storage first
+                    const storedUrl = localStorage.getItem('url');
+                    if (storedUrl) {
+                        return storedUrl;
+                    }
+                } catch (error) {
+                    console.warn('Could not access secure storage, using default URL');
+                }
+                // Fallback to default URL
+                return "http://localhost/GSDReservationAndMonitoring/api/gsd/";
+            };
+
+            const baseUrl = getBaseUrl();
+            const apiUrl = `${baseUrl}save-push-subscription.php`;
+            
+            console.log('Using API URL:', apiUrl);
+
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

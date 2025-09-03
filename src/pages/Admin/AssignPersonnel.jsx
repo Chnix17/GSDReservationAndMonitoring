@@ -10,6 +10,7 @@ import dayjs from 'dayjs';
 import { toast } from 'sonner';
 import AssignModal from './core/Assign_Modal';
 import AllAssignedPersonnel from './core/allassigned_personnel';
+import ReAssignModal from './core/ReAssignModal';
 import { SecureStorage } from '../../utils/encryption';
 import { ClockCircleOutlined, CheckCircleOutlined } from '@ant-design/icons';
 
@@ -19,6 +20,7 @@ const AssignPersonnel = () => {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [reservations, setReservations] = useState([]);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -188,6 +190,39 @@ const AssignPersonnel = () => {
     }
   };
 
+  const fetchReassignReservations = async () => {
+    setLoading(true);
+    try {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      const response = await axios.post(`${encryptedUrl}user.php`, {
+        operation: 'fetchAllReassign'
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.status === 'success' && Array.isArray(response.data.data)) {
+        const formattedData = response.data.data.map(item => ({
+          id: item.reservation_id,
+          title: item.reservation_title,
+          name: item.reservation_title,
+          requestor: item.requestor_name || 'Unknown',
+          startDate: item.reservation_start_date,
+          endDate: item.reservation_end_date,
+          personnel: item.assigned_personnel || 'Needs Reassignment',
+          status: 'Reassign',
+          rawData: item
+        }));
+        setReservations(formattedData);
+      }
+    } catch (error) {
+      console.error('Error fetching reassign reservations:', error);
+      toast.error('Error fetching reassign reservations');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -203,7 +238,9 @@ const AssignPersonnel = () => {
       fetchNotAssignedReservations();
     } else if (activeTab === 'Assigned') {
       fetchAssignedReservations();
-    } 
+    } else if (activeTab === 'Reassign') {
+      fetchReassignReservations();
+    }
   }, [activeTab]);
 
   // Filter reservations based on search term and active tab
@@ -288,13 +325,16 @@ const AssignPersonnel = () => {
       fixed: 'right',
       width: 100,
       render: (_, record) => (
-        <Tooltip title={activeTab === 'Not Assigned' ? "Assign Personnel" : "View Checklists"}>
+        <Tooltip title={activeTab === 'Not Assigned' ? "Assign Personnel" : activeTab === 'Reassign' ? "Reassign Personnel" : "View Checklists"}>
           <Button
-            icon={<FontAwesomeIcon icon={activeTab === 'Not Assigned' ? faUserPlus : faEye} />}
+            icon={<FontAwesomeIcon icon={activeTab === 'Not Assigned' || activeTab === 'Reassign' ? faUserPlus : faEye} />}
             onClick={() => {
               if (activeTab === 'Not Assigned') {
                 setSelectedReservation(record);
                 setIsModalOpen(true);
+              } else if (activeTab === 'Reassign') {
+                setSelectedReservation(record);
+                setIsReassignModalOpen(true);
               } else {
                 setSelectedReservation(record.rawData);
                 setIsChecklistModalOpen(true);
@@ -303,7 +343,7 @@ const AssignPersonnel = () => {
             size="small"
             className="border-gray-300 text-gray-600"
           >
-            {activeTab === 'Not Assigned' ? 'Assign' : 'View'}
+            {activeTab === 'Not Assigned' ? 'Assign' : activeTab === 'Reassign' ? 'Reassign' : 'View'}
           </Button>
         </Tooltip>
       ),
@@ -315,6 +355,8 @@ const AssignPersonnel = () => {
       fetchNotAssignedReservations();
     } else if (activeTab === 'Assigned') {
       fetchAssignedReservations();
+    } else if (activeTab === 'Reassign') {
+      fetchReassignReservations();
     }
   };
 
@@ -359,6 +401,13 @@ const AssignPersonnel = () => {
                     icon: <CheckCircleOutlined />,
                     count: reservations.filter(r => r.status === 'Assigned').length,
                     color: 'amber'
+                  },
+                  {
+                    key: 'Reassign',
+                    label: 'Reassign',
+                    icon: <FontAwesomeIcon icon={faUserPlus} />,
+                    count: reservations.filter(r => r.status === 'Reassign').length,
+                    color: 'red'
                   }
                 ].map((tab) => (
                   <button
@@ -529,6 +578,20 @@ const AssignPersonnel = () => {
           setSelectedReservation(null);
         }}
         reservationData={selectedReservation}
+      />
+
+      {/* Reassign Modal */}
+      <ReAssignModal
+        isOpen={isReassignModalOpen}
+        onClose={() => {
+          setIsReassignModalOpen(false);
+          setSelectedReservation(null);
+        }}
+        selectedReservation={selectedReservation}
+        onSuccess={() => {
+          fetchReassignReservations();
+          toast.success('Personnel reassigned successfully');
+        }}
       />
     </div>
   );
