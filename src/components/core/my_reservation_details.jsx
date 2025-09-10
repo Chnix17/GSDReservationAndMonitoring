@@ -10,12 +10,14 @@ import {
     HistoryOutlined,
     DownOutlined,
     RightOutlined,
+    ScheduleOutlined,
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
 import { SecureStorage } from '../../utils/encryption';
 import { generateGatePassPdf } from '../../components/Reservation/Gate_Pass';
 import GatePass from '../../components/Reservation/Gate_Pass';
+import RescheduleModal from '../../pages/Admin/core/reschedule_modal';
 import axios from 'axios';
 
 const { TabPane } = Tabs;
@@ -36,6 +38,8 @@ const ReservationDetails = ({
     const [deansApproval, setDeansApproval] = useState([]);
     const [isLoadingDeans, setIsLoadingDeans] = useState(false);
     const [isProcessingReschedule, setIsProcessingReschedule] = useState(false);
+    const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+    const [rescheduleResources, setRescheduleResources] = useState(null);
 
     useEffect(() => {
         console.log("ReservationDetails mounted with props:", {
@@ -254,6 +258,202 @@ const ReservationDetails = ({
         }
     };
 
+    const handleRequestReschedule = () => {
+        // Extract resource IDs and quantities from reservationDetails
+        const resources = {
+            venueIds: (reservationDetails.venues || []).map(v => {
+                const venueData = {
+                    venue_id: v.venue_id
+                };
+                // Only include change_venue_id if it has a value
+                if (v.change_venue_id && String(v.change_venue_id).trim() !== '') {
+                    venueData.change_venue_id = v.change_venue_id;
+                }
+                return venueData;
+            }),
+            vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                const vehicleData = {
+                    vehicle_id: v.vehicle_id
+                };
+                // Only include change_vehicle_id if it has a value
+                if (v.change_vehicle_id && String(v.change_vehicle_id).trim() !== '') {
+                    vehicleData.change_vehicle_id = v.change_vehicle_id;
+                }
+                return vehicleData;
+            }),
+            equipment: (reservationDetails.equipment || []).map(eq => ({
+                equipment_id: eq.equipment_id,
+                quantity: parseInt(eq.quantity, 10) || 0
+            }))
+        };
+        setRescheduleResources(resources);
+        setIsRescheduleModalOpen(true);
+    };
+
+    const handleRescheduleSubmit = async (rescheduleData) => {
+        try {
+            console.log('[MyReservationDetails] Reschedule request submitted:', rescheduleData);
+            
+            // Handle reschedule request submission
+            const userId = SecureStorage.getLocalItem('user_id') || SecureStorage.getSessionItem('user_id');
+            if (!userId) {
+                toast.error('User session expired');
+                return;
+            }
+
+            const response = await axios.post(`${baseUrl}faculty&staff.php`, {
+                operation: 'requestReschedule',
+                reservationId: reservationDetails.reservation_id,
+                newStartDate: rescheduleData.startDate,
+                newEndDate: rescheduleData.endDate,
+                newVenueIds: rescheduleData.newVenueIds,
+                newVehicleIds: rescheduleData.newVehicleIds,
+                userId: Number(userId)
+            }, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (response.data?.status === 'success') {
+                toast.success('Reschedule request submitted successfully!');
+                setIsRescheduleModalOpen(false);
+                if (onRefresh) {
+                    await onRefresh();
+                }
+                onClose();
+            } else {
+                toast.error(response.data?.message || 'Failed to submit reschedule request.');
+            }
+        } catch (error) {
+            console.error('Error submitting reschedule request:', error);
+            toast.error('Error submitting reschedule request. Please try again.');
+        }
+    };
+
+    const handleRequestAgain = async (requestAgainData) => {
+        try {
+            console.log('[MyReservationDetails] Request again submitted:', requestAgainData);
+            setIsProcessingReschedule(true);
+            
+            const encryptedUrl = SecureStorage.getLocalItem("url");
+            if (!encryptedUrl) {
+                toast.error("API URL configuration is missing");
+                return;
+            }
+
+            const { startDate, endDate, venueIds: newVenueIds, vehicleIds: newVehicleIds } = requestAgainData;
+
+            // Step 1: Update reservation dates if provided
+            let didUpdateSomething = false;
+            console.log('[MyReservationDetails] Checking if dates provided:', { startDate, endDate });
+            if (startDate && endDate) {
+                const dateResp = await axios.post(`${encryptedUrl}/faculty&staff.php`, {
+                    operation: 'updateReservationReschedule',
+                    reservation_id: reservationDetails?.reservation_id,
+                    reschedule_start_date: startDate,
+                    reschedule_end_date: endDate,
+                    user_admin_id: SecureStorage.getSessionItem('user_id')
+                }, { headers: { 'Content-Type': 'application/json' } });
+                
+                if (!(dateResp?.data?.status === 'success')) {
+                    const msg = dateResp?.data?.message || 'Failed to update reservation dates';
+                    toast.error(msg);
+                    return;
+                }
+                didUpdateSomething = true;
+            }
+
+            // Step 2: Process venue changes
+            const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+            
+            const venue_changes = currentVenues
+                .map((v, idx) => {
+                    const newId = Array.isArray(newVenueIds) ? newVenueIds[idx] : null;
+                    
+                    // Only process if newId is explicitly provided and different from current
+                    if (newId == null || newId === undefined || String(newId) === String(v.venue_id)) return null;
+                    return {
+                        reservation_venue_id: v.reservation_venue_id,
+                        reservation_change_venue_id: Number(newId)
+                    };
+                })
+                .filter(Boolean);
+
+            if (venue_changes.length > 0) {
+                const requests = venue_changes.map(change => {
+                    return axios.post(`${encryptedUrl}/faculty&staff.php`, {
+                        operation: 'updateVenueReschedule',
+                        reservation_venue_id: change.reservation_venue_id,
+                        reservation_change_venue_id: change.reservation_change_venue_id
+                    }, { headers: { 'Content-Type': 'application/json' } });
+                });
+                const results = await Promise.allSettled(requests);
+                const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                if (!allOk) {
+                    const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                        || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                        || 'Failed to reschedule reservation venues';
+                    toast.error(firstError);
+                    return;
+                }
+                didUpdateSomething = true;
+            }
+
+            // Step 3: Process vehicle changes
+            const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+            
+            const vehicle_changes = currentVehicles
+                .map((v, idx) => {
+                    const newId = Array.isArray(newVehicleIds) ? newVehicleIds[idx] : null;
+                    
+                    // Only process if newId is explicitly provided and different from current
+                    if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
+                    return {
+                        reservation_vehicle_id: v.reservation_vehicle_id,
+                        reservation_change_vehicle_id: Number(newId)
+                    };
+                })
+                .filter(Boolean);
+
+            if (vehicle_changes.length > 0) {
+                const requests = vehicle_changes.map(change => {
+                    return axios.post(`${encryptedUrl}/faculty&staff.php`, {
+                        operation: 'updateVehicleReschedule',
+                        reservation_vehicle_id: change.reservation_vehicle_id,
+                        reservation_change_vehicle_id: change.reservation_change_vehicle_id
+                    }, { headers: { 'Content-Type': 'application/json' } });
+                });
+                const results = await Promise.allSettled(requests);
+                const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                if (!allOk) {
+                    const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                        || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                        || 'Failed to reschedule reservation vehicles';
+                    toast.error(firstError);
+                    return;
+                }
+                didUpdateSomething = true;
+            }
+
+            if (!didUpdateSomething) {
+                toast.info('No changes to update.');
+                return;
+            }
+
+            toast.success('Reservation rescheduled successfully');
+            setIsRescheduleModalOpen(false);
+            if (onRefresh) {
+                await onRefresh();
+            }
+            onClose();
+
+        } catch (error) {
+            console.error('Error submitting reschedule request:', error);
+            toast.error('Error submitting reschedule request. Please try again.');
+        } finally {
+            setIsProcessingReschedule(false);
+        }
+    };
+
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
     return (
@@ -266,6 +466,16 @@ const ReservationDetails = ({
                     <Button key="close" onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
                         Close
                     </Button>,
+                    (!isCancelled && !isCompleted) && (
+                        <Button
+                            key="request-reschedule"
+                            onClick={handleRequestReschedule}
+                            icon={<ScheduleOutlined />}
+                            className="px-4 py-2 bg-blue-600 text-white rounded-lg ml-2 hover:bg-blue-700"
+                        >
+                            {showReschedulePendingCard ? 'Request New Reschedule' : 'Request Reschedule'}
+                        </Button>
+                    ),
                     (!isCancelled && !isCompleted) && (
                         <Button
                             key="cancel"
@@ -1010,6 +1220,18 @@ const ReservationDetails = ({
                     <p>Are you sure you want to cancel the reservation "{reservationDetails.reservation_title}"?</p>
                 </Modal>
             )}
+
+            {/* Reschedule Modal */}
+            <RescheduleModal
+                visible={isRescheduleModalOpen}
+                onCancel={() => setIsRescheduleModalOpen(false)}
+                onReschedule={handleRescheduleSubmit}
+                onRequestAgain={handleRequestAgain}
+                reservation={reservationDetails}
+                resources={rescheduleResources}
+                originalStart={reservationDetails?.reservation_start_date}
+                originalEnd={reservationDetails?.reservation_end_date}
+            />
         </>
     );
 };

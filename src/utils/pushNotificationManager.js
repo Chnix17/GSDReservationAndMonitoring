@@ -2,7 +2,7 @@
 class PushNotificationManager {
     constructor() {
         // Try to load VAPID key from server or use the hardcoded one
-        this.vapidPublicKey = 'BNJzMVgF6ddVcZwqoQWEFEP2qRkxaLJAOBhfr9E8oo8HkS8w-2anVQ1O4rJQbdPpnlrRxwHb6UkrZJQrpRyFfVg';
+        this.vapidPublicKey = 'BCQgi5_F-qDBf7bwj6bsAQiznTart85ZrkxHeQQbEimoUU-DfNLEqtHCSA-TkV3j0piD0IvvhCKJhToNJQzRN9k';
         this.applicationServerKey = null; // Will be set in initialize
         this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
         this.registration = null;

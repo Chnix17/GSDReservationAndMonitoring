@@ -290,7 +290,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             startDate: res.reservation_start_date,
             endDate: res.reservation_end_date,
             status: res.reservation_status_status_id,
-            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === 8 || res.reservation_status_status_id === 10,
+            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === 8 || res.reservation_status_status_id === 10 || res.reservation_status_status_id === 14,
             // User ownership info - try different possible field names
             reservation_user_id: res.reservation_user_id || res.user_id || res.res_user_id,
             user_level_name: res.user_level_name || res.level_name || res.user_level,
@@ -546,20 +546,20 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
     const isCooDepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
     const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
     if (!(isCooDepartmentHead || isSecretaryGSD)) {
-      // Only check availability status if this is the first date selection (start date)
-      // For end date selection in multi-day reservations, allow selection even if there are conflicts
-      if (!dateRange.start) {
-        const status = getAvailabilityStatus(date, reservations);
-        if (status === 'reserved') {
-          toast.error('This date is already fully reserved for the business hours (4AM-10PM)', {
-            position: 'top-center',
-            icon: '❌',
-            className: 'font-medium'
-          });
-          return;
-        }
+      // Check availability status for both start and end date selection
+      const status = getAvailabilityStatus(date, reservations);
+      if (status === 'reserved' || status === 'owned_full') {
+        const dateType = !dateRange.start ? 'start' : 'end';
+        const messageText = status === 'owned_full' 
+          ? `You already have a full day reservation on this date and cannot select it as ${dateType} date`
+          : `This date is already fully reserved for the business hours (4AM-10PM) and cannot be selected as ${dateType} date`;
+        toast.error(messageText, {
+          position: 'top-center',
+          icon: '❌',
+          className: 'font-medium'
+        });
+        return;
       }
-      // For end date selection, we'll handle conflicts in the time selection modal instead
     }
     
     // Set the selected dates
@@ -758,66 +758,17 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         console.log(`Availability check - Single day ${format(compareDate, 'yyyy-MM-dd')}: ${spansWholeDay ? 'FULL DAY BLOCKED' : 'PARTIAL'} (${resStart.getHours()}:${resStart.getMinutes()}-${resEnd.getHours()}:${resEnd.getMinutes()})`);
         return spansWholeDay;
       } else if (isSameDay(resStart, compareDate)) {
-        // First day of multi-day reservation - check if there are any existing reservations on this date
-        // that would conflict with a new multi-day reservation starting on this date
-        
-        // Get all existing reservations for this specific date
-        const existingReservationsForDate = allReservations.filter(existingRes => {
-          if (!existingRes.isReserved) return false;
-          
-          const existingStart = new Date(existingRes.startDate);
-          const existingEnd = new Date(existingRes.endDate);
-          
-          // Check if this existing reservation overlaps with the current date
-          const dateStart = new Date(compareDate);
-          dateStart.setHours(0, 0, 0, 0);
-          const dateEnd = new Date(compareDate);
-          dateEnd.setHours(23, 59, 59, 999);
-          
-          return existingStart <= dateEnd && existingEnd >= dateStart;
-        });
-        
-        // Find the latest end time of any existing reservation on this date
-        let latestEndTime = 4; // Default to 4 AM if no existing reservations
-        
-        existingReservationsForDate.forEach(existingRes => {
-          const existingStart = new Date(existingRes.startDate);
-          const existingEnd = new Date(existingRes.endDate);
-          
-          if (isSameDay(existingStart, compareDate)) {
-            // Existing reservation starts on this date - use its end time
-            const endHour = existingEnd.getHours();
-            const endMinute = existingEnd.getMinutes();
-            const endTimeInMinutes = endHour * 60 + endMinute;
-            
-            if (endTimeInMinutes > latestEndTime * 60) {
-              latestEndTime = endHour + (endMinute > 0 ? 1 : 0); // Round up to next hour
-            }
-          } else if (isSameDay(existingEnd, compareDate)) {
-            // Existing reservation ends on this date - use its end time
-            const endHour = existingEnd.getHours();
-            const endMinute = existingEnd.getMinutes();
-            const endTimeInMinutes = endHour * 60 + endMinute;
-            
-            if (endTimeInMinutes > latestEndTime * 60) {
-              latestEndTime = endHour + (endMinute > 0 ? 1 : 0); // Round up to next hour
-            }
-          } else {
-            // Existing reservation spans this date - block the entire business day
-            latestEndTime = 22; // Block until end of business day
-          }
-        });
-        
-        // If the latest end time is at or after 10 PM, block the entire day
-        // Otherwise, this is a partial day block
-        const isFullDayBlock = latestEndTime >= 22;
-        console.log(`Availability check - First day ${format(compareDate, 'yyyy-MM-dd')}: ${isFullDayBlock ? 'FULL DAY BLOCKED' : 'PARTIAL'} (latest end time: ${latestEndTime})`);
-        return isFullDayBlock;
+        // First day of multi-day reservation
+        // For multi-day reservations starting at 4AM or earlier, mark as full day blocked
+        const startsAt4AMOrEarlier = resStart.getHours() <= 4;
+        console.log(`Availability check - First day ${format(compareDate, 'yyyy-MM-dd')}: ${startsAt4AMOrEarlier ? 'FULL DAY BLOCKED' : 'PARTIAL'} (start hour: ${resStart.getHours()})`);
+        return startsAt4AMOrEarlier;
       } else if (isSameDay(resEnd, compareDate)) {
-        // Last day of multi-day reservation - check if it ends at or after 10 PM
-        const isFullDay = resEnd.getHours() >= 22;
-        console.log(`Availability check - Last day ${format(compareDate, 'yyyy-MM-dd')}: ${isFullDay ? 'FULL DAY BLOCKED' : 'PARTIAL'} (end hour: ${resEnd.getHours()})`);
-        return isFullDay;
+        // Last day of multi-day reservation
+        // Only mark as full day blocked if it ends at or after 10PM (22:00)
+        const endsAtOrAfter10PM = resEnd.getHours() >= 22;
+        console.log(`Availability check - Last day ${format(compareDate, 'yyyy-MM-dd')}: ${endsAtOrAfter10PM ? 'FULL DAY BLOCKED' : 'PARTIAL'} (end hour: ${resEnd.getHours()})`);
+        return endsAtOrAfter10PM;
       } else {
         // Middle day of multi-day reservation - always blocks full day
         console.log(`Availability check - Middle day ${format(compareDate, 'yyyy-MM-dd')}: FULL DAY BLOCKED (middle day)`);
@@ -4397,7 +4348,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                   if (!isBypassRole) {
                     const currentDate = current.toDate();
                     const status = getAvailabilityStatus(currentDate, reservations);
-                    if (status === 'reserved') {
+                    if (status === 'reserved' || status === 'owned_full') {
                       return true;
                     }
                   }

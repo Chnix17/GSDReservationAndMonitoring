@@ -316,10 +316,18 @@ const Sidebar = () => {
       const registration = await navigator.serviceWorker.register('/sw.js');
       await navigator.serviceWorker.ready;
 
-      // Subscribe to push manager
+      // Check for existing subscription and unsubscribe if it exists
+      const existingSubscription = await registration.pushManager.getSubscription();
+      if (existingSubscription) {
+        console.log('Found existing subscription, unsubscribing first...');
+        await existingSubscription.unsubscribe();
+        console.log('Successfully unsubscribed from old subscription');
+      }
+
+      // Subscribe to push manager with new VAPID key
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array('BELqHYNGLPs3EIxn6y7lMopZIpyXAKWY84Kci2FvTIW_bBSBj2l7d6e8Hp1kFKYhwF2miGYrjj9kDSX_oUfa070')
+        applicationServerKey: urlBase64ToUint8Array('BCQgi5_F-qDBf7bwj6bsAQiznTart85ZrkxHeQQbEimoUU-DfNLEqtHCSA-TkV3j0piD0IvvhCKJhToNJQzRN9k')
       });
 
       // Send subscription to server

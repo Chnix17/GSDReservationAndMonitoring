@@ -1,6 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import Sidebar from '../../pages/Sidebar';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -48,7 +47,7 @@ const AddReservation = () => {
   const encryptedUrl = SecureStorage.getLocalItem("url");
 
   const navigate = useNavigate();
-  const [userLevel] = useState(localStorage.getItem('user_level') || '');
+
   const [loading, setLoading] = useState(false);
   const [selectedModels, setSelectedModels] = useState([]);
   const [currentStep, setCurrentStep] = useState(0);
@@ -2727,7 +2726,7 @@ useEffect(() => {
 
 return (
   <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
-    {userLevel === '100' && <Sidebar className="hidden md:block" />}
+  
     
     <section className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3 pb-24' : 'p-6'}`}>
       <article className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-6xl'}`}>

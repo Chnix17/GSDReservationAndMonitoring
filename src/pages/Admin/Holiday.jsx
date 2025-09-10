@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { toast, Toaster } from 'sonner';
-import Sidebar from '../Sidebar';
+import Sidebar from '../../components/core/Sidebar';
 import { FaCalendarAlt } from 'react-icons/fa';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { useNavigate } from 'react-router-dom';

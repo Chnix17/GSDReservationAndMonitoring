@@ -16,7 +16,8 @@ const RescheduleModal = ({
   reservation,
   resources,
   originalStart, // ISO string or parseable datetime
-  originalEnd    // ISO string or parseable datetime
+  originalEnd,   // ISO string or parseable datetime
+  onRequestAgain // New prop for handling "Request Again to Reschedule"
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -230,8 +231,49 @@ const RescheduleModal = ({
         ? toNums(formValues.vehicleIds.filter(Boolean))
         : (Array.isArray(form.getFieldValue('vehicleIds')) ? toNums(form.getFieldValue('vehicleIds').filter(Boolean)) : null);
 
-      const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources?.venueIds || []);
-      const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources?.vehicleIds || []);
+      // Handle venue IDs - extract from resource objects or use selected IDs
+      const venueIds = (selectedVenueIds && selectedVenueIds.length) 
+        ? selectedVenueIds 
+        : (Array.isArray(resources?.venueIds) 
+          ? resources.venueIds.flatMap(v => {
+              // If it's an object with venue data, extract both IDs
+              if (typeof v === 'object' && v !== null) {
+                const ids = [];
+                // Always include the original venue_id
+                if (v.venue_id) {
+                  ids.push(v.venue_id);
+                }
+                // Include change_venue_id if it exists and has a value
+                if (v.change_venue_id && String(v.change_venue_id).trim() !== '') {
+                  ids.push(v.change_venue_id);
+                }
+                return ids;
+              }
+              return [v]; // If it's just a number/string ID
+            })
+          : []);
+
+      // Handle vehicle IDs - extract from resource objects or use selected IDs  
+      const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) 
+        ? selectedVehicleIds 
+        : (Array.isArray(resources?.vehicleIds) 
+          ? resources.vehicleIds.flatMap(v => {
+              // If it's an object with vehicle data, extract both IDs
+              if (typeof v === 'object' && v !== null) {
+                const ids = [];
+                // Always include the original vehicle_id
+                if (v.vehicle_id) {
+                  ids.push(v.vehicle_id);
+                }
+                // Include change_vehicle_id if it exists and has a value
+                if (v.change_vehicle_id && String(v.change_vehicle_id).trim() !== '') {
+                  ids.push(v.change_vehicle_id);
+                }
+                return ids;
+              }
+              return [v]; // If it's just a number/string ID
+            })
+          : []);
       const equipIds = (resources?.equipment || []).map(e => e.equipment_id);
       const quantities = (resources?.equipment || []).map(e => parseInt(e.quantity || 0, 10));
 
@@ -411,22 +453,97 @@ const RescheduleModal = ({
       ? toNums(form.getFieldValue('vehicleIds').filter(Boolean)) 
       : null;
 
-    const venueIds = (selectedVenueIds && selectedVenueIds.length) ? selectedVenueIds : (resources?.venueIds || []);
-    const vehicleIds = (selectedVehicleIds && selectedVehicleIds.length) ? selectedVehicleIds : (resources?.vehicleIds || []);
+    // Extract IDs for exclude list - only send original IDs, not change IDs
+    const extractVenueIds = (venueData) => {
+      if (!Array.isArray(venueData)) return [];
+      return venueData.map(v => {
+        if (typeof v === 'object' && v !== null) {
+          // Only return the original venue_id, not change_venue_id
+          return v.venue_id;
+        }
+        return v;
+      }).filter(id => id != null);
+    };
+
+    const extractVehicleIds = (vehicleData) => {
+      if (!Array.isArray(vehicleData)) return [];
+      return vehicleData.map(v => {
+        if (typeof v === 'object' && v !== null) {
+          // Only return the original vehicle_id, not change_vehicle_id
+          return v.vehicle_id;
+        }
+        return v;
+      }).filter(id => id != null);
+    };
+
+    const venueExcludeIds = (selectedVenueIds && selectedVenueIds.length) 
+      ? selectedVenueIds 
+      : extractVenueIds(resources?.venueIds || []);
+    const vehicleExcludeIds = (selectedVehicleIds && selectedVehicleIds.length) 
+      ? selectedVehicleIds 
+      : extractVehicleIds(resources?.vehicleIds || []);
     
     let cancelled = false;
     const run = async () => {
       setResourceLoading(true);
       try {
         const [v1, v2, d1] = await Promise.all([
-          fetchAvailableVenuesByRange(startStr, endStr, venueIds),
-          fetchAvailableVehiclesByRange(startStr, endStr, vehicleIds),
+          fetchAvailableVenuesByRange(startStr, endStr, venueExcludeIds),
+          fetchAvailableVehiclesByRange(startStr, endStr, vehicleExcludeIds),
           fetchAvailableDrivers()
         ]);
         if (!cancelled) {
           setVenues(v1 || []);
           setVehicles(v2 || []);
           setDrivers(d1 || []);
+          
+          // Auto-select change_venue_id and change_vehicle_id if they exist and are available
+          const autoSelectValues = {};
+          
+          // Handle venue auto-selection
+          if (resources?.venueIds && Array.isArray(resources.venueIds)) {
+            const venueSelections = [];
+            resources.venueIds.forEach((venueResource, index) => {
+              if (typeof venueResource === 'object' && venueResource !== null) {
+                const changeVenueId = venueResource.change_venue_id;
+                if (changeVenueId && String(changeVenueId).trim() !== '') {
+                  // Check if change_venue_id is available in the fetched venues
+                  const isAvailable = (v1 || []).some(venue => venue.ven_id == changeVenueId);
+                  if (isAvailable) {
+                    venueSelections[index] = String(changeVenueId);
+                  }
+                }
+              }
+            });
+            if (venueSelections.length > 0) {
+              autoSelectValues.venueIds = venueSelections;
+            }
+          }
+          
+          // Handle vehicle auto-selection
+          if (resources?.vehicleIds && Array.isArray(resources.vehicleIds)) {
+            const vehicleSelections = [];
+            resources.vehicleIds.forEach((vehicleResource, index) => {
+              if (typeof vehicleResource === 'object' && vehicleResource !== null) {
+                const changeVehicleId = vehicleResource.change_vehicle_id;
+                if (changeVehicleId && String(changeVehicleId).trim() !== '') {
+                  // Check if change_vehicle_id is available in the fetched vehicles
+                  const isAvailable = (v2 || []).some(vehicle => vehicle.vehicle_id == changeVehicleId);
+                  if (isAvailable) {
+                    vehicleSelections[index] = String(changeVehicleId);
+                  }
+                }
+              }
+            });
+            if (vehicleSelections.length > 0) {
+              autoSelectValues.vehicleIds = vehicleSelections;
+            }
+          }
+          
+          // Apply auto-selections to form
+          if (Object.keys(autoSelectValues).length > 0) {
+            form.setFieldsValue(autoSelectValues);
+          }
         }
       } catch (_) {
         if (!cancelled) {
@@ -528,6 +645,39 @@ const RescheduleModal = ({
       onReschedule(rescheduleData);
     } catch (error) {
       console.error('[RescheduleModal] Error submitting form:', error);
+    }
+  };
+
+  const handleRequestAgain = async () => {
+    try {
+      console.log('[RescheduleModal] handleRequestAgain started');
+      const values = await form.validateFields();
+      console.log('[RescheduleModal] Form values validated for request again:', values);
+
+      const start = dayjs(values.startDate).hour(dayjs(values.startTime).hour()).minute(0).second(0);
+      const end = dayjs(values.endDate).hour(dayjs(values.endTime).hour()).minute(0).second(0);
+      
+      const processedVenueIds = Array.isArray(values.venueIds) ? values.venueIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
+      const processedVehicleIds = Array.isArray(values.vehicleIds) ? values.vehicleIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
+      
+      const requestAgainData = {
+        ...values,
+        startDate: start.format('YYYY-MM-DD HH:mm:ss'),
+        endDate: end.format('YYYY-MM-DD HH:mm:ss'),
+        newVenueIds: processedVenueIds,
+        newVehicleIds: processedVehicleIds,
+        isRequestAgain: true // Flag to indicate this is a "request again" action
+      };
+      
+      console.log('[RescheduleModal] Calling onRequestAgain with data:', requestAgainData);
+      if (onRequestAgain) {
+        onRequestAgain(requestAgainData);
+      } else {
+        message.warning('Request Again functionality not implemented yet.');
+      }
+    } catch (error) {
+      console.error('[RescheduleModal] Error in handleRequestAgain:', error);
+      message.error('Please fill in all required fields before requesting again.');
     }
   };
 
@@ -639,6 +789,15 @@ const RescheduleModal = ({
       footer={[
         <Button key="cancel" onClick={onCancel}>
           Cancel
+        </Button>,
+        <Button 
+          key="request-again" 
+          type="default" 
+          onClick={handleRequestAgain}
+          loading={loading || checkingAvailability}
+          disabled={!isDateTimeRangeReady}
+        >
+          Request Again to Reschedule
         </Button>,
         <Button 
           key="submit" 
@@ -821,6 +980,7 @@ const RescheduleModal = ({
                     placeholder="Select a venue"
                     disabled={!isDateTimeRangeReady || resourceLoading}
                     value={form.getFieldValue(['venueIds', idx])}
+                    allowClear
                     onSelect={(val, option) => {
                       const derivedId = (val && typeof val === 'object') ? (val.value ?? option?.value ?? null) : (val ?? option?.value ?? null);
                       try {
@@ -883,6 +1043,7 @@ const RescheduleModal = ({
                     placeholder="Select a vehicle"
                     disabled={!isDateTimeRangeReady || resourceLoading}
                     value={form.getFieldValue(['vehicleIds', idx])}
+                    allowClear
                     onSelect={(val, option) => {
                       const derivedId = (val && typeof val === 'object') ? (val.value ?? option?.value ?? null) : (val ?? option?.value ?? null);
                       try {
@@ -927,7 +1088,7 @@ const RescheduleModal = ({
                         value={String(vehicle.vehicle_id)}
                         disabled={String(vehicle.status_availability_name).toLowerCase() !== 'available'}
                       >
-                        {vehicle.vehicle_make_name} {vehicle.vehicle_model_name} - {vehicle.vehicle_license}
+                        {vehicle.vehicle_name}
                       </Option>
                     ))}
                   </Select>

@@ -203,10 +203,20 @@ const ReservationRequests = () => {
 
                 // Fetch availability data - handle errors gracefully
                 try {
+                    // For Change Request status, use reschedule dates for availability check
+                    const isChangeRequest = details.status_name === "Change Request";
+                    const startDateTime = isChangeRequest && details.reschedule_start_date 
+                        ? details.reschedule_start_date 
+                        : details.reservation_start_date;
+                    const endDateTime = isChangeRequest && details.reschedule_end_date 
+                        ? details.reschedule_end_date 
+                        : details.reservation_end_date;
+
                     const availabilityResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                         operation: 'doubleCheckAvailability',
-                        start_datetime: details.reservation_start_date,
-                        end_datetime: details.reservation_end_date
+                        start_datetime: startDateTime,
+                        end_datetime: endDateTime,
+                        reservation_id: reservationId
                     }, {
                         timeout: 10000 // 10 second timeout
                     });
@@ -222,7 +232,16 @@ const ReservationRequests = () => {
 
                 // Fetch venue schedules for class schedule check - handle errors gracefully
                 try {
-                    scheduledVenues = await fetchVenueSchedules(details.reservation_start_date, details.reservation_end_date);
+                    // For Change Request status, use reschedule dates for venue schedule check
+                    const isChangeRequest = details.status_name === "Change Request";
+                    const startDateTime = isChangeRequest && details.reschedule_start_date 
+                        ? details.reschedule_start_date 
+                        : details.reservation_start_date;
+                    const endDateTime = isChangeRequest && details.reschedule_end_date 
+                        ? details.reschedule_end_date 
+                        : details.reservation_end_date;
+
+                    scheduledVenues = await fetchVenueSchedules(startDateTime, endDateTime);
                     console.log('Venue schedules fetched:', scheduledVenues);
                 } catch (venueError) {
                     console.error('Error fetching venue schedules:', venueError);
@@ -235,8 +254,17 @@ const ReservationRequests = () => {
                         // Find all class schedules for this venue
                         const classSchedules = scheduledVenues.filter(sv => String(sv.ven_id) === String(venue.venue_id));
                         // Check for any overlap by day and time
-                        const reservationStart = new Date(details.reservation_start_date);
-                        const reservationEnd = new Date(details.reservation_end_date);
+                        // For Change Request status, use reschedule dates
+                        const isChangeRequest = details.status_name === "Change Request";
+                        const startDateTime = isChangeRequest && details.reschedule_start_date 
+                            ? details.reschedule_start_date 
+                            : details.reservation_start_date;
+                        const endDateTime = isChangeRequest && details.reschedule_end_date 
+                            ? details.reschedule_end_date 
+                            : details.reservation_end_date;
+                        
+                        const reservationStart = new Date(startDateTime);
+                        const reservationEnd = new Date(endDateTime);
                         const reservationDay = reservationStart.toLocaleString('en-US', { weekday: 'long' });
                         // Helper to check time overlap
                         function timeOverlap(start1, end1, start2, end2) {
@@ -296,12 +324,22 @@ const ReservationRequests = () => {
         fetchReservations();
     }, [fetchReservations]);
     
-    const handlePriorityCheck = async () => {
+    const handlePriorityCheck = async (reservationId) => {
         try {
+            // For Change Request status, use reschedule dates instead of original dates
+            const isChangeRequest = reservationDetails.status_name === "Change Request";
+            const startDateTime = isChangeRequest && reservationDetails.reschedule_start_date 
+                ? reservationDetails.reschedule_start_date 
+                : reservationDetails.reservation_start_date;
+            const endDateTime = isChangeRequest && reservationDetails.reschedule_end_date 
+                ? reservationDetails.reschedule_end_date 
+                : reservationDetails.reservation_end_date;
+
             const checkResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
                 operation: 'doubleCheckAvailability',
-                start_datetime: reservationDetails.reservation_start_date,
-                end_datetime: reservationDetails.reservation_end_date
+                start_datetime: startDateTime,
+                end_datetime: endDateTime,
+                reservation_id: reservationId
             });
 
             if (checkResponse.data?.status === 'success') {
@@ -415,8 +453,31 @@ const ReservationRequests = () => {
     const handleAccept = async (vehicleDriverAssignments = {}) => {
         setIsAccepting(true);
         try {
-            // Check if current stage is Pending Admin Approval
             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+            
+            // Handle Change Request status with specific API
+            if (reservationDetails?.status_name === "Change Request") {
+                const response = await axios.post(`${encryptedUrl}/user.php`, {
+                    operation: 'updateChangeReschedule',
+                    reservation_id: currentRequest.reservation_id,
+                    is_accepted: true,
+                    user_id: currentUserId
+                });
+
+                if (response.data?.status === 'success') {
+                    toast.success('Change request confirmed successfully!', {
+                        icon: '✅',
+                        duration: 3000,
+                    });
+                    await fetchReservations();
+                    setIsDetailModalOpen(false);
+                } else {
+                    toast.error('Failed to confirm change request.');
+                }
+                return;
+            }
+
+            // Check if current stage is Pending Admin Approval
             const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
             const isAdminApprover = !!(adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId));
             const isAdminApprovalPending = adminApproval?.reservation_active === 0;
@@ -427,7 +488,7 @@ const ReservationRequests = () => {
                 console.log("Admin Approval stage - proceeding directly without conflict check");
             } else {
                 // For other stages, perform priority check
-                const priorityCheckResult = await handlePriorityCheck();
+                const priorityCheckResult = await handlePriorityCheck(currentRequest.reservation_id);
 
                 console.log("this is priorityCheckResult", priorityCheckResult);
                 
@@ -608,6 +669,34 @@ const ReservationRequests = () => {
     const handleDecline = async () => {
         setIsDeclining(true);
         try {
+            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+            
+            // Handle Change Request status with specific API
+            if (reservationDetails?.status_name === "Change Request") {
+                const response = await axios.post(`${encryptedUrl}/user.php`, {
+                    operation: 'updateChangeReschedule',
+                    reservation_id: currentRequest.reservation_id,
+                    is_accepted: false,
+                    user_id: currentUserId
+                });
+
+                if (response.data?.status === 'success') {
+                    toast.success('Change request declined successfully!', {
+                        icon: '❌',
+                        duration: 3000,
+                    });
+                    await fetchReservations();
+                    setIsDeclineReasonModalOpen(false);
+                    setIsDeclineModalOpen(false);
+                    setIsDetailModalOpen(false);
+                    setDeclineReason('');
+                    setCustomReason('');
+                } else {
+                    toast.error('Failed to decline change request.');
+                }
+                return;
+            }
+
             const finalReason = declineReason === 'other' ? customReason : 
                 declineReasons.find(r => r.value === declineReason)?.label || '';
 
@@ -1169,7 +1258,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
     const [rescheduleResources, setRescheduleResources] = useState(null);
 
     const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
-    const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+    // const adminApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Admin Approval');
     const departmentApproval = reservationDetails?.status_history?.find(s => s.status_name === 'Pending Department Approval');
     const encryptedUrl = SecureStorage.getLocalItem("url");
    
@@ -1252,7 +1341,8 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                 const response = await axios.post(`${encryptedUrl}/user.php`, {
                     operation: 'fetchDriver',
                     startDateTime: reservationDetails.reservation_start_date,
-                    endDateTime: reservationDetails.reservation_end_date
+                    endDateTime: reservationDetails.reservation_end_date,
+                    userId: reservationDetails.reservation_user_id || reservationDetails.user_id
                 });
                 if (response.data?.status === 'success') {
                     setAvailableDrivers(
@@ -1419,11 +1509,40 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             };
         }
 
-        // Remove the department priority check since COO Department Head can override any reservation
-        return {
-            hasPriority: true,
-            message: "You have permission to override this reservation."
-        };
+        // Check if user is a Department Head from COO department or Secretary from GSD department
+        
+        // Only these roles can override reservations
+        if (isDepartmentHeadFromCOO || isSecretaryFromGSD) {
+            return {
+                hasPriority: true,
+                message: `As ${isDepartmentHeadFromCOO ? 'Department Head from COO department' : 'Secretary from GSD department'}, you can override any existing reservation.`
+            };
+        } else {
+            // For other users, check if they have higher priority than conflicting users
+            const userPriorities = {
+                'COO': 4,
+                'Department Head': 3
+            };
+
+            const currentPriority = userPriorities[currentUserLevel] || 0;
+            
+            const canOverride = reservationDetails.availabilityData.reservation_users.every(conflictUser => {
+                const conflictingPriority = userPriorities[conflictUser.user_level_name] || 0;
+                return currentPriority > conflictingPriority;
+            });
+            
+            if (canOverride) {
+                return {
+                    hasPriority: true,
+                    message: `You have permission to override this reservation as ${currentUserLevel}.`
+                };
+            } else {
+                return {
+                    hasPriority: false,
+                    message: "You do not have permission to override this reservation."
+                };
+            }
+        }
     };
 
     const checkResourceAvailability = (type, id, data) => {
@@ -1533,6 +1652,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
 
         // Check for reschedule request waiting for department approval confirmation
         const isRescheduleStatus = reservationDetails.status_name === "Reschedule";
+        const isChangeRequestStatus = reservationDetails.status_name === "Change Request";
         const departmentApproval = reservationDetails.status_history?.find(
             status => status.status_name === 'Pending Department Approval'
         );
@@ -1541,7 +1661,8 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             departmentApproval.reservation_active === 0;
 
         // If reschedule is waiting for department approval confirmation, disable all buttons
-        if (isRescheduleWaitingConfirmation) {
+        // BUT if it's Change Request status, allow department approval buttons
+        if (isRescheduleWaitingConfirmation && !isChangeRequestStatus) {
             return [
                 <div key="reschedule-waiting" className="flex flex-col space-y-2">
         
@@ -1563,9 +1684,16 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         const isDepartmentPending = departmentApproval?.reservation_active === 0;
         
         // Check if current user is part of the current pending approval stage
+        // Fixed logic to ensure buttons show for both admin and department approvers
+        // Now also check if admin has already approved or declined based on status names
+        // For Change Request status, enable department approval buttons again
+        const isAdminAlreadyApproved = reservationDetails.status_history?.some(s => s.status_name === 'Admin Approved');
+        const isAdminAlreadyDeclined = reservationDetails.status_history?.some(s => s.status_name === 'Admin Declined');
+        const isChangeRequestForApproval = reservationDetails.status_name === "Change Request";
         const isCurrentUserPartOfPendingStage = (
             (isAdminPending && isAdminApprover) || 
-            (isDepartmentPending && isDepartmentApprover && adminApproval?.reservation_active === 1)
+            (isDepartmentPending && isDepartmentApprover && (isAdminAlreadyApproved || isAdminAlreadyDeclined)) ||
+            (isChangeRequestForApproval && isDepartmentApprover)
         );
 
         const priorityCheck = checkPriority();
@@ -1576,7 +1704,8 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         const allDeptProgressApproved = !hasDeptProgress || deansApproval.every(a => a.is_approved === 1 || a.is_approved === '1');
         
         // If the logged-in approver has already taken action (Approved), do not show action buttons again
-        const hasUserAlreadyApproved = (
+        // EXCEPTION: For Change Request status, always show buttons since it's a new proposal
+        const hasUserAlreadyApproved = !isChangeRequestForApproval && (
             (adminApproval && String(adminApproval.reservation_users_id) === String(currentUserId) && adminApproval.reservation_active === 1) ||
             (departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId) && departmentApproval.reservation_active === 1)
         );
@@ -1587,7 +1716,21 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
         }
 
         // If current user is not part of the pending approval stage, hide action buttons
+        // Exception: If admin has already approved/declined and it's department approver's turn, show only decline button
         if (!isCurrentUserPartOfPendingStage) {
+            const isAdminAlreadyApproved = reservationDetails.status_history?.some(s => s.status_name === 'Admin Approved');
+            const isAdminAlreadyDeclined = reservationDetails.status_history?.some(s => s.status_name === 'Admin Declined');
+            
+            // If admin already approved or declined and current user is department approver, show only decline button
+            if ((isAdminAlreadyApproved || isAdminAlreadyDeclined) && isDepartmentApprover) {
+                return [
+                    <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                        Decline
+                    </Button>,
+                    <Button key="close" onClick={onClose} size="large">Close</Button>
+                ];
+            }
+            
             return [
                 <Button key="close" onClick={onClose} size="large">Close</Button>
             ];
@@ -1613,6 +1756,244 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             Decline
                         </Button>
                     )
+            ];
+        }
+
+        // Handle Change Request status specifically - Department approver should see all buttons
+        if (isChangeRequestForApproval && isDepartmentApprover) {
+            // Require driver selection before rescheduling when vehicles exist
+            const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
+            const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
+                // Check existing assignment
+                const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                    driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
+                    (driver.driver_id || driver.driver_name)
+                );
+                if (existingDriver) return true;
+                // Check new assignment in current session
+                const assignedDriverId = vehicleDriverAssignments[vehicle.vehicle_id];
+                return !!assignedDriverId;
+            });
+
+            return [
+                <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                    Decline
+                </Button>,
+                <>
+                    <Button
+                        key="reschedule"
+                        type="default"
+                        onClick={() => {
+                            // Extract resource IDs and quantities from reservationDetails
+                            const resources = {
+                                venueIds: (reservationDetails.venues || []).map(v => v.venue_id),
+                                vehicleIds: (reservationDetails.vehicles || []).map(v => v.vehicle_id),
+                                equipment: (reservationDetails.equipment || []).map(eq => ({
+                                    equipment_id: eq.equipment_id,
+                                    quantity: parseInt(eq.quantity, 10) || 0
+                                }))
+                            };
+                            setRescheduleResources(resources);
+                            setIsRescheduleModalOpen(true);
+                        }}
+                        size="large"
+                        className="mr-2"
+                        icon={<ScheduleOutlined />}
+                        disabled={hasVehicles && !allVehiclesHaveDriverAssigned}
+                    >
+                        Reschedule
+                    </Button>
+                    <RescheduleModal
+                        visible={isRescheduleModalOpen}
+                        onCancel={() => setIsRescheduleModalOpen(false)}
+                        onReschedule={async (newDates) => {
+                            console.log('[ViewRequest] ===== onReschedule ENTRY POINT =====');
+                            console.log('[ViewRequest] onReschedule called with:', newDates);
+                            try {
+                                const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts } = newDates || {};
+                                console.log('[ViewRequest] Destructured values:', { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts });
+
+                                // Step 0: If overriding conflicts, handle conflicting reservations first
+                                if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
+                                    console.log('Processing conflict override for COO Department Head', {
+                                        conflictingUsers: conflictData.reservation_users,
+                                        unavailableVenues: conflictData.unavailable_venues,
+                                        unavailableVehicles: conflictData.unavailable_vehicles
+                                    });
+                                    
+                                    // Handle conflicting reservations by rescheduling them
+                                    try {
+                                        const overrideResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                                            operation: 'handleRequest',
+                                            reservation_id: reservationDetails?.reservation_id,
+                                            is_accepted: true,
+                                            user_id: SecureStorage.getLocalItem("user_id"),
+                                            override_lower_priority: true,
+                                            reschedule_mode: true,
+                                            new_start_datetime: startDate,
+                                            new_end_datetime: endDate
+                                        });
+
+                                        if (overrideResponse.data?.status !== 'success') {
+                                            toast.error('Failed to override conflicting reservations');
+                                            return;
+                                        }
+                                    } catch (overrideError) {
+                                        console.error('Error overriding conflicts:', overrideError);
+                                        toast.error('Failed to override conflicting reservations');
+                                        return;
+                                    }
+                                }
+
+                                // Step 1: If dates provided, update reservation dates only
+                                let didUpdateSomething = false;
+                                console.log('[ViewRequest] Checking if dates provided:', { startDate, endDate, hasStartDate: !!startDate, hasEndDate: !!endDate });
+                                if (startDate && endDate) {
+                                    const dateResp = await axios.post(`${encryptedUrl}/user.php`, {
+                                        operation: 'updateReservationReschedule',
+                                        reservation_id: reservationDetails?.reservation_id,
+                                        reschedule_start_date: startDate,
+                                        reschedule_end_date: endDate,
+                                        user_admin_id: SecureStorage.getSessionItem('user_id')
+                                    }, { headers: { 'Content-Type': 'application/json' } });
+                                    if (!(dateResp?.data?.status === 'success')) {
+                                        const msg = dateResp?.data?.message || 'Failed to update reservation dates';
+                                        toast.error(msg);
+                                        return;
+                                    }
+                                    didUpdateSomething = true;
+                                }
+
+                                // Step 2: Process venue changes with minimal payload per change (no dates)
+                                const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+                                
+                                console.log('[ViewRequest] Processing venue changes:', {
+                                    currentVenues,
+                                    newVenueIds,
+                                    hasNewVenueIds: !!(newVenueIds && Array.isArray(newVenueIds) && newVenueIds.length > 0)
+                                });
+                                
+                                if (newVenueIds && Array.isArray(newVenueIds) && newVenueIds.length > 0) {
+                                    const venue_changes = currentVenues
+                                        .map((v, idx) => {
+                                            const newId = newVenueIds[idx];
+                                            // Only process if newId is explicitly provided and different from current
+                                            if (newId == null || newId === undefined || String(newId) === String(v.venue_id)) return null;
+                                            return {
+                                                reservation_venue_id: v.reservation_venue_id,
+                                                reservation_change_venue_id: Number(newId)
+                                            };
+                                        })
+                                        .filter(Boolean);
+
+                                    console.log('[ViewRequest] Venue changes to process:', venue_changes);
+                                    if (venue_changes.length > 0) {
+                                        console.log('[ViewRequest] Executing updateVenueReschedule');
+                                        const requests = venue_changes.map(change => {
+                                            console.log('[ViewRequest] Making venue reschedule request:', change);
+                                            return axios.post(`${encryptedUrl}/user.php`, {
+                                                operation: 'updateVenueReschedule',
+                                                reservation_venue_id: change.reservation_venue_id,
+                                                reservation_change_venue_id: change.reservation_change_venue_id
+                                            }, { headers: { 'Content-Type': 'application/json' } });
+                                        });
+                                        
+                                        const results = await Promise.allSettled(requests);
+                                        const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                                        if (!allOk) {
+                                            const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                                                || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                                                || 'Failed to reschedule venue';
+                                            toast.error(firstError);
+                                            return;
+                                        }
+                                        didUpdateSomething = true;
+                                    }
+                                }
+
+                                // Step 3: Process vehicle changes with minimal payload per change (no dates)
+                                const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+                                
+                                console.log('[ViewRequest] Processing vehicle changes:', {
+                                    currentVehicles,
+                                    newVehicleIds,
+                                    hasNewVehicleIds: !!(newVehicleIds && Array.isArray(newVehicleIds) && newVehicleIds.length > 0)
+                                });
+                                
+                                if (newVehicleIds && Array.isArray(newVehicleIds) && newVehicleIds.length > 0) {
+                                    const vehicle_changes = currentVehicles
+                                        .map((v, idx) => {
+                                            const newId = newVehicleIds[idx];
+                                            // Only process if newId is explicitly provided and different from current
+                                            if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
+                                            return {
+                                                reservation_vehicle_id: v.reservation_vehicle_id,
+                                                reservation_change_vehicle_id: Number(newId)
+                                            };
+                                        })
+                                        .filter(Boolean);
+
+                                    console.log('[ViewRequest] Vehicle changes to process:', vehicle_changes);
+                                    if (vehicle_changes.length > 0) {
+                                        console.log('[ViewRequest] Executing updateVehicleReschedule');
+                                        const requests = vehicle_changes.map(change => {
+                                            console.log('[ViewRequest] Making vehicle reschedule request:', change);
+                                            return axios.post(`${encryptedUrl}/user.php`, {
+                                                operation: 'updateVehicleReschedule',
+                                                reservation_vehicle_id: change.reservation_vehicle_id,
+                                                reservation_change_vehicle_id: change.reservation_change_vehicle_id
+                                            }, { headers: { 'Content-Type': 'application/json' } });
+                                        });
+                                        
+                                        const results = await Promise.allSettled(requests);
+                                        const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                                        if (!allOk) {
+                                            const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                                                || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                                                || 'Failed to reschedule vehicle';
+                                            toast.error(firstError);
+                                            return;
+                                        }
+                                        didUpdateSomething = true;
+                                    }
+                                }
+
+                                // Final success handling
+                                if (didUpdateSomething) {
+                                    toast.success('Reservation rescheduled successfully!', {
+                                        icon: '✅',
+                                        duration: 3000,
+                                    });
+                                    setIsRescheduleModalOpen(false);
+                                    await fetchReservationDetails(reservationDetails?.reservation_id);
+                                } else {
+                                    console.log('[ViewRequest] No changes were made during reschedule');
+                                    toast.info('No changes were made to the reservation.');
+                                    setIsRescheduleModalOpen(false);
+                                }
+                            } catch (error) {
+                                console.error('[ViewRequest] Error in onReschedule:', error);
+                                toast.error(`Error rescheduling reservation: ${error.response?.data?.message || error.message}`);
+                            }
+                        }}
+                        reservationId={reservationDetails?.reservation_id}
+                        currentStartDate={reservationDetails?.reschedule_start_date || reservationDetails?.reservation_start_date}
+                        currentEndDate={reservationDetails?.reschedule_end_date || reservationDetails?.reservation_end_date}
+                        resources={rescheduleResources}
+                    />
+                </>,
+                <Button
+                    key="accept"
+                    type="primary"
+                    loading={isAccepting}
+                    onClick={handleAcceptWithDriverCheck}
+                    size="large"
+                    icon={<CheckCircleOutlined />}
+                    disabled={!priorityCheck.hasPriority || anyVenueNotAvailable || (hasVehicles && !allVehiclesHaveDriverAssigned)}
+                    className="bg-green-900 hover:bg-lime-900"
+                >
+                    Confirm
+                </Button>,
             ];
         }
 
@@ -1651,8 +2032,26 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
             }
 
             // After admin approval is complete, it's Department's turn
-            if (adminApproval.reservation_active === 1 && departmentApproval.reservation_active === 0) {
+            // Check if admin has approved based on status history
+            const isAdminApproved = reservationDetails.status_history?.some(s => s.status_name === 'Admin Approved');
+            const isAdminDeclined = reservationDetails.status_history?.some(s => s.status_name === 'Admin Declined');
+            
+            if ((isAdminApproved || isAdminDeclined) && departmentApproval.reservation_active === 0) {
                 if (isDepartmentApprover) {
+                    // When admin has already approved or declined, department approver should only see decline button
+                    // const isAdminApproved = reservationDetails.status_history?.some(s => s.status_name === 'Admin Approved');
+                    const isAdminDeclined = reservationDetails.status_history?.some(s => s.status_name === 'Admin Declined');
+                    
+                    if (isAdminDeclined) {
+                        // If admin declined, department approver should only see decline button
+                        return [
+                            <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
+                                Decline
+                            </Button>,
+                            <Button key="close" onClick={onClose} size="large">Close</Button>
+                        ];
+                    }
+                    
                     // Require driver selection before rescheduling when vehicles exist
                     const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
                     const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
@@ -2340,161 +2739,344 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                 </div>
 
                 {/* Mobile Content - Single View */}
-                <div className="mobile-modal-content">
-                    <div className="tab-content-wrapper">
-                        {/* Status Section */}
-                        <div className="content-section">
-                            <div className="section-header-simple">
-                                <h3 className="section-title-simple">Status & Priority</h3>
-                            </div>
-                            <div className="status-section">
-                                {new Date(reservationDetails.reservation_end_date) < new Date() ? (
-                                    <Alert
-                                        message={<span className="font-semibold">Priority Status: Blocked</span>}
-                                        description="This reservation has expired and cannot be approved."
-                                        type="error"
-                                        showIcon
-                                        className="status-alert"
-                                    />
-                                ) : (
-                                    <>
-                                        {reservationDetails.status_name === "Venue Approved" && (
-                                            <Alert
-                                                message={<span className="font-semibold">Venue Approved</span>}
-                                                description="The venue for this reservation has been approved. You may now proceed to approve or decline the reservation."
-                                                type="success"
-                                                showIcon
-                                                className="status-alert"
-                                            />
-                                        )}
-                                        {reservationDetails.status_name === "Venue Declined" && (
-                                            <Alert
-                                                message={<span className="font-semibold">Venue Declined</span>}
-                                                description="The venue for this reservation has been declined. You may only decline this reservation."
-                                                type="error"
-                                                showIcon
-                                                className="status-alert"
-                                            />
-                                        )}
-                                        {reservationDetails.status_name === "Registrar Approval" && (
-                                            <Alert
-                                                message={<span className="font-semibold">Processing Venue Availability</span>}
-                                                description="This request is currently being processed for venue availability by the registrar. Please wait for the response."
-                                                type="info"
-                                                showIcon
-                                                className="status-alert"
-                                            />
-                                        )}
-                                        {(reservationDetails.active === 0 || reservationDetails.active === 1) && (
-                                            <Alert
-                                                message={
-                                                    <span className="font-semibold">
-                                                        {anyVenueNotAvailable ? "Priority Status: Blocked" : (priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked")}
-                                                    </span>
-                                                }
-                                                description={anyVenueNotAvailable ? 'One or more venues are not available due to scheduled classes.' : priorityCheck.message}
-                                                type={anyVenueNotAvailable ? "warning" : (priorityCheck.hasPriority ? "success" : "warning")}
-                                                showIcon
-                                                className="status-alert"
-                                            />
-                                        )}
-                                    </>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Request Details Section */}
-                        <div className="content-section">
-                            <div className="section-header-simple">
-                                <h3 className="section-title-simple">Request Information</h3>
-                            </div>
-                            <div className="info-grid mobile-info-grid">
-                                <div className="info-group">
-                                    <div className="info-item">
-                                        <span className="info-label">Requester</span>
-                                        <span className="info-value">{reservationDetails.requester_name}</span>
-                                    </div>
-                                    <div className="info-item">
-                                        <span className="info-label">Role</span>
-                                        <span className="info-value">{reservationDetails.user_level_name}</span>
-                                    </div>
-                                    <div className="info-item">
-                                        <span className="info-label">Department</span>
-                                        <span className="info-value">{reservationDetails.department_name}</span>
-                                    </div>
-                                </div>
-                                <div className="info-group">
-                                    <div className="info-item">
-                                        <span className="info-label">Title</span>
-                                        <span className="info-value">{reservationDetails.reservation_title}</span>
-                                    </div>
-                                    <div className="info-item">
-                                        <span className="info-label">Description</span>
-                                        <span className="info-value">{reservationDetails.reservation_description}</span>
-                                    </div>
-                                    <div className="info-item">
-                                        <span className="info-label">Schedule</span>
-                                        <span className="info-value">{formatDateRange(
-                                            reservationDetails.reservation_start_date,
-                                            reservationDetails.reservation_end_date
-                                        )}</span>
-                                    </div>
-                                </div>
-                            </div>
-                            {reservationDetails.additional_note && (
-                                <div className="additional-note-section">
-                                    <span className="info-label">Additional Note</span>
-                                    <div className="additional-note-content">
-                                        {reservationDetails.additional_note}
-                                    </div>
-                                </div>
+                <>
+    <div className="mobile-modal-content">
+        <div className="tab-content-wrapper">
+            {/* Status Section */}
+            <div className="content-section">
+                <div className="section-header-simple">
+                    <h3 className="section-title-simple">Status & Priority</h3>
+                </div>
+                <div className="status-section">
+                    {new Date(reservationDetails.reservation_end_date) < new Date() ? (
+                        <Alert
+                            message={<span className="font-semibold">Priority Status: Blocked</span>}
+                            description="This reservation has expired and cannot be approved."
+                            type="error"
+                            showIcon
+                            className="status-alert"
+                        />
+                    ) : (
+                        <>
+                            {reservationDetails.status_name === "Venue Approved" && (
+                                <Alert
+                                    message={<span className="font-semibold">Venue Approved</span>}
+                                    description="The venue for this reservation has been approved. You may now proceed to approve or decline the reservation."
+                                    type="success"
+                                    showIcon
+                                    className="status-alert"
+                                />
                             )}
+                            {reservationDetails.status_name === "Venue Declined" && (
+                                <Alert
+                                    message={<span className="font-semibold">Venue Declined</span>}
+                                    description="The venue for this reservation has been declined. You may only decline this reservation."
+                                    type="error"
+                                    showIcon
+                                    className="status-alert"
+                                />
+                            )}
+                            {reservationDetails.status_name === "Registrar Approval" && (
+                                <Alert
+                                    message={<span className="font-semibold">Processing Venue Availability</span>}
+                                    description="This request is currently being processed for venue availability by the registrar. Please wait for the response."
+                                    type="info"
+                                    showIcon
+                                    className="status-alert"
+                                />
+                            )}
+                            {(reservationDetails.active === 0 || reservationDetails.active === 1) && (
+                                <Alert
+                                    message={
+                                        <span className="font-semibold">
+                                            {anyVenueNotAvailable ? "Priority Status: Blocked" : (priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked")}
+                                        </span>
+                                    }
+                                    description={anyVenueNotAvailable ? 'One or more venues are not available due to scheduled classes.' : priorityCheck.message}
+                                    type={anyVenueNotAvailable ? "warning" : (priorityCheck.hasPriority ? "success" : "warning")}
+                                    showIcon
+                                    className="status-alert"
+                                />
+                            )}
+                        </>
+                    )}
+                </div>
+            </div>
+
+            {/* Request Details Section */}
+            <div className="content-section">
+                <div className="section-header-simple">
+                    <h3 className="section-title-simple">Request Information</h3>
+                </div>
+                <div className="info-grid mobile-info-grid">
+                    <div className="info-group">
+                        <div className="info-item">
+                            <span className="info-label">Requester</span>
+                            <span className="info-value">{reservationDetails.requester_name}</span>
                         </div>
-
-                        {/* Resources Section */}
-                        <div className="content-section">
-                            <div className="section-header-simple">
-                                <h3 className="section-title-simple">Requested Resources</h3>
-                            </div>
-                            <div className="resources-section">
-                                {reservationDetails.venues?.length > 0 && (
-                                    <CollapsibleResourceSection
-                                        title="Venues"
-                                        icon={<BuildOutlined className="section-icon venue-icon" />}
-                                        resources={reservationDetails.venues}
-                                        type="venue"
-                                        count={reservationDetails.venues.length}
-                                    />
-                                )}
-                                {reservationDetails.vehicles?.length > 0 && (
-                                    <CollapsibleResourceSection
-                                        title="Vehicles"
-                                        icon={<CarOutlined className="section-icon vehicle-icon" />}
-                                        resources={reservationDetails.vehicles}
-                                        type="vehicle"
-                                        count={reservationDetails.vehicles.length}
-                                    />
-                                )}
-                                {reservationDetails.equipment?.length > 0 && (
-                                    <CollapsibleResourceSection
-                                        title="Equipment"
-                                        icon={<ToolOutlined className="section-icon equipment-icon" />}
-                                        resources={reservationDetails.equipment}
-                                        type="equipment"
-                                        count={reservationDetails.equipment.length}
-                                    />
-                                )}
-                            </div>
+                        <div className="info-item">
+                            <span className="info-label">Role</span>
+                            <span className="info-value">{reservationDetails.user_level_name}</span>
                         </div>
-
-
+                        <div className="info-item">
+                            <span className="info-label">Department</span>
+                            <span className="info-value">{reservationDetails.department_name}</span>
+                        </div>
+                    </div>
+                    <div className="info-group">
+                        <div className="info-item">
+                            <span className="info-label">Title</span>
+                            <span className="info-value">{reservationDetails.reservation_title}</span>
+                        </div>
+                        <div className="info-item">
+                            <span className="info-label">Description</span>
+                            <span className="info-value">{reservationDetails.reservation_description}</span>
+                        </div>
+                        <div className="info-item">
+                            <span className="info-label">Original Schedule</span>
+                            <span className="info-value">{formatDateRange(
+                                reservationDetails.reservation_start_date,
+                                reservationDetails.reservation_end_date
+                            )}</span>
+                        </div>
+                        {reservationDetails.status_name === "Change Request" && reservationDetails.reschedule_start_date && reservationDetails.reschedule_end_date && (
+                            <div className="info-item">
+                                <span className="info-label">Proposed New Schedule</span>
+                                <span className="info-value text-blue-600 font-semibold">{formatDateRange(
+                                    reservationDetails.reschedule_start_date,
+                                    reservationDetails.reschedule_end_date
+                                )}</span>
+                            </div>
+                        )}
                     </div>
                 </div>
+                {reservationDetails.additional_note && (
+                    <div className="additional-note-section">
+                        <span className="info-label">Additional Note</span>
+                        <div className="additional-note-content">
+                            {reservationDetails.additional_note}
+                        </div>
+                    </div>
+                )}
+            </div>
 
-                {/* Mobile Footer */}
-                <div className="mobile-modal-footer">
-                    {getModalFooter()}
+            {/* Resources Section */}
+            <div className="content-section">
+                <div className="section-header-simple">
+                    <h3 className="section-title-simple">Requested Resources</h3>
                 </div>
+                <div className="resources-section">
+                    {reservationDetails.venues?.length > 0 && (
+                        <CollapsibleResourceSection
+                            title="Venues"
+                            icon={<BuildOutlined className="section-icon venue-icon" />}
+                            resources={reservationDetails.venues}
+                            type="venue"
+                            count={reservationDetails.venues.length}
+                        />
+                    )}
+                    {reservationDetails.vehicles?.length > 0 && (
+                        <CollapsibleResourceSection
+                            title="Vehicles"
+                            icon={<CarOutlined className="section-icon vehicle-icon" />}
+                            resources={reservationDetails.vehicles}
+                            type="vehicle"
+                            count={reservationDetails.vehicles.length}
+                        />
+                    )}
+                    {reservationDetails.equipment?.length > 0 && (
+                        <CollapsibleResourceSection
+                            title="Equipment"
+                            icon={<ToolOutlined className="section-icon equipment-icon" />}
+                            resources={reservationDetails.equipment}
+                            type="equipment"
+                            count={reservationDetails.equipment.length}
+                        />
+                    )}
+                </div>
+            </div>
+
+            {/* Final Approval Section - Mobile */}
+            <div className="content-section">
+                <div className="section-header-simple">
+                    <h3 className="section-title-simple">Final Approval Section</h3>
+                </div>
+                <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                    <div className="space-y-4">
+                        {/* Admin Approval Status */}
+                        {(() => {
+                            const adminApproval = reservationDetails.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+                            const adminApproved = reservationDetails.status_history?.find(s => s.status_name === 'Admin Approved');
+                            const adminDeclined = reservationDetails.status_history?.find(s => s.status_name === 'Admin Declined');
+                            
+                            if (adminApproval || adminApproved || adminDeclined) {
+                                // Determine the actual status based on status history
+                                let statusInfo;
+                                if (adminDeclined) {
+                                    statusInfo = {
+                                        isApproved: false,
+                                        isPending: false,
+                                        isDeclined: true,
+                                        statusName: 'Admin Declined',
+                                        updatedBy: adminDeclined.updated_by_name,
+                                        updatedAt: adminDeclined.reservation_updated_at
+                                    };
+                                } else if (adminApproved) {
+                                    statusInfo = {
+                                        isApproved: true,
+                                        isPending: false,
+                                        isDeclined: false,
+                                        statusName: 'Admin Approved',
+                                        updatedBy: adminApproved.updated_by_name,
+                                        updatedAt: adminApproved.reservation_updated_at
+                                    };
+                                } else if (adminApproval) {
+                                    statusInfo = {
+                                        isApproved: false,
+                                        isPending: true,
+                                        isDeclined: false,
+                                        statusName: 'Pending Admin Approval',
+                                        updatedBy: adminApproval.updated_by_name,
+                                        updatedAt: adminApproval.reservation_updated_at
+                                    };
+                                }
+                                
+                                const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+                                const isCurrentUserAdmin = currentUserId === 114;
+                                
+                                return (
+                                    <div className="p-3 bg-white rounded-md border shadow-sm">
+                                        <div className="flex items-center justify-between">
+                                            <div className="flex items-center">
+                                                {statusInfo.isApproved ? (
+                                                    <CheckCircleOutlined className="text-green-500 mr-3 text-lg" />
+                                                ) : statusInfo.isPending ? (
+                                                    <ClockCircleOutlined className="text-yellow-500 mr-3 text-lg" />
+                                                ) : (
+                                                    <CloseCircleOutlined className="text-red-500 mr-3 text-lg" />
+                                                )}
+                                                <div>
+                                                    <div className="font-medium text-gray-800">
+                                                        Admin Approval {isCurrentUserAdmin && statusInfo.isPending && '(You)'}
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">
+                                                        {statusInfo.updatedBy || 'Waiting for admin action'}
+                                                    </div>
+                                                    <div className="text-xs text-gray-400">
+                                                        {statusInfo.updatedAt ? 
+                                                            new Date(statusInfo.updatedAt).toLocaleString() : 
+                                                            'No action taken yet'
+                                                        }
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2">
+                                                <Tag color={statusInfo.isApproved ? 'green' : statusInfo.isPending ? 'gold' : 'red'}>
+                                                    {statusInfo.isApproved ? 'Approved' : statusInfo.isPending ? 'Pending' : 'Declined'}
+                                                </Tag>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
+
+                        {/* Department Approval Status - Always Show */}
+                        {(() => {
+                            const departmentApproval = reservationDetails.status_history?.find(s => s.status_name === 'Pending Department Approval');
+                            const adminApproval = reservationDetails.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+                            const isWaitingForAdmin = adminApproval?.reservation_active === 0;
+                            
+                            // If department approval exists in status history
+                            if (departmentApproval) {
+                                const isApproved = departmentApproval.reservation_active === 1;
+                                const isPending = departmentApproval.reservation_active === 0;
+                                
+                                return (
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-md border shadow-sm">
+                                        <div className="flex items-center">
+                                            {isApproved ? (
+                                                <CheckCircleOutlined className="text-green-500 mr-3 text-lg" />
+                                            ) : isPending && !isWaitingForAdmin ? (
+                                                <ClockCircleOutlined className="text-yellow-500 mr-3 text-lg" />
+                                            ) : isWaitingForAdmin ? (
+                                                <ClockCircleOutlined className="text-gray-400 mr-3 text-lg" />
+                                            ) : (
+                                                <CloseCircleOutlined className="text-red-500 mr-3 text-lg" />
+                                            )}
+                                            <div>
+                                                <div className="font-medium text-gray-800">Department Approval</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {isWaitingForAdmin ? 
+                                                        'Waiting for admin approval first' : 
+                                                        departmentApproval.updated_by_name || 'Waiting for department action'
+                                                    }
+                                                </div>
+                                                <div className="text-xs text-gray-400">
+                                                    {departmentApproval.reservation_updated_at ? 
+                                                        new Date(departmentApproval.reservation_updated_at).toLocaleString() : 
+                                                        'No action taken yet'
+                                                    }
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Tag color={isApproved ? 'green' : isPending && !isWaitingForAdmin ? 'gold' : isWaitingForAdmin ? 'default' : 'red'}>
+                                            {isApproved ? 'Approved' : isPending && !isWaitingForAdmin ? 'Pending' : isWaitingForAdmin ? 'Waiting' : 'Declined'}
+                                        </Tag>
+                                    </div>
+                                );
+                            } else {
+                                // If no department approval status exists yet, show as waiting
+                                return (
+                                    <div className="flex items-center justify-between p-3 bg-white rounded-md border shadow-sm">
+                                        <div className="flex items-center">
+                                            <ClockCircleOutlined className="text-gray-400 mr-3 text-lg" />
+                                            <div>
+                                                <div className="font-medium text-gray-800">Department Approval</div>
+                                                <div className="text-xs text-gray-500">
+                                                    {isWaitingForAdmin ? 
+                                                        'Waiting for admin approval first' : 
+                                                        'Awaiting department approval stage'
+                                                    }
+                                                </div>
+                                                <div className="text-xs text-gray-400">
+                                                    No action taken yet
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <Tag color="default">
+                                            {isWaitingForAdmin ? 'Waiting' : 'Not Started'}
+                                        </Tag>
+                                    </div>
+                                );
+                            }
+                        })()}
+
+                        {/* Overall Status Summary */}
+                        <div className="pt-3 border-t border-gray-200">
+                            <div className="flex items-center justify-between">
+                                <span className="font-medium text-gray-700">Overall Status:</span>
+                                <Tag color={
+                                    reservationDetails.status_name === 'Approved' ? 'green' :
+                                    reservationDetails.status_name === 'Declined' ? 'red' :
+                                    'blue'
+                                } className="text-sm">
+                                    {reservationDetails.status_name}
+                                </Tag>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {/* Mobile Footer */}
+    <div className="mobile-modal-footer">
+        {getModalFooter()}
+    </div>
+</>
 
                 {/* Driver Error Alert */}
                 {driverError && (
@@ -2603,6 +3185,15 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                 type="warning"
                                 showIcon
                                 className="border border-orange-200 shadow-sm"
+                            />
+                        )}
+                        {reservationDetails.status_name === "Change Request" && (
+                            <Alert
+                                message={<span className="font-semibold">Change Request - New Schedule Proposed</span>}
+                                description="The requester has proposed a new schedule for this reservation. Please review the proposed dates and approve or decline accordingly."
+                                type="info"
+                                showIcon
+                                className="border border-blue-200 shadow-sm"
                             />
                         )}
 
@@ -2730,7 +3321,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                     <div>
                                         <p className="text-sm font-semibold text-green-700 mb-1">Additional Note</p>
                                         <p className="font-medium bg-yellow-50 text-green-900 rounded px-3 py-2 border border-yellow-200">
-                                         <p className="font-medium text-gray-900">{reservationDetails.additional_note}</p>
+                                         {reservationDetails.additional_note}
                                         </p>
                                     </div>
                                 </div>
@@ -2751,12 +3342,21 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                         <p className="font-medium text-gray-900">{reservationDetails.reservation_description}</p>
                                     </div>
                                     <div>
-                                        <p className="text-sm text-gray-500 mb-1">Date & Time</p>
+                                        <p className="text-sm text-gray-500 mb-1">Original Date & Time</p>
                                         <p className="font-medium text-gray-900">{formatDateRange(
                                             reservationDetails.reservation_start_date,
                                             reservationDetails.reservation_end_date
                                         )}</p>
                                     </div>
+                                    {reservationDetails.status_name === "Change Request" && reservationDetails.reschedule_start_date && reservationDetails.reschedule_end_date && (
+                                        <div>
+                                            <p className="text-sm text-gray-500 mb-1">Proposed New Date & Time</p>
+                                            <p className="font-medium text-blue-600">{formatDateRange(
+                                                reservationDetails.reschedule_start_date,
+                                                reservationDetails.reschedule_end_date
+                                            )}</p>
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -2821,6 +3421,179 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             </div>
                         </div>
 
+                        {/* Final Approval Section - Always Rendered */}
+                        <div className="mt-6 px-4 sm:px-6">
+                            <h3 className="text-lg font-medium text-gray-900 mb-3">Final Approval Section</h3>
+                            <div className="bg-gray-50 rounded-lg border border-gray-200 p-4">
+                                <div className="space-y-4">
+                                    {/* Admin Approval Status */}
+                                    {(() => {
+                                        const adminApproval = reservationDetails.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+                                        const adminApproved = reservationDetails.status_history?.find(s => s.status_name === 'Admin Approved');
+                                        const adminDeclined = reservationDetails.status_history?.find(s => s.status_name === 'Admin Declined');
+                                        
+                                        if (adminApproval || adminApproved || adminDeclined) {
+                                            // Determine the actual status based on status history
+                                            let statusInfo;
+                                            if (adminDeclined) {
+                                                statusInfo = {
+                                                    isApproved: false,
+                                                    isPending: false,
+                                                    isDeclined: true,
+                                                    statusName: 'Admin Declined',
+                                                    updatedBy: adminDeclined.updated_by_name,
+                                                    updatedAt: adminDeclined.reservation_updated_at
+                                                };
+                                            } else if (adminApproved) {
+                                                statusInfo = {
+                                                    isApproved: true,
+                                                    isPending: false,
+                                                    isDeclined: false,
+                                                    statusName: 'Admin Approved',
+                                                    updatedBy: adminApproved.updated_by_name,
+                                                    updatedAt: adminApproved.reservation_updated_at
+                                                };
+                                            } else if (adminApproval) {
+                                                statusInfo = {
+                                                    isApproved: false,
+                                                    isPending: true,
+                                                    isDeclined: false,
+                                                    statusName: 'Pending Admin Approval',
+                                                    updatedBy: adminApproval.updated_by_name,
+                                                    updatedAt: adminApproval.reservation_updated_at
+                                                };
+                                            }
+                                            
+                                            const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+                                            const isCurrentUserAdmin = currentUserId === 114;
+                                            
+                                            return (
+                                                <div className="p-3 bg-white rounded-md border shadow-sm">
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center">
+                                                            {statusInfo.isApproved ? (
+                                                                <CheckCircleOutlined className="text-green-500 mr-3 text-lg" />
+                                                            ) : statusInfo.isPending ? (
+                                                                <ClockCircleOutlined className="text-yellow-500 mr-3 text-lg" />
+                                                            ) : (
+                                                                <CloseCircleOutlined className="text-red-500 mr-3 text-lg" />
+                                                            )}
+                                                            <div>
+                                                                <div className="font-medium text-gray-800">
+                                                                    Admin Approval {isCurrentUserAdmin && statusInfo.isPending && '(You)'}
+                                                                </div>
+                                                                <div className="text-xs text-gray-500">
+                                                                    {statusInfo.updatedBy || 'Waiting for admin action'}
+                                                                </div>
+                                                                <div className="text-xs text-gray-400">
+                                                                    {statusInfo.updatedAt ? 
+                                                                        new Date(statusInfo.updatedAt).toLocaleString() : 
+                                                                        'No action taken yet'
+                                                                    }
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                        <div className="flex items-center gap-2">
+                                                            <Tag color={statusInfo.isApproved ? 'green' : statusInfo.isPending ? 'gold' : 'red'}>
+                                                                {statusInfo.isApproved ? 'Approved' : statusInfo.isPending ? 'Pending' : 'Declined'}
+                                                            </Tag>
+                                                        </div>
+                                                    </div>
+                                                    {/* Action buttons moved to footer */}
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+
+                                    {/* Department Approval Status - Always Show */}
+                                    {(() => {
+                                        const departmentApproval = reservationDetails.status_history?.find(s => s.status_name === 'Pending Department Approval');
+                                        const adminApproval = reservationDetails.status_history?.find(s => s.status_name === 'Pending Admin Approval');
+                                        const isWaitingForAdmin = adminApproval?.reservation_active === 0;
+                                        
+                                        // If department approval exists in status history
+                                        if (departmentApproval) {
+                                            const isApproved = departmentApproval.reservation_active === 1;
+                                            const isPending = departmentApproval.reservation_active === 0;
+                                            
+                                            return (
+                                                <div className="flex items-center justify-between p-3 bg-white rounded-md border shadow-sm">
+                                                    <div className="flex items-center">
+                                                        {isApproved ? (
+                                                            <CheckCircleOutlined className="text-green-500 mr-3 text-lg" />
+                                                        ) : isPending && !isWaitingForAdmin ? (
+                                                            <ClockCircleOutlined className="text-yellow-500 mr-3 text-lg" />
+                                                        ) : isWaitingForAdmin ? (
+                                                            <ClockCircleOutlined className="text-gray-400 mr-3 text-lg" />
+                                                        ) : (
+                                                            <CloseCircleOutlined className="text-red-500 mr-3 text-lg" />
+                                                        )}
+                                                        <div>
+                                                            <div className="font-medium text-gray-800">Department Approval</div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {isWaitingForAdmin ? 
+                                                                    'Waiting for admin approval first' : 
+                                                                    departmentApproval.updated_by_name || 'Waiting for department action'
+                                                                }
+                                                            </div>
+                                                            <div className="text-xs text-gray-400">
+                                                                {departmentApproval.reservation_updated_at ? 
+                                                                    new Date(departmentApproval.reservation_updated_at).toLocaleString() : 
+                                                                    'No action taken yet'
+                                                                }
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <Tag color={isApproved ? 'green' : isPending && !isWaitingForAdmin ? 'gold' : isWaitingForAdmin ? 'default' : 'red'}>
+                                                        {isApproved ? 'Approved' : isPending && !isWaitingForAdmin ? 'Pending' : isWaitingForAdmin ? 'Waiting' : 'Declined'}
+                                                    </Tag>
+                                                </div>
+                                            );
+                                        } else {
+                                            // If no department approval status exists yet, show as waiting
+                                            return (
+                                                <div className="flex items-center justify-between p-3 bg-white rounded-md border shadow-sm">
+                                                    <div className="flex items-center">
+                                                        <ClockCircleOutlined className="text-gray-400 mr-3 text-lg" />
+                                                        <div>
+                                                            <div className="font-medium text-gray-800">Department Approval</div>
+                                                            <div className="text-xs text-gray-500">
+                                                                {isWaitingForAdmin ? 
+                                                                    'Waiting for admin approval first' : 
+                                                                    'Awaiting department approval stage'
+                                                                }
+                                                            </div>
+                                                            <div className="text-xs text-gray-400">
+                                                                No action taken yet
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <Tag color="default">
+                                                        {isWaitingForAdmin ? 'Waiting' : 'Not Started'}
+                                                    </Tag>
+                                                </div>
+                                            );
+                                        }
+                                    })()}
+
+                                    {/* Overall Status Summary */}
+                                    <div className="pt-3 border-t border-gray-200">
+                                        <div className="flex items-center justify-between">
+                                            <span className="font-medium text-gray-700">Overall Status:</span>
+                                            <Tag color={
+                                                reservationDetails.status_name === 'Approved' ? 'green' :
+                                                reservationDetails.status_name === 'Declined' ? 'red' :
+                                                'blue'
+                                            } className="text-sm">
+                                                {reservationDetails.status_name}
+                                            </Tag>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         {/* Dean Approval Progress Section */}
                         {(isLoadingDeans || deansApproval.length > 0) && (
                             <div className="mt-6 px-4 sm:px-6">
@@ -2878,81 +3651,6 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             </div>
                         )}
 
-                        {/* Final Approval Progress Section */}
-                        {adminApproval && departmentApproval && (
-                            <div className="mt-6 px-4 sm:px-6">
-                                <h3 className="text-lg font-medium text-gray-900 mb-3">Final Approval Progress</h3>
-                                <div className="bg-gray-50 rounded-lg border border-gray-200 p-4 space-y-4">
-                                     {/* Admin Approval */}
-                                     <div className="flex items-center justify-between p-3 bg-white rounded-md border border-gray-300 shadow-sm">
-                                         <div className="flex items-center">
-                                             {adminApproval.reservation_active === 1 ? (
-                                                 <CheckCircleOutlined className="text-green-500 text-xl mr-3" />
-                                             ) : adminApproval.reservation_active === -1 ? (
-                                                 <CloseCircleOutlined className="text-red-500 text-xl mr-3" />
-                                             ) : (
-                                                 <ClockCircleOutlined className="text-yellow-500 text-xl mr-3" />
-                                             )}
-                                             <div>
-                                                 <div className="font-medium text-gray-800">Pending Admin Approval</div>
-                                                 <div className="text-sm text-gray-600">
-                                                     Approver: {adminApproval.updated_by_name}
-                                                     {adminApproval.reservation_users_id === currentUserId && (
-                                                         <Tag color="blue" className="ml-2">You</Tag>
-                                                     )}
-                                                 </div>
-                                             </div>
-                                         </div>
-                                         <Tag 
-                                             color={adminApproval.reservation_active === 1 ? 'green' : (adminApproval.reservation_active === -1 ? 'red' : 'gold')}
-                                             className="font-medium"
-                                         >
-                                             {adminApproval.reservation_active === 1 ? 'Approved' : (adminApproval.reservation_active === -1 ? 'Declined' : 'Pending')}
-                                         </Tag>
-                                     </div>
-
-                                     {/* Department Approval */}
-                                     <div className="flex items-center justify-between p-3 bg-white rounded-md border border-gray-300 shadow-sm">
-                                         <div className="flex items-center">
-                                             {departmentApproval.reservation_active === 1 ? (
-                                                 <CheckCircleOutlined className="text-green-500 text-xl mr-3" />
-                                             ) : departmentApproval.reservation_active === -1 ? (
-                                                 <CloseCircleOutlined className="text-red-500 text-xl mr-3" />
-                                             ) : (
-                                                 <ClockCircleOutlined 
-                                                    className={`text-xl mr-3 ${adminApproval.reservation_active === 1 ? 'text-yellow-500' : 'text-gray-400'}`} 
-                                                 />
-                                             )}
-                                             <div>
-                                                 <div className="font-medium text-gray-800">Pending Department Approval</div>
-                                                 <div className="text-sm text-gray-600">
-                                                     Approver: {departmentApproval.updated_by_name}
-                                                     {departmentApproval.reservation_users_id === currentUserId && (
-                                                         <Tag color="blue" className="ml-2">You</Tag>
-                                                     )}
-                                                 </div>
-                                             </div>
-                                         </div>
-                                         <Tag 
-                                             color={
-                                                 departmentApproval.reservation_active === 1
-                                                     ? 'green'
-                                                     : departmentApproval.reservation_active === -1
-                                                         ? 'red'
-                                                         : (adminApproval.reservation_active === 1 ? 'gold' : 'default')
-                                             }
-                                             className="font-medium"
-                                         >
-                                             {departmentApproval.reservation_active === 1
-                                                 ? 'Approved'
-                                                 : departmentApproval.reservation_active === -1
-                                                     ? 'Declined'
-                                                     : (adminApproval.reservation_active === 1 ? 'Pending' : 'Waiting for Admin')}
-                                         </Tag>
-                                     </div>
-                                </div>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>

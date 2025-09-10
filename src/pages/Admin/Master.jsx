@@ -15,7 +15,7 @@ import CreateVenueModal from "./lib/Venue/Create_Modal";
 import CreateModal from "./lib/Faculty/Create_Modal";
 
 import { SecureStorage } from "../../utils/encryption";
-import Sidebar from "../Sidebar";
+import Sidebar from '../../components/core/Sidebar';
 import axios from "axios";
 import { motion } from "framer-motion";
 import { useNavigate } from "react-router-dom";

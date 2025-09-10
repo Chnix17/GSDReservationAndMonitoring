@@ -271,7 +271,7 @@ const Sidebar = () => {
       // Subscribe to push manager
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array('BELqHYNGLPs3EIxn6y7lMopZIpyXAKWY84Kci2FvTIW_bBSBj2l7d6e8Hp1kFKYhwF2miGYrjj9kDSX_oUfa070')
+        applicationServerKey: urlBase64ToUint8Array('BH02Y33VwIvpIqMHVSoPc42a-Agj3r7WVL19X54a0PGyvSYfpbdn2QtuPF4q33CwGdy1E4iPgSiix-D0XcCIoLA')
       });
 
       // Send subscription to server
