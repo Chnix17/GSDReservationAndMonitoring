@@ -100,6 +100,8 @@ const Record = () => {
       description: item.reservation_description || "No description",
       start_date: item.reservation_start_date,
       end_date: item.reservation_end_date,
+      reschedule_start_date: item.reschedule_start_date || null,
+      reschedule_end_date: item.reschedule_end_date || null,
       status: item.reservation_status_name || "Unknown",
       requester: item.user_full_name || "Unknown",
       created_at: item.reservation_created_at,
@@ -126,7 +128,12 @@ const Record = () => {
   };
 
   // Compact human-friendly date range for table/cards
-  const formatDateRange = (start, end) => {
+  const formatDateRange = (record) => {
+    // Use reschedule dates if status is "Reschedule Confirmed" and reschedule dates exist
+    const isRescheduleConfirmed = record.status === 'Reschedule Confirmed';
+    const start = isRescheduleConfirmed && record.reschedule_start_date ? record.reschedule_start_date : record.start_date;
+    const end = isRescheduleConfirmed && record.reschedule_end_date ? record.reschedule_end_date : record.end_date;
+    
     if (!start || !end) return "-";
     const s = moment(start);
     const e = moment(end);
@@ -237,7 +244,7 @@ const Record = () => {
       sortOrder: sortField === "start_date" ? sortOrder : null,
       render: (_, record) => (
         <div className="text-gray-600 whitespace-nowrap">
-          {formatDateRange(record.start_date, record.end_date)}
+          {formatDateRange(record)}
         </div>
       ),
     },
@@ -412,7 +419,7 @@ const Record = () => {
                             <div className="min-w-0">
                               <div className="text-xs text-gray-500">{r.requester}</div>
                               <div className="text-base font-semibold text-gray-900 truncate">{r.title}</div>
-                              <div className="mt-1 text-xs text-gray-600">{formatDateRange(r.start_date, r.end_date)}</div>
+                              <div className="mt-1 text-xs text-gray-600">{formatDateRange(r)}</div>
                             </div>
                             <Tag color={getStatusColor(r.status)} className="capitalize px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap">
                               {r.status}

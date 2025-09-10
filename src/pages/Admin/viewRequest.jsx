@@ -1785,9 +1785,32 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                         type="default"
                         onClick={() => {
                             // Extract resource IDs and quantities from reservationDetails
+                            // For Change Request status, include both original and change IDs
+                            const isChangeRequest = reservationDetails.status_name === "Change Request";
+                            
                             const resources = {
-                                venueIds: (reservationDetails.venues || []).map(v => v.venue_id),
-                                vehicleIds: (reservationDetails.vehicles || []).map(v => v.vehicle_id),
+                                venueIds: (reservationDetails.venues || []).map(v => {
+                                    if (isChangeRequest) {
+                                        // For Change Request, create object with both original and change IDs
+                                        return {
+                                            venue_id: v.venue_id,
+                                            change_venue_id: v.change_venue_id || null,
+                                            reservation_venue_id: v.reservation_venue_id
+                                        };
+                                    }
+                                    return v.venue_id;
+                                }),
+                                vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                                    if (isChangeRequest) {
+                                        // For Change Request, create object with both original and change IDs
+                                        return {
+                                            vehicle_id: v.vehicle_id,
+                                            change_vehicle_id: v.change_vehicle_id || null,
+                                            reservation_vehicle_id: v.reservation_vehicle_id
+                                        };
+                                    }
+                                    return v.vehicle_id;
+                                }),
                                 equipment: (reservationDetails.equipment || []).map(eq => ({
                                     equipment_id: eq.equipment_id,
                                     quantity: parseInt(eq.quantity, 10) || 0
@@ -1806,6 +1829,8 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     <RescheduleModal
                         visible={isRescheduleModalOpen}
                         onCancel={() => setIsRescheduleModalOpen(false)}
+                        reservation={reservationDetails}
+                        resources={rescheduleResources}
                         onReschedule={async (newDates) => {
                             console.log('[ViewRequest] ===== onReschedule ENTRY POINT =====');
                             console.log('[ViewRequest] onReschedule called with:', newDates);
@@ -1862,6 +1887,59 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                         return;
                                     }
                                     didUpdateSomething = true;
+                                }
+
+                                // Step 1.5: Handle equipment units insertion for non-Change Request reschedules
+                                const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                console.log('[ViewRequest] Checking equipment handling:', {
+                                    isChangeRequest,
+                                    hasEquipment: !!(reservationDetails?.equipment && reservationDetails.equipment.length > 0),
+                                    equipment: reservationDetails?.equipment
+                                });
+                                
+                                if (!isChangeRequest && reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
+                                    try {
+                                        console.log('[ViewRequest] Processing equipment units for reschedule');
+                                        // Format the data to match backend expectations
+                                        const equipIds = reservationDetails.equipment.map(eq => parseInt(eq.equipment_id));
+                                        const quantities = reservationDetails.equipment.map(eq => parseInt(eq.quantity));
+                                        
+                                        // Use the new reschedule dates if provided, otherwise use original dates
+                                        const useStartDate = startDate || reservationDetails.reservation_start_date;
+                                        const useEndDate = endDate || reservationDetails.reservation_end_date;
+                                        const formattedStartDate = new Date(useStartDate).toISOString().split('T')[0];
+                                        const formattedEndDate = new Date(useEndDate).toISOString().split('T')[0];
+
+                                        console.log('[ViewRequest] Equipment insertUnits payload:', {
+                                            equip_ids: equipIds,
+                                            quantities: quantities,
+                                            reservation_id: parseInt(reservationDetails.reservation_id),
+                                            start_date: formattedStartDate,
+                                            end_date: formattedEndDate
+                                        });
+
+                                        const insertResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                                            operation: 'insertUnits',
+                                            equip_ids: equipIds,
+                                            quantities: quantities,
+                                            reservation_id: parseInt(reservationDetails.reservation_id),
+                                            start_date: formattedStartDate,
+                                            end_date: formattedEndDate
+                                        });
+
+                                        if (insertResponse.data?.status !== 'success') {
+                                            console.error('[ViewRequest] Equipment insertUnits failed:', insertResponse.data);
+                                            toast.error('Failed to prepare equipment units for rescheduled reservation');
+                                            return;
+                                        }
+                                        
+                                        console.log('[ViewRequest] Equipment units inserted successfully for reschedule');
+                                        didUpdateSomething = true;
+                                    } catch (error) {
+                                        console.error('[ViewRequest] Error inserting equipment units during reschedule:', error);
+                                        toast.error('Failed to prepare equipment units for rescheduled reservation');
+                                        return;
+                                    }
                                 }
 
                                 // Step 2: Process venue changes with minimal payload per change (no dates)
@@ -1979,7 +2057,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                         reservationId={reservationDetails?.reservation_id}
                         currentStartDate={reservationDetails?.reschedule_start_date || reservationDetails?.reservation_start_date}
                         currentEndDate={reservationDetails?.reschedule_end_date || reservationDetails?.reservation_end_date}
-                        resources={rescheduleResources}
+                    
                     />
                 </>,
                 <Button
@@ -2075,9 +2153,32 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                 type="default"
                                 onClick={() => {
                                     // Extract resource IDs and quantities from reservationDetails
+                                    // For Change Request status, include both original and change IDs
+                                    const isChangeRequest = reservationDetails.status_name === "Change Request";
+                                    
                                     const resources = {
-                                        venueIds: (reservationDetails.venues || []).map(v => v.venue_id),
-                                        vehicleIds: (reservationDetails.vehicles || []).map(v => v.vehicle_id),
+                                        venueIds: (reservationDetails.venues || []).map(v => {
+                                            if (isChangeRequest) {
+                                                // For Change Request, create object with both original and change IDs
+                                                return {
+                                                    venue_id: v.venue_id,
+                                                    change_venue_id: v.change_venue_id || null,
+                                                    reservation_venue_id: v.reservation_venue_id
+                                                };
+                                            }
+                                            return v.venue_id;
+                                        }),
+                                        vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                                            if (isChangeRequest) {
+                                                // For Change Request, create object with both original and change IDs
+                                                return {
+                                                    vehicle_id: v.vehicle_id,
+                                                    change_vehicle_id: v.change_vehicle_id || null,
+                                                    reservation_vehicle_id: v.reservation_vehicle_id
+                                                };
+                                            }
+                                            return v.vehicle_id;
+                                        }),
                                         equipment: (reservationDetails.equipment || []).map(eq => ({
                                             equipment_id: eq.equipment_id,
                                             quantity: parseInt(eq.quantity, 10) || 0
@@ -2096,6 +2197,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             <RescheduleModal
                                 visible={isRescheduleModalOpen}
                                 onCancel={() => setIsRescheduleModalOpen(false)}
+                                reservation={reservationDetails}
                                 onReschedule={async (newDates) => {
                                     console.log('[ViewRequest] ===== onReschedule ENTRY POINT =====');
                                     console.log('[ViewRequest] onReschedule called with:', newDates);
@@ -2152,6 +2254,59 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                                 return;
                                             }
                                             didUpdateSomething = true;
+                                        }
+
+                                        // Step 1.5: Handle equipment units insertion for non-Change Request reschedules
+                                        const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                        console.log('[ViewRequest] Checking equipment handling:', {
+                                            isChangeRequest,
+                                            hasEquipment: !!(reservationDetails?.equipment && reservationDetails.equipment.length > 0),
+                                            equipment: reservationDetails?.equipment
+                                        });
+                                        
+                                        if (!isChangeRequest && reservationDetails?.equipment && reservationDetails.equipment.length > 0) {
+                                            try {
+                                                console.log('[ViewRequest] Processing equipment units for reschedule');
+                                                // Format the data to match backend expectations
+                                                const equipIds = reservationDetails.equipment.map(eq => parseInt(eq.equipment_id));
+                                                const quantities = reservationDetails.equipment.map(eq => parseInt(eq.quantity));
+                                                
+                                                // Use the new reschedule dates if provided, otherwise use original dates
+                                                const useStartDate = startDate || reservationDetails.reservation_start_date;
+                                                const useEndDate = endDate || reservationDetails.reservation_end_date;
+                                                const formattedStartDate = new Date(useStartDate).toISOString().split('T')[0];
+                                                const formattedEndDate = new Date(useEndDate).toISOString().split('T')[0];
+
+                                                console.log('[ViewRequest] Equipment insertUnits payload:', {
+                                                    equip_ids: equipIds,
+                                                    quantities: quantities,
+                                                    reservation_id: parseInt(reservationDetails.reservation_id),
+                                                    start_date: formattedStartDate,
+                                                    end_date: formattedEndDate
+                                                });
+
+                                                const insertResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                                                    operation: 'insertUnits',
+                                                    equip_ids: equipIds,
+                                                    quantities: quantities,
+                                                    reservation_id: parseInt(reservationDetails.reservation_id),
+                                                    start_date: formattedStartDate,
+                                                    end_date: formattedEndDate
+                                                });
+
+                                                if (insertResponse.data?.status !== 'success') {
+                                                    console.error('[ViewRequest] Equipment insertUnits failed:', insertResponse.data);
+                                                    toast.error('Failed to prepare equipment units for rescheduled reservation');
+                                                    return;
+                                                }
+                                                
+                                                console.log('[ViewRequest] Equipment units inserted successfully for reschedule');
+                                                didUpdateSomething = true;
+                                            } catch (error) {
+                                                console.error('[ViewRequest] Error inserting equipment units during reschedule:', error);
+                                                toast.error('Failed to prepare equipment units for rescheduled reservation');
+                                                return;
+                                            }
                                         }
 
                                         // Step 2: Process venue changes with minimal payload per change (no dates)
@@ -2340,7 +2495,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                     }
                                     console.log('[ViewRequest] ===== onReschedule EXIT POINT =====');
                                 }}
-                                reservation={reservationDetails}
+                            
                                 resourceType={
                                     reservationDetails.venues?.length ? 'venue' : (
                                         reservationDetails.vehicles?.length ? 'vehicle' : 'equipment'
@@ -2427,7 +2582,19 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     <div className="flex items-center justify-between">
                         <div className="flex items-center">
                             <BuildOutlined className="mr-2 text-purple-500" />
-                            <span className="font-medium">{text}</span>
+                            <div>
+                                {record.change_venue_name ? (
+                                    // Change request: show old -> new venue name
+                                    <span className="font-medium">
+                                        <span className="text-red-600 line-through">{text}</span>
+                                        <span className="text-gray-500 mx-2">→</span>
+                                        <span className="text-green-600">{record.change_venue_name}</span>
+                                    </span>
+                                ) : (
+                                    // Regular request: show venue name normally
+                                    <span className="font-medium">{text}</span>
+                                )}
+                            </div>
                         </div>
                         <div className="flex flex-col items-end">
                             <Tag color={record.isAvailable ? 'green' : 'red'}>
@@ -2570,7 +2737,19 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                     {type === 'venue' && <BuildOutlined className="resource-icon venue-icon" />}
                     {type === 'vehicle' && <CarOutlined className="resource-icon vehicle-icon" />}
                     {type === 'equipment' && <ToolOutlined className="resource-icon equipment-icon" />}
-                    <span className="resource-name">{resource.venue_name || resource.model || resource.name}</span>
+                    <div className="resource-name">
+                        {type === 'venue' && resource.change_venue_name ? (
+                            // Change request: show old -> new venue name
+                            <span>
+                                <span className="text-red-600 line-through text-sm">{resource.venue_name}</span>
+                                <span className="text-gray-500 mx-1">→</span>
+                                <span className="text-green-600 font-medium">{resource.change_venue_name}</span>
+                            </span>
+                        ) : (
+                            // Regular request: show resource name normally
+                            <span>{resource.venue_name || resource.model || resource.name}</span>
+                        )}
+                    </div>
                 </div>
                 <Tag color={isAvailable ? 'green' : 'red'} className="availability-tag">
                     {isAvailable ? 'Available' : 'Not Available'}
@@ -3053,19 +3232,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                             }
                         })()}
 
-                        {/* Overall Status Summary */}
-                        <div className="pt-3 border-t border-gray-200">
-                            <div className="flex items-center justify-between">
-                                <span className="font-medium text-gray-700">Overall Status:</span>
-                                <Tag color={
-                                    reservationDetails.status_name === 'Approved' ? 'green' :
-                                    reservationDetails.status_name === 'Declined' ? 'red' :
-                                    'blue'
-                                } className="text-sm">
-                                    {reservationDetails.status_name}
-                                </Tag>
-                            </div>
-                        </div>
+                       
                     </div>
                 </div>
             </div>
@@ -3200,20 +3367,49 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                         {/* Priority Status Section */}
                         {(reservationDetails.active === 0 || reservationDetails.active === 1) && (
                             <div className="space-y-4">
-                                <Alert
-                                    message={
-                                        <span className="font-semibold">
-                                            {anyVenueNotAvailable ? "Priority Status: Blocked" : (priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked")}
-                                        </span>
-                                    }
-                                    description={anyVenueNotAvailable ? 'One or more venues are not available due to scheduled classes.' : priorityCheck.message}
-                                    type={anyVenueNotAvailable ? "warning" : (priorityCheck.hasPriority ? "success" : "warning")}
-                                    showIcon
-                                    className="border border-blue-200 shadow-sm"
-                                />
+                                {reservationDetails.status_name !== "Reschedule" && (
+                                    <Alert
+                                        message={
+                                            <span className="font-semibold">
+                                                {anyVenueNotAvailable ? "Priority Status: Blocked" : (priorityCheck.hasPriority ? "Priority Status: Approved" : "Priority Status: Blocked")}
+                                            </span>
+                                        }
+                                        description={anyVenueNotAvailable ? 'One or more venues are not available due to scheduled classes.' : priorityCheck.message}
+                                        type={anyVenueNotAvailable ? "warning" : (priorityCheck.hasPriority ? "success" : "warning")}
+                                        showIcon
+                                        className="border border-blue-200 shadow-sm"
+                                    />
+                                )}
                                 
-                                {/* Existing Reservations - Only show if there are actual resource conflicts */}
-                                {(() => {
+                                {/* Reschedule Status Message - Show when status is Reschedule */}
+                                {reservationDetails.status_name === "Reschedule" && (
+                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+                                        <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2">
+                                            <InfoCircleOutlined className="text-blue-600" />
+                                            Reschedule Proposal
+                                        </h3>
+                                        
+                                        <div className="space-y-3">
+                                            <div className="bg-white p-3 rounded-lg border border-blue-100">
+                                              
+                                                
+                                          
+                                                    <div className="flex items-center gap-2">
+                                                        <Tag color="orange" className="shrink-0">
+                                                            Proposal Pending
+                                                        </Tag>
+                                                        <p className="text-sm text-gray-600">
+                                                            The reschedule proposal for the requester is now pending approval.
+                                                        </p>
+                                                    </div>
+                                              
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Existing Reservations - Only show if there are actual resource conflicts AND status is NOT Reschedule */}
+                                {reservationDetails.status_name !== "Reschedule" && (() => {
                                     const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
                                         reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
                                             String(requestedVenue.venue_id) === String(unavailableVenue.ven_id)

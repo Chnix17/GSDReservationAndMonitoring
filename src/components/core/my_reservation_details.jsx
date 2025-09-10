@@ -154,12 +154,17 @@ const ReservationDetails = ({
     // Helper: Check if both vehicle and equipment are present
     const hasVehicleAndEquipment = reservationDetails.vehicles?.length > 0 && reservationDetails.equipment?.length > 0;
 
-    // Detect pending reschedule from status history or presence of reschedule fields
+    // Detect reschedule confirmed status from status history
     const statusArr = reservationDetails.status_history || reservationDetails.statusHistory || [];
+    const rescheduleConfirmedStatus = statusArr.find(s => {
+        const name = (s.status_name || '').toLowerCase();
+        const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
+        return (name === 'reschedule confirmed' || String(s.status_id) === '14') && activeVal === 1;
+    });
     const pendingRescheduleStatus = statusArr.find(s => {
         const name = (s.status_name || '').toLowerCase();
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
-        return (name.includes('reschedule') || String(s.status_id) === '10') && activeVal === 0;
+        return name.includes('reschedule') && activeVal === 0;
     });
     const venueChanges = Array.isArray(reservationDetails.venues)
         ? reservationDetails.venues.filter(v => (
@@ -176,7 +181,7 @@ const ReservationDetails = ({
         ))
         : [];
     const hasVehicleChange = vehicleChanges.length > 0;
-    const hasRescheduleProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
+    const hasRescheduleProposal = !!pendingRescheduleStatus || (!!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && !rescheduleConfirmedStatus) || (hasVenueChange && !rescheduleConfirmedStatus) || (hasVehicleChange && !rescheduleConfirmedStatus);
 
     // Status-based visibility controls
     const normalizedStatusHistory = Array.isArray(reservationDetails.status_history)
@@ -367,16 +372,20 @@ const ReservationDetails = ({
             
             const venue_changes = currentVenues
                 .map((v, idx) => {
-                    const newId = Array.isArray(newVenueIds) ? newVenueIds[idx] : null;
+                    const newId = Array.isArray(newVenueIds) ? newVenueIds[idx] : undefined;
                     
-                    // Only process if newId is explicitly provided and different from current
-                    if (newId == null || newId === undefined || String(newId) === String(v.venue_id)) return null;
+                    // Skip if newId is undefined (not provided in array)
+                    if (newId === undefined) return null;
+                    
+                    // Process if newId is different from current (including null for removal)
+                    if (String(newId) === String(v.venue_id)) return null;
+                    
                     return {
                         reservation_venue_id: v.reservation_venue_id,
-                        reservation_change_venue_id: Number(newId)
+                        reservation_change_venue_id: newId === null ? null : Number(newId)
                     };
                 })
-                .filter(Boolean);
+                .filter(change => change !== null);
 
             if (venue_changes.length > 0) {
                 const requests = venue_changes.map(change => {
@@ -403,16 +412,20 @@ const ReservationDetails = ({
             
             const vehicle_changes = currentVehicles
                 .map((v, idx) => {
-                    const newId = Array.isArray(newVehicleIds) ? newVehicleIds[idx] : null;
+                    const newId = Array.isArray(newVehicleIds) ? newVehicleIds[idx] : undefined;
                     
-                    // Only process if newId is explicitly provided and different from current
-                    if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
+                    // Skip if newId is undefined (not provided in array)
+                    if (newId === undefined) return null;
+                    
+                    // Process if newId is different from current (including null for removal)
+                    if (String(newId) === String(v.vehicle_id)) return null;
+                    
                     return {
                         reservation_vehicle_id: v.reservation_vehicle_id,
-                        reservation_change_vehicle_id: Number(newId)
+                        reservation_change_vehicle_id: newId === null ? null : Number(newId)
                     };
                 })
-                .filter(Boolean);
+                .filter(change => change !== null);
 
             if (vehicle_changes.length > 0) {
                 const requests = vehicle_changes.map(change => {
@@ -592,7 +605,7 @@ const ReservationDetails = ({
                                             </div>
                                         )}
                                     </div>
-                                    {hasVenueChange && (
+                                    {hasVenueChange && !rescheduleConfirmedStatus && (
                                         <div className="mt-4">
                                             <p className="text-sm text-gray-500">Venue Change</p>
                                             <div className="space-y-2">
@@ -606,7 +619,7 @@ const ReservationDetails = ({
                                             </div>
                                         </div>
                                     )}
-                                    {hasVehicleChange && (
+                                    {hasVehicleChange && !rescheduleConfirmedStatus && (
                                         <div className="mt-4">
                                             <p className="text-sm text-gray-500">Vehicle Change</p>
                                             <div className="space-y-2">
@@ -637,6 +650,59 @@ const ReservationDetails = ({
                                             Decline Reschedule
                                         </Button>
                                     </div>
+                                </div>
+                            )}
+
+                            {/* Reschedule Confirmed Section - Show venue/vehicle changes and reschedule dates */}
+                            {rescheduleConfirmedStatus && (
+                                <div className="bg-green-50 p-6 rounded-lg border border-green-200 shadow-sm mb-6">
+                                    <h3 className="text-lg font-medium text-gray-800 mb-4">Reschedule Confirmed</h3>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                        <div>
+                                            <p className="text-sm text-gray-500">Original Date & Time</p>
+                                            <p className="font-medium">
+                                                {format(new Date(reservationDetails.reservation_start_date), 'MMM dd, yyyy h:mm a')} -
+                                                {format(new Date(reservationDetails.reservation_end_date), 'h:mm a')}
+                                            </p>
+                                        </div>
+                                        {(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && (
+                                            <div>
+                                                <p className="text-sm text-gray-500">New Date & Time</p>
+                                                <p className="font-medium">
+                                                    {reservationDetails.reschedule_start_date ? format(new Date(reservationDetails.reschedule_start_date), 'MMM dd, yyyy h:mm a') : '-'} -
+                                                    {reservationDetails.reschedule_end_date ? format(new Date(reservationDetails.reschedule_end_date), 'h:mm a') : '-'}
+                                                </p>
+                                            </div>
+                                        )}
+                                    </div>
+                                    {hasVenueChange && (
+                                        <div className="mt-4">
+                                            <p className="text-sm text-gray-500">Venue Changes Applied</p>
+                                            <div className="space-y-2">
+                                                {venueChanges.map(vc => (
+                                                    <div key={vc.reservation_venue_id} className="flex items-center gap-2 text-sm">
+                                                        <Tag color="default">{vc.venue_name}</Tag>
+                                                        <span className="text-gray-500">→</span>
+                                                        <Tag color="green">{(vc.change_venue_name && vc.change_venue_name.trim()) || `ID ${vc.change_venue_id}`}</Tag>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                    {hasVehicleChange && (
+                                        <div className="mt-4">
+                                            <p className="text-sm text-gray-500">Vehicle Changes Applied</p>
+                                            <div className="space-y-2">
+                                                {vehicleChanges.map(vc => (
+                                                    <div key={vc.reservation_vehicle_id} className="flex items-center gap-2 text-sm">
+                                                        <Tag color="default">{vc.model} ({vc.license})</Tag>
+                                                        <span className="text-gray-500">→</span>
+                                                        <Tag color="green">{(vc.change_vehicle_model && vc.change_vehicle_model.trim()) || `ID ${vc.change_vehicle_id}`}{vc.change_vehicle_license ? ` (${vc.change_vehicle_license})` : ''}</Tag>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 

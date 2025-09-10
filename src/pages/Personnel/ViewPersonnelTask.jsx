@@ -94,7 +94,7 @@ const ViewPersonnelTask = () => {
 
       if (response.data.status === 'success') {
         const tasksWithFormattedDates = response.data.data
-          .filter(task => task.reservation_status === 'Reserved')
+          .filter(task => task.reservation_status === 'Reserved' || task.reservation_status === 'Reschedule Confirmed')
           .map(task => ({
             ...task,
             formattedStartDate: formatDateTime(getEffectiveStart(task)),

@@ -141,6 +141,8 @@ const ViewReserve = () => {
                         description: reservation.reservation_description,
                         startDate: new Date(reservation.reservation_start_date),
                         endDate: new Date(reservation.reservation_end_date),
+                        rescheduleStartDate: reservation.reschedule_start_date ? new Date(reservation.reschedule_start_date) : null,
+                        rescheduleEndDate: reservation.reschedule_end_date ? new Date(reservation.reschedule_end_date) : null,
                         participants: reservation.reservation_participants,
                         createdAt: formattedCreatedAt,
                         status: reservation.reservation_status_name || reservation.reservation_status || 'pending' // Use the correct status property
@@ -262,7 +264,12 @@ const ViewReserve = () => {
     };
 
     // Compact, readable date range (single line)
-    const formatDateRange = (start, end) => {
+    const formatDateRange = (reservation) => {
+        // Use reschedule dates if status is "Reschedule Confirmed" and reschedule dates exist
+        const isRescheduleConfirmed = reservation.status === 'Reschedule Confirmed';
+        const start = isRescheduleConfirmed && reservation.rescheduleStartDate ? reservation.rescheduleStartDate : reservation.startDate;
+        const end = isRescheduleConfirmed && reservation.rescheduleEndDate ? reservation.rescheduleEndDate : reservation.endDate;
+        
         if (!start || !end) return '-';
         try {
             const sameDay = format(start, 'yyyy-MM-dd') === format(end, 'yyyy-MM-dd');
@@ -393,7 +400,7 @@ const ViewReserve = () => {
                                                                 <span className="truncate block max-w-[200px]">{reservation.title}</span>
                                                             </td>
                                                             <td className="px-4 py-5 whitespace-nowrap">{reservation.createdAt}</td>
-                                                            <td className="px-4 py-5 whitespace-nowrap">{formatDateRange(reservation.startDate, reservation.endDate)}</td>
+                                                            <td className="px-4 py-5 whitespace-nowrap">{formatDateRange(reservation)}</td>
                                                             <td className="px-4 py-5">{reservation.participants || 'Not specified'}</td>
                                                             <td className="px-4 py-5">
                                                                 <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-gray-100 text-gray-700">
@@ -440,7 +447,7 @@ const ViewReserve = () => {
                                                         <div className="min-w-0">
                                                             <div className="text-xs text-gray-500">{r.createdAt}</div>
                                                             <div className="text-base font-semibold text-gray-900 truncate">{r.title}</div>
-                                                            <div className="mt-1 text-xs text-gray-600">{formatDateRange(r.startDate, r.endDate)}</div>
+                                                            <div className="mt-1 text-xs text-gray-600">{formatDateRange(r)}</div>
                                                             {r.participants && (
                                                                 <div className="mt-1 text-xs text-gray-500">Participants: {r.participants}</div>
                                                             )}

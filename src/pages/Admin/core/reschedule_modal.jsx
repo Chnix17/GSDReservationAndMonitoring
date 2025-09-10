@@ -508,7 +508,7 @@ const RescheduleModal = ({
                 const changeVenueId = venueResource.change_venue_id;
                 if (changeVenueId && String(changeVenueId).trim() !== '') {
                   // Check if change_venue_id is available in the fetched venues
-                  const isAvailable = (v1 || []).some(venue => venue.ven_id == changeVenueId);
+                  const isAvailable = (v1 || []).some(venue => venue.ven_id === changeVenueId);
                   if (isAvailable) {
                     venueSelections[index] = String(changeVenueId);
                   }
@@ -528,7 +528,7 @@ const RescheduleModal = ({
                 const changeVehicleId = vehicleResource.change_vehicle_id;
                 if (changeVehicleId && String(changeVehicleId).trim() !== '') {
                   // Check if change_vehicle_id is available in the fetched vehicles
-                  const isAvailable = (v2 || []).some(vehicle => vehicle.vehicle_id == changeVehicleId);
+                  const isAvailable = (v2 || []).some(vehicle => vehicle.vehicle_id === changeVehicleId);
                   if (isAvailable) {
                     vehicleSelections[index] = String(changeVehicleId);
                   }
@@ -621,8 +621,23 @@ const RescheduleModal = ({
       const start = dayjs(values.startDate).hour(dayjs(values.startTime).hour()).minute(0).second(0);
       const end = dayjs(values.endDate).hour(dayjs(values.endTime).hour()).minute(0).second(0);
       
-      const processedVenueIds = Array.isArray(values.venueIds) ? values.venueIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
-      const processedVehicleIds = Array.isArray(values.vehicleIds) ? values.vehicleIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
+      // Process venue IDs - preserve null/undefined for cleared selections
+      const processedVenueIds = Array.isArray(values.venueIds) 
+        ? values.venueIds.map(v => {
+            if (v === null || v === undefined || v === '') return null;
+            const num = Number(v);
+            return Number.isNaN(num) ? null : num;
+          })
+        : [];
+      
+      // Process vehicle IDs - preserve null/undefined for cleared selections  
+      const processedVehicleIds = Array.isArray(values.vehicleIds)
+        ? values.vehicleIds.map(v => {
+            if (v === null || v === undefined || v === '') return null;
+            const num = Number(v);
+            return Number.isNaN(num) ? null : num;
+          })
+        : [];
       
       console.log('[RescheduleModal] Processing form data:', {
         rawVenueIds: values.venueIds,
@@ -657,8 +672,23 @@ const RescheduleModal = ({
       const start = dayjs(values.startDate).hour(dayjs(values.startTime).hour()).minute(0).second(0);
       const end = dayjs(values.endDate).hour(dayjs(values.endTime).hour()).minute(0).second(0);
       
-      const processedVenueIds = Array.isArray(values.venueIds) ? values.venueIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
-      const processedVehicleIds = Array.isArray(values.vehicleIds) ? values.vehicleIds.filter(Boolean).map(v => Number(v)).filter(v => !Number.isNaN(v)) : [];
+      // Process venue IDs - preserve null/undefined for cleared selections
+      const processedVenueIds = Array.isArray(values.venueIds) 
+        ? values.venueIds.map(v => {
+            if (v === null || v === undefined || v === '') return null;
+            const num = Number(v);
+            return Number.isNaN(num) ? null : num;
+          })
+        : [];
+      
+      // Process vehicle IDs - preserve null/undefined for cleared selections  
+      const processedVehicleIds = Array.isArray(values.vehicleIds)
+        ? values.vehicleIds.map(v => {
+            if (v === null || v === undefined || v === '') return null;
+            const num = Number(v);
+            return Number.isNaN(num) ? null : num;
+          })
+        : [];
       
       const requestAgainData = {
         ...values,

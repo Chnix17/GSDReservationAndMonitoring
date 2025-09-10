@@ -290,7 +290,11 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             startDate: res.reservation_start_date,
             endDate: res.reservation_end_date,
             status: res.reservation_status_status_id,
-            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === 8 || res.reservation_status_status_id === 10 || res.reservation_status_status_id === 14,
+            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === '6' || 
+                       res.reservation_status_status_id === 8 || res.reservation_status_status_id === '8' || 
+                       res.reservation_status_status_id === 10 || res.reservation_status_status_id === '10' || 
+                       res.reservation_status_status_id === 11 || res.reservation_status_status_id === '11' || 
+                       res.reservation_status_status_id === 14 || res.reservation_status_status_id === '14',
             // User ownership info - try different possible field names
             reservation_user_id: res.reservation_user_id || res.user_id || res.res_user_id,
             user_level_name: res.user_level_name || res.level_name || res.user_level,
