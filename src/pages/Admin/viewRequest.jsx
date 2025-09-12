@@ -323,6 +323,38 @@ const ReservationRequests = () => {
     useEffect(() => {
         fetchReservations();
     }, [fetchReservations]);
+
+    // Listen for push notification refresh messages from service worker
+    useEffect(() => {
+        const handleServiceWorkerMessage = (event) => {
+            console.log('[ViewRequest] Received message from service worker:', event.data);
+            
+            if (event.data && event.data.type === 'REFRESH_DATA') {
+                console.log('[ViewRequest] Refreshing reservation data due to push notification');
+                
+                // Show a toast notification about the refresh
+                toast.info('New reservation request received. Refreshing data...', {
+                    icon: '🔄',
+                    duration: 2000,
+                });
+                
+                // Refresh the reservations data
+                fetchReservations();
+            }
+        };
+
+        // Add event listener for service worker messages
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+        }
+
+        // Cleanup function
+        return () => {
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+            }
+        };
+    }, [fetchReservations]);
     
     const handlePriorityCheck = async (reservationId) => {
         try {

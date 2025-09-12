@@ -147,6 +147,78 @@ const Dashboard = () => {
     fetchReservations();
   }, []);
 
+  // Listen for push notification refresh messages from service worker
+  useEffect(() => {
+    const handleServiceWorkerMessage = (event) => {
+      console.log('[UserDashboard] Received message from service worker:', event.data);
+      
+      if (event.data && event.data.type === 'REFRESH_DATA') {
+        console.log('[UserDashboard] Refreshing reservation data due to push notification');
+        
+        // Show a toast notification about the refresh
+        toast.info('New update received. Refreshing data...', {
+          autoClose: 2000,
+        });
+        
+        // Refresh the reservations data
+        const fetchReservations = async () => {
+          try {
+            const userId = SecureStorage.getSessionItem('user_id');
+            const baseUrl = SecureStorage.getLocalItem("url");
+            
+            const response = await fetch(`${baseUrl}/faculty&staff.php`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                operation: 'fetchMyReservation',
+                userId: userId
+              })
+            });
+
+            const result = await response.json();
+            
+            if (result.status === 'success' && result.data) {
+              const reservations = result.data;
+              
+              // Separate active and completed reservations
+              const active = reservations.filter(reservation => 
+                reservation.reservation_status === 'Approved' || 
+                reservation.reservation_status === 'Pending' ||
+                reservation.reservation_status === 'Change Request'
+              );
+              
+              const completed = reservations.filter(reservation => 
+                reservation.reservation_status === 'Completed' || 
+                reservation.reservation_status === 'Declined'
+              );
+              
+              setActiveReservations(active);
+              setCompletedReservations(completed);
+            }
+          } catch (error) {
+            console.error('Error refreshing reservations:', error);
+          }
+        };
+        
+        fetchReservations();
+      }
+    };
+
+    // Add event listener for service worker messages
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleServiceWorkerMessage);
+    }
+
+    // Cleanup function
+    return () => {
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleServiceWorkerMessage);
+      }
+    };
+  }, []);
+
   const handleViewReservation = async (reservation) => {
     try {
       const baseUrl = SecureStorage.getLocalItem("url");

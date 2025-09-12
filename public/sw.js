@@ -70,6 +70,25 @@ self.addEventListener('push', function(event) {
 
     console.log('[Service Worker] Showing notification:', notificationData);
 
+    // Notify all clients to refresh data
+    const refreshPromise = clients.matchAll({
+        type: 'window',
+        includeUncontrolled: true
+    }).then(function(clientList) {
+        console.log('[Service Worker] Notifying clients to refresh data, found clients:', clientList.length);
+        
+        clientList.forEach(function(client) {
+            console.log('[Service Worker] Sending refresh message to client:', client.url);
+            client.postMessage({
+                type: 'REFRESH_DATA',
+                data: {
+                    notificationData: notificationData,
+                    timestamp: Date.now()
+                }
+            });
+        });
+    });
+
     // Show the notification
     const notificationPromise = self.registration.showNotification(
         notificationData.title,
@@ -84,7 +103,7 @@ self.addEventListener('push', function(event) {
         }
     );
 
-    event.waitUntil(notificationPromise);
+    event.waitUntil(Promise.all([notificationPromise, refreshPromise]));
 });
 
 // Notification click handler
