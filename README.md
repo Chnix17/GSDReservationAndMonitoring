@@ -99,6 +99,7 @@ The system was deployed and tested at **PHINMA Cagayan de Oro College**, ensurin
 |---------------------------|--------------------------|
 | **Christian Mark S. Valle** | 🧠 Lead Developer / Full Stack Developer |
 | **Melanie L. Abalde**       | 💻 React.js Developer                 |
+| **Josh Ydrianne Pagapong    | 💻Backup-Developer
 
 ---
 

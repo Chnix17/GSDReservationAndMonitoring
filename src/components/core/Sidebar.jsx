@@ -327,7 +327,7 @@ const Sidebar = () => {
       // Subscribe to push manager with new VAPID key
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array('BCQgi5_F-qDBf7bwj6bsAQiznTart85ZrkxHeQQbEimoUU-DfNLEqtHCSA-TkV3j0piD0IvvhCKJhToNJQzRN9k')
+        applicationServerKey: urlBase64ToUint8Array('BBCHDpLuOIsXy3cOBIpaNPEs5SMLDDlqeyEsbVHaZbVVRccII2zkSkt4vm3AcZp8kKZkhXFBTXLcTZEaJaBTuVo')
       });
 
       // Send subscription to server

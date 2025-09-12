@@ -212,7 +212,7 @@ const ReservationRequests = () => {
                         ? details.reschedule_end_date 
                         : details.reservation_end_date;
 
-                    const availabilityResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+                    const availabilityResponse = await axios.post(`${encryptedUrl}/user.php`, {
                         operation: 'doubleCheckAvailability',
                         start_datetime: startDateTime,
                         end_datetime: endDateTime,
@@ -335,7 +335,7 @@ const ReservationRequests = () => {
                 ? reservationDetails.reschedule_end_date 
                 : reservationDetails.reservation_end_date;
 
-            const checkResponse = await axios.post(`${encryptedUrl}/process_reservation.php`, {
+            const checkResponse = await axios.post(`${encryptedUrl}/user.php`, {
                 operation: 'doubleCheckAvailability',
                 start_datetime: startDateTime,
                 end_datetime: endDateTime,
