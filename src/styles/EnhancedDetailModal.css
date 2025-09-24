@@ -797,27 +797,320 @@
   font-weight: 600;
 }
 
-/* Dark mode support */
+/* Consistent green color palette matching adminDashboard */
+.enhanced-detail-modal .ant-modal-content {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ffffff 100%) !important;
+  color: #111827 !important;
+}
+
+.enhanced-detail-modal .resource-card {
+  background: #ffffff !important;
+  border: 2px solid #bbf7d0 !important;
+  color: #111827 !important;
+}
+
+.enhanced-detail-modal .sticky-action-header {
+  background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+  border-color: #10b981 !important;
+  color: #ffffff !important;
+}
+
+.enhanced-detail-modal .bg-white.rounded-lg {
+  background: #ffffff !important;
+  border: 1px solid #bbf7d0 !important;
+  color: #111827 !important;
+}
+
+/* Black text colors for better readability */
+.enhanced-detail-modal .text-gray-900,
+.enhanced-detail-modal .font-medium.text-gray-900 {
+  color: #111827 !important;
+}
+
+.enhanced-detail-modal .text-gray-500,
+.enhanced-detail-modal .text-sm.text-gray-500 {
+  color: #6b7280 !important;
+}
+
+.enhanced-detail-modal .text-gray-600 {
+  color: #4b5563 !important;
+}
+
+.enhanced-detail-modal .text-gray-700 {
+  color: #374151 !important;
+}
+
+.enhanced-detail-modal .text-gray-800 {
+  color: #1f2937 !important;
+}
+
+/* Light green background sections */
+.enhanced-detail-modal .bg-gray-50 {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+}
+
+.enhanced-detail-modal .bg-gray-100 {
+  background: linear-gradient(135deg, #dcfce7 0%, #f0fdf4 100%) !important;
+}
+
+.enhanced-detail-modal .bg-white {
+  background-color: #ffffff !important;
+}
+
+/* Green-themed table styling with black text */
+.enhanced-detail-modal .ant-table {
+  background: #ffffff !important;
+  border: 1px solid #bbf7d0 !important;
+}
+
+.enhanced-detail-modal .ant-table-thead > tr > th {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+  color: #111827 !important;
+  border-bottom-color: #10b981 !important;
+  font-weight: 600 !important;
+}
+
+.enhanced-detail-modal .ant-table-tbody > tr > td {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border-bottom-color: #bbf7d0 !important;
+}
+
+.enhanced-detail-modal .ant-table-tbody > tr:hover > td {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+}
+
+/* Alert components with black text */
+.enhanced-detail-modal .ant-alert-message {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}
+
+.enhanced-detail-modal .ant-alert-description {
+  color: #374151 !important;
+}
+
+/* Consistent button styling for modal footer */
+
+/* Approve button - Blue primary */
+.enhanced-detail-modal .ant-btn-primary,
+.enhanced-detail-modal .ant-btn[key="accept"] {
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 4px rgba(59, 130, 246, 0.2) !important;
+}
+
+.enhanced-detail-modal .ant-btn-primary:hover,
+.enhanced-detail-modal .ant-btn[key="accept"]:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3) !important;
+}
+
+/* Decline button - Red danger */
+.enhanced-detail-modal .ant-btn-danger,
+.enhanced-detail-modal .ant-btn[key="decline"] {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.2) !important;
+}
+
+.enhanced-detail-modal .ant-btn-danger:hover,
+.enhanced-detail-modal .ant-btn[key="decline"]:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3) !important;
+}
+
+/* Reschedule button - Orange/Yellow */
+.enhanced-detail-modal .ant-btn[key="reschedule"] {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%) !important;
+  border: none !important;
+  color: #ffffff !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2) !important;
+}
+
+.enhanced-detail-modal .ant-btn[key="reschedule"]:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%) !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3) !important;
+}
+
+/* Default buttons - Green theme */
+.enhanced-detail-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-danger):not([class*="reschedule" i]) {
+  background: linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%) !important;
+  border: 2px solid #10b981 !important;
+  color: #111827 !important;
+  font-weight: 500 !important;
+}
+
+.enhanced-detail-modal .ant-btn:not(.ant-btn-primary):not(.ant-btn-danger):not([class*="reschedule" i]):hover {
+  background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%) !important;
+  border-color: #059669 !important;
+  color: #111827 !important;
+  transform: translateY(-1px) !important;
+}
+
+/* Form elements with black text */
+.enhanced-detail-modal .ant-input {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 2px solid #bbf7d0 !important;
+}
+
+.enhanced-detail-modal .ant-input:focus {
+  border-color: #10b981 !important;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1) !important;
+}
+
+.enhanced-detail-modal .ant-select-selector {
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 2px solid #bbf7d0 !important;
+}
+
+.enhanced-detail-modal .ant-radio-wrapper {
+  color: #111827 !important;
+}
+
+/* Green-themed modal footer */
+.enhanced-detail-modal .ant-modal-footer {
+  background: linear-gradient(135deg, #f0fdf4 0%, #ecfdf5 100%) !important;
+  border-top: 2px solid #10b981 !important;
+}
+
+/* Black headings for readability */
+.enhanced-detail-modal h1,
+.enhanced-detail-modal h2,
+.enhanced-detail-modal h3,
+.enhanced-detail-modal h4,
+.enhanced-detail-modal h5,
+.enhanced-detail-modal h6 {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}
+
+/* Black text elements */
+.enhanced-detail-modal p {
+  color: #111827 !important;
+}
+
+.enhanced-detail-modal span:not(.ant-tag):not(.ant-btn span) {
+  color: #374151 !important;
+}
+
+/* Black labels */
+.enhanced-detail-modal label,
+.enhanced-detail-modal .ant-form-item-label > label {
+  color: #111827 !important;
+  font-weight: 500 !important;
+}
+
+/* Status indicators and tags with specific colors */
+.enhanced-detail-modal .ant-tag {
+  font-weight: 600 !important;
+  border-radius: 6px !important;
+  padding: 4px 12px !important;
+  border: none !important;
+}
+
+/* Approved status - Green */
+.enhanced-detail-modal .ant-tag:contains("Approved"),
+.enhanced-detail-modal [class*="approved" i],
+.enhanced-detail-modal [title*="approved" i] {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+  color: #14532d !important;
+  border: 1px solid #22c55e !important;
+}
+
+/* Pending status - Orange/Yellow */
+.enhanced-detail-modal .ant-tag:contains("Pending"),
+.enhanced-detail-modal [class*="pending" i],
+.enhanced-detail-modal [title*="pending" i] {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%) !important;
+  color: #92400e !important;
+  border: 1px solid #f59e0b !important;
+}
+
+/* Declined/Rejected status - Red */
+.enhanced-detail-modal .ant-tag:contains("Declined"),
+.enhanced-detail-modal .ant-tag:contains("Rejected"),
+.enhanced-detail-modal [class*="declined" i],
+.enhanced-detail-modal [class*="rejected" i] {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  color: #991b1b !important;
+  border: 1px solid #ef4444 !important;
+}
+
+/* Not Available status - Gray */
+.enhanced-detail-modal .ant-tag:contains("Not Available"),
+.enhanced-detail-modal [class*="unavailable" i] {
+  background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%) !important;
+  color: #374151 !important;
+  border: 1px solid #6b7280 !important;
+}
+
+/* High Priority - Red */
+.enhanced-detail-modal .ant-tag:contains("High"),
+.enhanced-detail-modal [class*="high" i] {
+  background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%) !important;
+  color: #991b1b !important;
+  border: 1px solid #ef4444 !important;
+}
+
+/* Medium Priority - Orange */
+.enhanced-detail-modal .ant-tag:contains("Medium"),
+.enhanced-detail-modal [class*="medium" i] {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%) !important;
+  color: #9a3412 !important;
+  border: 1px solid #ea580c !important;
+}
+
+/* Low Priority - Blue */
+.enhanced-detail-modal .ant-tag:contains("Low"),
+.enhanced-detail-modal [class*="low" i] {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%) !important;
+  color: #1e40af !important;
+  border: 1px solid #3b82f6 !important;
+}
+
+/* Admin Approved - Green with checkmark */
+.enhanced-detail-modal .ant-tag:contains("Admin Approved") {
+  background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%) !important;
+  color: #14532d !important;
+  border: 1px solid #22c55e !important;
+}
+
+/* Status text elements */
+.enhanced-detail-modal span:contains("Approved") {
+  color: #16a34a !important;
+  font-weight: 600 !important;
+}
+
+.enhanced-detail-modal span:contains("Pending") {
+  color: #d97706 !important;
+  font-weight: 600 !important;
+}
+
+.enhanced-detail-modal span:contains("Declined"),
+.enhanced-detail-modal span:contains("Rejected") {
+  color: #dc2626 !important;
+  font-weight: 600 !important;
+}
+
+.enhanced-detail-modal span:contains("Not Available") {
+  color: #6b7280 !important;
+  font-weight: 600 !important;
+}
+
+/* Dark mode support - DISABLED to force light mode */
 @media (prefers-color-scheme: dark) {
-  .enhanced-detail-modal .ant-modal-content {
-    background: #1f2937;
-    color: #f9fafb;
-  }
-  
-  .resource-card {
-    background: #374151;
-    border-color: #4b5563;
-  }
-  
-  .sticky-action-header {
-    background: #1f2937;
-    border-color: #4b5563;
-  }
-  
-  .enhanced-detail-modal .bg-white.rounded-lg {
-    background: #374151;
-    border-color: #4b5563;
-  }
+  /* All dark mode styles are overridden above with !important */
 }
 
 /* High contrast mode */

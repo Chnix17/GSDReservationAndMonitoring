@@ -11,6 +11,7 @@ import {
     DownOutlined,
     RightOutlined,
     ScheduleOutlined,
+    RedoOutlined,
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
@@ -19,6 +20,7 @@ import { generateGatePassPdf } from '../../components/Reservation/Gate_Pass';
 import GatePass from '../../components/Reservation/Gate_Pass';
 import RescheduleModal from '../../pages/Admin/core/reschedule_modal';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 
 const { TabPane } = Tabs;
 
@@ -32,6 +34,7 @@ const ReservationDetails = ({
     checkResourceAvailability = () => true,
     onRefresh
 }) => {
+    const navigate = useNavigate();
     const [showCancelModal, setShowCancelModal] = useState(false);
     const baseUrl = SecureStorage.getLocalItem("url");
     const gatePassRef = React.useRef(); // Ref for hidden GatePass
@@ -40,6 +43,7 @@ const ReservationDetails = ({
     const [isProcessingReschedule, setIsProcessingReschedule] = useState(false);
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [rescheduleResources, setRescheduleResources] = useState(null);
+    const [isRequestNewReschedule, setIsRequestNewReschedule] = useState(false);
 
     useEffect(() => {
         console.log("ReservationDetails mounted with props:", {
@@ -69,7 +73,7 @@ const ReservationDetails = ({
 
             setIsLoadingDeans(true);
             try {
-                const response = await axios.post(`${baseUrl}user.php`, {
+                const response = await axios.post(`${baseUrl}Admin.php`, {
                     operation: 'fetchDeansApproval',
                     reservation_id: reservationDetails.reservation_id
                 });
@@ -182,6 +186,8 @@ const ReservationDetails = ({
         : [];
     const hasVehicleChange = vehicleChanges.length > 0;
     const hasRescheduleProposal = !!pendingRescheduleStatus || (!!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && !rescheduleConfirmedStatus) || (hasVenueChange && !rescheduleConfirmedStatus) || (hasVehicleChange && !rescheduleConfirmedStatus);
+    // New: proposal exists regardless of card visibility – used to force-enable actions
+    const hasAnyProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
 
     // Status-based visibility controls
     const normalizedStatusHistory = Array.isArray(reservationDetails.status_history)
@@ -225,9 +231,20 @@ const ReservationDetails = ({
     const endDate = endDateStr ? new Date(endDateStr) : null;
     const now = new Date();
     const isDuringReservationWindow = (startDate && endDate) ? (now >= startDate && now < endDate) : false;
+    const isPastEndDate = (endDate) ? (now > endDate) : false;
     const isActiveRecord = String(reservationDetails.active) === "1";
-    // Final disable logic for Cancel button
-    const disableCancel = (!isActiveRecord) || showReschedulePendingCard || isDuringReservationWindow;
+    
+    // Final disable logic for Cancel and Reschedule buttons
+    // Approach: If there is any kind of proposal (pending status, proposed dates, or resource changes),
+    // force-enable both actions as long as we're not in the active time window or past end date.
+    const allowNewActionsWithProposal = hasAnyProposal && !isDuringReservationWindow && !isPastEndDate;
+    const baseDisableCancel = (!isActiveRecord) || isDuringReservationWindow;
+    const baseDisableReschedule = (!isActiveRecord) || isDuringReservationWindow;
+    const effectiveDisableCancel = allowNewActionsWithProposal ? false : baseDisableCancel;
+    const effectiveDisableReschedule = allowNewActionsWithProposal ? false : baseDisableReschedule;
+    
+    // Hide buttons completely if reservation is past end date
+    const hideButtons = isPastEndDate;
 
     const handleRespondReschedule = async (isAccept) => {
         try {
@@ -467,6 +484,62 @@ const ReservationDetails = ({
         }
     };
 
+    const handleRequestAgainClick = () => {
+        try {
+            // Extract reservation data for re-request
+            const requestAgainData = {
+                reservation_title: reservationDetails.reservation_title,
+                reservation_description: reservationDetails.reservation_description,
+                participants: reservationDetails.participants || '',
+                purpose: reservationDetails.purpose || '',
+                destination: reservationDetails.destination || '',
+                venue_id: reservationDetails.venues?.length > 0 ? reservationDetails.venues.map(v => v.venue_id) : null,
+                vehicle_id: reservationDetails.vehicles?.length > 0 ? reservationDetails.vehicles.map(v => v.vehicle_id) : null,
+                equipment_id: reservationDetails.equipment?.length > 0 ? reservationDetails.equipment.map(e => e.equipment_id) : null,
+                quantity: reservationDetails.equipment?.length > 0 ? reservationDetails.equipment.map(e => e.quantity) : null,
+            };
+
+            // Determine reservation type (priority: venue > vehicle > equipment)
+            let type = '';
+            if (Array.isArray(requestAgainData.venue_id) && requestAgainData.venue_id.length > 0) {
+                type = 'venue';
+            } else if (Array.isArray(requestAgainData.vehicle_id) && requestAgainData.vehicle_id.length > 0) {
+                type = 'vehicle';
+            } else if (Array.isArray(requestAgainData.equipment_id) && requestAgainData.equipment_id.length > 0) {
+                type = 'equipment';
+            }
+
+            // Determine navigation path based on user role
+            const userLevelId = SecureStorage.getSessionItem('user_level_id') || SecureStorage.getLocalItem('user_level_id');
+            const userLevel = parseInt(userLevelId);
+            
+            let navigationPath = '';
+            // Faculty users (level 3, 15, 18)
+            if (userLevel === 3 || userLevel === 15 ) {
+                navigationPath = '/Faculty/addReservation';
+            }
+            // Department users (level 5, 6, 16, 17)
+            else if (userLevel === 5 || userLevel === 6 || userLevel === 16 || userLevel === 17 || userLevel === 18) {
+                navigationPath = '/Department/addReservation';
+            }
+           
+            // Navigate to AddReservation with the data
+            navigate(navigationPath, { 
+                state: { 
+                    requestAgainData,
+                    type,
+                    skipToDateSelection: true
+                } 
+            });
+
+            // Close the modal
+            onClose();
+        } catch (error) {
+            console.error('Error preparing request again data:', error);
+            toast.error('Failed to prepare request again data');
+        }
+    };
+
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
     return (
@@ -479,23 +552,41 @@ const ReservationDetails = ({
                     <Button key="close" onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
                         Close
                     </Button>,
-                    (!isCancelled && !isCompleted) && (
+                    isCompleted && (
+                        <Button
+                            key="request-again"
+                            onClick={handleRequestAgainClick}
+                            icon={<RedoOutlined />}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg ml-2 hover:bg-green-700"
+                        >
+                            Request Again
+                        </Button>
+                    ),
+                    (!isCancelled && !isCompleted && !hideButtons) && (
                         <Button
                             key="request-reschedule"
-                            onClick={handleRequestReschedule}
+                            onClick={() => {
+                                setIsRequestNewReschedule(showReschedulePendingCard);
+                                handleRequestReschedule();
+                            }}
+                            disabled={effectiveDisableReschedule}
                             icon={<ScheduleOutlined />}
-                            className="px-4 py-2 bg-blue-600 text-white rounded-lg ml-2 hover:bg-blue-700"
+                            className={`px-4 py-2 rounded-lg ml-2 ${
+                                effectiveDisableReschedule
+                                    ? 'bg-blue-300 text-white cursor-not-allowed'
+                                    : 'bg-blue-600 text-white hover:bg-blue-700'
+                            }`}
                         >
                             {showReschedulePendingCard ? 'Request New Reschedule' : 'Request Reschedule'}
                         </Button>
                     ),
-                    (!isCancelled && !isCompleted) && (
+                    (!isCancelled && !isCompleted && !hideButtons) && (
                         <Button
                             key="cancel"
                             onClick={() => setShowCancelModal(true)}
-                            disabled={disableCancel}
+                            disabled={effectiveDisableCancel}
                             className={`px-4 py-2 text-white rounded-lg ml-2 ${
-                                disableCancel
+                                effectiveDisableCancel
                                     ? 'bg-red-300 cursor-not-allowed'
                                     : 'bg-red-600 hover:bg-red-700'
                             }`}
@@ -1290,13 +1381,18 @@ const ReservationDetails = ({
             {/* Reschedule Modal */}
             <RescheduleModal
                 visible={isRescheduleModalOpen}
-                onCancel={() => setIsRescheduleModalOpen(false)}
+                onCancel={() => {
+                    setIsRescheduleModalOpen(false);
+                    setIsRequestNewReschedule(false);
+                }}
                 onReschedule={handleRescheduleSubmit}
                 onRequestAgain={handleRequestAgain}
                 reservation={reservationDetails}
                 resources={rescheduleResources}
                 originalStart={reservationDetails?.reservation_start_date}
                 originalEnd={reservationDetails?.reservation_end_date}
+                showRequestAgainButton={isRequestNewReschedule}
+                hideRescheduleButton={isRequestNewReschedule}
             />
         </>
     );

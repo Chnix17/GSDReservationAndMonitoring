@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, Transition } from '@headlessui/react';
 import { SecureStorage } from '../../utils/encryption';
 import ProfileAdminModal from './profile_admin';
+import { getApiBaseUrl } from '../../utils/apiConfig';
 
 const SidebarContext = createContext();
 
@@ -30,6 +31,16 @@ const Sidebar = () => {
     permission: 'default'
   });
   const [isSubscribing, setIsSubscribing] = useState(false);
+
+  // Compute correct base path for public assets (works under /gsd-reservation or other subpaths)
+  const assetBasePath = (() => {
+    try {
+      const apiBase = getApiBaseUrl();
+      return new URL(apiBase).pathname.replace(/\/api\/?$/, '');
+    } catch (e) {
+      return '';
+    }
+  })();
 
   const name = SecureStorage.getLocalItem('name') || 'Admin User';
   const userLevelName = SecureStorage.getSessionItem('user_level') || SecureStorage.getLocalItem('user_level');
@@ -79,7 +90,7 @@ const Sidebar = () => {
     // Log the logout to backend (best-effort)
     try {
       if (baseUrl && usersId) {
-        await fetch(`${baseUrl}/user.php`, {
+        await fetch(`${baseUrl}/login.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -100,7 +111,7 @@ const Sidebar = () => {
       if (url) localStorage.setItem('url', url);
       
       // Navigate to login
-      navigate('/gsd');
+      navigate('/');
       window.location.reload();
     }
   };
@@ -126,66 +137,21 @@ const Sidebar = () => {
       });
       const data = await response.json();
 
-      // Fetch approval notifications
-      const approvalResponse = await fetch(`${baseUrl}/user.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchApprovalNotification',
-          department_id: SecureStorage.getSessionItem('department_id'),
-          user_level_id: SecureStorage.getSessionItem('user_level_id')
-        })
-      });
-      const approvalData = await approvalResponse.json();
-
-      // Fetch read notifications for current user
-      const readResponse = await fetch(`${baseUrl}/user.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          operation: 'fetchReadApprovalNotification'
-        })
-      });
-      const readData = await readResponse.json();
-
-      // Create a map of read approval notification IDs for the current user
-      const readNotificationMap = new Map();
-      if (readData.status === 'success') {
-        readData.data.forEach(read => {
-          if (read.user_id === currentUserId && read.is_read === 1) {
-            readNotificationMap.set(read.notification_id, true);
-          }
+      // Set notifications from regular notifications only
+      let notifications = [];
+      
+      if (data.status === 'success') {
+        notifications = [...data.data];
+        
+        // Sort notifications by creation date
+        notifications.sort((a, b) => {
+          const dateA = new Date(a.notification_created_at || a.notification_create);
+          const dateB = new Date(b.notification_created_at || b.notification_create);
+          return dateB - dateA;
         });
       }
       
-      // Combine both notification types
-      let combinedNotifications = [];
-      
-      if (data.status === 'success') {
-        combinedNotifications = [...data.data];
-      }
-      
-      if (approvalData.status === 'success') {
-        // Process approval notifications and set read status
-        const processedApprovalNotifications = approvalData.data.map(notification => ({
-          ...notification,
-          is_read: readNotificationMap.has(notification.notification_id) ? 1 : 0
-        }));
-        combinedNotifications = [...combinedNotifications, ...processedApprovalNotifications];
-      }
-      
-      // Sort notifications by creation date
-      combinedNotifications.sort((a, b) => {
-        const dateA = new Date(a.notification_created_at || a.notification_create);
-        const dateB = new Date(b.notification_created_at || b.notification_create);
-        return dateB - dateA;
-      });
-      
-      setNotifications(combinedNotifications);
+      setNotifications(notifications);
       
     } catch (error) {
       console.error('Error fetching notifications:', error);
@@ -198,15 +164,12 @@ const Sidebar = () => {
       const baseUrl = SecureStorage.getLocalItem("url");
       const currentUserId = SecureStorage.getSessionItem('user_id');
 
-      // Separate regular and approval notifications
+      // Get regular notification IDs
       const regularNotificationIds = [];
-      const approvalNotificationIds = [];
 
       notifications.forEach(notification => {
         if (notification.notification_reservation_id) {
           regularNotificationIds.push(notification.notification_reservation_id);
-        } else if (notification.notification_id) {
-          approvalNotificationIds.push(notification.notification_id);
         }
       });
 
@@ -224,22 +187,6 @@ const Sidebar = () => {
           })
         });
         await response.json();
-      }
-
-      // Update approval notifications if any exist
-      if (approvalNotificationIds.length > 0) {
-        const approvalResponse = await fetch(`${baseUrl}/process_reservation.php`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            operation: 'updateReadApprovalNotification',
-            notification_ids: approvalNotificationIds,
-            user_id: currentUserId
-          })
-        });
-        await approvalResponse.json();
       }
 
       // Refresh notifications after marking as read
@@ -261,7 +208,7 @@ const Sidebar = () => {
     try {
       const userId = SecureStorage.getSessionItem('user_id');
       const baseUrl = SecureStorage.getLocalItem('url');
-      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+      const response = await fetch(`${baseUrl}/server/save-push-subscription.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -327,14 +274,76 @@ const Sidebar = () => {
       // Subscribe to push manager with new VAPID key
       const subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: urlBase64ToUint8Array('BBCHDpLuOIsXy3cOBIpaNPEs5SMLDDlqeyEsbVHaZbVVRccII2zkSkt4vm3AcZp8kKZkhXFBTXLcTZEaJaBTuVo')
+        applicationServerKey: urlBase64ToUint8Array('BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8')
       });
 
-      // Send subscription to server
+      // Get device information
+      const detectDeviceInfo = () => {
+        const userAgent = navigator.userAgent;
+        
+        // Detect device type
+        const deviceType = (() => {
+          if (/Mobile|Android|iPhone|iPod/i.test(userAgent)) {
+            return 'Mobile';
+          } else if (/Tablet|iPad/i.test(userAgent)) {
+            return 'Tablet';
+          } else {
+            return 'Desktop';
+          }
+        })();
+        
+        // Detect operating system
+        const deviceOS = (() => {
+          if (/Windows NT/i.test(userAgent)) {
+            return 'Windows';
+          } else if (/Mac OS X|Macintosh/i.test(userAgent)) {
+            return 'macOS';
+          } else if (/Linux/i.test(userAgent)) {
+            return 'Linux';
+          } else if (/Android/i.test(userAgent)) {
+            return 'Android';
+          } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+            return 'iOS';
+          } else {
+            return 'Unknown';
+          }
+        })();
+        
+        // Detect browser
+        const browser = (() => {
+          if (/Edg/i.test(userAgent)) {
+            return 'Microsoft Edge';
+          } else if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) {
+            return 'Google Chrome';
+          } else if (/Firefox/i.test(userAgent)) {
+            return 'Mozilla Firefox';
+          } else if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) {
+            return 'Safari';
+          } else if (/Opera|OPR/i.test(userAgent)) {
+            return 'Opera';
+          } else if (/Trident|MSIE/i.test(userAgent)) {
+            return 'Internet Explorer';
+          } else {
+            return 'Unknown';
+          }
+        })();
+        
+        return {
+          device_type: deviceType,
+          device_os: deviceOS,
+          browser: browser,
+          user_agent: userAgent
+        };
+      };
+
+      // Send subscription to server with device information
       const userId = SecureStorage.getSessionItem('user_id');
       const baseUrl = SecureStorage.getLocalItem("url");
+      const deviceInfo = detectDeviceInfo();
       
-      const response = await fetch(`${baseUrl}/save-push-subscription.php`, {
+      console.log('Device info detected in Sidebar:', deviceInfo);
+      
+      const response = await fetch(`${baseUrl}/server/save-push-subscription.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -348,7 +357,8 @@ const Sidebar = () => {
               p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
               auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
             }
-          }
+          },
+          device_info: deviceInfo
         })
       });
 
@@ -437,7 +447,7 @@ const Sidebar = () => {
                   ) : (
                     notifications.map((notification) => (
                       <div 
-                        key={notification.notification_reservation_id || notification.notification_id}
+                        key={notification.notification_reservation_id}
                         className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
                           notification.is_read === 0 ? 'bg-green-50 dark:bg-green-900/20' : ''
                         }`}
@@ -525,17 +535,17 @@ const Sidebar = () => {
     admin: [], // use existing static admin menu below
     user: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Faculty/Dashboard' },
-      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/Faculty/Chat' },
       { type: 'section', text: 'Reservation' },
-      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/addReservation' },
-      { type: 'link', icon: FaFileAlt, text: 'My Reservations', link: '/MyReservations' },
+      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/Faculty/addReservation' },
+      { type: 'link', icon: FaFileAlt, text: 'My Reservations', link: '/Faculty/MyReservations' },
     ],
     department: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Department/Dashboard' },
-      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/Department/Chat' },
       { type: 'section', text: 'Reservation Management' },
-      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/addReservation' },
-      { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/MyReservations' },
+      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/Department/addReservation' },
+      { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/Department/MyReservations' },
       { type: 'link', icon: FaFileAlt, text: 'View Approvals', link: '/Department/ViewApproval' },
       ...(((departmentName || '').trim().toUpperCase() === 'REGISTRAR' && (userLevelName || '').trim().toUpperCase() === 'DEPARTMENT HEAD')
         ? [{ type: 'section', text: 'Venue Management' }, { type: 'link', icon: FaCalendarAlt, text: 'Venue Schedule', link: '/Department/VenueSchedule' }]
@@ -543,12 +553,12 @@ const Sidebar = () => {
     ],
     personnel: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Personnel/Dashboard' },
-      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/Personnel/Chat' },
       { type: 'link', icon: FaFileAlt, text: 'View Task', link: '/Personnel/ViewTask' },
     ],
     driver: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Driver/Dashboard' },
-      { type: 'link', icon: FaComments, text: 'Chat', link: '/chat' },
+      { type: 'link', icon: FaComments, text: 'Chat', link: '/Driver/Chat' },
       { type: 'link', icon: FaFileAlt, text: 'Trips', link: '/Driver/Trips' },
     ]
   };
@@ -654,7 +664,7 @@ const Sidebar = () => {
               <FaBars size={20} />
             </button>
                           <div className="flex items-center">
-              <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
+              <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
               <span className="ml-2 font-bold text-black dark:text-white">GSD Portal</span>
             </div>
           </div>
@@ -741,7 +751,7 @@ const Sidebar = () => {
               {isDesktopSidebarOpen ? (
                 <>
                   <div className="flex items-center space-x-2">
-                    <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
+                    <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
                     <span className="font-bold text-black dark:text-white">GSD Portal</span>
                   </div>
                   <button onClick={toggleDesktopSidebar} className="text-[#0b2a0b] dark:text-[#202521] p-1 rounded-full hover:bg-[#538c4c] dark:hover:bg-[#83b383]">
@@ -767,24 +777,24 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
-                link="/adminDashboard" 
-                active={activeItem === '/adminDashboard'}
+                link="/Admin/Dashboard" 
+                active={activeItem === '/Admin' || activeItem === '/Admin/' || activeItem === '/Admin/Dashboard'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaCalendarAlt} 
                 text="Calendar" 
-                link="/LandCalendar" 
-                active={activeItem === '/LandCalendar'}
+                link="/Admin/LandCalendar" 
+                active={activeItem === '/Admin/LandCalendar'}
                 isExpanded={isDesktopSidebarOpen}
               />
               
               <MiniSidebarItem 
                 icon={FaComments} 
                 text="Chat" 
-                link="/chat" 
-                active={activeItem === '/chat'}
+                link="/Admin/Chat" 
+                active={activeItem === '/Admin/Chat'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -796,22 +806,22 @@ const Sidebar = () => {
                 text="Master File"
                 isExpanded={isDesktopSidebarOpen}
                 active={[
-                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday', '/vehiclemake', '/vehiclecategory', '/vehiclemodel', '/equipmentCategory', '/departments'
+                  '/Admin/Venue', '/Admin/VehicleEntry', '/Admin/Equipment', '/Admin/Faculty', '/Admin/Holiday', '/Admin/vehiclemake', '/Admin/vehiclecategory', '/Admin/vehiclemodel', '/Admin/equipmentCategory', '/Admin/departments'
                 ].includes(activeItem)}
                 items={[
-                  { text: 'Venues', link: '/Venue', icon: FaBuilding },
-                  { text: 'Vehicles', link: '/VehicleEntry', icon: FaCar },
-                  { text: 'Equipments', link: '/Equipment', icon: FaListAlt },
-                  { text: 'Users', link: '/Faculty', icon: FaUsers },
-                  { text: 'Holidays', link: '/Holiday', icon: FaPlus },
+                  { text: 'Venues', link: '/Admin/Venue', icon: FaBuilding },
+                  { text: 'Vehicles', link: '/Admin/VehicleEntry', icon: FaCar },
+                  { text: 'Equipments', link: '/Admin/Equipment', icon: FaListAlt },
+                  { text: 'Users', link: '/Admin/Faculty', icon: FaUsers },
+                  { text: 'Holidays', link: '/Admin/Holiday', icon: FaPlus },
                   { section: 'Sub-Vehicle ' },
-                  { text: 'Vehicle Make', link: '/vehiclemake', icon: FaCar },
-                  { text: 'Vehicle Category', link: '/vehiclecategory', icon: FaListAlt },
-                  { text: 'Vehicle Model', link: '/vehiclemodel', icon: FaCar },
+                  { text: 'Vehicle Make', link: '/Admin/vehiclemake', icon: FaCar },
+                  { text: 'Vehicle Category', link: '/Admin/vehiclecategory', icon: FaListAlt },
+                  { text: 'Vehicle Model', link: '/Admin/vehiclemodel', icon: FaCar },
                   { section: 'Sub-Equipment ' },
-                  { text: 'Equipment Category', link: '/equipmentCategory', icon: FaFolder },
+                  { text: 'Equipment Category', link: '/Admin/equipmentCategory', icon: FaFolder },
                   { section: 'Sub-Department ' },
-                  { text: 'Department', link: '/departments', icon: FaBuilding },
+                  { text: 'Department', link: '/Admin/departments', icon: FaBuilding },
                 ]}
               />
 
@@ -819,8 +829,8 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaCheck} 
                 text="Checklist" 
-                link="/Checklist" 
-                active={activeItem === '/Checklist'}
+                link="/Admin/Checklist" 
+                active={activeItem === '/Admin/Checklist'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -828,8 +838,8 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaArchive} 
                 text="Archive" 
-                link="/archive" 
-                active={activeItem === '/archive'}
+                link="/Admin/archive" 
+                active={activeItem === '/Admin/archive'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -839,32 +849,32 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaUserCircle} 
                 text="Assign Personnel" 
-                link="/AssignPersonnel" 
-                active={activeItem === '/AssignPersonnel'}
+                link="/Admin/AssignPersonnel" 
+                active={activeItem === '/Admin/AssignPersonnel'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaFolder} 
                 text="View Requests" 
-                link="/ViewRequest" 
-                active={activeItem === '/ViewRequest'}
+                link="/Admin/ViewRequest" 
+                active={activeItem === '/Admin/ViewRequest'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaChartBar} 
                 text="Defect Reports" 
-                link="/Reports" 
-                active={activeItem === '/Reports'}
+                link="/Admin/Reports" 
+                active={activeItem === '/Admin/Reports'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="Records" 
-                link="/record" 
-                active={activeItem === '/record'}
+                link="/Admin/record" 
+                active={activeItem === '/Admin/record'}
                 isExpanded={isDesktopSidebarOpen}
               />
               
@@ -892,7 +902,7 @@ const Sidebar = () => {
             {/* Close button */}
             <div className="flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800">
               <div className="flex items-center space-x-2">
-                <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
+                <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
                 <span className="font-bold text-green-600 dark:text-green-400">GSD Portal</span>
               </div>
               <button onClick={toggleMobileSidebar} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
@@ -912,24 +922,24 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaTachometerAlt} 
                 text="Dashboard" 
-                link="/adminDashboard" 
-                active={activeItem === '/adminDashboard'}
+                link="/Admin/Dashboard" 
+                active={activeItem === '/Admin' || activeItem === '/Admin/' || activeItem === '/Admin/Dashboard'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaCalendarAlt} 
                 text="Calendar" 
-                link="/LandCalendar" 
-                active={activeItem === '/LandCalendar'}
+                link="/Admin/LandCalendar" 
+                active={activeItem === '/Admin/LandCalendar'}
                 isExpanded={isDesktopSidebarOpen}
               />
               
               <MiniSidebarItem 
                 icon={FaComments} 
                 text="Chat" 
-                link="/chat" 
-                active={activeItem === '/chat'}
+                link="/Admin/Chat" 
+                active={activeItem === '/Admin/Chat'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -941,22 +951,22 @@ const Sidebar = () => {
                 text="Master File"
                 isExpanded={isDesktopSidebarOpen}
                 active={[
-                  '/Venue', '/VehicleEntry', '/Equipment', '/Faculty', '/Holiday', '/vehiclemake', '/vehiclecategory', '/vehiclemodel', '/equipmentCategory', '/departments'
+                  '/Admin/Venue', '/Admin/VehicleEntry', '/Admin/Equipment', '/Admin/Faculty', '/Admin/Holiday', '/Admin/vehiclemake', '/Admin/vehiclecategory', '/Admin/vehiclemodel', '/Admin/equipmentCategory', '/Admin/departments'
                 ].includes(activeItem)}
                 items={[
-                  { text: 'Venues', link: '/Venue', icon: FaBuilding },
-                  { text: 'Vehicles', link: '/VehicleEntry', icon: FaCar },
-                  { text: 'Equipments', link: '/Equipment', icon: FaListAlt },
-                  { text: 'Users', link: '/Faculty', icon: FaUsers },
-                  { text: 'Holidays', link: '/Holiday', icon: FaPlus },
-                  { section: 'Vehicle ' },
-                  { text: 'Vehicle Make', link: '/vehiclemake', icon: FaCar },
-                  { text: 'Vehicle Category', link: '/vehiclecategory', icon: FaListAlt },
-                  { text: 'Vehicle Model', link: '/vehiclemodel', icon: FaCar },
-                  { section: 'Equipment ' },
-                  { text: 'Equipment Category', link: '/equipmentCategory', icon: FaFolder },
-                  { section: 'Department ' },
-                  { text: 'Department', link: '/departments', icon: FaBuilding },
+                  { text: 'Venues', link: '/Admin/Venue', icon: FaBuilding },
+                  { text: 'Vehicles', link: '/Admin/VehicleEntry', icon: FaCar },
+                  { text: 'Equipments', link: '/Admin/Equipment', icon: FaListAlt },
+                  { text: 'Users', link: '/Admin/Faculty', icon: FaUsers },
+                  { text: 'Holidays', link: '/Admin/Holiday', icon: FaPlus },
+                  { section: 'Sub-Vehicle ' },
+                  { text: 'Vehicle Make', link: '/Admin/vehiclemake', icon: FaCar },
+                  { text: 'Vehicle Category', link: '/Admin/vehiclecategory', icon: FaListAlt },
+                  { text: 'Vehicle Model', link: '/Admin/vehiclemodel', icon: FaCar },
+                  { section: 'Sub-Equipment ' },
+                  { text: 'Equipment Category', link: '/Admin/equipmentCategory', icon: FaFolder },
+                  { section: 'Sub-Department ' },
+                  { text: 'Department', link: '/Admin/departments', icon: FaBuilding },
                 ]}
               />
 
@@ -964,8 +974,8 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaCheck} 
                 text="Checklist" 
-                link="/Checklist" 
-                active={activeItem === '/Checklist'}
+                link="/Admin/Checklist" 
+                active={activeItem === '/Admin/Checklist'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -973,8 +983,8 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaArchive} 
                 text="Archive" 
-                link="/archive" 
-                active={activeItem === '/archive'}
+                link="/Admin/archive" 
+                active={activeItem === '/Admin/archive'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -985,32 +995,32 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaUserCircle} 
                 text="Assign Personnel" 
-                link="/AssignPersonnel" 
-                active={activeItem === '/AssignPersonnel'}
+                link="/Admin/AssignPersonnel" 
+                active={activeItem === '/Admin/AssignPersonnel'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaFolder} 
                 text="View Requests" 
-                link="/ViewRequest" 
-                active={activeItem === '/ViewRequest'}
+                link="/Admin/ViewRequest" 
+                active={activeItem === '/Admin/ViewRequest'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaChartBar} 
                 text="Defect Reports" 
-                link="/Reports" 
-                active={activeItem === '/Reports'}
+                link="/Admin/Reports" 
+                active={activeItem === '/Admin/Reports'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="Records" 
-                link="/record" 
-                active={activeItem === '/record'}
+                link="/Admin/record" 
+                active={activeItem === '/Admin/record'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -1068,14 +1078,22 @@ const SectionLabel = ({ text }) => (
   </div>
 );
 
-
-
-
 const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge }) => {
+
+  
+  const handleClick = (e) => {
+    e.preventDefault();
+    
+    // Always use the direct link path for nested routes
+    const baseUrl = window.location.origin + '/reservation';
+    const fullUrl = baseUrl + link;
+    window.location.assign(fullUrl);
+  };
+
   return (
-    <Link 
-      to={link} 
-      className={`flex items-center ${isExpanded ? 'justify-between p-2.5' : 'justify-center p-2'} rounded-lg transition-all ${
+    <button 
+      onClick={handleClick}
+      className={`w-full flex items-center ${isExpanded ? 'justify-between p-2.5' : 'justify-center p-2'} rounded-lg transition-all ${
         active 
           ? 'bg-[#145414] text-white font-medium' 
           : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
@@ -1096,13 +1114,15 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
       {badge && !isExpanded && (
         <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full"></span>
       )}
-    </Link>
+    </button>
   );
 });
 
 // Add SidebarDropdown component at the end of the file
 const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
   const [open, setOpen] = useState(false);
+
+  
   useEffect(() => {
     if (active) setOpen(true);
   }, [active]);
@@ -1154,10 +1174,15 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
               }
               const ItemIcon = item.icon;
               return (
-                <Link
+                <button
                   key={item.link}
-                  to={item.link}
-                  className={`flex items-center gap-2 py-2 px-2 rounded-lg text-sm transition-all ${
+                  onClick={() => {
+                    // Always use the direct link path for nested routes
+                    const baseUrl = window.location.origin + '/reservation';
+                    const fullUrl = baseUrl + item.link;
+                    window.location.assign(fullUrl);
+                  }}
+                  className={`w-full flex items-center gap-2 py-2 px-2 rounded-lg text-sm transition-all ${
                     window.location.pathname === item.link
                       ? 'bg-[#145414] text-white font-medium'
                       : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
@@ -1165,7 +1190,7 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
                 >
                   {ItemIcon && <ItemIcon size={15} className="min-w-[15px]" />}
                   {item.text}
-                </Link>
+                </button>
               );
             })}
           </motion.div>

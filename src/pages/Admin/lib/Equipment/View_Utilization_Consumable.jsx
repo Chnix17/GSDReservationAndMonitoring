@@ -44,11 +44,16 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
         setHistoryLoading(true);
         try {
             const response = await axios.post(
-                `${encryptedUrl}/user.php`,
-                new URLSearchParams({
+                `${encryptedUrl}/Assigned&Records.php`,
+                {
                     operation: "fetchEquipmentHistory",
                     equip_id: equipment.equip_id
-                })
+                },
+                {
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                }
             );
             if (response.data.status === 'success') {
                 setReservationHistory(response.data.data || []);
@@ -68,11 +73,16 @@ const View_Utilization_Consumable = ({ open, onCancel, equipment }) => {
                 setLoading(true);
                 try {
                     const response = await axios.post(
-                        `${encryptedUrl}/user.php`,
-                        new URLSearchParams({
+                        `${encryptedUrl}/Assigned&Records.php`,
+                        {
                             operation: "getConsumableUsage",
                             equipId: equipment.equip_id
-                        })
+                        },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }
                     );
 
                     if (response.data.status === 'success') {

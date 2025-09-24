@@ -33,7 +33,7 @@ const ReturnConditionModal = ({
       try {
         setIsLoadingConditions(true);
         const payload = { operation: "fetchConditions" };
-        const res = await axios.post(`${BASE_URL}user.php`, payload);
+        const res = await axios.post(`${BASE_URL}Admin.php`, payload);
         if (res?.data?.status === "success" && Array.isArray(res.data.data)) {
           setConditions(res.data.data);
         } else {

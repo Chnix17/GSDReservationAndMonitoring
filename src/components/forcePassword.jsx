@@ -66,7 +66,7 @@ const ForcePassword = ({ onPasswordChanged, currentPassword }) => {
             const userId = SecureStorage.getSessionItem("temp_user_id");
             
             // First, change the password
-            const response = await axios.post(`${apiUrl}user.php`, {
+            const response = await axios.post(`${apiUrl}Admin.php`, {
                 operation: "updatePassword",
                 userId: userId,
                 oldPassword: currentPassword,

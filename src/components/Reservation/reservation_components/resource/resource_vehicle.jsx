@@ -140,7 +140,7 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
 
       const response = await axios({
         method: 'post',
-        url: `${encryptedUrl}user.php`,
+        url: `${encryptedUrl}Admin.php`,
         headers: {
           'Content-Type': 'application/json'
         },

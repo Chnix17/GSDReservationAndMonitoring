@@ -25,7 +25,7 @@ const AssignModal = ({
   const fetchPersonnel = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${baseUrl}/user.php`, {
+      const response = await axios.post(`${baseUrl}/Admin.php`, {
         operation: 'fetchPersonnel'
       });
 
@@ -52,7 +52,7 @@ const AssignModal = ({
   const fetchReservationDetails = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await axios.post(`${baseUrl}/user.php`, {
+      const response = await axios.post(`${baseUrl}/Assigned&Records.php`, {
         operation: 'getReservedById',
         reservation_id: selectedReservation.id
       });
@@ -218,7 +218,7 @@ const AssignModal = ({
         }
       };
 
-      const response = await axios.post(`${baseUrl}/user.php`, payload);
+      const response = await axios.post(`${baseUrl}/Assigned&Records.php`, payload);
 
       if (response.data.status === 'success') {
         onSuccess({

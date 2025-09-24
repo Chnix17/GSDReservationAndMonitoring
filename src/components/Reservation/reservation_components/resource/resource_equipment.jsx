@@ -223,7 +223,7 @@ const ResourceEquipment = ({
       }
 
       const response = await axios.post(
-        `${encryptedUrl}user.php`,
+        `${encryptedUrl}Admin.php`,
         { operation: 'fetchEquipments' },
         { headers: { 'Content-Type': 'application/json' } }
       );

@@ -44,7 +44,7 @@ const AssignPersonnel = () => {
     setLoading(true);
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}user.php`, {
+      const response = await axios.post(`${encryptedUrl}Assigned&Records.php`, {
         operation: 'fetchNoAssignedReservation'
       }, {
         headers: {
@@ -79,7 +79,7 @@ const AssignPersonnel = () => {
     setLoading(true);
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}user.php`, {
+      const response = await axios.post(`${encryptedUrl}Assigned&Records.php`, {
         operation: 'fetchAllAssignedReleases'
       }, {
         headers: {
@@ -194,7 +194,7 @@ const AssignPersonnel = () => {
     setLoading(true);
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}user.php`, {
+      const response = await axios.post(`${encryptedUrl}Assigned&Records.php`, {
         operation: 'fetchAllReassign'
       }, {
         headers: {

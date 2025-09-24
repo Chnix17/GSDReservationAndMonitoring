@@ -16,7 +16,6 @@ import {
   Modal,
   Pagination,
   Spin,
-  Tag,
   Tooltip,
 } from "antd";
 import { ToastContainer, toast } from "react-toastify";
@@ -50,7 +49,7 @@ const Record = () => {
     setLoading(true);
     try {
       const response = await axios.post(
-        `${url}/user.php`,
+        `${url}/Admin.php`,
         {
           operation: "fetchRecord",
           json: {},
@@ -108,22 +107,78 @@ const Record = () => {
     }));
   };
 
-  const getStatusColor = (status) => {
-    switch (status?.toLowerCase()) {
-      case "approve":
-      case "approved":
-        return "green";
-      case "pending":
-        return "blue";
-      case "decline":
-      case "declined":
-        return "red";
-      case "reserved":
-        return "blue";
-      case "cancelled":
-        return "gray";
+  const getStatusStyle = (status) => {
+    const normalizedStatus = status?.toLowerCase() || '';
+    
+    switch (normalizedStatus) {
+      case 'pending admin approval':
+      case 'pending':
+        return {
+          bg: 'bg-yellow-100',
+          text: 'text-yellow-800',
+          border: 'border-yellow-200'
+        };
+      case 'decline':
+      case 'declined':
+      case 'admin declined':
+      case 'department head declined':
+        return {
+          bg: 'bg-red-100',
+          text: 'text-red-800',
+          border: 'border-red-200'
+        };
+      case 'approve':
+      case 'approved':
+      case 'admin approved':
+      case 'department head approved':
+        return {
+          bg: 'bg-green-100',
+          text: 'text-green-800',
+          border: 'border-green-200'
+        };
+      case 'completed':
+        return {
+          bg: 'bg-blue-100',
+          text: 'text-blue-800',
+          border: 'border-blue-200'
+        };
+      case 'cancelled':
+        return {
+          bg: 'bg-gray-100',
+          text: 'text-gray-800',
+          border: 'border-gray-200'
+        };
+      case 'reserved':
+        return {
+          bg: 'bg-purple-100',
+          text: 'text-purple-800',
+          border: 'border-purple-200'
+        };
+      case 'pending department approval':
+        return {
+          bg: 'bg-orange-100',
+          text: 'text-orange-800',
+          border: 'border-orange-200'
+        };
+      case 'reschedule':
+      case 'reschedule confirmed':
+        return {
+          bg: 'bg-indigo-100',
+          text: 'text-indigo-800',
+          border: 'border-indigo-200'
+        };
+      case 'change request':
+        return {
+          bg: 'bg-cyan-100',
+          text: 'text-cyan-800',
+          border: 'border-cyan-200'
+        };
       default:
-        return "default";
+        return {
+          bg: 'bg-gray-100',
+          text: 'text-gray-800',
+          border: 'border-gray-200'
+        };
     }
   };
 
@@ -188,7 +243,7 @@ const Record = () => {
     try {
       const monthStr = selectedMonth.format("YYYY-MM");
       const response = await axios.post(
-        `${baseUrl}/user.php`,
+        `${baseUrl}/Assigned&Records.php`,
         {
           operation: "fetchReservationGenerateReport",
           month: monthStr,
@@ -252,14 +307,14 @@ const Record = () => {
       title: "Status",
       dataIndex: "status",
       key: "status",
-      render: (status) => (
-        <Tag 
-          color={getStatusColor(status)} 
-          className="capitalize px-3 py-1 text-sm font-medium rounded-full"
-        >
-          {status}
-        </Tag>
-      ),
+      render: (status) => {
+        const statusStyle = getStatusStyle(status);
+        return (
+          <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+            {status}
+          </span>
+        );
+      },
     },
     {
       title: "Action",
@@ -421,9 +476,14 @@ const Record = () => {
                               <div className="text-base font-semibold text-gray-900 truncate">{r.title}</div>
                               <div className="mt-1 text-xs text-gray-600">{formatDateRange(r)}</div>
                             </div>
-                            <Tag color={getStatusColor(r.status)} className="capitalize px-2 py-1 text-xs font-medium rounded-full whitespace-nowrap">
-                              {r.status}
-                            </Tag>
+                            {(() => {
+                              const statusStyle = getStatusStyle(r.status);
+                              return (
+                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                                  {r.status}
+                                </span>
+                              );
+                            })()}
                           </div>
                           <div className="mt-3 flex justify-end">
                             <Button size="small" type="primary" onClick={() => showModal(r)} icon={<EyeOutlined />} className="bg-green-700 hover:bg-green-800">
@@ -495,7 +555,7 @@ const DetailModal = ({ visible, record, onClose }) => {
         setIsLoading(true);
         try {
           const response = await axios.post(
-            `${baseUrl}/user.php`,
+            `${baseUrl}/reservation.php`,
             {
               operation: "fetchRequestById",
               reservation_id: record.reservation_id,
@@ -534,7 +594,7 @@ const DetailModal = ({ visible, record, onClose }) => {
 
       setIsLoadingDeans(true);
       try {
-        const response = await axios.post(`${baseUrl}/user.php`, {
+        const response = await axios.post(`${baseUrl}/Admin.php`, {
           operation: 'fetchDeansApproval',
           reservation_id: modalData.reservation_id
         });

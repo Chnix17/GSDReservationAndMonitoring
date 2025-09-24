@@ -107,7 +107,7 @@ const RecentReservations = ({ reservations, currentPage, setCurrentPage, itemsPe
 
     const handleViewReservation = async (reservationId) => {
         try {
-            const response = await axios.post(`${encryptedUrl}/user.php`, {
+            const response = await axios.post(`${encryptedUrl}/reservation.php`, {
                 operation: 'fetchRequestById',
                 reservation_id: reservationId
             });

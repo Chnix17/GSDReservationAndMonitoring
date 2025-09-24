@@ -17,7 +17,9 @@ const RescheduleModal = ({
   resources,
   originalStart, // ISO string or parseable datetime
   originalEnd,   // ISO string or parseable datetime
-  onRequestAgain // New prop for handling "Request Again to Reschedule"
+  onRequestAgain, // New prop for handling "Request Again to Reschedule"
+  showRequestAgainButton = false, // New prop to control visibility of "Request Again to Reschedule" button
+  hideRescheduleButton = false // New prop to hide the regular "Reschedule" button
 }) => {
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
@@ -55,7 +57,7 @@ const RescheduleModal = ({
 
       const response = await axios({
         method: 'post',
-        url: `${encryptedUrl}/user.php`,
+        url: `${encryptedUrl}/Admin.php`,
         headers: {
           'Content-Type': 'application/json'
         },
@@ -89,7 +91,7 @@ const RescheduleModal = ({
   
         const response = await axios({
           method: 'post',
-          url: `${encryptedUrl}/user.php`,
+          url: `${encryptedUrl}/Admin.php`,
           headers: {
             'Content-Type': 'application/json'
           },
@@ -138,7 +140,7 @@ const RescheduleModal = ({
     if (itemType === 'equipment' && quantities && quantities.length === ids.length) {
       payload.quantity = quantities;
     }
-    const url = `${SecureStorage.getLocalItem('url')}/user.php`;
+    const url = `${SecureStorage.getLocalItem('url')}/reservation.php`;
     const resp = await axios.post(url, payload);
     if (resp.data?.status !== 'success') return [];
     // The response structure is assumed to be an array or an object with data array
@@ -154,7 +156,7 @@ const RescheduleModal = ({
         toast.error("API URL configuration is missing");
         return [];
       }
-      const resp = await axios.post(`${encryptedUrl}/user.php`, {
+      const resp = await axios.post(`${encryptedUrl}/reservation.php`, {
         operation: 'fetchAvailableVenues',
         startDateTime: startDateTimeStr,
         endDateTime: endDateTimeStr,
@@ -179,7 +181,7 @@ const RescheduleModal = ({
         toast.error("API URL configuration is missing");
         return [];
       }
-      const resp = await axios.post(`${encryptedUrl}/user.php`, {
+      const resp = await axios.post(`${encryptedUrl}/reservation.php`, {
         operation: 'fetchAvailableVehicles',
         startDateTime: startDateTimeStr,
         endDateTime: endDateTimeStr,
@@ -204,7 +206,7 @@ const RescheduleModal = ({
         toast.error("API URL configuration is missing");
         return [];
       }
-      const resp = await axios.post(`${encryptedUrl}/user.php`, {
+      const resp = await axios.post(`${encryptedUrl}/reservation.php`, {
         operation: 'fetchAvailableDrivers'
       }, { headers: { 'Content-Type': 'application/json' } });
       if (resp?.data?.status === 'success') {
@@ -507,8 +509,13 @@ const RescheduleModal = ({
               if (typeof venueResource === 'object' && venueResource !== null) {
                 const changeVenueId = venueResource.change_venue_id;
                 if (changeVenueId && String(changeVenueId).trim() !== '') {
-                  // Check if change_venue_id is available in the fetched venues
-                  const isAvailable = (v1 || []).some(venue => venue.ven_id === changeVenueId);
+                  // Check if change_venue_id is available in the fetched venues (compare as strings)
+                  const isAvailable = (v1 || []).some(venue => String(venue.ven_id) === String(changeVenueId));
+                  console.log('[RescheduleModal] Venue auto-selection check:', {
+                    changeVenueId,
+                    availableVenues: (v1 || []).map(v => ({ id: v.ven_id, name: v.ven_name })),
+                    isAvailable
+                  });
                   if (isAvailable) {
                     venueSelections[index] = String(changeVenueId);
                   }
@@ -517,6 +524,7 @@ const RescheduleModal = ({
             });
             if (venueSelections.length > 0) {
               autoSelectValues.venueIds = venueSelections;
+              console.log('[RescheduleModal] Auto-selecting venues:', venueSelections);
             }
           }
           
@@ -527,8 +535,13 @@ const RescheduleModal = ({
               if (typeof vehicleResource === 'object' && vehicleResource !== null) {
                 const changeVehicleId = vehicleResource.change_vehicle_id;
                 if (changeVehicleId && String(changeVehicleId).trim() !== '') {
-                  // Check if change_vehicle_id is available in the fetched vehicles
-                  const isAvailable = (v2 || []).some(vehicle => vehicle.vehicle_id === changeVehicleId);
+                  // Check if change_vehicle_id is available in the fetched vehicles (compare as strings)
+                  const isAvailable = (v2 || []).some(vehicle => String(vehicle.vehicle_id) === String(changeVehicleId));
+                  console.log('[RescheduleModal] Vehicle auto-selection check:', {
+                    changeVehicleId,
+                    availableVehicles: (v2 || []).map(v => ({ id: v.vehicle_id, name: v.vehicle_name })),
+                    isAvailable
+                  });
                   if (isAvailable) {
                     vehicleSelections[index] = String(changeVehicleId);
                   }
@@ -537,12 +550,15 @@ const RescheduleModal = ({
             });
             if (vehicleSelections.length > 0) {
               autoSelectValues.vehicleIds = vehicleSelections;
+              console.log('[RescheduleModal] Auto-selecting vehicles:', vehicleSelections);
             }
           }
           
           // Apply auto-selections to form
           if (Object.keys(autoSelectValues).length > 0) {
+            console.log('[RescheduleModal] Applying auto-selections to form:', autoSelectValues);
             form.setFieldsValue(autoSelectValues);
+            console.log('[RescheduleModal] Form values after auto-selection:', form.getFieldsValue());
           }
         }
       } catch (_) {
@@ -820,23 +836,27 @@ const RescheduleModal = ({
         <Button key="cancel" onClick={onCancel}>
           Cancel
         </Button>,
-        <Button 
-          key="request-again" 
-          type="default" 
-          onClick={handleRequestAgain}
-          loading={loading || checkingAvailability}
-          disabled={!isDateTimeRangeReady}
-        >
-          Request Again to Reschedule
-        </Button>,
-        <Button 
-          key="submit" 
-          type="primary" 
-          onClick={handleSubmit}
-          loading={loading || checkingAvailability}
-        >
-          {checkingAvailability ? 'Checking Availability...' : 'Reschedule'}
-        </Button>,
+        ...(showRequestAgainButton ? [
+          <Button 
+            key="request-again" 
+            type="default" 
+            onClick={handleRequestAgain}
+            loading={loading || checkingAvailability}
+            disabled={!isDateTimeRangeReady}
+          >
+            Request Again to Reschedule
+          </Button>
+        ] : []),
+        ...(!hideRescheduleButton ? [
+          <Button 
+            key="submit" 
+            type="primary" 
+            onClick={handleSubmit}
+            loading={loading || checkingAvailability}
+          >
+            {checkingAvailability ? 'Checking Availability...' : 'Reschedule'}
+          </Button>
+        ] : []),
       ]}
     >
       <Spin spinning={loading}>

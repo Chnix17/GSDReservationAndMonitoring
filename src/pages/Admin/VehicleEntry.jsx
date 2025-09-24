@@ -41,7 +41,7 @@ const VehicleEntry = () => {
     const [pageSize, setPageSize] = useState(10);
     
     const navigate = useNavigate();
-    const BASE_URL = `${encryptedUrl}/user.php`;
+    const BASE_URL = `${encryptedUrl}/Admin.php`;
 
     const IMAGE_BASE_URL = encryptedUrl;
     const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -57,7 +57,7 @@ const VehicleEntry = () => {
         if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
         
-            navigate('/gsd');
+            navigate('/');
         }
     }, [user_level_id, navigate]);
 
@@ -216,7 +216,7 @@ const VehicleEntry = () => {
             };
 
             const response = await axios.post(
-                `${encryptedUrl}/user.php`,
+                `${encryptedUrl}/Admin.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {
@@ -256,7 +256,7 @@ const VehicleEntry = () => {
                     SecureStorage.getSessionItem('user_id') ||
                     SecureStorage.getLocalItem('user_id') || null;
 
-                const response = await axios.post(`${encryptedUrl}/user.php`, 
+                const response = await axios.post(`${encryptedUrl}/Admin.php`, 
                     JSON.stringify({
                         operation: "archiveResource",
                         resourceType: "vehicle",

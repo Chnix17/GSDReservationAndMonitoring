@@ -89,6 +89,11 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 8;
 
+  // Normalize selected IDs to numbers for robust comparison
+  const selectedIds = Array.isArray(selectedVenues)
+    ? selectedVenues.map(v => parseInt(v, 10)).filter(v => !isNaN(v))
+    : [];
+
   const firstVenueRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
@@ -129,7 +134,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
 
       const response = await axios({
         method: 'post',
-        url: `${encryptedUrl}user.php`,
+        url: `${encryptedUrl}Admin.php`,
         headers: {
           'Content-Type': 'application/json'
         },
@@ -175,15 +180,15 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
               font-semibold text-gray-900
               ${isMobile ? 'text-base' : 'text-lg'}
             `}>
-              {selectedVenues.length > 0
-                ? `Selected Venues (${selectedVenues.length})`
+              {selectedIds.length > 0
+                ? `Selected Venues (${selectedIds.length})`
                 : 'Available Venues'}
             </h2>
             <p className={`
               text-gray-600 mt-0.5
               ${isMobile ? 'text-xs' : 'text-sm'}
             `}>
-              {selectedVenues.length > 0
+              {selectedIds.length > 0
                 ? 'Click to deselect venues'
                 : 'Select venues to proceed'}
             </p>
@@ -226,7 +231,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                 <VenueCard
                   key={venue.ven_id}
                   venue={venue}
-                  isSelected={selectedVenues.includes(venue.ven_id)}
+                  isSelected={selectedIds.includes(parseInt(venue.ven_id, 10))}
                   onClick={() => onVenueSelect(venue.ven_id)}
                   isMobile={isMobile}
                   ref={idx === 0 ? firstVenueRef : undefined}

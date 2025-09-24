@@ -54,7 +54,7 @@ const EquipmentEntry = () => {
     const fetchEquipments = async () => {
         setLoading(true);
         const encryptedUrl = SecureStorage.getLocalItem("url");
-        const url = `${encryptedUrl}/user.php`;
+        const url = `${encryptedUrl}/Admin.php`;
         const jsonData = { operation: "fetchEquipmentsWithStatus" };
 
         try {

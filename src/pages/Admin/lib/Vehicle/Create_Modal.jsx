@@ -31,7 +31,7 @@ const Create_Modal = ({
     const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
     const [isModelModalOpen, setIsModelModalOpen] = useState(false);
     const encryptedUrl = SecureStorage.getLocalItem("url");
-    const BASE_URL = `${encryptedUrl}/user.php`;
+    const BASE_URL = `${encryptedUrl}/Admin.php`;
 
     const fetchMakes = useCallback(async () => {
         try {
@@ -207,7 +207,7 @@ const Create_Modal = ({
                 ...formData
             });
 
-            const response = await axios.post(`${encryptedUrl}/user.php`, requestData, {
+            const response = await axios.post(`${encryptedUrl}/Admin.php`, requestData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }

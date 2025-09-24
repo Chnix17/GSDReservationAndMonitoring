@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 import { Toaster, toast } from 'react-hot-toast';
 import 'react-datepicker/dist/react-datepicker.css';
@@ -47,6 +47,7 @@ const AddReservation = () => {
   const encryptedUrl = SecureStorage.getLocalItem("url");
 
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(false);
   const [selectedModels, setSelectedModels] = useState([]);
@@ -173,6 +174,143 @@ const AddReservation = () => {
       }
     }
   }, [equipment, resourceType, selectedVenueEquipment]);
+
+  // Store request again data to apply after resources are loaded
+  const [requestAgainDataPending, setRequestAgainDataPending] = useState(null);
+
+  // Handle request again data from navigation state
+  useEffect(() => {
+    if (location.state?.requestAgainData) {
+      const { requestAgainData, type, skipToDateSelection } = location.state;
+      
+      console.log('Request Again Data:', requestAgainData);
+      console.log('Type:', type);
+      
+      // Set the resource type
+      setResourceType(type);
+      
+      // Pre-fill form data with title, description, and other fields
+      setFormData(prev => ({
+        ...prev,
+        eventTitle: requestAgainData.reservation_title || '',
+        description: requestAgainData.reservation_description || '',
+        participants: requestAgainData.participants || '',
+        purpose: requestAgainData.purpose || '',
+        destination: requestAgainData.destination || '',
+      }));
+
+      // Store the request again data to apply after resources are loaded
+      setRequestAgainDataPending({ requestAgainData, type, skipToDateSelection });
+
+      // Clear the navigation state to prevent re-processing
+      window.history.replaceState({}, document.title);
+    }
+  }, [location.state]);
+
+  // Apply request again data after resources are loaded
+  useEffect(() => {
+    if (requestAgainDataPending && 
+        ((requestAgainDataPending.type === 'venue' && venues.length > 0) ||
+         (requestAgainDataPending.type === 'vehicle' && vehicles.length > 0) ||
+         (requestAgainDataPending.type === 'equipment' && equipment.length > 0))) {
+      
+      const { requestAgainData, type, skipToDateSelection } = requestAgainDataPending;
+
+      // Set selected resources based on type
+      if (type === 'venue') {
+        // Set venues if available - venue_id from reservation should match ven_id in fetched venues
+        if (requestAgainData.venue_id && Array.isArray(requestAgainData.venue_id)) {
+          const normalizedVenueIds = requestAgainData.venue_id
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id));
+          setFormData(prev => ({ ...prev, venues: normalizedVenueIds }));
+          console.log('Set venues for request again (after venues loaded):', normalizedVenueIds);
+          console.log('Available venues:', venues.map(v => ({ ven_id: v.ven_id, name: v.ven_name })));
+        }
+        
+        // Set equipment for venue reservations
+        if (requestAgainData.equipment_id && requestAgainData.quantity && equipment.length > 0) {
+          const equipmentData = {};
+          requestAgainData.equipment_id.forEach((id, index) => {
+            equipmentData[id] = requestAgainData.quantity[index] || 1;
+          });
+          // Update all equipment-related states for proper visibility
+          setSelectedVenueEquipment(equipmentData);
+          setEquipmentQuantities(equipmentData);
+          setLocalEquipmentQuantities(equipmentData);
+          // Also update formData for consistency
+          setFormData(prev => ({
+            ...prev,
+            selectedVenueEquipment: equipmentData
+          }));
+          console.log('Set venue equipment (after equipment loaded):', equipmentData);
+        }
+      } else if (type === 'vehicle') {
+        // Set vehicles if available
+        if (requestAgainData.vehicle_id && Array.isArray(requestAgainData.vehicle_id)) {
+          const normalizedVehicleIds = requestAgainData.vehicle_id
+            .map(id => parseInt(id, 10))
+            .filter(id => !isNaN(id));
+          setSelectedModels(normalizedVehicleIds);
+          console.log('Set vehicles (after vehicles loaded):', normalizedVehicleIds);
+        }
+        
+        // Set equipment for vehicle reservations
+        if (requestAgainData.equipment_id && requestAgainData.quantity && equipment.length > 0) {
+          const equipmentData = {};
+          requestAgainData.equipment_id.forEach((id, index) => {
+            equipmentData[id] = requestAgainData.quantity[index] || 1;
+          });
+          // Update all equipment-related states for proper visibility
+          setSelectedVenueEquipment(equipmentData);
+          setEquipmentQuantities(equipmentData);
+          setLocalEquipmentQuantities(equipmentData);
+          // Also update formData for consistency
+          setFormData(prev => ({
+            ...prev,
+            selectedVenueEquipment: equipmentData
+          }));
+          console.log('Set vehicle equipment (after equipment loaded):', equipmentData);
+        }
+      } else if (type === 'equipment') {
+        // Set equipment only reservations
+        if (requestAgainData.equipment_id && requestAgainData.quantity) {
+          const equipmentData = {};
+          requestAgainData.equipment_id.forEach((id, index) => {
+            equipmentData[id] = requestAgainData.quantity[index] || 1;
+          });
+          // Update all equipment-related states for proper visibility
+          setEquipmentQuantities(equipmentData);
+          setSelectedVenueEquipment(equipmentData);
+          setLocalEquipmentQuantities(equipmentData);
+          // Also update formData for consistency
+          setFormData(prev => ({
+            ...prev,
+            selectedVenueEquipment: equipmentData
+          }));
+          console.log('Set equipment only (after equipment loaded):', equipmentData);
+        }
+      }
+
+      // Skip to date selection step if requested
+      if (skipToDateSelection) {
+        setCurrentStep(2);
+      }
+
+      // Clear the pending data
+      setRequestAgainDataPending(null);
+    }
+  }, [requestAgainDataPending, venues, vehicles, equipment]);
+
+  // Debug venue matching for request again functionality
+  useEffect(() => {
+    if (venues.length > 0 && formData.venues.length > 0) {
+      console.log('Available venues:', venues.map(v => ({ ven_id: v.ven_id, name: v.ven_name })));
+      console.log('Selected venue IDs:', formData.venues);
+      const matchedVenues = venues.filter(v => formData.venues.includes(v.ven_id));
+      console.log('Matched venues:', matchedVenues.map(v => ({ ven_id: v.ven_id, name: v.ven_name })));
+    }
+  }, [venues, formData.venues]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -363,8 +501,11 @@ const validateCurrentStep = () => {
           toast.error('Please fill in all required venue reservation fields');
           return false;
         }
-        // Calculate total capacity of selected venues
-        const selectedVenueObjs = venues.filter(v => formData.venues.includes(v.ven_id));
+        // Calculate total capacity of selected venues (normalize IDs to numbers)
+        const selectedVenueIds = (formData.venues || [])
+          .map(id => parseInt(id, 10))
+          .filter(id => !isNaN(id));
+        const selectedVenueObjs = venues.filter(v => selectedVenueIds.includes(parseInt(v.ven_id, 10)));
         const totalCapacity = selectedVenueObjs.reduce((sum, v) => sum + (parseInt(v.ven_occupancy) || 0), 0);
         const participants = parseInt(formData.participants) || 0;
         if (participants > 0 && totalCapacity > 0 && participants > totalCapacity) {
@@ -478,14 +619,22 @@ const handleInputChange = (e) => {
 
 const renderVenues = () => (
   <ResourceVenue
-    selectedVenues={formData.venues}
+    selectedVenues={(formData.venues || [])
+      .map(id => parseInt(id, 10))
+      .filter(id => !isNaN(id))}
     onVenueSelect={(venueId) => {
-      setFormData(prev => ({
-        ...prev,
-        venues: prev.venues.includes(venueId)
-          ? prev.venues.filter(id => id !== venueId)
-          : [...prev.venues, venueId]
-      }));
+      const id = parseInt(venueId, 10);
+      if (isNaN(id)) return;
+      setFormData(prev => {
+        const prevIds = (prev.venues || [])
+          .map(v => parseInt(v, 10))
+          .filter(v => !isNaN(v));
+        const exists = prevIds.includes(id);
+        const nextIds = exists
+          ? prevIds.filter(v => v !== id)
+          : Array.from(new Set([...prevIds, id]));
+        return { ...prev, venues: nextIds };
+      });
     }}
     isMobile={isMobile}
   />
@@ -495,8 +644,23 @@ const renderVenues = () => (
 // Modify renderResources to only show vehicles without equipment options
 const renderResources = () => (
   <ResourceVehicle
-    selectedVehicles={selectedModels}
-    onVehicleSelect={handleVehicleSelect}
+    selectedVehicles={(selectedModels || [])
+      .map(id => parseInt(id, 10))
+      .filter(id => !isNaN(id))}
+    onVehicleSelect={(vehicleId) => {
+      const id = parseInt(vehicleId, 10);
+      if (isNaN(id)) return;
+      setSelectedModels(prevSelected => {
+        const prevIds = (prevSelected || [])
+          .map(v => parseInt(v, 10))
+          .filter(v => !isNaN(v));
+        const updated = prevIds.includes(id)
+          ? prevIds.filter(v => v !== id)
+          : Array.from(new Set([...prevIds, id]));
+        console.log('Vehicle selection changed:', updated);
+        return updated;
+      });
+    }}
     isMobile={isMobile}
   />
 );
@@ -645,20 +809,20 @@ const handleAddReservation = async () => {
           description: formData.description.trim(),
           start_date: format(new Date(formData.startDate), 'yyyy-MM-dd HH:mm:ss'),
           end_date: format(new Date(formData.endDate), 'yyyy-MM-dd HH:mm:ss'),
-          participants: formData.participants ? formData.participants.toString() : "0",
           user_id: userId,
+          participants: formData.participants ? formData.participants.toString() : "0",
           venues: formData.venues,
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
           })).filter(item => item.quantity > 0),
-          additional_note: formData.additionalNote || '', // Add this line
+          additional_note: formData.additionalNote || '',
         }
       };
 
       // Proceed with venue reservation
       const response = await axios.post(
-        `${encryptedUrl}/insert_reservation.php`,
+        `${encryptedUrl}/faculty&staff.php`,
         venuePayload,
         {
           headers: {
@@ -778,7 +942,7 @@ const handleAddReservation = async () => {
 
       // Proceed with vehicle reservation
       const response = await axios.post(
-        `${encryptedUrl}/insert_reservation.php`,
+        `${encryptedUrl}/faculty&staff.php`,
         vehiclePayload,
         {
           headers: {
@@ -833,7 +997,7 @@ const handleAddReservation = async () => {
 
       // Proceed with equipment reservation
       const response = await axios.post(
-        `${encryptedUrl}/insert_reservation.php`,
+        `${encryptedUrl}/faculty&staff.php`,
         equipmentPayload,
         {
           headers: {
@@ -922,7 +1086,10 @@ const resetForm = () => {
 
 
 const renderReviewSection = () => {
-  const selectedVenues = venues.filter(v => formData.venues.includes(v.ven_id));
+  const selectedVenueIds = (formData.venues || [])
+    .map(id => parseInt(id, 10))
+    .filter(id => !isNaN(id));
+  const selectedVenues = venues.filter(v => selectedVenueIds.includes(parseInt(v.ven_id, 10)));
   const selectedVehicleDetails = vehicles.filter(v => selectedModels.includes(v.vehicle_id));
 
   // Add debug logging for equipment
@@ -963,15 +1130,20 @@ const renderReviewSection = () => {
 };
 
 
-const handleVehicleSelect = (vehicleId) => {
-  setSelectedModels(prevSelected => {
-    const updated = prevSelected.includes(vehicleId)
-      ? prevSelected.filter(id => id !== vehicleId)
-      : [...prevSelected, vehicleId];
-    console.log('Vehicle selection changed:', updated);
-    return updated;
-  });
-};
+// const handleVehicleSelect = (vehicleId) => {
+//   const id = parseInt(vehicleId, 10);
+//   if (isNaN(id)) return;
+//   setSelectedModels(prevSelected => {
+//     const prevIds = (prevSelected || [])
+//       .map(v => parseInt(v, 10))
+//       .filter(v => !isNaN(v));
+//     const updated = prevIds.includes(id)
+//       ? prevIds.filter(v => v !== id)
+//       : Array.from(new Set([...prevIds, id]));
+//     console.log('Vehicle selection changed:', updated);
+//     return updated;
+//   });
+// };
 
 
 
@@ -1389,7 +1561,7 @@ const fetchDrivers = useCallback(async (startDate, endDate) => {
 
 
   try {
-    const response = await axios.post(`${encryptedUrl}/user.php`, {
+    const response = await axios.post(`${encryptedUrl}/Admin.php`, {
       operation: 'fetchDriver',
       startDateTime: format(startDate, 'yyyy-MM-dd HH:mm:ss'),
       endDateTime: format(endDate, 'yyyy-MM-dd HH:mm:ss')
@@ -2171,7 +2343,7 @@ const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
         >
           <Radio value="default" disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}>Default Driver</Radio>
           <Radio value="own">Own Driver</Radio>
-          <Radio value="mixed">Mixed (Default + Own)</Radio>
+          <Radio value="mixed" disabled={safeSelectedModels.length <= 1}>Mixed (Default + Own)</Radio>
         </Radio.Group>
 
         {formData.driverType === 'own' && (
@@ -2433,7 +2605,7 @@ const fetchVenues = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/user.php`,
+      url: `${encryptedUrl}/Admin.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2454,7 +2626,7 @@ const fetchVehicles = useCallback(async () => {
   try {
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/user.php`,
+      url: `${encryptedUrl}/Admin.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2507,7 +2679,7 @@ const fetchEquipment = useCallback(async (startDate, endDate) => {
     
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/user.php`,
+      url: `${encryptedUrl}/reservation.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2629,7 +2801,7 @@ useEffect(() => {
       try {
         // Fetch holidays
         const holidayResponse = await axios.post(
-          `${encryptedUrl}/user.php`,
+          `${encryptedUrl}/Admin.php`,
           {
             operation: 'fetchHoliday'
           }
@@ -2646,7 +2818,7 @@ useEffect(() => {
         // Fetch reservations based on resource type
         if (resourceType === 'equipment') {
           const equipmentResponse = await axios.post(
-            `${encryptedUrl}/user.php`,
+            `${encryptedUrl}/reservation.php`,
             {
               operation: 'fetchAvailability',
               itemType: 'equipment',
@@ -2665,25 +2837,7 @@ useEffect(() => {
               equipmentAvailability: equipmentResponse.data.data
             }));
           }
-        } else {
-          const reservationResponse = await axios.post(
-            `${encryptedUrl}/user.php`,
-            {
-              operation: 'fetchReservations',
-              resourceType: resourceType,
-              resourceIds: resourceType === 'venue' 
-                ? formData.venues 
-                : selectedModels
-            }
-          );
-
-          if (reservationResponse.data.status === 'success') {
-            setCalendarData(prev => ({
-              ...prev,
-              reservations: reservationResponse.data.data
-            }));
-          }
-        }
+        } 
       } catch (error) {
         console.error('Error fetching calendar data:', error);
         toast.error('Failed to fetch calendar data');

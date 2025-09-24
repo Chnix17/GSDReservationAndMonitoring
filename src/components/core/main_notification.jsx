@@ -35,8 +35,6 @@ const NotificationPage = () => {
       try {
         const baseUrl = SecureStorage.getLocalItem('url');
         const userId = SecureStorage.getSessionItem('user_id');
-        const departmentId = SecureStorage.getSessionItem('department_id');
-        const userLevelId = SecureStorage.getSessionItem('user_level_id');
 
         // Regular notifications
         const regularResponse = await fetch(`${baseUrl}/faculty&Staff.php`, {
@@ -49,34 +47,6 @@ const NotificationPage = () => {
         });
         const regularData = await regularResponse.json();
 
-        // Approval notifications
-        const approvalResponse = await fetch(`${baseUrl}/user.php`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'fetchApprovalNotification',
-            department_id: departmentId,
-            user_level_id: userLevelId
-          })
-        });
-        const approvalData = await approvalResponse.json();
-
-        // Read approvals map for current user
-        const readResponse = await fetch(`${baseUrl}/user.php`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ operation: 'fetchReadApprovalNotification' })
-        });
-        const readData = await readResponse.json();
-
-        const readApprovalMap = new Map();
-        if (readData.status === 'success') {
-          readData.data.forEach(r => {
-            if (String(r.user_id) === String(userId) && Number(r.is_read) === 1) {
-              readApprovalMap.set(r.notification_id, true);
-            }
-          });
-        }
 
         let all = [];
 
@@ -96,26 +66,10 @@ const NotificationPage = () => {
           all = [...all, ...regs];
         }
 
-        if (approvalData.status === 'success') {
-          const apps = approvalData.data
-            .filter(n => String(n.notification_department_id) === String(departmentId) && String(n.notification_user_level_id) === String(userLevelId))
-            .map(n => ({
-              ...n,
-              id: n.notification_id,
-              type: 'approval',
-              title: 'Approval Request',
-              message: n.notification_message,
-              date: n.notification_create,
-              is_read: readApprovalMap.has(n.notification_id) ? 1 : 0,
-              priority: 'high',
-              details: `Department ID: ${n.notification_department_id}\nUser Level: ${n.notification_user_level_id}\nCreated At: ${n.notification_create}`
-            }));
-          all = [...all, ...apps];
-        }
 
         all.sort((a, b) => {
-          const dateA = new Date(a.date || a.notification_created_at || a.notification_create);
-          const dateB = new Date(b.date || b.notification_created_at || b.notification_create);
+          const dateA = new Date(a.date || a.notification_created_at);
+          const dateB = new Date(b.date || b.notification_created_at);
           return dateB - dateA;
         });
 
@@ -190,17 +144,6 @@ const NotificationPage = () => {
             operation: 'updateReadNotification',
             notificationIds: [notif.notification_reservation_id],
             userId
-          })
-        });
-      } else if (notif.notification_id) {
-        // Approval notification
-        await fetch(`${baseUrl}/user.php`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            operation: 'updateReadApprovalNotification',
-            notification_ids: [notif.notification_id],
-            user_id: userId
           })
         });
       }

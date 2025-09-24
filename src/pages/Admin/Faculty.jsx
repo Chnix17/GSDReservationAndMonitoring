@@ -99,14 +99,14 @@ const Faculty = () => {
         const decryptedUserLevel = parseInt(user_level_id);
         if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
-            navigate('/gsd');
+            navigate('/');
         }
     }, [user_level_id, navigate]);
 
     const fetchUsers = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${encryptedUrl}user.php`, 
+            const response = await axios.post(`${encryptedUrl}Admin.php`, 
                 { operation: "fetchAllUser" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -132,7 +132,7 @@ const Faculty = () => {
     const getUserDetails = async (userId) => {
         try {
             const response = await axios.post(
-                `${encryptedUrl}user.php`,
+                `${encryptedUrl}Admin.php`,
                 { 
                     operation: 'fetchUsersById',
                     id: userId 
@@ -173,7 +173,7 @@ const Faculty = () => {
 
     const fetchDepartments = useCallback(async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}user.php`, 
+            const response = await axios.post(`${encryptedUrl}Admin.php`, 
                 { operation: "fetchDepartments" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -191,7 +191,7 @@ const Faculty = () => {
 
     const fetchUserLevels = useCallback(async () => {
         try {
-            const response = await axios.post(`${encryptedUrl}user.php`, 
+            const response = await axios.post(`${encryptedUrl}Admin.php`, 
                 { operation: "fetchUserLevels" },
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -236,7 +236,7 @@ const Faculty = () => {
         
         try {
             const response = await axios.post(
-                `${encryptedUrl}user.php`,
+                `${encryptedUrl}Admin.php`,
                 {
                     operation: 'archiveUser',
                     userType: 'user',

@@ -52,7 +52,7 @@ const ViewReserve = () => {
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18 && decryptedUserLevel !== 17) {
   
-            navigate('/gsd');
+            navigate('/');
         }
   }, [navigate]);
 
@@ -62,7 +62,7 @@ const ViewReserve = () => {
             const userId = SecureStorage.getLocalItem('user_id');
             if (!userId) {
                 toast.error('User session expired');
-                navigate('/gsd');
+                navigate('/');
                 return;
             }
 
@@ -111,7 +111,7 @@ const ViewReserve = () => {
             
             if (!userId) {
                 toast.error('User session expired');
-                navigate('/gsd');
+                navigate('/');
                 return;
             }
 
@@ -166,7 +166,7 @@ const ViewReserve = () => {
         
         if (!userId || !isLoggedIn) {
             toast.error('Please login first');
-            navigate('/gsd'); // or wherever your login page is
+            navigate('/'); // or wherever your login page is
             return;
         }
         
@@ -184,7 +184,7 @@ const ViewReserve = () => {
             console.log("Starting to fetch details for reservation:", reservation);
 
             // Fetch reservation details
-            const detailsResponse = await fetch(`${baseUrl}user.php`, {
+            const detailsResponse = await fetch(`${baseUrl}reservation.php`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -215,7 +215,7 @@ const ViewReserve = () => {
                 console.log("Status API Response:", statusResult);
 
                 // Fetch maintenance resources
-                const maintenanceResponse = await fetch(`${baseUrl}user.php`, {
+                const maintenanceResponse = await fetch(`${baseUrl}Assigned&Records.php`, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -261,6 +261,81 @@ const ViewReserve = () => {
     const handleRefresh = () => {
         fetchReservations();
         setSearchTerm('');
+    };
+
+    // Get status color and styling
+    const getStatusStyle = (status) => {
+        const normalizedStatus = status.toLowerCase();
+        
+        switch (normalizedStatus) {
+            case 'pending admin approval':
+            case 'pending':
+                return {
+                    bg: 'bg-yellow-100',
+                    text: 'text-yellow-800',
+                    border: 'border-yellow-200'
+                };
+            case 'decline':
+            case 'declined':
+            case 'admin declined':
+            case 'department head declined':
+                return {
+                    bg: 'bg-red-100',
+                    text: 'text-red-800',
+                    border: 'border-red-200'
+                };
+            case 'approved':
+            case 'admin approved':
+            case 'department head approved':
+                return {
+                    bg: 'bg-green-100',
+                    text: 'text-green-800',
+                    border: 'border-green-200'
+                };
+            case 'completed':
+                return {
+                    bg: 'bg-blue-100',
+                    text: 'text-blue-800',
+                    border: 'border-blue-200'
+                };
+            case 'cancelled':
+                return {
+                    bg: 'bg-gray-100',
+                    text: 'text-gray-800',
+                    border: 'border-gray-200'
+                };
+            case 'reserved':
+                return {
+                    bg: 'bg-purple-100',
+                    text: 'text-purple-800',
+                    border: 'border-purple-200'
+                };
+            case 'pending department approval':
+                return {
+                    bg: 'bg-orange-100',
+                    text: 'text-orange-800',
+                    border: 'border-orange-200'
+                };
+            case 'reschedule':
+            case 'reschedule confirmed':
+                return {
+                    bg: 'bg-indigo-100',
+                    text: 'text-indigo-800',
+                    border: 'border-indigo-200'
+                };
+            case 'change request':
+                return {
+                    bg: 'bg-cyan-100',
+                    text: 'text-cyan-800',
+                    border: 'border-cyan-200'
+                };
+            default:
+                return {
+                    bg: 'bg-gray-100',
+                    text: 'text-gray-800',
+                    border: 'border-gray-200'
+                };
+        }
     };
 
     // Compact, readable date range (single line)
@@ -403,9 +478,14 @@ const ViewReserve = () => {
                                                             <td className="px-4 py-5 whitespace-nowrap">{formatDateRange(reservation)}</td>
                                                             <td className="px-4 py-5">{reservation.participants || 'Not specified'}</td>
                                                             <td className="px-4 py-5">
-                                                                <span className="inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold bg-gray-100 text-gray-700">
-                                                                    {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
-                                                                </span>
+                                                                {(() => {
+                                                                    const statusStyle = getStatusStyle(reservation.status);
+                                                                    return (
+                                                                        <span className={`inline-flex items-center px-4 py-1.5 rounded-full text-sm font-semibold border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                                                                            {reservation.status.charAt(0).toUpperCase() + reservation.status.slice(1)}
+                                                                        </span>
+                                                                    );
+                                                                })()}
                                                             </td>
                                                             <td className="px-4 py-5">
                                                                 <div className="flex justify-center">
@@ -452,9 +532,14 @@ const ViewReserve = () => {
                                                                 <div className="mt-1 text-xs text-gray-500">Participants: {r.participants}</div>
                                                             )}
                                                         </div>
-                                                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-700 whitespace-nowrap">
-                                                            {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
-                                                        </span>
+                                                        {(() => {
+                                                            const statusStyle = getStatusStyle(r.status);
+                                                            return (
+                                                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                                                                    {r.status.charAt(0).toUpperCase() + r.status.slice(1)}
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </div>
                                                     <div className="mt-3 flex justify-end">
                                                         <Button size="small" type="primary" onClick={() => handleViewReservation(r)} className="bg-blue-600 hover:bg-blue-700">

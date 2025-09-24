@@ -16,7 +16,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
     const [areaType, setAreaType] = useState(null);
 
     const checkVenueExists = async () => {
-        const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({
+        const response = await axios.post(`${encryptedUrl}/Admin.php`, new URLSearchParams({
             operation: "venueExists",
             json: JSON.stringify({ venue_name: venueName })
         }));
@@ -87,7 +87,7 @@ const Create_Modal = ({ visible, onCancel, onSuccess, encryptedUrl, user_id, enc
             };
 
             const response = await axios.post(
-                `${encryptedUrl}/user.php`,
+                `${encryptedUrl}/Admin.php`,
                 requestData,
                 {
                     headers: {

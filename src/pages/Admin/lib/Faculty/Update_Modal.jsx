@@ -83,7 +83,7 @@ const Update_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/user.php`,
+                url: `${baseUrl}/Admin.php`,
                 data: new URLSearchParams({
                     operation: 'fetchTitle'
                 }).toString(),
@@ -245,7 +245,7 @@ const Update_Modal = ({
         try {
             setLoading(true);
             const response = await axios.post(
-                `${baseUrl}/user.php`,
+                `${baseUrl}/Admin.php`,
                 jsonData,
                 {
                     headers: {

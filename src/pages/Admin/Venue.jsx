@@ -41,7 +41,7 @@ const VenueEntry = () => {
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
-            navigate('/gsd');
+            navigate('/');
         }
     }, [navigate, encryptedUserLevel]);
 
@@ -49,7 +49,7 @@ const VenueEntry = () => {
     const fetchVenues = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${encryptedUrl}/user.php`, new URLSearchParams({ operation: "fetchVenue" }));
+            const response = await axios.post(`${encryptedUrl}/Admin.php`, new URLSearchParams({ operation: "fetchVenue" }));
             if (response.data.status === 'success') {
                 setVenues(response.data.data);
             } else {
@@ -97,7 +97,7 @@ const VenueEntry = () => {
             };
 
             const response = await axios.post(
-                `${encryptedUrl}/user.php`,
+                `${encryptedUrl}/Admin.php`,
                 payload,
                 {
                     headers: {

@@ -94,11 +94,16 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
                 setLoading(true);
                 try {
                     const response = await axios.post(
-                        `${encryptedUrl}/user.php`,
-                        new URLSearchParams({
+                        `${encryptedUrl}/Assigned&Records.php`,
+                        {
                             operation: "getVehicleUsage",
                             vehicleId: vehicle.vehicle_id
-                        })
+                        },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }
                     );
 
                     if (response.data.status === 'success') {
@@ -118,11 +123,16 @@ const View_Utilization = ({ open, onCancel, vehicle, IMAGE_BASE_URL }) => {
                 setHistoryLoading(true);
                 try {
                     const response = await axios.post(
-                        `${encryptedUrl}/user.php`,
-                        new URLSearchParams({
+                        `${encryptedUrl}/Assigned&Records.php`,
+                        {
                             operation: "fetchVehicleHistory",
                             vehicle_id: vehicle.vehicle_id // <-- changed from vehicleId to vehicle_id
-                        })
+                        },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }
                     );
                     if (response.data.status === 'success') {
                         setReservationHistory(response.data.data || []);

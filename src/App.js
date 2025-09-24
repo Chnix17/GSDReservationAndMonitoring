@@ -1,71 +1,76 @@
 import React, { useState, createContext, useCallback, useEffect } from 'react';
-import { Route, Routes, Navigate, useLocation } from 'react-router-dom';
-// import Sidebar from './pages/Sidebar';
-// import Login from './pages/Login';
+import { Route, Routes } from 'react-router-dom';
 import VehicleEntry from './pages/Admin/VehicleEntry';
 import PersonnelDashboard from './pages/Personnel/dashboard';
 import ViewTask from './pages/Personnel/ViewPersonnelTask';
 import Venue from './pages/Admin/Venue';
-import  Dashboard from './page_user/dashboard';
+import  Dashboard from './pages/User/dashboard';
 import Equipment from './pages/Admin/Equipment';
 import ViewRequest from './pages/Admin/viewRequest';
-import AddReservation from './components/Reservation/AddReservation'; // Import the AddReservation component
+import AddReservation from './components/Reservation/AddReservation'; 
 import { Toaster } from 'sonner';
 import './App.css'; 
-import Logins from './pages/logins';
+// import Logins from './pages/logins';
 import AdminDashboard from './pages/Admin/adminDashboard';
 import Faculty from './pages/Admin/Faculty';  // Updated casing to match file name
-import Master from './pages/Admin/Master'
-import Vehiclem from './pages/vehiclemake';
-import Departments from './pages/departments';
-import Vehiclec from './pages/vehiclecategory';
-import Equipmentc from './pages/equipmentCategory';
 
-import VehicleModel from './pages/vehiclemodel';
-import ViewReserve from './page_user/viewReserve';
+import Vehiclem from './pages/Admin/vehiclemake';
+import Departments from './pages/Admin/departments';
+import Vehiclec from './pages/Admin/vehiclecategory';
+import Equipmentc from './pages/Admin/equipmentCategory';
+
+import VehicleModel from './pages/Admin/vehiclemodel';
+// import ViewReserve from './pages/User/viewReserve';
 
 import Record from './pages/Admin/Record';
-import ViewApproval from './page_dean/viewApproval';
-import DeanViewReserve from './page_dean/viewReserve';
-import DeanDashboard from './page_dean/dashboard';
+import ViewApproval from './pages/Dean/viewApproval';
+import DeanDashboard from './pages/Dean/dashboard';
 import Chat from './components/core/chat';
 import ProtectedRoute from './utils/ProtectedRoute';
 import AssignPersonnel from './pages/Admin/AssignPersonnel';
-import LandCalendar from './pages/landCalendar';
-import Archive from './pages/archive';
-import NotFound from './components/NotFound';
-import Checklists from './pages/Checklist';
+import LandCalendar from './pages/Admin/landCalendar';
+import Archive from './pages/Admin/archive';
+import NotFound from './utils/NotFound';
+import Checklists from './pages/Admin/Checklist';
 import Reports from './pages/Admin/Reports';
 import { SecureStorage } from './utils/encryption';
-import NotificationUser from './page_user/notification';
-import NotificationRequest from './page_dean/notification';
-import ChatUser from './page_user/chat';
-import ChatDepartment from './page_dean/chat';
-import ChatPersonnel from './pages/Personnel/chat';
-import Driver from './pages/Drivers';
+
 import Holiday from './pages/Admin/Holiday';
 import DriverDashboard from './pages/Driver/DriverDashboard';
 import DriverTrips from './pages/Driver/Trips'
-import AdminNotification from './pages/Admin/notification';
 import AuditTrail from './pages/Admin/audit_trail';
 import Notification from './components/core/main_notification';
 import MyReservation from './components/core/viewReserve';
+import RoleRedirect from './utils/RoleRedirect';
 
-import VenueSchedule from './page_dean/VenueSchedule'
+import VenueSchedule from './pages/Dean/VenueSchedule'
+// Ensure the push notification manager module loads and attaches to window
+import './utils/pushNotificationManager';
+import AdminLayout from './layouts/AdminLayout';
+import FacultyLayout from './layouts/FacultyLayout';
+import DepartmentLayout from './layouts/DepartmentLayout';
+import PersonnelLayout from './layouts/PersonnelLayout';
+import DriverLayout from './layouts/DriverLayout';
+import LoginRedirect from './components/LoginRedirect';
+import { getApiBaseUrl } from './utils/apiConfig';
 
 
 
 export const ThemeContext = createContext();
 
 const App = () => {
-    const defaultUrl = "http://localhost/coc/gsd/";
-    const storedUrl = SecureStorage.getLocalItem("url");
-    
-    if (!storedUrl || storedUrl !== defaultUrl) {
-        SecureStorage.setLocalItem("url", defaultUrl);
-    }
+    const initializeApiUrl = () => {
+        const defaultUrl = getApiBaseUrl();
+        const storedUrl = SecureStorage.getLocalItem("url");
+        
+        if (!storedUrl || storedUrl !== defaultUrl) {
+            SecureStorage.setLocalItem("url", defaultUrl);
+        }
+    };
 
-    
+    useEffect(() => {
+        initializeApiUrl();
+    }, []);
 
     // Register service worker
     useEffect(() => {
@@ -95,103 +100,113 @@ const App = () => {
         });
     }, []);
 
-    const [isNotFoundVisible, setIsNotFoundVisible] = useState(false);
-    const location = useLocation();
-
-    // Add URL validation
-    useEffect(() => {
-        const validPaths = [
-            '/gsd', '/Admin', '/adminDashboard', '/VehicleEntry', '/drivers',
-            '/Equipment', '/Faculty', '/departments', '/master',
-            '/vehiclemake', '/vehiclecategory', '/position',
-            '/equipmentCategory', '/condition', '/vehiclemodel',
-            '/AssignPersonnel', '/LandCalendar', '/record',
-            '/ViewRequest', '/Venue', '/equipmentCat',
-            '/archive', '/Department/Dashboard', '/Department/Myreservation', '/Department/Chat', 
-            '/departmentAddReservation', '/Department/ViewApproval', '/Faculty/Dashboard', '/Faculty/Chat',
-            '/Faculty/Myreservation', '/addReservation', '/profile1',
-            '/settings', '/calendar', '/chat', '/Personnel/Dashboard',
-            '/Personnel/ViewTask', '/Personnel/Chat', '/Master', '/vehicleCategory', '/',
-            '/Checklist', '/chatAdmin', '/AccountSettings', '/chatAdmin', '/Reports', '/Faculty/Notification', '/Department/Notification',
-            '/Holiday', '/Department/VenueSchedule', '/Driver/Dashboard', '/Driver/Trips', '/Admin/Notification', '/Admin/AuditLog', '/Notification', '/MyReservations'
-        ];
-
-        if (!validPaths.includes(location.pathname)) {
-            setIsNotFoundVisible(true);
-        }
-    }, [location]);
+    // Removed manual URL validation; rely on router's catch-all 404 route
 
     return (
         <ThemeContext.Provider value={{ theme, toggleTheme }}>
             <div className={`app-container ${theme}`}>
                 <Toaster richColors position='top-center' duration={1500} />
-                <NotFound 
-                    isVisible={isNotFoundVisible} 
-                    onClose={() => setIsNotFoundVisible(false)} 
-                />
                 <main className="main-content">
                     <Routes>
-                        <Route path="/" element={<Navigate to="/gsd" replace />} />
-                        <Route path="/gsd" element={<Logins />} />
-                        
-            
-                       
-                        <Route path="/adminDashboard" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminDashboard /></ProtectedRoute>} />
-                        <Route path="/VehicleEntry" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><VehicleEntry /></ProtectedRoute>} />
-                        <Route path="/Equipment" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipment /></ProtectedRoute>} />
-                        <Route path="/Faculty" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Faculty /></ProtectedRoute>} />
-                        <Route path="/departments" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Departments /></ProtectedRoute>} />
-                        <Route path="/master" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Master /></ProtectedRoute>} />
-                        <Route path="/vehiclemake" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclem /></ProtectedRoute>} />
-                        <Route path="/vehiclecategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Vehiclec /></ProtectedRoute>} />
-                        <Route path="/equipmentCategory" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
-                        <Route path="/Admin/Notification" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminNotification /></ProtectedRoute>} />
-                        <Route path="/Admin/AuditLog" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AuditTrail /></ProtectedRoute>} />
-                        <Route path="/Notification" element={<ProtectedRoute allowedRoles={['Admin', 'Faculty/Staff', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head', 'Personnel', 'Driver']}><Notification /></ProtectedRoute>} />
-          
-                        <Route path="/vehiclemodel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><VehicleModel /></ProtectedRoute>} />
-                        <Route path="/AssignPersonnel" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AssignPersonnel /></ProtectedRoute>} />
-                        <Route path="/LandCalendar" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><LandCalendar /></ProtectedRoute>} />
-                        <Route path="/Checklist" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Checklists /></ProtectedRoute>} />
-                        <Route path="/drivers" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Driver /></ProtectedRoute>} />
-                        <Route path="/record" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Record /></ProtectedRoute>} />
-                        <Route path="/ViewRequest" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><ViewRequest /></ProtectedRoute>} />
+                        {/* Public Routes */}
+                        <Route path="/" element={<LoginRedirect />} />
+                        <Route index element={<LoginRedirect />} />
 
-                        <Route path="/Venue" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Venue /></ProtectedRoute>} />
-                        <Route path="/equipmentCat" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Equipmentc /></ProtectedRoute>} />
-                        <Route path="/archive" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Archive /></ProtectedRoute>} />
-                        <Route path="/Reports" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Reports /></ProtectedRoute>} />
-                        <Route path="/Holiday" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><Holiday /></ProtectedRoute>} />
-                                                            
-                        {/* Dean/Secretary Routes */}
-                        <Route path="/Department/Dashboard" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DeanDashboard /></ProtectedRoute>} />
-                        <Route path="/Department/Myreservation" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DeanViewReserve /></ProtectedRoute>} />
-                        <Route path="/Department/ViewApproval" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><ViewApproval /></ProtectedRoute>} />
-                        <Route path="/Department/Notification" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><NotificationRequest /></ProtectedRoute>} />
-                        <Route path="/Department/Chat" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><ChatDepartment /></ProtectedRoute>} />
-                        <Route path="/Department/VenueSchedule" element={<ProtectedRoute allowedRoles={['Department Head']} requiredDepartment="REGISTRAR"><VenueSchedule /></ProtectedRoute>} />
+                        {/* New Nested Route Entrypoints */}
+                        <Route path="/Admin/*" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminLayout /></ProtectedRoute>}>
+                            <Route index element={<AdminDashboard />} />
+                            <Route path="Dashboard" element={<AdminDashboard />} />
+                            {/* Vehicle Management */}
+                            <Route path="VehicleEntry" element={<VehicleEntry />} />
+                            <Route path="vehiclemake" element={<Vehiclem />} />
+                            <Route path="vehiclecategory" element={<Vehiclec />} />
+                            <Route path="vehiclemodel" element={<VehicleModel />} />
+                         
+                            {/* Equipment Management */}
+                            <Route path="Equipment" element={<Equipment />} />
+                            <Route path="equipmentCategory" element={<Equipmentc />} />
+                            <Route path="equipmentCat" element={<Equipmentc />} />
+                            {/* Venue Management */}
+                            <Route path="Venue" element={<Venue />} />
+                            <Route path="LandCalendar" element={<LandCalendar />} />
+                            {/* User Management */}
+                            <Route path="Faculty" element={<Faculty />} />
+                            <Route path="departments" element={<Departments />} />
+                            <Route path="AssignPersonnel" element={<AssignPersonnel />} />
+                            {/* System Management */}
+                           
+                            <Route path="Holiday" element={<Holiday />} />
+                            <Route path="Checklist" element={<Checklists />} />
+                            {/* Request & Record */}
+                            <Route path="ViewRequest" element={<ViewRequest />} />
+                            <Route path="record" element={<Record />} />
+                            <Route path="archive" element={<Archive />} />
+                            <Route path="Reports" element={<Reports />} />
+                           
+                            <Route path="Chat" element={<Chat />} />
+                            <Route path="Notification" element={<Notification />} />
+                            <Route path="AuditLog" element={<AuditTrail />} />
+                            {/* Catch-all for invalid Admin routes */}
+                            <Route path="*" element={<NotFound />} />
+                        </Route>
 
-                        <Route path="/MyReservations" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head']}><MyReservation /></ProtectedRoute>} />
-                        {/* User Routes */}
-                        <Route path="/Faculty/Dashboard" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><Dashboard /></ProtectedRoute>} />
-                        <Route path="/Faculty/Myreservation" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><ViewReserve /></ProtectedRoute>} />
-                        <Route path="/addReservation" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head']}><AddReservation /></ProtectedRoute>} />
-                        <Route path="/Faculty/Chat" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><ChatUser /></ProtectedRoute>} />
-                        <Route path="/Faculty/Notification" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><NotificationUser /></ProtectedRoute>} />
-                        {/* Shared Routes (accessible by all authenticated users) */}
-                        
-                       
-                        <Route path="/chat" element={<ProtectedRoute allowedRoles={['Admin', 'Faculty/Staff', 'SBO PRESIDENT', 'CSG PRESIDENT', 'Dean', 'Secretary', 'Department Head', 'Personnel', 'Driver']}><Chat /></ProtectedRoute>} />
-                        
-                        {/* Personnel Routes */}
-                        <Route path="/Personnel/Dashboard" element={<ProtectedRoute allowedRoles={['Personnel']}><PersonnelDashboard /></ProtectedRoute>} />
-                        <Route path="/Personnel/ViewTask" element={<ProtectedRoute allowedRoles={['Personnel']}><ViewTask /></ProtectedRoute>} />
-                        <Route path="/Personnel/Chat" element={<ProtectedRoute allowedRoles={['Personnel']}><ChatPersonnel /></ProtectedRoute>} />
-                       
-                        <Route path="/Driver/Dashboard" element={<ProtectedRoute allowedRoles={['Driver']}><DriverDashboard/></ProtectedRoute>} />
-                        <Route path="/Driver/Trips" element={<ProtectedRoute allowedRoles={['Driver']}><DriverTrips/></ProtectedRoute>} />
-                        {/* chats */}
+                        <Route path="/Faculty/*" element={<ProtectedRoute allowedRoles={['Faculty/Staff', 'School Head', 'SBO PRESIDENT', 'CSG PRESIDENT']}><FacultyLayout /></ProtectedRoute>}>
+                            <Route index element={<Dashboard />} />
+                            <Route path="Dashboard" element={<Dashboard />} />
+                            <Route path="addReservation" element={<AddReservation />} />
+                            <Route path="MyReservations" element={<MyReservation />} />
+                            <Route path="Chat" element={<Chat />} />
+                            <Route path="Notification" element={<Notification />} />
+                            {/* Catch-all for invalid Faculty routes */}
+                            <Route path="*" element={<NotFound />} />
+                        </Route>
+
+                        <Route path="/Department/*" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DepartmentLayout /></ProtectedRoute>}>
+                            <Route index element={<DeanDashboard />} />
+                            <Route path="Dashboard" element={<DeanDashboard />} />
+                            <Route path="addReservation" element={<AddReservation />} />
+                            <Route path="MyReservations" element={<MyReservation />} />
+                            <Route path="ViewApproval" element={<ViewApproval />} />
+                            <Route path="VenueSchedule" element={<ProtectedRoute allowedRoles={['Department Head']} requiredDepartment="REGISTRAR"><VenueSchedule /></ProtectedRoute>} />
+                            <Route path="Chat" element={<Chat />} />
+                            <Route path="Notification" element={<Notification />} />
+                            {/* Catch-all for invalid Department routes */}
+                            <Route path="*" element={<NotFound />} />
+                        </Route>
+
+                        {/* Personnel Routes (nested) */}
+                        <Route path="/Personnel/*" element={<ProtectedRoute allowedRoles={['Personnel']}><PersonnelLayout /></ProtectedRoute>}>
+                            <Route index element={<PersonnelDashboard />} />
+                            <Route path="Dashboard" element={<PersonnelDashboard />} />
+                            <Route path="ViewTask" element={<ViewTask />} />
+                            <Route path="Notification" element={<Notification />} />
+                            <Route path="Chat" element={<Chat />} />
+                            {/* Catch-all for invalid Personnel routes */}
+                            <Route path="*" element={<NotFound />} />
+                        </Route>
+
+                        {/* Driver Routes (nested) */}
+                        <Route path="/Driver/*" element={<ProtectedRoute allowedRoles={['Driver']}><DriverLayout /></ProtectedRoute>}>
+                            <Route index element={<DriverDashboard />} />
+                            <Route path="Dashboard" element={<DriverDashboard />} />
+    
+                            <Route path="Trips" element={<DriverTrips />} />
+                            <Route path="Chat" element={<Chat />} />
+                            <Route path="Notification" element={<Notification />} />
+                            {/* Catch-all for invalid Driver routes */}
+                            <Route path="*" element={<NotFound />} />
+                        </Route>
+
+                        {/* Role-based redirects for shared entry points */}
+                        <Route path="/addReservation" element={<RoleRedirect type="addReservation" />} />
+                        <Route path="/MyReservations" element={<RoleRedirect type="reservations" />} />
+                        <Route path="/Notification" element={<RoleRedirect type="notification" />} />
+                        <Route path="/chat" element={<RoleRedirect type="chat" />} />
                         <Route path="/chatAdmin" element={<ProtectedRoute allowedRoles={['Personnel', 'Admin', 'Dean', 'Secretary', 'Faculty/Staff']}><Chat /></ProtectedRoute>} />
+
+
+                        {/* Catch-all route for unmatched paths */}
+                        <Route path="*" element={<NotFound />} />
                     </Routes>
                 </main>
             </div>

@@ -33,7 +33,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
         console.log('Fetching equipment details for ID:', equipmentId);
         setLoading(true);
         try {
-            const url = `${baseUrl}/user.php`;
+            const url = `${baseUrl}/Admin.php`;
             const params = new URLSearchParams({
                 operation: "fetchEquipmentById",
                 id: equipmentId,
@@ -61,7 +61,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
     const fetchStatusOptions = async () => {
         try {
-            const response = await axios.post(`${baseUrl}/user.php`, { operation: "fetchStatusAvailability" });
+            const response = await axios.post(`${baseUrl}/Admin.php`, { operation: "fetchStatusAvailability" });
             if (response.data.status === 'success') {
                 setStatusOptions(response.data.data);
             }
@@ -111,7 +111,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     user_admin_id: SecureStorage.getSessionItem('user_id')
                 });
 
-                const response = await axios.post(`${baseUrl}/user.php`, params);
+                const response = await axios.post(`${baseUrl}/Admin.php`, params);
 
                 if (response.data.status === 'success') {
                     message.success(`Stock updated to ${quickAdjustment.quantity} items`);
@@ -153,7 +153,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
                 console.log('Unit Data:', params.toString());
 
-                const response = await axios.post(`${baseUrl}/user.php`, params);
+                const response = await axios.post(`${baseUrl}/Admin.php`, params);
                 
                 if (response.data.status !== 'success') {
                     throw new Error(response.data.message || 'Failed to save unit');
@@ -212,7 +212,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
             console.log('Form Data:', quickAdjustment);
 
             const response = await axios.post(
-                `${baseUrl}/user.php`,
+                `${baseUrl}/Admin.php`,
                 JSON.stringify(payload),
                 { headers: { 'Content-Type': 'application/json' } }
             );
@@ -268,7 +268,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                 userid: userId
             };
 
-            const response = await axios.post(`${baseUrl}/user.php`, archiveData, {
+            const response = await axios.post(`${baseUrl}/Admin.php`, archiveData, {
                 headers: { 'Content-Type': 'application/json' }
             });
 
@@ -294,7 +294,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
 
     const handleViewUnitUsage = async (unitId) => {
         try {
-            const url = `${baseUrl}/user.php`;
+            const url = `${baseUrl}/Assigned&Records.php`;
             const response = await axios.post(url, new URLSearchParams({
                 operation: "getEquipmentUnitUsage",
                 unitId: unitId

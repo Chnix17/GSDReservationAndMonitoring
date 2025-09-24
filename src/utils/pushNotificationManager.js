@@ -1,8 +1,10 @@
 // Push Notification Manager
+import { SecureStorage } from './encryption';
+
 class PushNotificationManager {
     constructor() {
         // Try to load VAPID key from server or use the hardcoded one
-        this.vapidPublicKey = 'BBCHDpLuOIsXy3cOBIpaNPEs5SMLDDlqeyEsbVHaZbVVRccII2zkSkt4vm3AcZp8kKZkhXFBTXLcTZEaJaBTuVo';
+        this.vapidPublicKey = 'BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8';
         this.applicationServerKey = null; // Will be set in initialize
         this.isSupported = 'serviceWorker' in navigator && 'PushManager' in window;
         this.registration = null;
@@ -93,8 +95,8 @@ class PushNotificationManager {
             console.log('Converting VAPID public key...');
             this.applicationServerKey = this.urlBase64ToUint8Array(this.vapidPublicKey);
             console.log('VAPID key converted successfully');
-            // Register service worker with proper path
-            const swPath = './sw.js';
+            // Register service worker with absolute path for consistent scope
+            const swPath = '/sw.js';
             console.log('Registering service worker at:', swPath);
             
             // Check if service worker is already registered
@@ -253,7 +255,7 @@ class PushNotificationManager {
     }
 
     // Unsubscribe from push notifications
-    async unsubscribe() {
+    async unsubscribe(userId = null) {
         if (!this.subscription) {
             console.log('No subscription to unsubscribe from');
             return true;
@@ -263,11 +265,120 @@ class PushNotificationManager {
             await this.subscription.unsubscribe();
             this.subscription = null;
             console.log('Unsubscribed from push notifications');
+
+            // Also delete from server if userId provided
+            if (userId) {
+                await this.deleteSubscriptionFromServer(userId);
+            }
+
             return true;
         } catch (error) {
             console.error('Failed to unsubscribe:', error);
             throw error;
         }
+    }
+
+    // Delete subscription from server
+    async deleteSubscriptionFromServer(userId) {
+        try {
+            const getBaseUrl = () => {
+                try {
+                    const storedUrl = SecureStorage?.getLocalItem?.('url');
+                    if (storedUrl && typeof storedUrl === 'string') {
+                        return storedUrl;
+                    }
+                } catch (error) {
+                    console.warn('Could not read SecureStorage url, falling back to default');
+                }
+                return 'http://localhost/gsd-reservation/api/';
+            };
+
+            const baseUrl = getBaseUrl();
+            const apiUrl = `${baseUrl}server/save-push-subscription.php`;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: 'delete',
+                    user_id: userId
+                })
+            });
+
+            const result = await response.json();
+            console.log('Delete subscription result:', result);
+            
+            if (result.status === 'success') {
+                console.log('Subscription deleted from server');
+                return true;
+            } else {
+                throw new Error(result.message || 'Failed to delete subscription');
+            }
+        } catch (error) {
+            console.error('Failed to delete subscription from server:', error);
+            throw error;
+        }
+    }
+
+    // Detect device information
+    detectDeviceInfo() {
+        const userAgent = navigator.userAgent;
+        
+        // Detect device type
+        const deviceType = (() => {
+            if (/Mobile|Android|iPhone|iPod/i.test(userAgent)) {
+                return 'Mobile';
+            } else if (/Tablet|iPad/i.test(userAgent)) {
+                return 'Tablet';
+            } else {
+                return 'Desktop';
+            }
+        })();
+        
+        // Detect operating system
+        const deviceOS = (() => {
+            if (/Windows NT/i.test(userAgent)) {
+                return 'Windows';
+            } else if (/Mac OS X|Macintosh/i.test(userAgent)) {
+                return 'macOS';
+            } else if (/Linux/i.test(userAgent)) {
+                return 'Linux';
+            } else if (/Android/i.test(userAgent)) {
+                return 'Android';
+            } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+                return 'iOS';
+            } else {
+                return 'Unknown';
+            }
+        })();
+        
+        // Detect browser
+        const browser = (() => {
+            if (/Edg/i.test(userAgent)) {
+                return 'Microsoft Edge';
+            } else if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) {
+                return 'Google Chrome';
+            } else if (/Firefox/i.test(userAgent)) {
+                return 'Mozilla Firefox';
+            } else if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) {
+                return 'Safari';
+            } else if (/Opera|OPR/i.test(userAgent)) {
+                return 'Opera';
+            } else if (/Trident|MSIE/i.test(userAgent)) {
+                return 'Internet Explorer';
+            } else {
+                return 'Unknown';
+            }
+        })();
+        
+        return {
+            device_type: deviceType,
+            device_os: deviceOS,
+            browser: browser,
+            user_agent: userAgent
+        };
     }
 
     // Send subscription to server
@@ -276,40 +387,49 @@ class PushNotificationManager {
             throw new Error('No subscription to send');
         }
 
+        const toBase64Url = (u8) => {
+            const b64 = btoa(String.fromCharCode.apply(null, new Uint8Array(u8)));
+            return b64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/,'');
+        };
+
         const subscriptionData = {
             endpoint: this.subscription.endpoint,
             keys: {
-                p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(this.subscription.getKey('p256dh')))),
-                auth: btoa(String.fromCharCode.apply(null, new Uint8Array(this.subscription.getKey('auth'))))
+                p256dh: toBase64Url(this.subscription.getKey('p256dh')),
+                auth: toBase64Url(this.subscription.getKey('auth'))
             }
         };
+
+        // Get device information
+        const deviceInfo = this.detectDeviceInfo();
+        console.log('Device info detected:', deviceInfo);
 
         const requestData = {
             operation: 'save',
             user_id: userId,
-            subscription: subscriptionData
+            subscription: subscriptionData,
+            device_info: deviceInfo
         };
 
         console.log('Sending subscription data to server:', requestData);
 
         try {
-            // Get baseURL from secure storage (same as used in App.js)
+            // Get baseURL from SecureStorage (same as used in App.js)
             const getBaseUrl = () => {
                 try {
-                    // Try to get from secure storage first
-                    const storedUrl = localStorage.getItem('url');
-                    if (storedUrl) {
+                    const storedUrl = SecureStorage?.getLocalItem?.('url');
+                    if (storedUrl && typeof storedUrl === 'string') {
                         return storedUrl;
                     }
                 } catch (error) {
-                    console.warn('Could not access secure storage, using default URL');
+                    console.warn('Could not read SecureStorage url, falling back to default');
                 }
                 // Fallback to default URL
-                return "http://localhost/GSDReservationAndMonitoring/api/gsd/";
+                return 'http://localhost/gsd-reservation/api/';
             };
 
             const baseUrl = getBaseUrl();
-            const apiUrl = `${baseUrl}save-push-subscription.php`;
+            const apiUrl = `${baseUrl}server/save-push-subscription.php`;
             
             console.log('Using API URL:', apiUrl);
 
@@ -364,6 +484,48 @@ class PushNotificationManager {
             subscription: subscription,
             registration: this.registration
         };
+    }
+
+ 
+    async getServerSubscriptionStatus(userId) {
+        try {
+            const getBaseUrl = () => {
+                try {
+                    const storedUrl = SecureStorage?.getLocalItem?.('url');
+                    if (storedUrl && typeof storedUrl === 'string') {
+                        return storedUrl;
+                    }
+                } catch (error) {
+                    console.warn('Could not read SecureStorage url, falling back to default');
+                }
+                return 'http://localhost/gsd-reservation/api/';
+            };
+
+            const baseUrl = getBaseUrl();
+            const apiUrl = `${baseUrl}server/save-push-subscription.php`;
+
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: 'get',
+                    user_id: userId
+                })
+            });
+
+            const result = await response.json();
+            console.log('Server subscription status:', result);
+            
+            return result;
+        } catch (error) {
+            console.error('Failed to get server subscription status:', error);
+            return {
+                status: 'error',
+                message: 'Failed to get subscription status: ' + error.message
+            };
+        }
     }
 
     // Test notification

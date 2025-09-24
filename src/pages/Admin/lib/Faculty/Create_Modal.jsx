@@ -131,7 +131,7 @@ const Create_Modal = ({
                 };
             }
 
-            const response = await axios.post(`${baseUrl}/user.php`, jsonData, {
+            const response = await axios.post(`${baseUrl}/Admin.php`, jsonData, {
                 headers: {
                     'Content-Type': 'application/json'
                 }
@@ -192,7 +192,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/user.php`,
+                url: `${baseUrl}/Admin.php`,
                 data: new URLSearchParams({
                     operation: 'fetchUserLevels'
                 }).toString(),
@@ -218,7 +218,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/user.php`,
+                url: `${baseUrl}/Admin.php`,
                 data: new URLSearchParams({
                     operation: 'fetchDepartments'
                 }).toString(),
@@ -245,7 +245,7 @@ const Create_Modal = ({
         try {
             const response = await axios({
                 method: 'post',
-                url: `${baseUrl}/user.php`,
+                url: `${baseUrl}/Admin.php`,
                 data: new URLSearchParams({
                     operation: 'fetchTitle'
                 }).toString(),

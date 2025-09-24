@@ -206,11 +206,16 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
             setHistoryLoading(true);
             try {
                 const response = await axios.post(
-                    `${encryptedUrl}/user.php`,
-                    new URLSearchParams({
+                    `${encryptedUrl}/Assigned&Records.php`,
+                    {
                         operation: 'fetchVenueHistory',
                         venue_id: venue.ven_id
-                    })
+                    },
+                    {
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    }
                 );
                 if (response.data.status === 'success') {
                     setReservationHistory(response.data.data || []);
@@ -231,11 +236,16 @@ const View_Utilization = ({ open, onCancel, venue, encryptedUrl }) => {
                 setLoading(true);
                 try {
                     const response = await axios.post(
-                        `${encryptedUrl}/user.php`,
-                        new URLSearchParams({
+                        `${encryptedUrl}/Assigned&Records.php`,
+                        {
                             operation: "getVenueUsage",
                             venueId: venue.ven_id
-                        })
+                        },
+                        {
+                            headers: {
+                                'Content-Type': 'application/json'
+                            }
+                        }
                     );
 
                     if (response.data.status === 'success') {

@@ -41,7 +41,7 @@ const Reports = () => {
 
   const fetchMaintenanceResources = useCallback(async () => {
     try {
-      const response = await axios.post(`${baseUrl}/user.php`, {
+      const response = await axios.post(`${baseUrl}/Assigned&Records.php`, {
         operation: 'displayedMaintenanceResources'
       });
 
@@ -55,7 +55,7 @@ const Reports = () => {
 
   const fetchMaintenanceResourcesWithStatus = useCallback(async () => {
     try {
-      const response = await axios.post(`${baseUrl}/user.php`, {
+      const response = await axios.post(`${baseUrl}/Assigned&Records.php`, {
         operation: 'displayedMaintenanceResourcesDone'
       });
 
@@ -80,7 +80,7 @@ const Reports = () => {
   const handleUpdateResourceStatus = async (isFixed) => {
     if (!selectedResource) return;
     try {
-      await axios.post(`${baseUrl}/user.php`, {
+      await axios.post(`${baseUrl}/Assigned&Records.php`, {
         operation: "updateResourceStatusAndCondition",
         type: selectedResource.resource_type,
         resourceId: selectedResource.resource_id, // or the correct field for your resource

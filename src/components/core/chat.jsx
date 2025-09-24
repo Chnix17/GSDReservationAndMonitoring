@@ -315,11 +315,11 @@ const Chat = () => {
       try {
         const encryptedUserLevel = SecureStorage.getLocalItem('user_level_id');
         const decryptedUserLevel = parseInt(encryptedUserLevel);
-        const allowed = [1, 3, 5, 6, 15, 16, 17, 18];
+        const allowed = [1, 2, 3, 5, 6, 15, 16, 17, 18];
         if (!allowed.includes(decryptedUserLevel)) {
           localStorage.clear();
           sessionStorage.clear();
-          navigate('/gsd');
+          navigate('/');
         }
       } catch (error) {
         toast.error('An error occurred while fetching data.');
@@ -356,7 +356,7 @@ const Chat = () => {
         userid: currentUser.id
       };
 
-      const response = await fetch(`${apiUrl}user.php`, {
+      const response = await fetch(`${apiUrl}Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -783,7 +783,7 @@ const Chat = () => {
       formData.append('receiver_id', activeConversation.id);
       formData.append('message', messageText);
 
-      const response = await fetch(`${apiUrl}user.php`, {
+      const response = await fetch(`${apiUrl}Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded'
@@ -873,7 +873,7 @@ const Chat = () => {
     setErrorMessage('');
   
     try {
-      const response = await fetch(`${apiUrl}user.php`, {
+      const response = await fetch(`${apiUrl}Adin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',

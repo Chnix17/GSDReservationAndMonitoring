@@ -20,7 +20,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
 
     const fetchStatusAvailability = useCallback(async () => {
         try {
-            const response = await axios.post(`${baseUrl}/user.php`, 
+            const response = await axios.post(`${baseUrl}/Admin.php`, 
                 new URLSearchParams({
                     operation: 'fetchStatusAvailability'
                 })
@@ -53,7 +53,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             };
 
             const response = await axios.post(
-                `${baseUrl}/user.php`,
+                `${baseUrl}/Admin.php`,
                 requestData,
                 {
                     headers: {
@@ -152,7 +152,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             };
 
             const response = await axios.post(
-                `${baseUrl}/user.php`,
+                `${baseUrl}/Admin.php`,
                 requestData,
                 {
                     headers: {

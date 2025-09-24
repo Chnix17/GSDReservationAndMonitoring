@@ -11,8 +11,8 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
     const [selectedMake, setSelectedMake] = useState('');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const encryptedUrl = SecureStorage.getLocalItem("url");
-    const BASE_URL = `${encryptedUrl}/vehicle_master.php`;
-    const FETCH_URL = `${encryptedUrl}/fetchMaster.php`;
+    const BASE_URL = `${encryptedUrl}/Admin.php`;
+    const FETCH_URL = `${encryptedUrl}/Admin.php`;
 
     const fetchMakes = useCallback(async () => {
         try {

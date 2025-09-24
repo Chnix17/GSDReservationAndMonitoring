@@ -3,6 +3,7 @@ import { Modal, Form, Input, Button } from 'antd';
 import { toast } from 'sonner';
 import axios from 'axios';
 import {SecureStorage} from '../../../../../utils/encryption';
+import { sanitizeInput, validateInput } from '../../../../../utils/sanitize';
 
 const CategoryModal = ({ open, onCancel, onSuccess }) => {
     const [form] = Form.useForm();
@@ -11,35 +12,50 @@ const CategoryModal = ({ open, onCancel, onSuccess }) => {
     const handleSubmit = async () => {
         try {
             const values = await form.validateFields();
+            const sanitizedName = sanitizeInput(values.categoryName);
+            
+            if (!sanitizedName.trim()) {
+                toast.error("Please enter a category name.");
+                return;
+            }
+
+            if (!validateInput(sanitizedName)) {
+                toast.error("Input contains invalid characters.");
+                return;
+            }
+
             setIsSubmitting(true);
             const encryptedUrl = SecureStorage.getLocalItem("url");
+            const userId = SecureStorage.getSessionItem('user_id') || SecureStorage.getLocalItem('user_id') || null;
 
-            console.log('Submitting category data:', values.categoryName);
+            console.log('Submitting category data:', sanitizedName);
 
-            const response = await axios.post(
-                `${encryptedUrl}/gsd/vehicle_master.php`,
-                {
-                    operation: "saveCategoryData",
-                    json: {
-                        vehicle_category_name: values.categoryName
-                    }
+            const requestData = {
+                operation: 'saveCategoryData',
+                vehicle_category_name: sanitizedName,
+                userid: userId
+            };
+
+            const response = await axios.post(`${encryptedUrl}Admin.php`, requestData, {
+                headers: {
+                    'Content-Type': 'application/json'
                 }
-            );
+            });
 
             console.log('API Response:', response.data);
 
             if (response.data.status === 'success') {
                 console.log('Category added successfully, refreshing categories...');
-                toast.success('Category added successfully');
+                toast.success('Vehicle category added successfully!');
                 form.resetFields();
                 onSuccess();
             } else {
                 console.error('Failed to add category:', response.data.message);
-                toast.error(response.data.message || 'Failed to add category');
+                toast.error(response.data.message || 'Failed to add vehicle category.');
             }
         } catch (error) {
             console.error('Error adding category:', error);
-            toast.error(error.message || 'An error occurred');
+            toast.error('Error adding vehicle category.');
         } finally {
             setIsSubmitting(false);
         }

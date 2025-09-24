@@ -35,14 +35,14 @@ const Holiday = () => {
         const decryptedUserLevel = parseInt(encryptedUserLevel);
         if (decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 4) {
             localStorage.clear();
-            navigate('/gsd');
+            navigate('/');
         }
     }, [navigate]);
 
     const fetchHolidays = useCallback(async () => {
         setLoading(true);
         try {
-            const response = await axios.post(`${baseUrl}user.php`, 
+            const response = await axios.post(`${baseUrl}Admin.php`, 
                 new URLSearchParams({ operation: 'fetchHoliday' })
             );
             if (response.data.status === 'success') {
@@ -91,8 +91,8 @@ const Holiday = () => {
         setIsSubmitting(true);
         try {
             const endpoint = editMode 
-                ? `${baseUrl}user.php`
-                : `${baseUrl}user.php`;
+                ? `${baseUrl}Admin.php`
+                : `${baseUrl}Admin.php`;
             
             const userId =
                 SecureStorage.getSessionItem('user_id') ||

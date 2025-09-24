@@ -19,7 +19,7 @@ const ReAssignModal = ({ isOpen, onClose, selectedReservation, onSuccess }) => {
     setLoading(true);
     try {
       const encryptedUrl = SecureStorage.getLocalItem("url");
-      const response = await axios.post(`${encryptedUrl}user.php`, {
+      const response = await axios.post(`${encryptedUrl}Assigned&Records.php`, {
         operation: 'fetchReAssignPersonnel',
         reservation_id: selectedReservation.id
       }, {
@@ -135,7 +135,7 @@ const ReAssignModal = ({ isOpen, onClose, selectedReservation, onSuccess }) => {
       const personnelAssignments = preparePersonnelAssignments();
       const adminId = SecureStorage.getLocalItem("user_id");
       
-      const response = await axios.post(`${encryptedUrl}user.php`, {
+      const response = await axios.post(`${encryptedUrl}Assigned&Records.php`, {
         operation: 'updateReassignChecklist',
         data: {
           reservation_id: selectedReservation.id,

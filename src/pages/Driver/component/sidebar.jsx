@@ -11,6 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, Transition } from '@headlessui/react';
 import { SecureStorage } from '../../../utils/encryption';
 import ProfileAdminModal from '../../../components/core/profile_admin';
+import { getApiBaseUrl } from '../../../utils/apiConfig';
 
 const SidebarContext = createContext();
 
@@ -26,8 +27,16 @@ const Sidebar = () => {
 
   const name = SecureStorage.getSessionItem('name') || 'Admin User';
 
+  // Compute correct base path for public assets (works under /gsd-reservation or other subpaths)
+  const assetBasePath = (() => {
+    try {
+      const apiBase = getApiBaseUrl();
+      return new URL(apiBase).pathname.replace(/\/api\/?$/, '');
+    } catch (e) {
+      return '';
+    }
+  })();
 
-  
   useEffect(() => {
     setActiveItem(location.pathname);
     const handleResize = () => {
@@ -39,8 +48,6 @@ const Sidebar = () => {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [location]);
-
-
 
   const toggleDesktopSidebar = () => {
     const newState = !isDesktopSidebarOpen;
@@ -63,8 +70,6 @@ const Sidebar = () => {
     });
     window.dispatchEvent(event);
   };
-
-  
 
   const handleLogout = async () => {
     // Preserve critical data before clearing
@@ -224,7 +229,7 @@ const Sidebar = () => {
               <FaBars size={20} />
             </button>
                           <div className="flex items-center">
-              <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
+              <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
               <span className="ml-2 font-bold text-black dark:text-white">GSD Portal</span>
             </div>
           </div>
@@ -350,13 +355,13 @@ const Sidebar = () => {
               {isDesktopSidebarOpen ? (
                 <>
                   <div className="flex items-center space-x-2">
-                    <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
+                    <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
                     <span className="font-bold text-black dark:text-white">GSD Portal</span>
                   </div>
                   <button onClick={toggleDesktopSidebar} className="text-[#0b2a0b] dark:text-[#202521] p-1 rounded-full hover:bg-[#538c4c] dark:hover:bg-[#83b383]">
                     <FaAngleLeft size={16} />
                   </button>
-                </>
+                </> 
               ) : (
                 <button onClick={toggleDesktopSidebar} className="text-[#082308] dark:text-[#1b1e1b] p-1 rounded-full hover:bg-[#538c4c] dark:hover:bg-[#83b383]">
                   <FaAngleRight size={16} className="text-black" />
@@ -364,8 +369,6 @@ const Sidebar = () => {
               )}
             </div>
 
-           
-            
             {/* Navigation */}
             <nav className={`flex-grow overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`}>
               <MiniSidebarItem 
@@ -395,7 +398,7 @@ const Sidebar = () => {
             {/* Close button */}
             <div className="flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800">
               <div className="flex items-center space-x-2">
-                <img src="/images/assets/phinma.png" alt="Logo" className="w-8 h-8" />
+                <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
                 <span className="font-bold text-green-600 dark:text-green-400">GSD Portal</span>
               </div>
               <button onClick={toggleMobileSidebar} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">

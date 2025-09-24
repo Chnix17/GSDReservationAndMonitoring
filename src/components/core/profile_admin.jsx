@@ -46,7 +46,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       
       console.log('Fetching user data for ID:', userId);
       
-      const response = await fetch(`${baseUrl}/user.php`, {
+      const response = await fetch(`${baseUrl}/Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -87,7 +87,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // Function to fetch departments from API
   const fetchDepartments = useCallback(async () => {
     try {
-      const response = await fetch(`${baseUrl}/user.php`, {
+      const response = await fetch(`${baseUrl}/Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -114,7 +114,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // Function to fetch titles from API
   const fetchTitles = useCallback(async () => {
     try {
-      const response = await fetch(`${baseUrl}/user.php`, {
+      const response = await fetch(`${baseUrl}/Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -137,7 +137,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // Function to fetch user levels from API
   const fetchUserLevels = useCallback(async () => {
     try {
-      const response = await fetch(`${baseUrl}/user.php`, {
+      const response = await fetch(`${baseUrl}/Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
@@ -290,7 +290,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         }
         
         // Make API call to update user data
-        const response = await fetch(`${baseUrl}/user.php`, {
+        const response = await fetch(`${baseUrl}/Admin.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'
@@ -395,7 +395,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIsSubmittingPassword(true);
       try {
         // Make API call to change the password
-        const response = await fetch(`${baseUrl}/user.php`, {
+        const response = await fetch(`${baseUrl}/Admin.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json'

@@ -22,7 +22,7 @@ const Dashboard = () => {
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     if (decryptedUserLevel !== 2 && decryptedUserLevel !== 2) {
       localStorage.clear();
-      navigate('/gsd');
+      navigate('/');
     }
   }, [navigate]);
 

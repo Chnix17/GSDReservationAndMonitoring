@@ -34,7 +34,7 @@ const UpdateEquipmentModal = ({
     ];
 
     const fetchCategories = useCallback(async () => {
-        const url = `${baseUrl}/user.php`;
+        const url = `${baseUrl}/Admin.php`;
         const jsonData = { operation: "fetchCategories" };
 
         try {
@@ -51,7 +51,7 @@ const UpdateEquipmentModal = ({
     }, [baseUrl]);
 
     const getEquipmentDetails = useCallback(async (equip_id) => {
-        const url = `${baseUrl}/user.php`;
+        const url = `${baseUrl}/Admin.php`;
         const jsonData = { operation: "fetchEquipmentById", id: equip_id };
 
         try {
@@ -178,7 +178,7 @@ const UpdateEquipmentModal = ({
         setLoading(true);
         try {
             const response = await axios.post(
-                `${baseUrl}/user.php`,
+                `${baseUrl}/Admin.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {

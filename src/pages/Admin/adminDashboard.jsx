@@ -105,7 +105,7 @@
         useEffect(() => {
             const fetchReservationStats = async () => {
                 try {
-                    const response = await axios.post(`${encryptedUrl}/user.php`, {
+                    const response = await axios.post(`${encryptedUrl}/Admin.php`, {
                         operation: 'getReservationStats'
                     });
                     if (response.data.status === 'success') {
@@ -131,7 +131,7 @@
 
         const fetchReservations = useCallback(async () => {
             try {
-                const response = await axios.post(`${encryptedUrl}/user.php`, {
+                const response = await axios.post(`${encryptedUrl}/Admin.php`, {
                     operation: 'fetchRecord'
                 });
 
@@ -152,7 +152,7 @@
 
         const fetchPersonnel = useCallback(async () => {
             try {
-                const response = await axios.post(`${encryptedUrl}/user.php`, 
+                const response = await axios.post(`${encryptedUrl}/Admin.php`, 
                     new URLSearchParams({ operation: "fetchPersonnelActive" }),
                     { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
                 );
@@ -167,7 +167,7 @@
 
         const fetchTotals = useCallback(async () => {
             try {
-                const response = await axios.post(`${encryptedUrl}/user.php`, {
+                const response = await axios.post(`${encryptedUrl}/Admin.php`, {
                     operation: 'getTotals'
                 });
 

@@ -27,7 +27,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
     ];
 
     const fetchCategories = useCallback(async () => {
-        const url = `${baseUrl}/user.php`;
+        const url = `${baseUrl}/Admin.php`;
         const jsonData = { operation: "fetchCategories" };
 
         try {
@@ -44,7 +44,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
     }, [baseUrl]);
 
     const fetchEquipmentNames = useCallback(async () => {
-        const url = `${baseUrl}/user.php`;
+        const url = `${baseUrl}/Admin.php`;
         const jsonData = { operation: "fetchEquipmentName" };
 
         try {
@@ -123,7 +123,7 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
         setLoading(true);
         try {
             const response = await axios.post(
-                `${baseUrl}/user.php`,
+                `${baseUrl}/Admin.php`,
                 JSON.stringify(requestData),
                 {
                     headers: {

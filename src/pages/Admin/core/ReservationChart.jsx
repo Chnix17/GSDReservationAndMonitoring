@@ -16,7 +16,7 @@ const ReservationChart = () => {
         const fetchReservationData = async () => {
             try {
                 const encryptedUrl = SecureStorage.getLocalItem("url");
-                const response = await axios.post(`${encryptedUrl}/user.php`, {
+                const response = await axios.post(`${encryptedUrl}/Admin.php`, {
                     operation: 'countTrendReservations'
                 });
 

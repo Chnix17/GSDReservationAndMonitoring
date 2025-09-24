@@ -87,12 +87,12 @@ const ReviewSection = ({
     if (formData.resourceType === 'venue') {
       return <>
         <div className="flex items-center gap-2 mb-4">
-          <BankOutlined className="text-blue-500" />
+          <BankOutlined className="text-primary" />
           <Text strong className="text-lg">Selected Venues ({selectedVenues.length})</Text>
         </div>
         <div className="space-y-3">
           {selectedVenues.map(venue => (
-            <div key={venue.ven_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+            <div key={venue.ven_id} className="flex items-center justify-between p-4 bg-lightcream rounded-xl border border-primary/10">
               <div className="flex-1">
                 <Text strong className="text-lg block">{venue.ven_name}</Text>
                 <Text type="secondary" className="text-sm">{venue.ven_description}</Text>
@@ -103,18 +103,18 @@ const ReviewSection = ({
         {Object.keys(selectedEquipment || {}).length > 0 && (
           <>
             <div className="flex items-center gap-2 mb-4 mt-6">
-              <FaTools className="text-blue-500" />
+              <FaTools className="text-primary" />
               <Text strong className="text-lg">Equipment</Text>
             </div>
             <div className="space-y-3">
               {Object.entries(selectedEquipment || {}).map(([equipId, quantity]) => {
                 const equip = equipment?.find(e => e.equip_id?.toString() === equipId?.toString());
                 return (
-                  <div key={equipId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={equipId} className="flex items-center justify-between p-4 bg-lightcream rounded-xl border border-primary/10">
                     <div className="flex-1">
                       <Text strong className="block">{equip?.equip_name || `Equipment #${equipId}`}</Text>
                     </div>
-                    <Tag color="blue">Qty: {quantity}</Tag>
+                    <Tag className="bg-primary text-white border-none">Qty: {quantity}</Tag>
                   </div>
                 );
               })}
@@ -125,7 +125,7 @@ const ReviewSection = ({
     } else if (formData.resourceType === 'vehicle') {
       return <>
         <div className="flex items-center gap-2 mb-4">
-          <CarOutlined className="text-blue-500" />
+          <CarOutlined className="text-primary" />
           <Text strong className="text-lg">Selected Vehicles ({selectedVehicleDetails.length})</Text>
         </div>
         <div className="space-y-3">
@@ -146,7 +146,7 @@ const ReviewSection = ({
               driverType = 'Default Driver';
             }
             return (
-              <div key={vehicle.vehicle_id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={vehicle.vehicle_id} className="flex items-center justify-between p-4 bg-lightcream rounded-xl border border-primary/10">
                 <div className="flex-1">
                   <Text strong className="text-lg block">
                     {vehicle.vehicle_make_name} {vehicle.vehicle_model_name}
@@ -154,26 +154,26 @@ const ReviewSection = ({
                   <Text type="secondary" className="text-sm">{vehicle.vehicle_description}</Text>
                   <div className="mt-1">
                     <Text type="secondary" className="text-xs">Driver Type: </Text>
-                    <Text strong className="text-blue-700 text-xs">{driverType}</Text>
+                    <Text strong className="text-primary-dark text-xs">{driverType}</Text>
                     {driverType === 'Own Driver' && (
-                      <><Text type="secondary" className="text-xs ml-2">Name: </Text><Text strong className="text-blue-700 text-xs">{driverName || 'No driver assigned'}</Text></>)
+                      <><Text type="secondary" className="text-xs ml-2">Name: </Text><Text strong className="text-primary-dark text-xs">{driverName || 'No driver assigned'}</Text></>)
                     }
                   </div>
                 </div>
-                <Tag color="blue">{vehicle.vehicle_license}</Tag>
+                <Tag className="bg-primary text-white border-none">{vehicle.vehicle_license}</Tag>
               </div>
             );
           })}
         </div>
         
         <div className="flex items-center gap-2 mb-4 mt-6">
-          <TeamOutlined className="text-blue-500" />
+          <TeamOutlined className="text-primary" />
           <Text strong className="text-lg">Passengers ({formData.passengers.length})</Text>
         </div>
         <div className="space-y-2">
           {formData.passengers.map((passenger, index) => (
-            <div key={passenger.id} className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
-              <UserOutlined className="text-blue-500" />
+            <div key={passenger.id} className="flex items-center gap-2 p-3 bg-lightcream rounded-xl border border-primary/10">
+              <UserOutlined className="text-primary" />
               <Text>{passenger.name}</Text>
             </div>
           ))}
@@ -181,18 +181,18 @@ const ReviewSection = ({
         {Object.keys(selectedEquipment || {}).length > 0 && (
           <>
             <div className="flex items-center gap-2 mb-4 mt-6">
-              <FaTools className="text-blue-500" />
+              <FaTools className="text-primary" />
               <Text strong className="text-lg">Equipment</Text>
             </div>
             <div className="space-y-3">
               {Object.entries(selectedEquipment || {}).map(([equipId, quantity]) => {
                 const equip = equipment?.find(e => e.equip_id?.toString() === equipId?.toString());
                 return (
-                  <div key={equipId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div key={equipId} className="flex items-center justify-between p-4 bg-lightcream rounded-xl border border-primary/10">
                     <div className="flex-1">
                       <Text strong className="block">{equip?.equip_name || `Equipment #${equipId}`}</Text>
                     </div>
-                    <Tag color="blue">Qty: {quantity}</Tag>
+                    <Tag className="bg-primary text-white border-none">Qty: {quantity}</Tag>
                   </div>
                 );
               })}
@@ -204,18 +204,18 @@ const ReviewSection = ({
       // Equipment only
       return <>
         <div className="flex items-center gap-2 mb-4">
-          <FaTools className="text-blue-500" />
+          <FaTools className="text-primary" />
           <Text strong className="text-lg">Equipment Details</Text>
         </div>
         <div className="space-y-3">
           {Object.entries(equipmentQuantities || {}).map(([equipId, quantity]) => {
             const equip = equipment?.find(e => e.equip_id?.toString() === equipId?.toString());
             return (
-              <div key={equipId} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+              <div key={equipId} className="flex items-center justify-between p-4 bg-lightcream rounded-xl border border-primary/10">
                 <div className="flex-1">
                   <Text strong className="block">{equip?.equip_name || `Equipment #${equipId}`}</Text>
                 </div>
-                <Tag color="blue">Qty: {quantity}</Tag>
+                <Tag className="bg-primary text-white border-none">Qty: {quantity}</Tag>
               </div>
             );
           })}
@@ -225,7 +225,7 @@ const ReviewSection = ({
   };
 
   return (
-    <motion.div {...fadeInAnimation} className="max-w-7xl mx-auto">
+    <motion.div {...fadeInAnimation} className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-6">
         <div>
           <Title level={4} className="m-0">Review</Title>
@@ -236,8 +236,8 @@ const ReviewSection = ({
       {/* Section 1: Reservation Request */}
       <div className="mb-8">
         <Title level={5} className="mb-4">Reservation Request</Title>
-        <div className="bg-gray-50 rounded-lg p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl p-6 shadow-sm border border-primary/10">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             {formData.resourceType === 'vehicle' ? (
               <>
                 <div>
@@ -276,7 +276,7 @@ const ReviewSection = ({
             <div>
               <Text type="secondary" className="text-sm">Start Date & Time</Text>
               <div className="flex items-center mt-1">
-                <CalendarOutlined className="text-blue-500 mr-2" />
+                <CalendarOutlined className="text-primary mr-2" />
                 <Text strong>
                   {formData.startDate ? safeFormatDate(formData.startDate) : 'Please select a start date'}
                 </Text>
@@ -285,7 +285,7 @@ const ReviewSection = ({
             <div>
               <Text type="secondary" className="text-sm">End Date & Time</Text>
               <div className="flex items-center mt-1">
-                <CalendarOutlined className="text-blue-500 mr-2" />
+                <CalendarOutlined className="text-primary mr-2" />
                 <Text strong>
                   {formData.endDate ? safeFormatDate(formData.endDate) : 'Please select an end date'}
                 </Text>
@@ -297,7 +297,7 @@ const ReviewSection = ({
             <div className="mt-6">
               <Text type="secondary" className="text-sm">Additional Note</Text>
               <div className="flex items-center mt-1">
-                <Text strong className="text-base block text-green-700">
+                <Text strong className="text-base block text-primary-dark">
                   {formData.additionalNote}
                 </Text>
               </div>

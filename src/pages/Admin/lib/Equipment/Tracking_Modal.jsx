@@ -30,7 +30,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
         
         setLoading(true);
         try {
-            const url = `${baseUrl}/gsd/user.php`;
+            const url = `${baseUrl}/Admin.php`;
             const response = await axios.post(url, new URLSearchParams({
                 operation: "fetchEquipmentUnits",
                 equipment_id: equipment.equip_id
@@ -83,7 +83,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
 
         setLoading(true);
         try {
-            const url = `${baseUrl}/user.php`;
+            const url = `${baseUrl}/Admin.php`;
             const response = await axios.post(url, JSON.stringify({
                 operation: "updateEquipmentUnit",
                 unit_id: editingUnit.unit_id,
@@ -170,7 +170,7 @@ const TrackingModal = ({ isOpen, onClose, equipment, onSuccess }) => {
     const handleViewUnitUsage = async (unitId) => {
         setLoading(true);
         try {
-            const url = `${baseUrl}/gsd/user.php`;
+            const url = `${baseUrl}/Admin.php`;
             const response = await axios.post(url, new URLSearchParams({
                 operation: "getEquipmentUnitUsage",
                 unitId: unitId

@@ -21,7 +21,7 @@ const AuditTrail = () => {
   const fetchAudits = async () => {
     setLoading(true);
     try {
-      const res = await axios.post(`${encryptedUrl}/user.php`, {
+      const res = await axios.post(`${encryptedUrl}/Admin.php`, {
         operation: 'fetchAudit',
       });
       if (res?.data?.status === 'success' && Array.isArray(res.data.data)) {
