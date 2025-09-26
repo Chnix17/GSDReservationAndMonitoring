@@ -1,13 +1,4 @@
 import nodemailer from "nodemailer";
-import express from "express";
-import cors from "cors";
-
-const app = express();
-const PORT = process.env.PORT || 3001;
-
-// Middleware
-app.use(cors());
-app.use(express.json());
 
 // In-memory storage for OTPs (in production, use Redis or database)
 const otpStorage = new Map();
@@ -36,9 +27,9 @@ function createTransport() {
 	});
 }
 
-// Send login OTP endpoint
-app.post('/send-login-otp', async (req, res) => {
-	// Basic CORS to allow local dev to call the deployed API
+// Vercel serverless function handler
+export default async function handler(req, res) {
+	// Set CORS headers
 	const origin = req.headers.origin || "*";
 	res.setHeader("Access-Control-Allow-Origin", origin);
 	res.setHeader("Vary", "Origin");
@@ -48,10 +39,12 @@ app.post('/send-login-otp', async (req, res) => {
 	);
 	res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
 
+	// Handle preflight requests
 	if (req.method === "OPTIONS") {
 		return res.status(204).end();
 	}
 
+	// Only allow POST requests
 	if (req.method !== "POST") {
 		return res
 			.status(405)
@@ -131,14 +124,4 @@ app.post('/send-login-otp', async (req, res) => {
 			message: err.message || "Failed to send OTP email",
 		});
 	}
-});
-
-// Health check endpoint
-app.get('/health', (req, res) => {
-	res.json({ status: 'OK', service: 'send-login-otp' });
-});
-
-// Start server
-app.listen(PORT, () => {
-	console.log(`Send Login OTP service running on port ${PORT}`);
-});
+}
