@@ -1,0 +1,16 @@
+# Copy this content to your .env file
+# SMTP Configuration
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465
+SMTP_SECURE=true
+SMTP_USER=noreplygsd12@gmail.com
+SMTP_PASS=ckfo wpow pfmq ziwd
+
+# Mail Configuration
+MAIL_FROM=noreplygsd12@gmail.com
+
+# Allowed Origins (comma-separated list)
+ALLOWED_ORIGINS=http://localhost:3000,http://localhost:3001,https://gsd-reservation.vercel.app,https://yourdomain.com
+
+# Environment
+NODE_ENV=development

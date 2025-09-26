@@ -8,13 +8,15 @@ function generateOtp() {
 }
 
 function createTransport() {
-	const host = process.env.SMTP_HOST || "smtp.gmail.com";
-	const port = Number(process.env.SMTP_PORT || 465);
-	const secure = process.env.SMTP_SECURE
-		? process.env.SMTP_SECURE === "true"
-		: port === 465;
-	const user = process.env.SMTP_USER || "noreplygsd12@gmail.com";
-	const pass = process.env.SMTP_PASS || "ckfo wpow pfmq ziwd";
+	const host = process.env.SMTP_HOST;
+	const port = Number(process.env.SMTP_PORT);
+	const secure = process.env.SMTP_SECURE === "true";
+	const user = process.env.SMTP_USER;
+	const pass = process.env.SMTP_PASS;
+	
+	if (!host || !port || !user || !pass) {
+		throw new Error("SMTP configuration is missing. Please check your environment variables.");
+	}
 	
 	return nodemailer.createTransport({
 		host,
@@ -104,7 +106,7 @@ export default async function handler(req, res) {
     `;
 
 		await transporter.sendMail({
-			from: process.env.MAIL_FROM || "noreplygsd12@gmail.com",
+			from: process.env.MAIL_FROM,
 			to: recipientEmail,
 			subject: "Login Authentication Code - GSD Reservation",
 			html,
