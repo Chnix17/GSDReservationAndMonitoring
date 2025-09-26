@@ -1,4 +1,4 @@
-import React, { useState, useEffect, createContext, useMemo } from 'react';
+import React, { useState, useEffect, createContext, useMemo, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import {
   FaTachometerAlt, FaFileAlt, 
@@ -31,6 +31,9 @@ const Sidebar = () => {
     permission: 'default'
   });
   const [isSubscribing, setIsSubscribing] = useState(false);
+  const [isRepairing, setIsRepairing] = useState(false);
+  const [needRepair, setNeedRepair] = useState(false);
+  const [repairReason, setRepairReason] = useState('');
 
   // Compute correct base path for public assets (works under /gsd-reservation or other subpaths)
   const assetBasePath = (() => {
@@ -203,11 +206,41 @@ const Sidebar = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // Device fingerprint utility (hoisted and memoized for reuse)
+  const detectDeviceInfo = useCallback(() => {
+    const userAgent = navigator.userAgent;
+    const deviceType = (() => {
+      if (/Mobile|Android|iPhone|iPod/i.test(userAgent)) return 'Mobile';
+      if (/Tablet|iPad/i.test(userAgent)) return 'Tablet';
+      return 'Desktop';
+    })();
+    const deviceOS = (() => {
+      if (/Windows NT/i.test(userAgent)) return 'Windows';
+      if (/Mac OS X|Macintosh/i.test(userAgent)) return 'macOS';
+      if (/Linux/i.test(userAgent)) return 'Linux';
+      if (/Android/i.test(userAgent)) return 'Android';
+      if (/iPhone|iPad|iPod/i.test(userAgent)) return 'iOS';
+      return 'Unknown';
+    })();
+    const browser = (() => {
+      if (/Edg/i.test(userAgent)) return 'Microsoft Edge';
+      if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) return 'Google Chrome';
+      if (/Firefox/i.test(userAgent)) return 'Mozilla Firefox';
+      if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) return 'Safari';
+      if (/Opera|OPR/i.test(userAgent)) return 'Opera';
+      if (/Trident|MSIE/i.test(userAgent)) return 'Internet Explorer';
+      return 'Unknown';
+    })();
+    return { device_type: deviceType, device_os: deviceOS, browser, user_agent: userAgent };
+  }, []);
+
   // Add this function to fetch subscription status from backend
-  const fetchPushSubscriptionStatus = async () => {
+  const fetchPushSubscriptionStatus = useCallback(async () => {
     try {
       const userId = SecureStorage.getSessionItem('user_id');
       const baseUrl = SecureStorage.getLocalItem('url');
+      // Provide device fingerprint to let backend verify device-specific match
+      const deviceInfo = detectDeviceInfo();
       const response = await fetch(`${baseUrl}/server/save-push-subscription.php`, {
         method: 'POST',
         headers: {
@@ -215,33 +248,37 @@ const Sidebar = () => {
         },
         body: JSON.stringify({
           operation: 'get',
-          user_id: userId
+          user_id: userId,
+          device_info: deviceInfo
         })
       });
       const result = await response.json();
       if (result.status === 'success' && result.data && Object.keys(result.data).length > 0) {
         // Subscription exists (enabled regardless of is_active)
         setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: Notification.permission }));
+        setNeedRepair(!!result.need_resubscribe);
+        setRepairReason(result.reason || '');
       } else {
         // No subscription data, allow enabling
         setSubscriptionStatus(prev => ({ ...prev, subscribed: false, permission: Notification.permission }));
+        setNeedRepair(false);
+        setRepairReason('');
       }
     } catch (error) {
       console.error('Error fetching push subscription status:', error);
       setSubscriptionStatus(prev => ({ ...prev, subscribed: false }));
+      setNeedRepair(false);
+      setRepairReason('');
     }
-  };
+  }, [detectDeviceInfo]);
 
   // In useEffect, call fetchPushSubscriptionStatus on mount
   useEffect(() => {
-    const checkSubscriptionStatus = async () => {
-      const supported = 'serviceWorker' in navigator && 'PushManager' in window;
-      const permission = Notification.permission;
-      setSubscriptionStatus(prev => ({ ...prev, supported, permission }));
-      await fetchPushSubscriptionStatus();
-    };
-    checkSubscriptionStatus();
-  }, []);
+    const supported = 'serviceWorker' in navigator && 'PushManager' in window;
+    const permission = Notification.permission;
+    setSubscriptionStatus(prev => ({ ...prev, supported, permission }));
+    fetchPushSubscriptionStatus();
+  }, [fetchPushSubscriptionStatus]);
 
   // Subscribe to push notifications
   const subscribeToNotifications = async () => {
@@ -276,65 +313,6 @@ const Sidebar = () => {
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array('BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8')
       });
-
-      // Get device information
-      const detectDeviceInfo = () => {
-        const userAgent = navigator.userAgent;
-        
-        // Detect device type
-        const deviceType = (() => {
-          if (/Mobile|Android|iPhone|iPod/i.test(userAgent)) {
-            return 'Mobile';
-          } else if (/Tablet|iPad/i.test(userAgent)) {
-            return 'Tablet';
-          } else {
-            return 'Desktop';
-          }
-        })();
-        
-        // Detect operating system
-        const deviceOS = (() => {
-          if (/Windows NT/i.test(userAgent)) {
-            return 'Windows';
-          } else if (/Mac OS X|Macintosh/i.test(userAgent)) {
-            return 'macOS';
-          } else if (/Linux/i.test(userAgent)) {
-            return 'Linux';
-          } else if (/Android/i.test(userAgent)) {
-            return 'Android';
-          } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
-            return 'iOS';
-          } else {
-            return 'Unknown';
-          }
-        })();
-        
-        // Detect browser
-        const browser = (() => {
-          if (/Edg/i.test(userAgent)) {
-            return 'Microsoft Edge';
-          } else if (/Chrome/i.test(userAgent) && !/Edg/i.test(userAgent)) {
-            return 'Google Chrome';
-          } else if (/Firefox/i.test(userAgent)) {
-            return 'Mozilla Firefox';
-          } else if (/Safari/i.test(userAgent) && !/Chrome/i.test(userAgent)) {
-            return 'Safari';
-          } else if (/Opera|OPR/i.test(userAgent)) {
-            return 'Opera';
-          } else if (/Trident|MSIE/i.test(userAgent)) {
-            return 'Internet Explorer';
-          } else {
-            return 'Unknown';
-          }
-        })();
-        
-        return {
-          device_type: deviceType,
-          device_os: deviceOS,
-          browser: browser,
-          user_agent: userAgent
-        };
-      };
 
       // Send subscription to server with device information
       const userId = SecureStorage.getSessionItem('user_id');
@@ -374,6 +352,66 @@ const Sidebar = () => {
       alert('Failed to subscribe to notifications: ' + error.message);
     } finally {
       setIsSubscribing(false);
+    }
+  };
+
+  // detectDeviceInfo already memoized above
+
+  // Repair existing notification subscription on this device
+  const repairNotifications = async () => {
+    if (!subscriptionStatus.supported) {
+      alert('Push notifications are not supported in your browser.');
+      return;
+    }
+    setIsRepairing(true);
+    try {
+      const registration = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+
+      // Use existing subscription if present; otherwise subscribe
+      let subscription = await registration.pushManager.getSubscription();
+      if (!subscription) {
+        const permission = Notification.permission === 'granted'
+          ? 'granted'
+          : await Notification.requestPermission();
+        if (permission !== 'granted') {
+          throw new Error('Notification permission not granted');
+        }
+        subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: urlBase64ToUint8Array('BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8')
+        });
+      }
+
+      const userId = SecureStorage.getSessionItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem('url');
+      const deviceInfo = detectDeviceInfo();
+
+      const res = await fetch(`${baseUrl}/server/save-push-subscription.php`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operation: 'repair',
+          user_id: userId,
+          subscription: {
+            endpoint: subscription.endpoint,
+            keys: {
+              p256dh: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('p256dh')))),
+              auth: btoa(String.fromCharCode.apply(null, new Uint8Array(subscription.getKey('auth'))))
+            }
+          },
+          device_info: deviceInfo
+        })
+      });
+      const data = await res.json();
+      if (data.status !== 'success') throw new Error(data.message || 'Repair failed');
+      await fetchPushSubscriptionStatus();
+      alert('Notifications repaired successfully.');
+    } catch (err) {
+      console.error('Repair failed:', err);
+      alert('Failed to repair notifications: ' + err.message);
+    } finally {
+      setIsRepairing(false);
     }
   };
 
@@ -489,12 +527,32 @@ const Sidebar = () => {
                       </button>
                     )}
                     {subscriptionStatus.subscribed && (
-                      <div className="flex items-center text-xs text-green-600 dark:text-green-400">
-                        <FaCheck className="w-3 h-3 mr-1" />
-                        Enabled
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center text-xs text-green-600 dark:text-green-400">
+                          <FaCheck className="w-3 h-3 mr-1" />
+                          Enabled
+                        </div>
+                        <button
+                          onClick={repairNotifications}
+                          disabled={isRepairing}
+                          className={`${needRepair ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'} px-3 py-1 text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
+                        >
+                          {isRepairing ? 'Repairing...' : 'Repair'}
+                        </button>
                       </div>
                     )}
                   </div>
+                  {/* Notes */}
+                  {subscriptionStatus.subscribed && needRepair && (
+                    <p className="mt-2 text-[10px] text-yellow-600 dark:text-yellow-400">
+                      {repairReason ? `Needs repair (${repairReason.replace(/_/g,' ')})` : 'Needs repair'} — click Repair to refresh your subscription.
+                    </p>
+                  )}
+                  {subscriptionStatus.subscribed && !needRepair && (
+                    <p className="mt-2 text-[10px] text-blue-600 dark:text-blue-300">
+                      Not receiving notifications? Ensure site notifications are allowed, keep your browser running, or try logging out/in.
+                    </p>
+                  )}
                   {!subscriptionStatus.supported && (
                     <p className="text-xs text-red-500 mt-1">
                       Not supported in this browser

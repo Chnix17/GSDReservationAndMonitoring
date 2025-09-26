@@ -469,7 +469,7 @@ const Calendar = () => {
       console.log('Fetching details for reservation:', reservation.reservation_id);
       const response = await axios({
         method: 'POST',
-        url: `${encryptedUrl}/Admin.php`,
+        url: `${encryptedUrl}/reservation.php`,
         data: JSON.stringify({
           operation: 'fetchRequestById',
           reservation_id: reservation.reservation_id

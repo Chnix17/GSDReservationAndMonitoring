@@ -28,15 +28,15 @@ function Logins() {
     const [showOtpInput, setShowOtpInput] = useState(false);
 
     const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
-    const [isSendingOtp, setIsSendingOtp] = useState(false);
+    // const [isSendingOtp, setIsSendingOtp] = useState(false);
     const [canResendLoginOtp, setCanResendLoginOtp] = useState(false);
 
     const [otpDigits, setOtpDigits] = useState(Array(6).fill(''));
     const [otpRefs] = useState(Array(6).fill(0).map(() => React.createRef()));
     const [showCaptchaAfterEmail, setShowCaptchaAfterEmail] = useState(false);
     const [forgotPasswordCaptchaRef] = useState(React.createRef());
-    const [forgotPasswordCaptchaText, setForgotPasswordCaptchaText] = useState('');
-    const [forgotPasswordCaptchaInput, setForgotPasswordCaptchaInput] = useState('');
+    // const [forgotPasswordCaptchaText, setForgotPasswordCaptchaText] = useState('');
+    // const [forgotPasswordCaptchaInput, setForgotPasswordCaptchaInput] = useState('');
     const [isForgotPasswordCaptchaCorrect, setIsForgotPasswordCaptchaCorrect] = useState(null);
     const [canResendOtp, setCanResendOtp] = useState(false);
     const [resendTimer, setResendTimer] = useState(180); // 3 minutes in seconds
@@ -61,6 +61,10 @@ function Logins() {
     const [showForcePassword, setShowForcePassword] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
     const [loginPassword, setLoginPassword] = useState(''); // Store password for OTP verification context
+    
+    // OTP storage with expiration (frontend-only, no server/database storage)
+    const [storedOTP, setStoredOTP] = useState(null);
+    const [otpExpiration, setOtpExpiration] = useState(null);
 
     // Determine the correct base path for public assets based on API base URL
     const assetBasePath = (() => {
@@ -140,7 +144,7 @@ function Logins() {
         if (!ctx) return; // Early return if context not available
         
         const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-        let captcha = '';
+        // let captcha = '';
 
         // Clear canvas
         ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -164,7 +168,7 @@ function Logins() {
         // Generate and draw characters
         for (let i = 0; i < 6; i++) {
             const char = chars.charAt(Math.floor(Math.random() * chars.length));
-            captcha += char;
+            // captcha += char;
             
             const hue = Math.floor(Math.random() * 360);
             ctx.fillStyle = `hsl(${hue}, 50%, 30%)`;
@@ -184,8 +188,8 @@ function Logins() {
             ctx.stroke();
         }
 
-        setForgotPasswordCaptchaText(captcha);
-        setForgotPasswordCaptchaInput('');
+        // setForgotPasswordCaptchaText(captcha);
+        // setForgotPasswordCaptchaInput('');
         setIsForgotPasswordCaptchaCorrect(null);
     }, [forgotPasswordCaptchaRef]);
 
@@ -348,11 +352,11 @@ function Logins() {
         setIsCaptchaCorrect(input === captchaText);
     };
 
-    const handleForgotPasswordCaptchaInput = (e) => {
-        const input = e.target.value;
-        setForgotPasswordCaptchaInput(input);
-        setIsForgotPasswordCaptchaCorrect(input === forgotPasswordCaptchaText);
-    };
+    // const handleForgotPasswordCaptchaInput = (e) => {
+    //     const input = e.target.value;
+    //     setForgotPasswordCaptchaInput(input);
+    //     setIsForgotPasswordCaptchaCorrect(input === forgotPasswordCaptchaText);
+    // };
 
     const notify = (message, type = 'success') => {
         toast[type](message, {
@@ -465,27 +469,32 @@ function Logins() {
                     timestamp: new Date().getTime() // Add timestamp for additional security
                 });
     
-                // Now we'll check for 2FA status
-                const otpResponse = await axios.post(`${apiUrl}login.php`, {
-                    operation: "sendLoginOTP",
-                    json: { 
-                        id: userData.user_id
-                    }
+                // Now we'll send OTP using Node.js API
+                const otpResponse = await axios.post('http://localhost:3001/send-login-otp', {
+                    user_id: userData.user_id,
+                    email: userData.email,
+                    fullName: `${userData.firstname} ${userData.lastname}`
                 });
                 
                 console.log("OTP response:", otpResponse.data);
                 
                 // Check the specific message from the API
                 if (otpResponse.data.status === "success") {
-                    if (otpResponse.data.message === "Login OTP sent successfully") {
-                        // Store user_id temporarily for OTP verification
+                    if (otpResponse.data.requires_2fa) {
+                        // Store user_id and email temporarily for OTP verification
                         SecureStorage.setSessionItem("temp_user_id", userData.user_id);
+                        SecureStorage.setSessionItem("temp_user_email", userData.email);
                         setLoginPassword(password); // Store password for OTP context
+                        
+                        // Store OTP and expiration in frontend state (no server storage)
+                        const expirationTime = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
+                        setOtpExpiration(expirationTime);
+                        setStoredOTP(otpResponse.data.otp); // Store the OTP from response
                         
                         // Show OTP input form
                         setShowLoginOTP(true);
                         notify("OTP has been sent to your email. Please verify.");
-                    } else if (otpResponse.data.message === "2FA is not active for this user") {
+                    } else {
                         // 2FA is not active, proceed with direct login
                         console.log("2FA not active, proceeding with direct login");
                         
@@ -586,86 +595,9 @@ function Logins() {
                                 notify("User Login Successful");
                                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
                         }
-                    } else {
-                        // Unknown success message, default to OTP verification to be safe
-                        SecureStorage.setSessionItem("temp_user_id", userData.user_id);
-                        setShowLoginOTP(true);
-                        notify("Verification required. Please check your email for an OTP.");
                     }
                 } else {
-
-                    
-                    // Save API URL before clearing localStorage
-                    const savedApiUrl = apiUrl;
-                    
-                    localStorage.clear();
-                    sessionStorage.clear();
-                    
-                    // Restore API URL
-                    SecureStorage.setLocalItem("url", savedApiUrl);
-
-                    // Set localStorage items securely
-                    SecureStorage.setLocalItem("user_id", userData.user_id);
-                    SecureStorage.setLocalItem("name", `${userData.title_abbreviation} ${userData.firstname} ${userData.middlename} ${userData.lastname} ${userData.suffix}`.trim());
-                    SecureStorage.setLocalItem("school_id", userData.school_id);
-                    SecureStorage.setLocalItem("Department Name", userData.department_name);
-                    SecureStorage.setLocalItem("contact_number", userData.contact_number);
-                    SecureStorage.setLocalItem("user_level", userData.user_level_name);
-                    SecureStorage.setLocalItem("user_level_id", userData.user_level_id);
-                    SecureStorage.setLocalItem("department_id", userData.department_id);
-                    SecureStorage.setLocalItem("profile_pic", userData.profile_pic || "");
-                    SecureStorage.setLocalItem("loggedIn", "true");
-                    SecureStorage.setLocalItem("lastActivity", Date.now().toString());
-                    
-                    SecureStorage.setSessionItem("user_id", userData.user_id);
-                    SecureStorage.setSessionItem("name", `${userData.title_abbreviation} ${userData.firstname} ${userData.middlename} ${userData.lastname} ${userData.suffix}`.trim());
-                    SecureStorage.setSessionItem("school_id", userData.school_id);
-                    SecureStorage.setSessionItem("Department Name", userData.department_name);
-                    SecureStorage.setSessionItem("contact_number", userData.contact_number);
-                    SecureStorage.setSessionItem("user_level", userData.user_level_name);
-                    SecureStorage.setSessionItem("user_level_id", userData.user_level_id);
-                    SecureStorage.setSessionItem("department_id", userData.department_id);
-                    SecureStorage.setSessionItem("profile_pic", userData.profile_pic || "");
-                    SecureStorage.setSessionItem("loggedIn", "true");
-
-                    refreshSessionCookie('userSession');
-
-                    // Handle "Remember Me" functionality
-                    if (rememberMe) {
-                        localStorage.setItem("rememberedUsername", username);
-                    } else {
-                        localStorage.removeItem("rememberedUsername");
-                    }
-                    
-                    // Navigate based on user level
-                    const userLevel = SecureStorage.getLocalItem("user_level");
-                    switch(userLevel) {
-                        case "Super Admin":
-                            notify("Super Admin Login Successful");
-                            setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
-                            break;
-                        case "Personnel":
-                            notify("Personnel Login Successful");
-                            setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
-                            break;
-                        case "Admin":
-                            notify("Admin Login Successful");
-                            setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
-                            break;
-                        case "Dean":
-                        case "Department Head":
-                        case "Secretary":
-                            notify("Dean Login Successful");
-                            setTimeout(() => navigateTo("/Department/Dashboard"), 100);
-                            break;
-                        case "Driver":
-                            notify("Driver Login Successful");
-                            setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
-                            break;
-                        default:
-                            notify("User Login Successful");
-                            setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
-                    }
+                    notify(otpResponse.data.message || "Failed to check 2FA status", 'error');
                 }
             } else {
                 // Password is incorrect
@@ -691,46 +623,34 @@ function Logins() {
             return;
         }
 
+        // Temporarily bypass email verification and directly send OTP
         setIsVerifyingEmail(true);
         try {
-            const apiUrl = SecureStorage.getLocalItem("url");
-            if (!apiUrl) {
-                notify("API URL configuration is missing. Please contact support.", 'error');
-                setIsVerifyingEmail(false);
-                return;
-            }
-
-            const response = await axios.post(`${apiUrl}login.php`, {
-                operation: "checkEmail",
-                json: { email }
+            // Skip email check and directly send OTP using Node.js API
+            const response = await axios.post('http://localhost:4001/send-password-reset-otp', {
+                email: email,
+                fullName: 'User' // You can get this from user data if available
             });
 
-            let data = response.data;
-            console.log("CheckEmail response:", data);
+            const data = response.data;
+            console.log("SendOTP response:", data);
 
-            if (typeof data === "string") {
-                try {
-                    data = JSON.parse(data);
-                } catch (e) {
-                    notify("Invalid response from server", 'error');
-                    setIsVerifyingEmail(false);
-                    return;
-                }
-            }
-
-            console.log("Parsed data.status:", data.status);
-
-            if (data.status === "exists") {
-                console.log("Email exists block hit");
-                setShowCaptchaAfterEmail(true);
-                generateCaptcha();
+            if (data.status === "success") {
+                // Store OTP and expiration for validation
+                const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+                setOtpExpiration(expirationTime);
+                setStoredOTP(data.otp); // Store the OTP from response
+                
+                setShowOtpInput(true);
+                setResendTimer(180); // Reset timer
+                setCanResendOtp(false);
+                notify("OTP sent to your email", 'success');
             } else {
-                console.log("Email not found block hit, status was:", data.status);
-                notify("Email not found in our records", 'error');
+                notify(data.message || "Failed to send OTP", 'error');
             }
         } catch (error) {
-            console.error("CheckEmail error:", error);
-            notify("Error verifying email", 'error');
+            console.error("SendOTP error:", error);
+            notify(error.response?.data?.message || "Error sending OTP", 'error');
         } finally {
             setIsVerifyingEmail(false);
         }
@@ -745,31 +665,25 @@ function Logins() {
         if (isResend) {
             setIsResending(true);
         } else {
-            setIsSendingOtp(true);
+            // setIsSendingOtp(true);
         }
 
         try {
-            const response = await axios.post(`${SecureStorage.getLocalItem("url")}login.php`, {
-                operation: "send_password_reset_otp",
-                email: email
+            // Use Node.js API for password reset OTP
+            const response = await axios.post('http://localhost:4001/send-password-reset-otp', {
+                email: email,
+                fullName: 'User' // You can get this from user data if available
             });
 
-            let data = response.data;
+            const data = response.data;
             console.log("SendOTP response:", data);
 
-            if (typeof data === "string") {
-                try {
-                    data = JSON.parse(data);
-                } catch (e) {
-                    notify("Invalid response from server", 'error');
-                    if (isResend) setIsResending(false);
-                    else setIsSendingOtp(false);
-                    return;
-                }
-            }
-
             if (data.status === "success") {
-        
+                // Store OTP and expiration for validation
+                const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+                setOtpExpiration(expirationTime);
+                setStoredOTP(data.otp); // Store the OTP from response
+                
                 setShowOtpInput(true);
                 setResendTimer(180); // Reset timer
                 setCanResendOtp(false);
@@ -783,7 +697,7 @@ function Logins() {
             if (isResend) {
                 setIsResending(false);
             } else {
-                setIsSendingOtp(false);
+                // setIsSendingOtp(false);
             }
         }
     };
@@ -831,19 +745,28 @@ function Logins() {
         }
 
         try {
-            const response = await axios.post(`${SecureStorage.getLocalItem("url")}login.php`, {
-                operation: "validate_otp",
-                otp: otpValue,
-                email: email // Add email parameter to the request
-            });
-
-            if (response.data.status === "success") {
-                setShowPasswordReset(true);
-                notify("OTP verified successfully");
-            } else {
-                notify(response.data.message || "Invalid OTP", 'error');
-                setOtpDigits(Array(6).fill(''));
+            // Check if OTP has expired
+            if (otpExpiration && new Date() > otpExpiration) {
+                notify("OTP has expired. Please request a new one.", 'error');
+                setStoredOTP(null);
+                setOtpExpiration(null);
+                return;
             }
+
+            // Verify OTP against frontend-stored value
+            if (otpValue !== storedOTP) {
+                notify("Invalid OTP. Please try again.", 'error');
+                setOtpDigits(Array(6).fill(''));
+                return;
+            }
+
+            // OTP is valid, proceed with password reset
+            setShowPasswordReset(true);
+            notify("OTP verified successfully");
+            
+            // Clear OTP data
+            setStoredOTP(null);
+            setOtpExpiration(null);
         } catch (error) {
             notify("Error validating OTP", 'error');
         }
@@ -863,8 +786,10 @@ function Logins() {
         try {
             const response = await axios.post(`${SecureStorage.getLocalItem("url")}login.php`, {
                 operation: "update_password",
-                email: email,
-                password: newPassword
+                json: {
+                    email: email,
+                    new_password: newPassword
+                }
             });
 
             if (response.data.status === "success") {
@@ -879,18 +804,18 @@ function Logins() {
     };
 
     const handleEmailKeyPress = (e) => {
-        if (e.key === 'Enter' && !showCaptchaAfterEmail) {
+        if (e.key === 'Enter') {
             e.preventDefault();
             handleCheckEmail();
         }
     };
 
-    const handleCaptchaKeyPress = (e) => {
-        if (e.key === 'Enter' && showCaptchaAfterEmail) {
-            e.preventDefault();
-            handleSendOTP();
-        }
-    };
+    // const handleCaptchaKeyPress = (e) => {
+    //     if (e.key === 'Enter' && showCaptchaAfterEmail) {
+    //         e.preventDefault();
+    //         handleSendOTP();
+    //     }
+    // };
 
     const handlePasswordKeyPress = (e) => {
         if (e.key === 'Enter' && isPasswordValid() && newPassword === confirmPassword) {
@@ -907,13 +832,18 @@ function Logins() {
     const handleModalClose = () => {
         setShowForgotPassword(false);
         // Don't clear email
-        setForgotPasswordCaptchaInput('');
+        // setForgotPasswordCaptchaInput('');
         setIsForgotPasswordCaptchaCorrect(null);
         setShowCaptchaAfterEmail(false);
         setOtpDigits(Array(6).fill(''));
         setShowOtpInput(false);
+        setShowPasswordReset(false);
+        setNewPassword('');
+        setConfirmPassword('');
         setResendTimer(180);
         setCanResendOtp(false);
+        setStoredOTP(null);
+        setOtpExpiration(null);
     };
 
 
@@ -964,31 +894,48 @@ function Logins() {
 
         setIsVerifyingLoginOtp(true);
         try {
-            // Get user_id if it was stored temporarily during initial login attempt
-            const userData = SecureStorage.getSessionItem("temp_user_id") || username;
-            const apiUrl = SecureStorage.getLocalItem("url");
-            
-            // Verify OTP
-            const response = await axios.post(`${apiUrl}login.php`, {
-                operation: "validateLoginOTP",
-                json: { 
-                    id: userData,
-                    otp: otpValue
-                }
-            });
-            console.log(response.data)
+            // Check if OTP has expired
+            if (otpExpiration && new Date() > otpExpiration) {
+                notify("OTP has expired. Please request a new one.", 'error');
+                setStoredOTP(null);
+                setOtpExpiration(null);
+                return;
+            }
 
-            if (response.data.status === "success" && response.data.authenticated) {
-                // If authenticated, process the user data
-                // Get the API URL
-                const apiUrl = SecureStorage.getLocalItem("url");
+            // Verify OTP against frontend-stored value
+            if (otpValue !== storedOTP) {
+                notify("Invalid OTP. Please try again.", 'error');
+                setLoginOtpDigits(Array(6).fill(''));
+                return;
+            }
+
+            // OTP is valid, proceed with login
+            console.log("OTP verified successfully");
+
+            // Clear OTP data
+            setStoredOTP(null);
+            setOtpExpiration(null);
+
+            // Get user_id and API URL
+            const userData = SecureStorage.getSessionItem("temp_user_id");
+            const apiUrl = SecureStorage.getLocalItem("url");
+
+            // Get user details for login completion
+            const userResponse = await axios.post(`${apiUrl}Admin.php`, {
+                operation: "fetchUsersById",
+                id: userData
+            });
+
+            if (userResponse.data.status === "success" && 
+                userResponse.data.data && 
+                userResponse.data.data.length > 0) {
                 
+                const userDetails = userResponse.data.data[0];
+
                 // Check if this is the first login and password needs to be changed
-                if (response.data.user_data && response.data.user_data.first_login === true) {
+                if (userDetails.first_login === true) {
                     console.log("First login detected after OTP verification, forcing password change");
                     setCurrentPassword(loginPassword); // Store current password for comparison
-                    // Store user_id temporarily for password change process
-                    SecureStorage.setSessionItem("temp_user_id", response.data.user_data.user_id);
                     setShowForcePassword(true);
                     setShowLoginOTP(false);
                     return;
@@ -1000,191 +947,88 @@ function Logins() {
                 
                 // Restore API URL
                 SecureStorage.setLocalItem("url", apiUrl);
+                
+                // Set localStorage items securely using the correct field names
+                SecureStorage.setLocalItem("user_id", userDetails.users_id);
+                SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
+                SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
+                SecureStorage.setLocalItem("Department Name", userDetails.department_name);
+                SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
+                SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
+                SecureStorage.setLocalItem("user_level_id", userDetails.users_user_level_id);
+                SecureStorage.setLocalItem("department_id", userDetails.users_department_id);
+                SecureStorage.setLocalItem("profile_pic", userDetails.users_pic || "");
+                SecureStorage.setLocalItem("loggedIn", "true");
+                SecureStorage.setLocalItem("lastActivity", Date.now().toString());
+                
+                // Set session storage items
+                SecureStorage.setSessionItem("user_id", userDetails.users_id);
+                SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
+                SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
+                SecureStorage.setSessionItem("Department Name", userDetails.department_name);
+                SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
+                SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
+                SecureStorage.setSessionItem("user_level_id", userDetails.users_user_level_id);
+                SecureStorage.setSessionItem("department_id", userDetails.users_department_id);
+                SecureStorage.setSessionItem("profile_pic", userDetails.users_pic || "");
+                SecureStorage.setSessionItem("loggedIn", "true");
 
-                // Check if user data is available in the response
-                if (response.data.user_data) {
-                    // Use user data directly from the response
-                    const userDetails = response.data.user_data;
-                    
-                    // Set localStorage items securely
-                    SecureStorage.setLocalItem("user_id", userDetails.user_id);
-                    SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.firstname} ${userDetails.middlename} ${userDetails.lastname} ${userDetails.suffix}`.trim());
-                    SecureStorage.setLocalItem("school_id", userDetails.school_id);
-                    SecureStorage.setLocalItem("contact_number", userDetails.contact_number);
-                    SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
-                    SecureStorage.setLocalItem("user_level_id", userDetails.user_level_id);
-                    SecureStorage.setLocalItem("department_id", userDetails.department_id);
-                    SecureStorage.setLocalItem("profile_pic", userDetails.profile_pic || "");
-                    SecureStorage.setLocalItem("loggedIn", "true");
-                    SecureStorage.setLocalItem("lastActivity", Date.now().toString());
-                
-                    // Set sessionStorage items securely
-                    SecureStorage.setSessionItem("user_id", userDetails.user_id);
-                    SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.firstname} ${userDetails.middlename} ${userDetails.lastname} ${userDetails.suffix}`.trim());
-                    SecureStorage.setSessionItem("school_id", userDetails.school_id);
-                    SecureStorage.setSessionItem("contact_number", userDetails.contact_number);
-                    SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
-                    SecureStorage.setSessionItem("user_level_id", userDetails.user_level_id);
-                    SecureStorage.setSessionItem("department_id", userDetails.department_id);
-                    SecureStorage.setSessionItem("profile_pic", userDetails.profile_pic || "");
-                    SecureStorage.setSessionItem("loggedIn", "true");
-                    
-                    // Set session cookie
-                    setSessionCookie('userSession', {
-                        user_id: userDetails.user_id,
-                        school_id: userDetails.school_id,
-                        user_level: userDetails.user_level_name,
-                        timestamp: new Date().getTime()
-                    });
-                    
-                    // Navigate based on user level
-                    const userLevel = userDetails.user_level_name;
-                    switch(userLevel) {
-                        case "Super Admin":
-                            notify("Super Admin Login Successful");
-                            setTimeout(() => navigateTo("/adminDashboard"), 100);
-                            break;
-                        case "Personnel":
-                            notify("Personnel Login Successful");
-                            setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
-                            break;
-                        case "Admin":
-                            notify("Admin Login Successful");
-                            setTimeout(() => navigateTo("/adminDashboard"), 100);
-                            break;
-                        case "Dean":
-                        case "Secretary":
-                            notify("Dean Login Successful");
-                            setTimeout(() => navigateTo("/Department/Dashboard"), 100);
-                            break;
-                        case "Driver":
-                            notify("Driver Login Successful");
-                            setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
-                            break;
-                        default:
-                            notify("User Login Successful");
-                            setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
-                    }
-                } else {
-                    // If user_data is not in the response, we need to fetch user details
-                    // using the user_id from the authentication response
-                    const userId = response.data.user_id;
-                    
-                    // Set basic authenticated state
-                    SecureStorage.setLocalItem("user_id", userId);
-                    SecureStorage.setLocalItem("loggedIn", "true");
-                    SecureStorage.setLocalItem("lastActivity", Date.now().toString());
-                    
-                    SecureStorage.setSessionItem("user_id", userId);
-                    SecureStorage.setSessionItem("loggedIn", "true");
-                    
-                    // Set cookie with limited data
-                    setSessionCookie('userSession', {
-                        user_id: userId,
-                        timestamp: new Date().getTime()
-                    });
-                    
-                    // Fetch the user's full details
-                    try {
-                        const userDetailsResponse = await axios.post(`${apiUrl}Admin.php`, {
-                            operation: "fetchUsersById",
-                            id: userId
+                refreshSessionCookie('userSession');
+
+                // --- PUSH NOTIFICATION SUBSCRIPTION ---
+                if (window.pushNotificationManager) {
+                    const userId = SecureStorage.getSessionItem("user_id");
+                    window.pushNotificationManager.subscribe(userId)
+                        .then(() => {
+                            console.log("Push subscription successful for user:", userId);
+                        })
+                        .catch((err) => {
+                            console.error("Push subscription failed:", err);
                         });
-                        
-                        console.log("User details fetched:", userDetailsResponse.data);
-                        
-                        if (userDetailsResponse.data.status === "success" && 
-                            userDetailsResponse.data.data && 
-                            userDetailsResponse.data.data.length > 0) {
-                            
-                            const userDetails = userDetailsResponse.data.data[0];
-                            
-                            // Check if this is the first login and password needs to be changed
-                            if (userDetails.first_login === true) {
-                                console.log("First login detected after fetching user details, forcing password change");
-                                setCurrentPassword(loginPassword); // Store current password for comparison
-                                // Store user_id temporarily for password change process
-                                SecureStorage.setSessionItem("temp_user_id", userDetails.users_id);
-                                setShowForcePassword(true);
-                                setShowLoginOTP(false);
-                                return;
-                            }
-                            
-                            // Set full user data
-                            SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
-                            SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
-                            SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
-                            SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
-                            SecureStorage.setLocalItem("user_level_id", userDetails.users_user_level_id);
-                            SecureStorage.setLocalItem("department_id", userDetails.users_department_id);
-                            SecureStorage.setLocalItem("profile_pic", userDetails.users_pic || "");
-                            
-                            SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
-                            SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
-                            SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
-                            SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
-                            SecureStorage.setSessionItem("user_level_id", userDetails.users_user_level_id);
-                            SecureStorage.setSessionItem("department_id", userDetails.users_department_id);
-                            SecureStorage.setSessionItem("profile_pic", userDetails.users_pic || "");
-                            
-                            // Update session cookie with more details
-                            refreshSessionCookie('userSession');
-                            
-                            // Navigate based on user level
-                            const userLevel = userDetails.user_level_name;
-                            switch(userLevel) {
-                                case "Super Admin":
-                                    notify("Super Admin Login Successful");
-                                    setTimeout(() => navigateTo("/adminDashboard"), 100);
-                                    break;
-                                case "Personnel":
-                                    notify("Personnel Login Successful");
-                                    setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
-                                    break;
-                                case "Admin":
-                                    notify("Admin Login Successful");
-                                    setTimeout(() => navigateTo("/adminDashboard"), 100);
-                                    break;
-                                case "Dean":
-                                case "Secretary":
-                                    notify("Dean Login Successful");
-                                    setTimeout(() => navigateTo("/Department/Dashboard"), 100);
-                                    break;
-                                case "Driver":
-                                    notify("Driver Login Successful");
-                                    setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
-                                    break;
-                                default:
-                                    notify("User Login Successful");
-                                    setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
-                            }
-                        } else {
-                            // If user details fetch fails, redirect to login
-                            notify("Authentication successful but failed to load user details. Please try again.", 'error');
-                            navigateTo("/");
-                        }
-                    } catch (error) {
-                        console.error("Error fetching user details:", error);
-                        notify("Authentication successful but failed to load user details. Please try again.", 'error');
-                        navigateTo("/");
-                    }
                 }
-                
+
                 // Handle "Remember Me" functionality
                 if (rememberMe) {
                     localStorage.setItem("rememberedUsername", username);
                 } else {
                     localStorage.removeItem("rememberedUsername");
                 }
+
+                // Navigate based on user level
+                const userLevel = userDetails.user_level_name;
+                switch(userLevel) {
+                    case "Super Admin":
+                        notify("Super Admin Login Successful");
+                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+                        break;
+                    case "Personnel":
+                        notify("Personnel Login Successful");
+                        setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
+                        break;
+                    case "Admin":
+                        notify("Admin Login Successful");
+                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+                        break;
+                    case "Dean":
+                    case "Department Head":
+                    case "Secretary":
+                        notify("Dean Login Successful");
+                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                        break;
+                    case "Driver":
+                        notify("Driver Login Successful");
+                        setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                        break;
+                    default:
+                        notify("User Login Successful");
+                        setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
+                }
             } else {
-                notify("Invalid OTP", 'error');
-                console.log(response.data)
-                setLoginOtpDigits(Array(6).fill(''));
+                notify("Failed to get user details", 'error');
             }
         } catch (error) {
-            console.error('Error during OTP verification:', error);
-            notify("Error verifying OTP", 'error');
-            setLoginOtpDigits(Array(6).fill(''));
+            console.error('OTP verification error:', error);
+            notify("OTP verification failed. Please try again.", 'error');
             // Clear any stored passwords on error
             setCurrentPassword('');
             setLoginPassword('');
@@ -1197,25 +1041,27 @@ function Logins() {
         setIsResendingLoginOtp(true);
         try {
             const userData = SecureStorage.getSessionItem("temp_user_id");
-            const apiUrl = SecureStorage.getLocalItem("url");
             
-            const response = await axios.post(`${apiUrl}login.php`, {
-                operation: "sendLoginOTP",
-                json: { 
-                    id: userData || username
-                }
+            const response = await axios.post('http://localhost:3001/send-login-otp', {
+                user_id: userData || username
             });
 
             if (response.data.status === "success") {
                 setLoginResendTimer(180);
                 setCanResendLoginOtp(false);
                 
-                if (response.data.message === "Login OTP sent successfully") {
+                if (response.data.requires_2fa) {
+                    // Generate new OTP for frontend verification
+                    const frontendOTP = Math.floor(100000 + Math.random() * 900000).toString();
+                    setStoredOTP(frontendOTP);
+                    
+                    // Reset expiration time
+                    const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
+                    setOtpExpiration(expirationTime);
+                    
                     notify("OTP has been resent to your email");
-                } else if (response.data.message === "2FA is not active for this user") {
-                    notify("2FA is not active for this user");
                 } else {
-                    notify("OTP request processed");
+                    notify("2FA is not active for this user");
                 }
             } else {
                 notify(response.data.message || "Failed to resend OTP", 'error');
@@ -1730,96 +1576,27 @@ function Logins() {
                                             onKeyPress={handleEmailKeyPress}
                                             className="block w-full pl-12 pr-4 py-3.5 text-gray-900 bg-gray-50 border border-gray-200 rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out"
                                             placeholder="Enter your email address"
-                                            disabled={showCaptchaAfterEmail}
                                         />
                                     </div>
                                 </div>
 
-                                {!showCaptchaAfterEmail ? (
-                                    <button
-                                        onClick={handleCheckEmail}
-                                        disabled={isVerifyingEmail}
-                                        className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-500/30 transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
-                                    >
-                                        {isVerifyingEmail ? (
-                                            <>
-                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                                Verifying Email...
-                                            </>
-                                        ) : (
-                                            "Continue"
-                                        )}
-                                    </button>
-                                ) : (
-                                    <>
-                                        <div className="space-y-4">
-                                            <div className="bg-white rounded-xl overflow-hidden border border-gray-200 shadow-sm">
-                                                <div className="p-4 bg-gray-50">
-                                                    <canvas
-                                                        ref={forgotPasswordCaptchaRef}
-                                                        width="280"
-                                                        height="70"
-                                                        className="w-full rounded-lg"
-                                                    />
-                                                </div>
-                                                <div className="flex justify-between items-center px-4 py-2 border-t border-gray-100">
-                                                    <p className="text-xs text-gray-500">Enter the characters shown above</p>
-                                                    <button
-                                                        onClick={generateForgotPasswordCaptcha}
-                                                        className="p-2 text-emerald-600 hover:text-emerald-700 rounded-full hover:bg-emerald-50 transition-colors text-sm flex items-center"
-                                                        type="button"
-                                                    >
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                                            <path fillRule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 005.999 7H9a1 1 0 010 2H4a1 1 0 01-1-1V3a1 1 0 011-1zm.008 9.057a1 1 0 011.276.61A5.002 5.002 0 0014.001 13H11a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0v-2.101a7.002 7.002 0 01-11.601-2.566 1 1 0 01.61-1.276z" clipRule="evenodd" />
-                                                        </svg>
-                                                        Refresh
-                                                    </button>
-                                                </div>
-                                            </div>
-                                            <input
-                                                type="text"
-                                                value={forgotPasswordCaptchaInput}
-                                                onChange={handleForgotPasswordCaptchaInput}
-                                                onKeyPress={handleCaptchaKeyPress}
-                                                className={`block w-full px-4 py-3.5 bg-gray-50 border ${
-                                                    isForgotPasswordCaptchaCorrect === false ? 'border-red-500 bg-red-50' : 
-                                                    isForgotPasswordCaptchaCorrect === true ? 'border-emerald-500 bg-emerald-50' : 
-                                                    'border-gray-200'
-                                                } rounded-xl focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all duration-200 ease-in-out`}
-                                                placeholder="Type the characters here"
-                                            />
-                                            {isForgotPasswordCaptchaCorrect === false && (
-                                                <p className="mt-1 text-sm text-red-600 flex items-center">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" viewBox="0 0 20 20" fill="currentColor">
-                                                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
-                                                    </svg>
-                                                    Incorrect CAPTCHA. Please try again.
-                                                </p>
-                                            )}
-                                        </div>
-
-                                        <button
-                                            onClick={handleSendOTP}
-                                            disabled={!isForgotPasswordCaptchaCorrect || isSendingOtp}
-                                            className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-500/30 transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
-                                        >
-                                            {isSendingOtp ? (
-                                                <>
-                                                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                    </svg>
-                                                    Sending Code...
-                                                </>
-                                            ) : (
-                                                "Send Verification Code"
-                                            )}
-                                        </button>
-                                    </>
-                                )}
+                                <button
+                                    onClick={handleCheckEmail}
+                                    disabled={isVerifyingEmail}
+                                    className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-500/30 transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
+                                >
+                                    {isVerifyingEmail ? (
+                                        <>
+                                            <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Sending OTP...
+                                        </>
+                                    ) : (
+                                        "Send Verification Code"
+                                    )}
+                                </button>
                             </>
                         ) : !showPasswordReset ? (
                             <div className="space-y-6">
