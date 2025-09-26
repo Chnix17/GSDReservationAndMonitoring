@@ -10,6 +10,7 @@ import reportWebVitals from "./reportWebVitals";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 
+// Simplified routing for Vercel deployment
 // Check if we're at the root path, if so show redirect handler
 // Otherwise, render the app with basename
 const isRootPath = window.location.pathname === '/';
@@ -29,9 +30,7 @@ root.render(
 			</BrowserRouter>
 		) : (
 			<BrowserRouter>
-				<Routes>
-					<Route path="*" element={<NotFound />} />
-				</Routes>
+				<App />
 			</BrowserRouter>
 		)}
 	</React.StrictMode>
