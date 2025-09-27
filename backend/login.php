@@ -1065,8 +1065,17 @@ public function fetch2FA($user_id) {
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($result) {
-            // Check if 2FA is expired
+            // If expired but still active, ignore expiration per requirement
             if ($result['expires_at'] < $current_time) {
+                if ((int)$result['is_active'] === 1) {
+                    return [
+                        "status" => "success",
+                        "is_active" => true,
+                        "expires_at" => $result['expires_at'],
+                        "requires_verification" => false,
+                        "note" => "Expired but active; treating as valid per policy"
+                    ];
+                }
                 return [
                     "status" => "expired",
                     "message" => "2FA has expired",
@@ -1083,9 +1092,10 @@ public function fetch2FA($user_id) {
         }
         
         return [
-            "status" => "not_found",
-            "message" => "No 2FA record found",
-            "requires_verification" => true
+            "status" => "success",
+            "message" => "No 2FA record found; verification not required",
+            "is_active" => false,
+            "requires_verification" => false
         ];
         
     } catch (Exception $e) {

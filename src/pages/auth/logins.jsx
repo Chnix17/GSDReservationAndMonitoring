@@ -64,6 +64,7 @@ function Logins() {
     
     // OTP storage with expiration (frontend-only, no server/database storage)
     const [storedOTP, setStoredOTP] = useState(null);
+    const [storedOtpOwner, setStoredOtpOwner] = useState(null); // track who requested the OTP
     const [otpExpiration, setOtpExpiration] = useState(null);
 
     // Determine the correct base path for public assets based on API base URL
@@ -274,6 +275,33 @@ function Logins() {
         }
     }, [showCaptchaAfterEmail, forgotPasswordCaptchaRef, generateForgotPasswordCaptcha]);
 
+    // Countdown for forgot-password resend timer (3:00 -> 0)
+    useEffect(() => {
+        let intervalId;
+        const handleVisibilityChange = () => {
+            // No-op: keeping simple countdown even when tab hidden
+        };
+
+        if (showOtpInput && resendTimer > 0) {
+            intervalId = setInterval(() => {
+                setResendTimer((prev) => {
+                    if (prev <= 1) {
+                        setCanResendOtp(true);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
+            }, 1000);
+
+            document.addEventListener('visibilitychange', handleVisibilityChange);
+        }
+
+        return () => {
+            if (intervalId) clearInterval(intervalId);
+            document.removeEventListener('visibilitychange', handleVisibilityChange);
+        };
+    }, [showOtpInput, resendTimer, setCanResendOtp]);
+
     useEffect(() => {
         let intervalId;
         const handleVisibilityChange = () => {
@@ -469,12 +497,37 @@ function Logins() {
                     timestamp: new Date().getTime() // Add timestamp for additional security
                 });
     
-                // Now we'll send OTP using Node.js API
-                const otpResponse = await axios.post('http://localhost:3001/send-login-otp', {
-                    user_id: userData.user_id,
-                    email: userData.email,
-                    fullName: `${userData.firstname} ${userData.lastname}`
-                });
+                // Check 2FA status first using backend fetch2FA
+                let canSendLoginOtp = false;
+                let twoFaData = null;
+                try {
+                    const twoFaResp = await axios.post(`${apiUrl}login.php`, {
+                        operation: "fetch2FA",
+                        json: { user_id: userData.user_id }
+                    });
+                    twoFaData = twoFaResp.data;
+                    if (twoFaData && twoFaData.status === "success" && twoFaData.is_active === true) {
+                        canSendLoginOtp = true; // includes expired-but-active per backend policy
+                    } else {
+                        // If backend indicates 2FA inactive/expired (and not active), block OTP send
+                        notify(twoFaData?.message || "2FA not active for this user.", 'error');
+                    }
+                } catch (e) {
+                    notify("Failed to verify 2FA status.", 'error');
+                }
+
+                let otpResponse = { data: { status: 'error' } };
+                if (canSendLoginOtp) {
+                    // Now we'll send OTP using Node.js API
+                    otpResponse = await axios.post('http://localhost:3001/send-login-otp', {
+                        user_id: userData.user_id,
+                        email: userData.email,
+                        fullName: `${userData.firstname} ${userData.lastname}`
+                    });
+                } else if (twoFaData && twoFaData.status === 'success' && twoFaData.is_active === false) {
+                    // No 2FA record; bypass OTP and proceed to direct login branch
+                    otpResponse = { data: { status: 'success', requires_2fa: false } };
+                }
                 
                 console.log("OTP response:", otpResponse.data);
                 
@@ -627,8 +680,8 @@ function Logins() {
         setIsVerifyingEmail(true);
         try {
             // Skip email check and directly send OTP using Node.js API
-            const response = await axios.post('http://localhost:4001/send-password-reset-otp', {
-                email: email,
+            const response = await axios.post('http://localhost:3001/send-password-reset-otp', {
+                email: (email || '').trim().toLowerCase(),
                 fullName: 'User' // You can get this from user data if available
             });
 
@@ -640,6 +693,12 @@ function Logins() {
                 const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
                 setOtpExpiration(expirationTime);
                 setStoredOTP(data.otp); // Store the OTP from response
+                setStoredOtpOwner((email || '').trim().toLowerCase()); // bind OTP to the requesting email
+                console.log('[OTP DEBUG] issued password-reset OTP', {
+                    owner: (email || '').trim().toLowerCase(),
+                    otp_tail: String(data.otp).slice(-2),
+                    expiresAt: expirationTime.toISOString()
+                });
                 
                 setShowOtpInput(true);
                 setResendTimer(180); // Reset timer
@@ -670,8 +729,9 @@ function Logins() {
 
         try {
             // Use Node.js API for password reset OTP
-            const response = await axios.post('http://localhost:4001/send-password-reset-otp', {
-                email: email,
+            const normalizedEmail = (email || '').trim().toLowerCase();
+            const response = await axios.post('http://localhost:3001/send-password-reset-otp', {
+                email: normalizedEmail,
                 fullName: 'User' // You can get this from user data if available
             });
 
@@ -683,6 +743,7 @@ function Logins() {
                 const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
                 setOtpExpiration(expirationTime);
                 setStoredOTP(data.otp); // Store the OTP from response
+                setStoredOtpOwner(normalizedEmail); // bind owner
                 
                 setShowOtpInput(true);
                 setResendTimer(180); // Reset timer
@@ -738,7 +799,7 @@ function Logins() {
     };
 
     const handleVerifyOtp = async () => {
-        const otpValue = otpDigits.join('');
+        const otpValue = otpDigits.map(d => (d || '').trim()).join('');
         if (otpValue.length !== 6) {
             notify("Please enter complete OTP", 'error');
             return;
@@ -753,19 +814,47 @@ function Logins() {
                 return;
             }
 
-            // Verify OTP against frontend-stored value
-            if (otpValue !== storedOTP) {
-                notify("Invalid OTP. Please try again.", 'error');
+            // Normalize requester email for strict match
+            const normalizedEmail = (email || '').trim().toLowerCase();
+
+            // Verify OTP belongs to the same requester (defense-in-depth on client)
+            if (storedOtpOwner !== normalizedEmail) {
+                notify("This OTP was not requested for this email. Please request a new OTP.", 'error');
+                setOtpDigits(Array(6).fill(''));
+                return;
+            }
+
+            // Server-side validation to avoid mismatch from multiple OTP requests
+            try {
+                const { data } = await axios.post('http://localhost:3001/validate-password-reset-otp', {
+                    email: normalizedEmail,
+                    otp: otpValue
+                });
+                console.log('[OTP DEBUG] server validate result', data);
+                if (data.status !== 'success') {
+                    notify(data.message || "Invalid OTP. Please try again.", 'error');
+                    setOtpDigits(Array(6).fill(''));
+                    return;
+                }
+            } catch (err) {
+                console.log('[OTP DEBUG] server validate error', err?.response?.data || err?.message);
+                notify(err.response?.data?.message || "Invalid OTP. Please try again.", 'error');
                 setOtpDigits(Array(6).fill(''));
                 return;
             }
 
             // OTP is valid, proceed with password reset
+            console.log('[OTP DEBUG] client verify passed', {
+                owner: storedOtpOwner,
+                input_tail: String(otpValue).slice(-2),
+                stored_tail: String(storedOTP).slice(-2)
+            });
             setShowPasswordReset(true);
             notify("OTP verified successfully");
             
             // Clear OTP data
             setStoredOTP(null);
+            setStoredOtpOwner(null);
             setOtpExpiration(null);
         } catch (error) {
             notify("Error validating OTP", 'error');

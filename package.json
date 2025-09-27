@@ -7,8 +7,6 @@
     "@ant-design/plots": "^2.4.0",
     "@emotion/react": "^11.14.0",
     "@emotion/styled": "^11.14.0",
-    "@fortawesome/free-solid-svg-icons": "^6.6.0",
-    "@fortawesome/react-fontawesome": "^0.2.2",
     "@fullcalendar/daygrid": "^6.1.15",
     "@fullcalendar/interaction": "^6.1.15",
     "@fullcalendar/react": "^6.1.15",
@@ -71,6 +69,7 @@
     "timeago.js": "^4.0.2",
     "web-vitals": "^2.1.4",
     "ws": "^8.18.0",
+    "dotenv": "^16.4.5",
     "xlsx": "^0.18.5"
   },
   "scripts": {
@@ -78,7 +77,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "eject": "react-scripts eject",
-    "start-otp-service": "node api/send-login-otp.js"
+    "start-otp-service": "node api/otp-server.js",
+    "start-mail-api": "node api/otp-server.js"
   },
   "eslintConfig": {
     "extends": [
@@ -104,6 +104,7 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13"
   },
+  "overrides": {},
   "description": "This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).",
   "main": "postcss.config.js",
   "keywords": [],
