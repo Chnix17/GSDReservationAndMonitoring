@@ -188,6 +188,12 @@ const Reports = () => {
             {status || 'Unset'}
           </Tag>
         )
+      },
+      {
+        title: 'Reported At',
+        dataIndex: 'created_at',
+        key: 'created_at',
+        render: (date) => date ? new Date(date).toLocaleString() : '—'
       }
     ];
 
@@ -294,6 +300,12 @@ const Reports = () => {
       dataIndex: 'requester_name',
       key: 'requester_name',
       render: (val) => val || '—'
+    },
+    {
+      title: 'Reported At',
+      dataIndex: 'created_at',
+      key: 'created_at',
+      render: (date) => date || '—'
     },
     {
       title: 'Action',
@@ -646,12 +658,16 @@ const Reports = () => {
                             <Typography.Text className="text-green-600">{selectedResource.requester_name}</Typography.Text>
                           </Descriptions.Item>
                         )}
+                        {selectedResource.created_at && (
+                          <Descriptions.Item label="Reported At">
+                            <Typography.Text>{selectedResource.created_at}</Typography.Text>
+                          </Descriptions.Item>
+                        )}
                       </Descriptions>
                     </Col>
                     <Col xs={24} md={10}>
                       {(selectedResource.reservation_title || selectedResource.reservation_description) ? (
                         <div className="bg-white rounded-lg border border-gray-100 p-3">
-                          <Typography.Text className="text-gray-700 font-medium text-sm">Reservation</Typography.Text>
                           <Divider className="my-2" />
                           {selectedResource.reservation_title && (
                             <div className="mb-1">

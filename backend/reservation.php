@@ -2010,13 +2010,16 @@ class Reservation {
                     dep.departments_name,
                     TRIM(
                         CONCAT(
+                            COALESCE(t_req.abbreviation, ''),
+                            CASE WHEN COALESCE(t_req.abbreviation, '') <> '' THEN ' ' ELSE '' END,
                             COALESCE(u_req.users_fname, ''),
-                            ' ',
-                            COALESCE(u_req.users_mname, ''),
-                            ' ',
-                            COALESCE(u_req.users_lname, '')
+                            CASE WHEN COALESCE(u_req.users_mname, '') <> '' THEN CONCAT(' ', u_req.users_mname) ELSE '' END,
+                            CASE WHEN COALESCE(u_req.users_lname, '') <> '' THEN CONCAT(' ', u_req.users_lname) ELSE '' END,
+                            CASE WHEN COALESCE(u_req.users_suffix, '') <> '' THEN CONCAT(', ', u_req.users_suffix) ELSE '' END
                         )
                     ) AS requester_name,
+                    u_req.users_suffix AS requester_suffix,
+                    t_req.abbreviation AS requester_title_abbreviation,
                     dep.departments_name AS department_name,
 
                     -- Venue details
@@ -2090,6 +2093,7 @@ class Reservation {
                 LEFT JOIN tbl_users u_req ON r.reservation_user_id = u_req.users_id
                 LEFT JOIN tbl_user_level ul ON u_req.users_user_level_id = ul.user_level_id
                 LEFT JOIN tbl_departments dep ON u_req.users_department_id = dep.departments_id
+                LEFT JOIN titles t_req ON u_req.title_id = t_req.id
 
                 LEFT JOIN tbl_reservation_venue v ON r.reservation_id = v.reservation_reservation_id
                 LEFT JOIN tbl_venue venue ON v.reservation_venue_venue_id = venue.ven_id
@@ -2147,6 +2151,8 @@ class Reservation {
                     'requester_name' => $row['requester_name'],
                     'department_name' => $row['department_name'],
                     'user_level_name' => $row['user_level_name'],
+                    'requester_suffix' => $row['requester_suffix'] ?? null,
+                    'requester_title_abbreviation' => $row['requester_title_abbreviation'] ?? '',
                     'status_history' => $statusHistory     // Add full status history
                 ];
 
@@ -2928,7 +2934,18 @@ class Reservation {
                     r.reservation_end_date,
                     r.reservation_participants,
                     r.reservation_user_id AS requester_id,
-                    CONCAT_WS(' ', u.users_fname, u.users_mname, u.users_lname) AS requester_name,
+                    TRIM(
+                        CONCAT(
+                            COALESCE(t.abbreviation, ''),
+                            CASE WHEN COALESCE(t.abbreviation, '') <> '' THEN ' ' ELSE '' END,
+                            COALESCE(u.users_fname, ''),
+                            CASE WHEN COALESCE(u.users_mname, '') <> '' THEN CONCAT(' ', u.users_mname) ELSE '' END,
+                            CASE WHEN COALESCE(u.users_lname, '') <> '' THEN CONCAT(' ', u.users_lname) ELSE '' END,
+                            CASE WHEN COALESCE(u.users_suffix, '') <> '' THEN CONCAT(', ', u.users_suffix) ELSE '' END
+                        )
+                    ) AS requester_name,
+                    u.users_suffix AS requester_suffix,
+                    t.abbreviation AS requester_title_abbreviation,
                     d.departments_name,
                     rs.reservation_status_status_id AS status_id,
                     rs.reservation_active AS active,
@@ -2939,6 +2956,8 @@ class Reservation {
                     tbl_users u ON r.reservation_user_id = u.users_id
                 LEFT JOIN 
                     tbl_departments d ON u.users_department_id = d.departments_id
+                LEFT JOIN 
+                    titles t ON u.title_id = t.id
                 LEFT JOIN 
                     tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
                 LEFT JOIN 

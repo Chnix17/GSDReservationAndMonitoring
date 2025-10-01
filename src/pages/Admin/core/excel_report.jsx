@@ -29,7 +29,7 @@ export function generateReservationReport(data, monthStr) {
   }
 
   // Prepare detailed reservation data with formatted dates
-  const flatData = data.map(({ passengers, reservation_id, reservation_user_id, user_level_name, venues, vehicles, equipment, drivers, active, ...rest }) => ({
+  const flatData = data.map(({ passengers, reservation_id, reservation_user_id, user_level_name, venues, vehicles, equipment, drivers, active, status_history, ...rest }) => ({
     ...rest,
     role: user_level_name,
     reservation_start_date: formatDateTime(rest.reservation_start_date),
@@ -239,6 +239,45 @@ export function generateReservationReport(data, monthStr) {
   // Equipment summary sheet with hours, total issues, and total unit issues
   const wsEquipment = XLSX.utils.json_to_sheet(equipmentCounts.length ? equipmentCounts : [{ name: "No data", "No. Of Uses": 0, "No. Hours": 0, total_issues: 0}]);
   XLSX.utils.book_append_sheet(wb, wsEquipment, "Equipment");
+
+  // Status History sheet (one row per status change, minimal fields + Status)
+  const statusRows = [];
+  data.forEach((item) => {
+    const title = item.reservation_title || "";
+    const requester = item.requester_name || "";
+    const department = item.department_name || "";
+    const history = Array.isArray(item.status_history) ? item.status_history : [];
+    history.forEach((h) => {
+      statusRows.push({
+        Reservation: title,
+        Requester: requester,
+        Department: department,
+        Status: h.status_name || "",
+        "Updated At": formatDateTime(h.reservation_updated_at)
+      });
+    });
+  });
+  const wsStatus = XLSX.utils.json_to_sheet(statusRows.length ? statusRows : [{ Reservation: "No data", Requester: "", Department: "", Status: "", "Updated At": "" }]);
+  // Set friendly column widths and apply styles so the sheet is readable without resizing
+  wsStatus["!cols"] = [
+    { wch: 40 }, // Reservation
+    { wch: 28 }, // Requester
+    { wch: 24 }, // Department
+    { wch: 18 }, // Status
+    { wch: 28 }  // Updated At
+  ];
+  const statusHeaderKeys = Object.keys(statusRows[0] || { Reservation: "", Requester: "", Department: "", Status: "", "Updated At": "" });
+  statusHeaderKeys.forEach((key, idx) => {
+    const cellRef = XLSX.utils.encode_cell({ r: 0, c: idx });
+    if (wsStatus[cellRef]) wsStatus[cellRef].s = headerCellStyle;
+  });
+  for (let r = 1; r <= statusRows.length; r++) {
+    for (let c = 0; c < statusHeaderKeys.length; c++) {
+      const cellRef = XLSX.utils.encode_cell({ r, c });
+      if (wsStatus[cellRef]) wsStatus[cellRef].s = contentCellStyle;
+    }
+  }
+  XLSX.utils.book_append_sheet(wb, wsStatus, "Status History");
 
   // Write workbook
   const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });

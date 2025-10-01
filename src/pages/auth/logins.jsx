@@ -676,40 +676,79 @@ function Logins() {
             return;
         }
 
-        // Temporarily bypass email verification and directly send OTP
         setIsVerifyingEmail(true);
         try {
-            // Skip email check and directly send OTP using Node.js API
-            const response = await axios.post('http://localhost:3001/send-password-reset-otp', {
-                email: (email || '').trim().toLowerCase(),
-                fullName: 'User' // You can get this from user data if available
+            const apiUrl = SecureStorage.getLocalItem("url");
+            if (!apiUrl) {
+                notify("API URL configuration is missing. Please contact support.", 'error');
+                setIsVerifyingEmail(false);
+                return;
+            }
+
+            // First, check if email exists in the database
+            const response = await axios.post(`${apiUrl}login.php`, {
+                operation: "checkEmail",
+                json: { email }
             });
 
-            const data = response.data;
-            console.log("SendOTP response:", data);
+            let data = response.data;
+            console.log("CheckEmail response:", data);
 
-            if (data.status === "success") {
-                // Store OTP and expiration for validation
-                const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-                setOtpExpiration(expirationTime);
-                setStoredOTP(data.otp); // Store the OTP from response
-                setStoredOtpOwner((email || '').trim().toLowerCase()); // bind OTP to the requesting email
-                console.log('[OTP DEBUG] issued password-reset OTP', {
-                    owner: (email || '').trim().toLowerCase(),
-                    otp_tail: String(data.otp).slice(-2),
-                    expiresAt: expirationTime.toISOString()
-                });
+            if (typeof data === "string") {
+                try {
+                    data = JSON.parse(data);
+                } catch (e) {
+                    notify("Invalid response from server", 'error');
+                    setIsVerifyingEmail(false);
+                    return;
+                }
+            }
+
+            console.log("Parsed data.status:", data.status);
+
+            if (data.status === "exists") {
+                console.log("Email exists, proceeding to send OTP");
                 
-                setShowOtpInput(true);
-                setResendTimer(180); // Reset timer
-                setCanResendOtp(false);
-                notify("OTP sent to your email", 'success');
+                // Email exists, now send OTP using Node.js API
+                try {
+                    const otpResponse = await axios.post('http://localhost:3001/send-password-reset-otp', {
+                        email: (email || '').trim().toLowerCase(),
+                        fullName: 'User' // You can get this from user data if available
+                    });
+
+                    const otpData = otpResponse.data;
+                    console.log("SendOTP response:", otpData);
+
+                    if (otpData.status === "success") {
+                        // Store OTP and expiration for validation
+                        const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+                        setOtpExpiration(expirationTime);
+                        setStoredOTP(otpData.otp); // Store the OTP from response
+                        setStoredOtpOwner((email || '').trim().toLowerCase()); // bind OTP to the requesting email
+                        console.log('[OTP DEBUG] issued password-reset OTP', {
+                            owner: (email || '').trim().toLowerCase(),
+                            otp_tail: String(otpData.otp).slice(-2),
+                            expiresAt: expirationTime.toISOString()
+                        });
+                        
+                        setShowOtpInput(true);
+                        setResendTimer(180); // Reset timer
+                        setCanResendOtp(false);
+                        notify("OTP sent to your email", 'success');
+                    } else {
+                        notify(otpData.message || "Failed to send OTP", 'error');
+                    }
+                } catch (otpError) {
+                    console.error("SendOTP error:", otpError);
+                    notify(otpError.response?.data?.message || "Error sending OTP", 'error');
+                }
             } else {
-                notify(data.message || "Failed to send OTP", 'error');
+                console.log("Email not found block hit, status was:", data.status);
+                notify("Email not found in our records", 'error');
             }
         } catch (error) {
-            console.error("SendOTP error:", error);
-            notify(error.response?.data?.message || "Error sending OTP", 'error');
+            console.error("CheckEmail error:", error);
+            notify("Error verifying email", 'error');
         } finally {
             setIsVerifyingEmail(false);
         }
@@ -801,7 +840,7 @@ function Logins() {
     const handleVerifyOtp = async () => {
         const otpValue = otpDigits.map(d => (d || '').trim()).join('');
         if (otpValue.length !== 6) {
-            notify("Please enter complete OTP", 'error');
+            
             return;
         }
 

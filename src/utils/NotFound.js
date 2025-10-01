@@ -43,8 +43,8 @@ const NotFound = ({ isVisible, onClose }) => {
         title="Page Not Found"
         subTitle="Sorry, the page you visited does not exist."
         extra={[
-          <Button key="back" onClick={() => navigate(-1)}>Go Back</Button>,
-          <Button key="home" type="primary" onClick={() => navigate('/')}>Go Home</Button>
+          <Button key="back" onClick={() => navigate(-1)}>Go Back</Button>
+          
         ]}
       />
     </div>

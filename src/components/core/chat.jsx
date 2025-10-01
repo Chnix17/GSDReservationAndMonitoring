@@ -35,7 +35,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
             const decryptedUserLevel = parseInt(encryptedUserLevel);
             console.log("this is encryptedUserLevel", encryptedUserLevel);
-            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1 && decryptedUserLevel !== 2) {
+            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 19) {
                 navigate('/gsd');
             }
           } catch (error) {
@@ -50,7 +50,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
 
   // Get the appropriate avatar URL based on whether it's own message or not
   const getAvatarUrl = (picture) => {
-    if (!picture || picture === undefined || picture === null) return 'default-avatar.svg';
+    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
     return `http://localhost/coc/gsd/${picture}`;
   };
   
@@ -110,7 +110,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             src={getAvatarUrl(message.senderPic)}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onError={(e) => { e.target.src = 'default-avatar.svg' }}
+            onError={(e) => { e.target.src = '/default-avatar.svg' }}
           />
         </div>
       )}
@@ -224,7 +224,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             src={getAvatarUrl(currentUser.picture)}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onError={(e) => { e.target.src = 'default-avatar.svg' }}
+            onError={(e) => { e.target.src = '/default-avatar.svg' }}
           />
         </div>
       )}
@@ -315,7 +315,7 @@ const Chat = () => {
       try {
         const encryptedUserLevel = SecureStorage.getLocalItem('user_level_id');
         const decryptedUserLevel = parseInt(encryptedUserLevel);
-        const allowed = [1, 2, 3, 5, 6, 15, 16, 17, 18];
+        const allowed = [1, 2, 3, 5, 6, 15, 16, 17, 18, 19];
         if (!allowed.includes(decryptedUserLevel)) {
           localStorage.clear();
           sessionStorage.clear();
@@ -445,10 +445,9 @@ const Chat = () => {
     memorizeFetchAllChats();
   }, [memorizeFetchAllChats]);
 
-
   // Helper function to get avatar URL
   const getAvatarUrl = (picture) => {
-    if (!picture || picture === undefined || picture === null) return 'default-avatar.svg';
+    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
     return `${apiUrl}${picture}`;
   };
 
@@ -474,7 +473,7 @@ const Chat = () => {
                     src={activeConversation && getAvatarUrl(activeConversation.picture)}
                     className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
                     alt={activeConversation?.name || 'User'}
-                    onError={(e) => { e.target.src = 'default-avatar.svg' }}
+                    onError={(e) => { e.target.src = '/default-avatar.svg' }}
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
                     <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -873,7 +872,7 @@ const Chat = () => {
     setErrorMessage('');
   
     try {
-      const response = await fetch(`${apiUrl}Adin.php`, {
+      const response = await fetch(`${apiUrl}Admin.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/x-www-form-urlencoded',
@@ -949,23 +948,24 @@ const Chat = () => {
     // searchEmails will be called automatically through the debounced effect
   };
 
-  const MAX_RECONNECT_ATTEMPTS = 5;
-  const RECONNECT_DELAY = 3000; // 3 seconds
+  const MAX_RECONNECT_ATTEMPTS = 10;
+  const RECONNECT_DELAY = 1000; // 1 second - faster reconnection
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-
   const connectWebSocket = useCallback(() => {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
       setConnectionStatus('failed');
       console.error('Max reconnection attempts reached');
+      toast.error('Failed to connect to chat server. Please check if the server is running.');
       return;
     }
 
     try {
-      const apiUrl = SecureStorage.getLocalItem("url");
-      // Convert http:// to ws:// for WebSocket connection
-      const wsUrl = apiUrl.replace('http://', 'ws://').replace('/coc/gsd/', '');
-      const socket = new WebSocket(`${wsUrl}:8080`);
+      // Connect directly to localhost:8080 for faster connection
+      const wsUrl = 'ws://localhost:8080';
+      console.log('[Chat] Connecting WebSocket to:', wsUrl, '(Attempt', reconnectAttempts + 1, '/' + MAX_RECONNECT_ATTEMPTS + ')');
+
+      const socket = new WebSocket(wsUrl);
       wsRef.current = socket;
       setConnectionStatus('connecting');
 
@@ -973,8 +973,7 @@ const Chat = () => {
         console.log('WebSocket Connected');
         setIsConnected(true);
         setConnectionStatus('connected');
-        setReconnectAttempts(0); // Reset attempts on successful connection
-        
+        setReconnectAttempts(0);
         // Register this connection with the backend to bind user_id to socket
         try {
           if (currentUser?.id) {
@@ -994,6 +993,7 @@ const Chat = () => {
         console.log('WebSocket Disconnected', event.code, event.reason);
         setIsConnected(false);
         setConnectionStatus('disconnected');
+        wsRef.current = null;
         
         // Don't reconnect if closure was clean
         if (event.wasClean) {
@@ -1001,11 +1001,13 @@ const Chat = () => {
           return;
         }
 
-        // Attempt to reconnect with exponential backoff
-        const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
-        console.log(`Attempting to reconnect in ${delay/1000} seconds...`);
+        // Attempt to reconnect with constant delay for faster reconnection
+        const delay = RECONNECT_DELAY;
+        console.log(`Attempting to reconnect in ${delay/1000} seconds... (Attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
         setReconnectAttempts(prev => prev + 1);
-        reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectWebSocket();
+        }, delay);
       };
 
       socket.onmessage = (event) => {
@@ -1115,20 +1117,33 @@ const Chat = () => {
       console.error('Error creating WebSocket:', error);
       setConnectionStatus('error');
       // Attempt to reconnect
-      const delay = RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
-      reconnectTimeoutRef.current = setTimeout(connectWebSocket, delay);
+      const delay = RECONNECT_DELAY;
+      console.log(`Reconnecting after error in ${delay/1000} seconds...`);
+      setReconnectAttempts(prev => prev + 1);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectWebSocket();
+      }, delay);
     }
-  }, [activeConversation, currentUser.id, currentUser.name, reconnectAttempts]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reconnectAttempts, currentUser.id]);
 
   useEffect(() => {
+    // Only connect once on mount
+    console.log('[Chat] Initializing WebSocket connection...');
     const cleanup = connectWebSocket();
+    
     return () => {
-      if (cleanup) cleanup();
-      if (wsRef.current) {
-        wsRef.current.close();
+      console.log('[Chat] Cleaning up WebSocket connection...');
+      if (cleanup && typeof cleanup === 'function') cleanup();
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+      }
+      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+        wsRef.current.close(1000, 'Component unmounting');
       }
     };
-  }, [connectWebSocket]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - only run once on mount
 
   // Add connection status indicator in the UI
   useEffect(() => {
@@ -1401,7 +1416,7 @@ const Chat = () => {
                               className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-white shadow-sm"
                               alt={chat?.name || "User"}
                               onError={(e) => {
-                                e.target.src = "default-avatar.svg";
+                                e.target.src = "/default-avatar.svg";
                               }}
                             />
                             {chat.online && (
@@ -1583,7 +1598,7 @@ const Chat = () => {
                         >
                           <div className="flex items-center gap-3">
                             <img 
-                              src={user.picture || 'default-avatar.svg'} 
+                              src={user.picture || '/default-avatar.svg'} 
                               className="w-12 h-12 rounded-full border border-gray-200" 
                               alt={user.name}
                             />

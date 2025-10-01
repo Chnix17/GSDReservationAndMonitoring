@@ -2425,7 +2425,18 @@ public function venueExists($venueName) {
                 r.reservation_participants, 
                 r.reservation_user_id, 
                 r.reservation_created_at, 
-                CONCAT(u.users_fname, ' ', COALESCE(u.users_mname, ''), ' ', u.users_lname) AS user_full_name,
+                TRIM(
+                    CONCAT(
+                        COALESCE(t.abbreviation, ''),
+                        CASE WHEN COALESCE(t.abbreviation, '') <> '' THEN ' ' ELSE '' END,
+                        COALESCE(u.users_fname, ''),
+                        CASE WHEN COALESCE(u.users_mname, '') <> '' THEN CONCAT(' ', u.users_mname) ELSE '' END,
+                        CASE WHEN COALESCE(u.users_lname, '') <> '' THEN CONCAT(' ', u.users_lname) ELSE '' END,
+                        CASE WHEN COALESCE(u.users_suffix, '') <> '' THEN CONCAT(', ', u.users_suffix) ELSE '' END
+                    )
+                ) AS user_full_name,
+                u.users_suffix AS requester_suffix,
+                t.abbreviation AS requester_title_abbreviation,
                 sm.status_master_name AS reservation_status_name,
                 latest_status.reservation_status_status_id,
                 latest_status.reservation_updated_at,
@@ -2454,6 +2465,7 @@ public function venueExists($venueName) {
 
             LEFT JOIN tbl_status_master sm ON sm.status_master_id = latest_status.reservation_status_status_id
             LEFT JOIN tbl_users u ON u.users_id = r.reservation_user_id
+            LEFT JOIN titles t ON u.title_id = t.id
 
             ORDER BY r.reservation_created_at DESC
         ";

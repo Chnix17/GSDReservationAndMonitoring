@@ -89,6 +89,11 @@ const ReservationDetails = ({
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
         return (name.includes('reschedule') || String(s.status_id) === '10') && activeVal === 0;
     });
+    const rescheduleConfirmedStatus = statusArr.find(s => {
+        const name = (s.status_name || '').toLowerCase();
+        const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
+        return (name === 'reschedule confirmed' || String(s.status_id) === '14') && activeVal === 1;
+    });
     const venueChanges = Array.isArray(reservationDetails.venues)
         ? reservationDetails.venues.filter(v => (
             (v.change_venue_name && v.change_venue_name.trim() !== '') ||
@@ -111,7 +116,7 @@ const ReservationDetails = ({
     const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
     const hasRescheduleProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
     const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
-    const showReschedulePendingCard = hasRescheduleProposal && !isReservedActive && !isCancelledActive;
+    const showReschedulePendingCard = hasRescheduleProposal && !isReservedActive && !isCancelledActive && !rescheduleConfirmedStatus;
 
     // Effective dates
     const startDateStr = (hasActiveReschedule && reservationDetails.reschedule_start_date)
@@ -268,6 +273,59 @@ const ReservationDetails = ({
                                                             <Tag color="default">{vc.model} ({vc.license})</Tag>
                                                             <span className="text-gray-500">→</span>
                                                             <Tag color="gold">{(vc.change_vehicle_model && vc.change_vehicle_model.trim()) || `ID ${vc.change_vehicle_id}`}{vc.change_vehicle_license ? ` (${vc.change_vehicle_license})` : ''}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Reschedule Confirmed Section */}
+                                {rescheduleConfirmedStatus && (
+                                    <div className="bg-green-50 p-6 rounded-lg border border-green-200 shadow-sm mb-6">
+                                        <h3 className="text-lg font-medium text-gray-800 mb-4">Reschedule Confirmed</h3>
+                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                            <div>
+                                                <p className="text-sm text-gray-500">Original Date & Time</p>
+                                                <p className="font-medium">{formatDateRange(
+                                                    reservationDetails.reservation_start_date,
+                                                    reservationDetails.reservation_end_date
+                                                )}</p>
+                                            </div>
+                                            {(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && (
+                                                <div>
+                                                    <p className="text-sm text-gray-500">New Date & Time</p>
+                                                    <p className="font-medium">{formatDateRange(
+                                                        reservationDetails.reschedule_start_date || reservationDetails.reservation_start_date,
+                                                        reservationDetails.reschedule_end_date || reservationDetails.reservation_end_date
+                                                    )}</p>
+                                                </div>
+                                            )}
+                                        </div>
+                                        {hasVenueChange && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-500">Venue Changes Applied</p>
+                                                <div className="space-y-2">
+                                                    {venueChanges.map(vc => (
+                                                        <div key={vc.reservation_venue_id} className="flex items-center gap-2 text-sm">
+                                                            <Tag color="default">{vc.venue_name}</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="green">{(vc.change_venue_name && vc.change_venue_name.trim()) || `ID ${vc.change_venue_id}`}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {hasVehicleChange && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-500">Vehicle Changes Applied</p>
+                                                <div className="space-y-2">
+                                                    {vehicleChanges.map(vc => (
+                                                        <div key={vc.reservation_vehicle_id} className="flex items-center gap-2 text-sm">
+                                                            <Tag color="default">{vc.model} ({vc.license})</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="green">{(vc.change_vehicle_model && vc.change_vehicle_model.trim()) || `ID ${vc.change_vehicle_id}`}{vc.change_vehicle_license ? ` (${vc.change_vehicle_license})` : ''}</Tag>
                                                         </div>
                                                     ))}
                                                 </div>

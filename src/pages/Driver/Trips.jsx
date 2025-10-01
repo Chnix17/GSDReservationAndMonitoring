@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Table, Input, Button, Tooltip, Empty, Pagination, Spin } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
-import { format, differenceInSeconds } from 'date-fns';
+import { format } from 'date-fns';
 import Sidebar from '../../components/core/Sidebar';
 import { SecureStorage } from '../../utils/encryption';
 
@@ -22,34 +22,6 @@ const formatSafe = (dateString, fmt = 'MMM dd, yyyy h:mm a') => {
   }
 };
 
-const Countdown = ({ startDate }) => {
-  const [secondsLeft, setSecondsLeft] = useState(() => {
-    const start = parseDateSafe(startDate);
-    return Math.max(0, differenceInSeconds(start || new Date(), new Date()));
-  });
-
-  useEffect(() => {
-    if (secondsLeft <= 0) return;
-    const interval = setInterval(() => {
-      setSecondsLeft((prev) => Math.max(0, prev - 1));
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [secondsLeft]);
-
-  if (secondsLeft <= 0) return <span>Started</span>;
-  const days = Math.floor(secondsLeft / (3600 * 24));
-  const hours = Math.floor((secondsLeft % (3600 * 24)) / 3600);
-  const minutes = Math.floor((secondsLeft % 3600) / 60);
-  const seconds = secondsLeft % 60;
-  return (
-    <span>
-      {days > 0 && `${days}d `}
-      {hours > 0 && `${hours}h `}
-      {minutes > 0 && `${minutes}m `}
-      {seconds}s
-    </span>
-  );
-};
 
 const Trips = () => {
   const [trips, setTrips] = useState([]);
@@ -99,12 +71,6 @@ const Trips = () => {
 
   const columns = [
     {
-      title: 'ID',
-      dataIndex: 'reservation_id',
-      key: 'reservation_id',
-      width: 60,
-    },
-    {
       title: 'Title',
       dataIndex: 'reservation_title',
       key: 'reservation_title',
@@ -144,14 +110,6 @@ const Trips = () => {
           <div><b>Category:</b> {record.vehicle_category_name}</div>
         </div>
       ),
-    },
-    {
-      title: 'Countdown',
-      key: 'countdown',
-      render: (_, record) => {
-        const effective = record.reschedule_start_date || record.reservation_start_date;
-        return <Countdown startDate={effective} />;
-      },
     },
   ];
 

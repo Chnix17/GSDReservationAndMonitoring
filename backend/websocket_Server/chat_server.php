@@ -130,7 +130,11 @@ class Chat implements MessageComponentInterface {
             } catch (\Throwable $e) { /* ignore audit logging errors */ }
 
             // Send push notification to receiver
-            $pushUrl = 'http://localhost/coc/gsd/send-push-notification.php';
+            // In CLI context (Ratchet server), $_SERVER vars are not available. Use absolute URL.
+            // Mirror faculty&staff.php logic: http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php
+            // Since faculty&staff.php resides under /gsd-reservation/backend/, the resolved URL is:
+            //   http://localhost/gsd-reservation/backend/server/send-push-notification.php
+            $pushUrl = 'http://localhost/gsd-reservation/backend/server/send-push-notification.php';
             echo "--- Building Push URL ---\n";
             echo "Value of \$_SERVER['HTTP_HOST']: " . ($_SERVER['HTTP_HOST'] ?? '[not set]') . "\n";
             echo "Value of \$_SERVER['REQUEST_URI']: " . ($_SERVER['REQUEST_URI'] ?? '[not set]') . "\n";

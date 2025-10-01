@@ -1719,6 +1719,7 @@ class Assigned {
                 $vehicles = [];
                 $equipment = [];
                 $passengers = [];
+                $statusHistory = [];
 
                 // Fetch condition data for this reservation first
                 $conditionData = [];
@@ -2131,6 +2132,27 @@ class Assigned {
                     ];
                 }
 
+                // STATUS HISTORY: mirror fetchRequestById history for this reservation
+                $statusHistorySql = "
+                    SELECT 
+                        rs.reservation_status_id,
+                        rs.reservation_status_status_id AS status_id,
+                        sm.status_master_name AS status_name,
+                        rs.reservation_active,
+                        rs.reservation_updated_at,
+                        rs.reservation_users_id,
+                        CONCAT_WS(' ', u.users_fname, u.users_mname, u.users_lname) AS updated_by_name
+                    FROM tbl_reservation_status rs
+                    JOIN tbl_status_master sm ON rs.reservation_status_status_id = sm.status_master_id
+                    LEFT JOIN tbl_users u ON rs.reservation_users_id = u.users_id
+                    WHERE rs.reservation_reservation_id = :reservation_id
+                    ORDER BY rs.reservation_status_id DESC, rs.reservation_updated_at DESC
+                ";
+                $statusStmt = $this->conn->prepare($statusHistorySql);
+                $statusStmt->bindParam(':reservation_id', $row['reservation_id'], PDO::PARAM_INT);
+                $statusStmt->execute();
+                $statusHistory = $statusStmt->fetchAll(PDO::FETCH_ASSOC);
+
 
 
                 $finalResults[] = [
@@ -2154,7 +2176,8 @@ class Assigned {
                     'vehicles' => $vehicles,
                     'equipment' => $equipment,
                     'drivers' => $drivers,
-                    'passengers' => $passengers
+                    'passengers' => $passengers,
+                    'status_history' => $statusHistory
                 ];
             }
 
