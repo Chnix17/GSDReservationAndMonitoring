@@ -2,7 +2,7 @@
   "name": "gsd-reservation",
   "version": "0.1.0",
   "private": true,
-  "homepage": ".",
+  "homepage": "https://gsd-reservation.vercel.app/reservation",
   "dependencies": {
     "@ant-design/plots": "^2.4.0",
     "@emotion/react": "^11.14.0",

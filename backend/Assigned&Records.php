@@ -2099,7 +2099,7 @@ class Assigned {
                 // DRIVERS: fetch all drivers for this reservation and their details
                 $drivers = [];
                 $driverStmt = $this->conn->prepare(
-                    "SELECT rd.reservation_driver_id, rd.reservation_driver_user_id, rd.reservation_vehicle_id, rd.is_accepted_trip, rd.driver_name, rd.created_at, rd.updated_at, u.users_fname, u.users_mname, u.users_lname, u.users_birthdate, u.users_suffix, u.users_email, u.users_school_id, u.users_contact_number, u.users_user_level_id, u.users_pic, u.is_active, u.title_id
+                    "SELECT rd.reservation_driver_id, rd.reservation_driver_user_id, rd.reservation_vehicle_id, rd.driver_name, rd.created_at, rd.updated_at, u.users_fname, u.users_mname, u.users_lname, u.users_birthdate, u.users_suffix, u.users_email, u.users_school_id, u.users_contact_number, u.users_user_level_id, u.users_pic, u.is_active, u.title_id
                      FROM tbl_reservation_driver rd
                      JOIN tbl_reservation_vehicle rv ON rd.reservation_vehicle_id = rv.reservation_vehicle_id
                      LEFT JOIN tbl_users u ON rd.reservation_driver_user_id = u.users_id
@@ -2112,7 +2112,6 @@ class Assigned {
                         'driver_id' => $driverRow['reservation_driver_user_id'],
                         'driver_name' => $driverRow['driver_name'] ?? trim($driverRow['users_fname'] . ' ' . $driverRow['users_mname'] . ' ' . $driverRow['users_lname']),
                         'reservation_vehicle_id' => $driverRow['reservation_vehicle_id'],
-                        'is_accepted_trip' => $driverRow['is_accepted_trip'],
                         'created_at' => $driverRow['created_at'],
                         'updated_at' => $driverRow['updated_at'],
                         'user_details' => [

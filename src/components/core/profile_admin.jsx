@@ -548,23 +548,60 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         return;
       }
       
-      // OTP is valid
-      toast.success('Two-factor authentication enabled successfully!', {
-        position: "bottom-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
+      // OTP is valid, now enable 2FA in the database
+      const userId = SecureStorage.getLocalItem('user_id');
+      
+      const enable2FAResponse = await fetch(`${baseUrl}/login.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: "enable2FA",
+          json: {
+            user_id: userId,
+            duration_days: twoFactorDuration
+          }
+        })
       });
-      setTwoFactorEnabled(true);
-      setShowTwoFactorSetup(false);
-      setIsVerifyingEmail(false);
-      // Clear stored OTP after successful validation
-      setStoredOtp(null);
-      setOtpExpiration(null);
-      // Save the duration setting to SecureStorage
-      SecureStorage.setSessionItem('2faDuration', twoFactorDuration.toString());
+      
+      const enable2FAData = await enable2FAResponse.json();
+      
+      if (enable2FAData && enable2FAData.status === 'success') {
+        toast.success('Two-factor authentication enabled successfully!', {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        
+        setTwoFactorEnabled(true);
+        setTwoFactorData({
+          is_active: true,
+          expires_at: enable2FAData.expires_at,
+          requires_verification: false
+        });
+        setShowTwoFactorSetup(false);
+        setIsVerifyingEmail(false);
+        
+        // Clear stored OTP after successful validation
+        setStoredOtp(null);
+        setOtpExpiration(null);
+        
+        // Save the duration setting to SecureStorage
+        SecureStorage.setSessionItem('2faDuration', twoFactorDuration.toString());
+      } else {
+        toast.error('Failed to enable two-factor authentication in database.', {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
     } catch (error) {
       console.error("Error validating verification code:", error);
       setVerificationError('An error occurred while validating the verification code.');

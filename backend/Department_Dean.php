@@ -246,7 +246,7 @@ class Department_Dean {
 
             // Fetch all drivers for this reservation (with fallback to driver_name if user_id is null)
             $driverStmt = $this->conn->prepare(
-                "SELECT rd.reservation_driver_id, rd.reservation_driver_user_id, rd.reservation_vehicle_id, rd.is_accepted_trip, rd.driver_name, rd.created_at, rd.updated_at, u.users_fname, u.users_mname, u.users_lname, u.users_suffix
+                "SELECT rd.reservation_driver_id, rd.reservation_driver_user_id, rd.reservation_vehicle_id, rd.driver_name, rd.created_at, rd.updated_at, u.users_fname, u.users_mname, u.users_lname, u.users_suffix
                  FROM tbl_reservation_driver rd
                  JOIN tbl_reservation_vehicle rv ON rd.reservation_vehicle_id = rv.reservation_vehicle_id
                  LEFT JOIN tbl_users u ON rd.reservation_driver_user_id = u.users_id

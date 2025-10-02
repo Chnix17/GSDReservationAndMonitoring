@@ -36,6 +36,51 @@ const RescheduleModal = ({
   const startTimeVal = Form.useWatch('startTime', form);
   const endDateVal = Form.useWatch('endDate', form);
   const endTimeVal = Form.useWatch('endTime', form);
+  
+  // Get user info for advance booking rules
+  const userLevel = SecureStorage.getLocalItem('user_level');
+  const userDepartment = SecureStorage.getLocalItem('Department Name');
+
+  // Helper to get venue advance booking days based on event_type
+  const getVenueAdvanceDays = useCallback(() => {
+    if (!resources?.venueIds || !Array.isArray(resources.venueIds)) return 14; // default conservative
+    
+    // If any selected venue is Big Event -> 14 days
+    // If all are Small Event -> 7 days
+    // Missing/unknown -> default to 14
+    for (const venueResource of resources.venueIds) {
+      if (typeof venueResource === 'object' && venueResource !== null) {
+        const eventType = venueResource.event_type || venueResource.change_venue_event_type;
+        if (!eventType) return 14; // unknown -> 14
+        const t = String(eventType).trim().toLowerCase();
+        if (t === 'big event') return 14;
+        if (t !== 'small event') return 14; // unknown value -> 14
+      }
+    }
+    return 7; // all small event
+  }, [resources]);
+
+  // Helper to get minimum selectable date based on venue advance booking rules
+  const getMinSelectableDate = useCallback(() => {
+    const minDate = new Date();
+    minDate.setHours(0, 0, 0, 0);
+    
+    // COO Department Head and GSD Secretary can book up to 1 day before
+    if ((userLevel === 'Department Head' && userDepartment === 'COO') ||
+        (userLevel === 'Secretary' && userDepartment === 'GSD')) {
+      minDate.setDate(minDate.getDate() + 1);
+    } else {
+      // For venues, apply advance booking rules based on event type
+      if (resources?.venueIds && Array.isArray(resources.venueIds) && resources.venueIds.length > 0) {
+        const advDays = getVenueAdvanceDays();
+        minDate.setDate(minDate.getDate() + advDays);
+      } else {
+        // For non-venue resources (vehicles, equipment), use 1 day advance
+        minDate.setDate(minDate.getDate() + 1);
+      }
+    }
+    return minDate;
+  }, [userLevel, userDepartment, resources, getVenueAdvanceDays]);
 
   // Ready state: enable resource dropdowns only when full valid range is selected
   const isDateTimeRangeReady = (() => {
@@ -580,6 +625,25 @@ const RescheduleModal = ({
     const start = dayjs(startDate).hour(dayjs(startTime).hour()).minute(0).second(0);
     const end = dayjs(endDate).hour(dayjs(endTime).hour()).minute(0).second(0);
     if (!start.isValid() || !end.isValid() || !end.isAfter(start)) return false;
+    
+    // Check advance booking rules for venues
+    if (resources?.venueIds && Array.isArray(resources.venueIds) && resources.venueIds.length > 0) {
+      const minSelectableDate = getMinSelectableDate();
+      if (start.isBefore(dayjs(minSelectableDate).startOf('day'))) {
+        const advDays = getVenueAdvanceDays();
+        const advanceMsg = advDays === 14
+          ? 'You must book this venue at least 2 weeks in advance'
+          : 'You must book this venue at least 1 week in advance';
+        
+        // Only show error if user doesn't have bypass privileges
+        if (!((userLevel === 'Department Head' && userDepartment === 'COO') ||
+              (userLevel === 'Secretary' && userDepartment === 'GSD'))) {
+          message.error(advanceMsg);
+          return false;
+        }
+      }
+    }
+    
     const oStart = dayjs(originalStart);
     const oEnd = dayjs(originalEnd);
     const blocks = (oStart.isValid() && oEnd.isValid())
@@ -727,15 +791,19 @@ const RescheduleModal = ({
     }
   };
 
-  // Disable logic for Start/End
+  // Disable logic for Start/End with venue advance booking rules
   const disabledDateStart = (current) => {
     if (!current) return false;
     const cur = dayjs(current);
     if (!cur.isValid()) return false;
     const key = cur.format('YYYY-MM-DD');
-    const isPast = cur.isBefore(dayjs().startOf('day'));
     const isFull = dayStatuses[key] === 'reserved';
-    return isPast || isFull;
+    
+    // Apply advance booking rules
+    const minSelectableDate = getMinSelectableDate();
+    const isBeforeMinDate = cur.isBefore(dayjs(minSelectableDate).startOf('day'));
+    
+    return isBeforeMinDate || isFull;
   };
 
   const disabledDateEnd = (current) => {
@@ -874,7 +942,26 @@ const RescheduleModal = ({
           <Alert
             type="info"
             showIcon
-            message="Select new date and time to reschedule. Changing venue and vehicle is optional — leave selectors empty to keep current assignments."
+            message={(() => {
+              let baseMessage = "Select new date and time to reschedule. Changing venue and vehicle is optional — leave selectors empty to keep current assignments.";
+              
+              // Add venue advance booking notice if applicable
+              if (resources?.venueIds && Array.isArray(resources.venueIds) && resources.venueIds.length > 0) {
+                const advDays = getVenueAdvanceDays();
+                const advanceMsg = advDays === 14
+                  ? " Note: This venue requires 2 weeks advance booking."
+                  : " Note: This venue requires 1 week advance booking.";
+                
+                // Only show notice if user doesn't have bypass privileges
+                if (!((userLevel === 'Department Head' && userDepartment === 'COO') ||
+                      (userLevel === 'Secretary' && userDepartment === 'GSD'))) {
+                  baseMessage += advanceMsg;
+                }
+              }
+              
+              return baseMessage;
+            })()
+            }
             style={{ marginBottom: 16 }}
           />
           <Form.Item

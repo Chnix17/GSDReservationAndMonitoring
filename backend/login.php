@@ -470,6 +470,11 @@ public function fetch2FA($user_id) {
             
             // Check if expired (expires_at is in the past)
             if ($expires_at < $current_time) {
+                // Delete expired record
+                $deleteStmt = $this->conn->prepare("DELETE FROM tbl_user_2fa WHERE user_id = :user_id");
+                $deleteStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+                $deleteStmt->execute();
+                
                 return [
                     "status" => "expired",
                     "message" => "2FA has expired",
@@ -483,7 +488,8 @@ public function fetch2FA($user_id) {
                 "id" => $result['id'],
                 "user_id" => $result['user_id'],
                 "expires_at" => $result['expires_at'],
-                "requires_verification" => false
+                "requires_verification" => false,
+                "is_active" => true
             ];
         }
         
@@ -536,9 +542,9 @@ public function check2FAStatus($user_id) {
 
         // Check 2FA status in tbl_user_2fa
         $stmt = $this->conn->prepare("
-            SELECT user_id, is_active 
+            SELECT user_id, expires_at 
             FROM tbl_user_2fa 
-            WHERE user_id = :user_id AND is_active = 1
+            WHERE user_id = :user_id
             LIMIT 1
         ");
         $stmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
@@ -547,6 +553,24 @@ public function check2FAStatus($user_id) {
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
         
         if ($result) {
+            // Check if expired
+            $timezone = new DateTimeZone('Asia/Manila');
+            $current_time = new DateTime('now', $timezone);
+            $expires_at = new DateTime($result['expires_at'], $timezone);
+            
+            if ($expires_at < $current_time) {
+                // Delete expired record
+                $deleteStmt = $this->conn->prepare("DELETE FROM tbl_user_2fa WHERE user_id = :user_id");
+                $deleteStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+                $deleteStmt->execute();
+                
+                return [
+                    "status" => "success",
+                    "requires_2fa" => false,
+                    "email" => $email
+                ];
+            }
+            
             return [
                 "status" => "success",
                 "requires_2fa" => true,
@@ -565,6 +589,126 @@ public function check2FAStatus($user_id) {
             "status" => "error",
             "message" => "Error checking 2FA status: " . $e->getMessage(),
             "requires_2fa" => false
+        ];
+    }
+}
+
+public function enable2FA($user_id, $duration_days) {
+    try {
+        // Validate input parameters
+        if (empty($user_id)) {
+            return [
+                "status" => "error",
+                "message" => "User ID is required"
+            ];
+        }
+        
+        if (empty($duration_days) || !is_numeric($duration_days) || $duration_days < 1 || $duration_days > 30) {
+            return [
+                "status" => "error",
+                "message" => "Duration days must be a number between 1 and 30"
+            ];
+        }
+        
+        // Set timezone to Asia/Manila
+        date_default_timezone_set('Asia/Manila');
+        
+        // Calculate expiration date based on duration
+        $expires_at = (new DateTime())->modify("+{$duration_days} days")->format('Y-m-d H:i:s');
+        
+        // Check if user already has a 2FA record
+        $checkStmt = $this->conn->prepare("
+            SELECT id FROM tbl_user_2fa 
+            WHERE user_id = :user_id 
+            LIMIT 1
+        ");
+        $checkStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+        $checkStmt->execute();
+        
+        if ($checkStmt->fetch(PDO::FETCH_ASSOC)) {
+            // Update existing record
+            $updateStmt = $this->conn->prepare("
+                UPDATE tbl_user_2fa 
+                SET expires_at = :expires_at
+                WHERE user_id = :user_id
+            ");
+            $updateStmt->bindParam(':expires_at', $expires_at);
+            $updateStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+            $updateStmt->execute();
+        } else {
+            // Insert new record
+            $insertStmt = $this->conn->prepare("
+                INSERT INTO tbl_user_2fa (user_id, expires_at) 
+                VALUES (:user_id, :expires_at)
+            ");
+            $insertStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+            $insertStmt->bindParam(':expires_at', $expires_at);
+            $insertStmt->execute();
+        }
+        
+        // Also update the user's 2FA status in tbl_users if the column exists
+        try {
+            $updateUserStmt = $this->conn->prepare("
+                UPDATE tbl_users 
+                SET is_2FAactive = 1 
+                WHERE users_id = :user_id
+            ");
+            $updateUserStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+            $updateUserStmt->execute();
+        } catch (PDOException $e) {
+            // Column might not exist, continue anyway
+        }
+        
+        return [
+            "status" => "success",
+            "message" => "Two-factor authentication enabled successfully",
+            "expires_at" => $expires_at,
+            "duration_days" => $duration_days
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            "status" => "error",
+            "message" => "Error enabling 2FA: " . $e->getMessage()
+        ];
+    }
+}
+
+public function disable2FA($user_id) {
+    try {
+        // Set timezone to Asia/Manila
+        date_default_timezone_set('Asia/Manila');
+        
+        // Delete the 2FA record since there's no is_active column
+        $deleteStmt = $this->conn->prepare("
+            DELETE FROM tbl_user_2fa 
+            WHERE user_id = :user_id
+        ");
+        $deleteStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+        $deleteStmt->execute();
+        
+        // Also update the user's 2FA status in tbl_users if the column exists
+        try {
+            $updateUserStmt = $this->conn->prepare("
+                UPDATE tbl_users 
+                SET is_2FAactive = 0 
+                WHERE users_id = :user_id
+            ");
+            $updateUserStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
+            $updateUserStmt->execute();
+        } catch (PDOException $e) {
+            // Column might not exist, continue anyway
+        }
+        
+        return [
+            "status" => "success",
+            "message" => "Two-factor authentication disabled successfully"
+        ];
+        
+    } catch (Exception $e) {
+        return [
+            "status" => "error",
+            "message" => "Error disabling 2FA: " . $e->getMessage()
         ];
     }
 }
@@ -782,6 +926,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             $result = $login->fetch2FA($user_id);
+            echo json_encode($result);
+            break;
+        case "enable2FA":
+            $user_id = $input['json']['user_id'] ?? '';
+            $duration_days = $input['json']['duration_days'] ?? null;
+            if (empty($user_id)) {
+                echo json_encode(['status' => 'error', 'message' => 'User ID is required']);
+                break;
+            }
+            if (empty($duration_days)) {
+                echo json_encode(['status' => 'error', 'message' => 'Duration days is required']);
+                break;
+            }
+            $result = $login->enable2FA($user_id, $duration_days);
+            echo json_encode($result);
+            break;
+        case "disable2FA":
+            $user_id = $input['json']['user_id'] ?? '';
+            if (empty($user_id)) {
+                echo json_encode(['status' => 'error', 'message' => 'User ID is required']);
+                break;
+            }
+            $result = $login->disable2FA($user_id);
             echo json_encode($result);
             break;
         default:

@@ -10,15 +10,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     header("HTTP/1.1 200 OK");
     exit();
 }
-
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 // At the top of the file, after other use/require/include statements:f
-require_once 'vendor/autoload.php';
-use PHPMailer\PHPMailer\PHPMailer;
-use PHPMailer\PHPMailer\Exception;
 
 class User {
     private $conn;
@@ -2023,7 +2019,7 @@ public function saveUser($data) {
                     :email, :schoolId, :contact,
                     :userLevelId, :password, :departmentId,
                     :birthdate, :suffix, :pic,
-                    1,               -- force change-password-on-first-login
+                    1,
                     NOW(), NOW()
                 )";
 
@@ -2043,40 +2039,8 @@ public function saveUser($data) {
         $stmt->bindParam(':pic',          $picPath,              PDO::PARAM_STR);
 
         if ($stmt->execute()) {
-            // Send the default password to the user's email (not encrypted)
-            $mail = new PHPMailer(true);
-            try {
-                $mail->isSMTP();
-                $mail->Host = 'smtp.gmail.com';
-                $mail->SMTPAuth = true;
-                $mail->Username = 'noreplygsd12@gmail.com';
-                $mail->Password = 'ckfo wpow pfmq ziwd'; // App password
-                $mail->SMTPSecure = PHPMailer::ENCRYPTION_STARTTLS;
-                $mail->Port = 587;
-                $mail->SMTPOptions = array(
-                    'ssl' => array(
-                        'verify_peer' => false,
-                        'verify_peer_name' => false,
-                        'allow_self_signed' => true
-                    )
-                );
-                $mail->setFrom('vallechristianmark@gmail.com', 'GSD System');
-                $mail->addAddress($data['email']);
-                $mail->isHTML(true);
-                $mail->Subject = 'Your GSD Account Default Password';
-                $mail->Body = '<p>Dear ' . htmlspecialchars($data['fname']) . ',</p>' .
-                    '<p>Your account has been created.</p>' .
-                    '<p><b>Username (School ID):</b> ' . htmlspecialchars($data['schoolId']) . '<br>' .
-                    '<b>Default Password:</b> ' . htmlspecialchars($data['password']) . '</p>' .
-                    '<p>Please log in and change your password immediately.</p>' .
-                    '<p>Thank you,<br>GSD System</p>';
-                $mail->send();
-            } catch (Exception $e) {
-                // Optionally log or handle email sending failure
-            }
             // Audit log (non-blocking): User: (fullname) has been created
             try {
-                // Determine actor
                 $actorId = null;
                 if (isset($data['user_personnel_id']) && $data['user_personnel_id'] !== '') {
                     $actorId = (int)$data['user_personnel_id'];
@@ -2084,12 +2048,12 @@ public function saveUser($data) {
                     $actorId = (int)$data['user_admin_id'];
                 }
 
-                // Build full name from provided data
                 $mInitial = (isset($data['mname']) && trim($data['mname']) !== '') ? (' ' . strtoupper(substr($data['mname'], 0, 1)) . '.') : '';
                 $fullName = trim(($data['fname'] ?? '') . $mInitial . ' ' . ($data['lname'] ?? ''));
                 $desc = 'User: ' . $fullName . ' has been created';
 
-                $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) 
+                             VALUES (:description, :action, NOW(), :created_by)";
                 $audit = $this->conn->prepare($auditSql);
                 $audit->execute([
                     ':description' => $desc,
@@ -2097,6 +2061,7 @@ public function saveUser($data) {
                     ':created_by' => $actorId
                 ]);
             } catch (Throwable $te) { /* ignore audit errors */ }
+
             return json_encode([
                 'status'  => 'success',
                 'message' => 'User added successfully.'
@@ -2114,6 +2079,7 @@ public function saveUser($data) {
         ]);
     }
 }
+
 
 
 

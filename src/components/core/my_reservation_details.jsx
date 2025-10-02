@@ -285,11 +285,15 @@ const ReservationDetails = ({
         const resources = {
             venueIds: (reservationDetails.venues || []).map(v => {
                 const venueData = {
-                    venue_id: v.venue_id
+                    venue_id: v.venue_id,
+                    event_type: v.event_type || '',
+                    area_type: v.area_type || ''
                 };
                 // Only include change_venue_id if it has a value
                 if (v.change_venue_id && String(v.change_venue_id).trim() !== '') {
                     venueData.change_venue_id = v.change_venue_id;
+                    venueData.change_venue_event_type = v.change_venue_event_type || '';
+                    venueData.change_venue_area_type = v.change_venue_area_type || '';
                 }
                 return venueData;
             }),
