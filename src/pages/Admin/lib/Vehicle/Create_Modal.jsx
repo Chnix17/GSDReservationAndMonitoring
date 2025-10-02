@@ -197,7 +197,7 @@ const Create_Modal = ({
                 vehicle_model_id: values.model,
                 vehicle_license: values.license,
                 year: dayjs(values.year).format('YYYY'),
-                user_admin_id: SecureStorage.getSessionItem('user_id')
+                user_admin_id: SecureStorage.getLocalItem('user_id')
             };
 
             console.log('Form data:', formData);

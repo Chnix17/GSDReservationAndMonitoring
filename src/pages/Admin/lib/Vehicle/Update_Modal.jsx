@@ -336,7 +336,7 @@ const Update_Modal = ({
                 vehicle_license: values.license,
                 year: dayjs(values.year).format('YYYY'),
                 status_availability_id: values.status,
-                user_admin_id: SecureStorage.getSessionItem('user_id'),
+                user_admin_id: SecureStorage.getLocalItem('user_id'),
                 is_active: 1
             };
             console.log('Form data to submit:', formData);

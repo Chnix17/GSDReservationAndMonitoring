@@ -31,7 +31,7 @@ const Trips = () => {
   const [pageSize, setPageSize] = useState(10);
 
   const baseUrl = SecureStorage.getLocalItem('url');
-  const driverId = SecureStorage.getSessionItem('user_id');
+  const driverId = SecureStorage.getLocalItem('user_id');
 
   const fetchTrips = async () => {
     setLoading(true);

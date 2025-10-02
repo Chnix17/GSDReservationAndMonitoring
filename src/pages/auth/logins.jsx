@@ -10,6 +10,7 @@ import { initializeSessionManager, updateLastActivity } from '../../utils/sessio
 import { SecureStorage } from '../../utils/encryption';
 import ForcePassword from '../../components/forcePassword';
 import { getApiBaseUrl } from '../../utils/apiConfig';
+import { sendLoginOtpMail, sendPasswordResetOtpMail, validatePasswordResetOtp } from '../../utils/otpUtils';
 
 function Logins() {
     const [username, setUsername] = useState("");
@@ -201,9 +202,9 @@ function Logins() {
         if (sessionNotification && document.body.contains(sessionNotification)) {
             document.body.removeChild(sessionNotification);
         }
-        if (SecureStorage.getLocalItem('loggedIn') === 'true' || SecureStorage.getSessionItem('loggedIn') === 'true') {
+        if (SecureStorage.getLocalItem('loggedIn') === 'true' || SecureStorage.getLocalItem('loggedIn') === 'true') {
             // Get user level from secure storage
-            const userLevel = SecureStorage.getLocalItem('user_level') || SecureStorage.getSessionItem('user_level');
+            const userLevel = SecureStorage.getLocalItem('user_level') || SecureStorage.getLocalItem('user_level');
             
             // Navigate based on user level
             switch(userLevel) {
@@ -500,17 +501,28 @@ function Logins() {
                 // Check 2FA status first using backend fetch2FA
                 let canSendLoginOtp = false;
                 let twoFaData = null;
+                let shouldBypass2FA = false;
+                
                 try {
                     const twoFaResp = await axios.post(`${apiUrl}login.php`, {
                         operation: "fetch2FA",
                         json: { user_id: userData.user_id }
                     });
                     twoFaData = twoFaResp.data;
-                    if (twoFaData && twoFaData.status === "success" && twoFaData.is_active === true) {
-                        canSendLoginOtp = true; // includes expired-but-active per backend policy
+                    
+                    if (twoFaData && twoFaData.status === "expired") {
+                        // 2FA has expired, bypass OTP and proceed to direct login
+                        console.log("2FA expired, proceeding with direct login");
+                        shouldBypass2FA = true;
+                    } else if (twoFaData && twoFaData.status === "success" && !twoFaData.requires_verification) {
+                        // 2FA is active and valid, send OTP
+                        canSendLoginOtp = true;
+                    } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === false) {
+                        // No 2FA record found, bypass OTP
+                        shouldBypass2FA = true;
                     } else {
-                        // If backend indicates 2FA inactive/expired (and not active), block OTP send
-                        notify(twoFaData?.message || "2FA not active for this user.", 'error');
+                        // Other cases - show error
+                        notify(twoFaData?.message || "2FA verification required.", 'error');
                     }
                 } catch (e) {
                     notify("Failed to verify 2FA status.", 'error');
@@ -519,13 +531,14 @@ function Logins() {
                 let otpResponse = { data: { status: 'error' } };
                 if (canSendLoginOtp) {
                     // Now we'll send OTP using Node.js API
-                    otpResponse = await axios.post('http://localhost:3001/send-login-otp', {
-                        user_id: userData.user_id,
-                        email: userData.email,
-                        fullName: `${userData.firstname} ${userData.lastname}`
-                    });
-                } else if (twoFaData && twoFaData.status === 'success' && twoFaData.is_active === false) {
-                    // No 2FA record; bypass OTP and proceed to direct login branch
+                    const otpData = await sendLoginOtpMail(
+                        userData.user_id,
+                        userData.email,
+                        `${userData.firstname} ${userData.lastname}`
+                    );
+                    otpResponse = { data: otpData };
+                } else if (shouldBypass2FA) {
+                    // 2FA expired or not found; bypass OTP and proceed to direct login branch
                     otpResponse = { data: { status: 'success', requires_2fa: false } };
                 }
                 
@@ -564,6 +577,7 @@ function Logins() {
                         SecureStorage.setLocalItem("user_id", userData.user_id);
                         SecureStorage.setLocalItem("name", `${userData.title_abbreviation} ${userData.firstname} ${userData.middlename} ${userData.lastname} ${userData.suffix}`.trim());
                         SecureStorage.setLocalItem("school_id", userData.school_id);
+                        SecureStorage.setLocalItem("email", userData.email);
                         SecureStorage.setLocalItem("Department Name", userData.department_name);
                         SecureStorage.setLocalItem("contact_number", userData.contact_number);
                         SecureStorage.setLocalItem("user_level", userData.user_level_name);
@@ -577,6 +591,7 @@ function Logins() {
                         SecureStorage.setSessionItem("user_id", userData.user_id);
                         SecureStorage.setSessionItem("name", `${userData.title_abbreviation} ${userData.firstname} ${userData.middlename} ${userData.lastname} ${userData.suffix}`.trim());
                         SecureStorage.setSessionItem("school_id", userData.school_id);
+                        SecureStorage.setSessionItem("email", userData.email);
                         SecureStorage.setSessionItem("Department Name", userData.department_name);
                         SecureStorage.setSessionItem("contact_number", userData.contact_number);
                         SecureStorage.setSessionItem("user_level", userData.user_level_name);
@@ -590,7 +605,7 @@ function Logins() {
                         // --- PUSH NOTIFICATION SUBSCRIPTION ---
                         console.log("[DEBUG] About to check push notification manager block");
                         if (window.pushNotificationManager) {
-                            const userId = SecureStorage.getSessionItem("user_id");
+                            const userId = SecureStorage.getLocalItem("user_id");
                             console.log("[DEBUG] pushNotificationManager exists, subscribing for user:", userId);
                             window.pushNotificationManager.subscribe(userId)
                                 .then(() => {
@@ -711,12 +726,10 @@ function Logins() {
                 
                 // Email exists, now send OTP using Node.js API
                 try {
-                    const otpResponse = await axios.post('http://localhost:3001/send-password-reset-otp', {
-                        email: (email || '').trim().toLowerCase(),
-                        fullName: 'User' // You can get this from user data if available
-                    });
-
-                    const otpData = otpResponse.data;
+                    const otpData = await sendPasswordResetOtpMail(
+                        (email || '').trim().toLowerCase(),
+                        'User'
+                    );
                     console.log("SendOTP response:", otpData);
 
                     if (otpData.status === "success") {
@@ -769,12 +782,10 @@ function Logins() {
         try {
             // Use Node.js API for password reset OTP
             const normalizedEmail = (email || '').trim().toLowerCase();
-            const response = await axios.post('http://localhost:3001/send-password-reset-otp', {
-                email: normalizedEmail,
-                fullName: 'User' // You can get this from user data if available
-            });
-
-            const data = response.data;
+            const data = await sendPasswordResetOtpMail(
+                normalizedEmail,
+                'User'
+            );
             console.log("SendOTP response:", data);
 
             if (data.status === "success") {
@@ -865,10 +876,10 @@ function Logins() {
 
             // Server-side validation to avoid mismatch from multiple OTP requests
             try {
-                const { data } = await axios.post('http://localhost:3001/validate-password-reset-otp', {
-                    email: normalizedEmail,
-                    otp: otpValue
-                });
+                const data = await validatePasswordResetOtp(
+                    normalizedEmail,
+                    otpValue
+                );
                 console.log('[OTP DEBUG] server validate result', data);
                 if (data.status !== 'success') {
                     notify(data.message || "Invalid OTP. Please try again.", 'error');
@@ -1045,7 +1056,7 @@ function Logins() {
             setOtpExpiration(null);
 
             // Get user_id and API URL
-            const userData = SecureStorage.getSessionItem("temp_user_id");
+            const userData = SecureStorage.getLocalItem("temp_user_id");
             const apiUrl = SecureStorage.getLocalItem("url");
 
             // Get user details for login completion
@@ -1080,6 +1091,7 @@ function Logins() {
                 SecureStorage.setLocalItem("user_id", userDetails.users_id);
                 SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
                 SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
+                SecureStorage.setLocalItem("email", userDetails.users_email);
                 SecureStorage.setLocalItem("Department Name", userDetails.department_name);
                 SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
                 SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
@@ -1093,6 +1105,7 @@ function Logins() {
                 SecureStorage.setSessionItem("user_id", userDetails.users_id);
                 SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
                 SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
+                SecureStorage.setSessionItem("email", userDetails.users_email);
                 SecureStorage.setSessionItem("Department Name", userDetails.department_name);
                 SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
                 SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
@@ -1105,7 +1118,7 @@ function Logins() {
 
                 // --- PUSH NOTIFICATION SUBSCRIPTION ---
                 if (window.pushNotificationManager) {
-                    const userId = SecureStorage.getSessionItem("user_id");
+                    const userId = SecureStorage.getLocalItem("user_id");
                     window.pushNotificationManager.subscribe(userId)
                         .then(() => {
                             console.log("Push subscription successful for user:", userId);
@@ -1168,17 +1181,19 @@ function Logins() {
     const handleResendLoginOTP = async () => {
         setIsResendingLoginOtp(true);
         try {
-            const userData = SecureStorage.getSessionItem("temp_user_id");
+            const userData = SecureStorage.getLocalItem("temp_user_id");
             
-            const response = await axios.post('http://localhost:3001/send-login-otp', {
-                user_id: userData || username
-            });
+            const response = await sendLoginOtpMail(
+                userData || username,
+                null,
+                null
+            );
 
-            if (response.data.status === "success") {
+            if (response.status === "success") {
                 setLoginResendTimer(180);
                 setCanResendLoginOtp(false);
                 
-                if (response.data.requires_2fa) {
+                if (response.requires_2fa) {
                     // Generate new OTP for frontend verification
                     const frontendOTP = Math.floor(100000 + Math.random() * 900000).toString();
                     setStoredOTP(frontendOTP);
@@ -1210,7 +1225,7 @@ function Logins() {
         // Re-authenticate with the new password
         try {
             const apiUrl = SecureStorage.getLocalItem("url");
-            const userId = SecureStorage.getSessionItem("temp_user_id");
+            const userId = SecureStorage.getLocalitem("temp_user_id");
             
             // Get user details again to proceed with login
             const userResponse = await axios.post(`${apiUrl}Admin.php`, {
@@ -1351,7 +1366,7 @@ function Logins() {
                                 />
                             </div>
                             <h1 className="text-4xl font-extrabold bg-gradient-to-r from-primary-dark to-accent-dark bg-clip-text text-transparent tracking-tight mb-3">
-                                General Services Department
+                                General Service Department
                             </h1>
                             <div className="h-1 w-24 mx-auto bg-gradient-to-r from-emerald-600 to-teal-500 rounded-full mb-6"></div>
                             <h2 className="text-2xl font-medium text-gray-600 mb-8">

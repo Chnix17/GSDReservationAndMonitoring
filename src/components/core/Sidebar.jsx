@@ -46,8 +46,8 @@ const Sidebar = () => {
   })();
 
   const name = SecureStorage.getLocalItem('name') || 'Admin User';
-  const userLevelName = SecureStorage.getSessionItem('user_level') || SecureStorage.getLocalItem('user_level');
-  const departmentName = SecureStorage.getSessionItem('Department Name') || SecureStorage.getLocalItem('Department Name');
+  const userLevelName = SecureStorage.getLocalItem('user_level') || SecureStorage.getLocalItem('user_level');
+  const departmentName = SecureStorage.getLocalItem('Department Name') || SecureStorage.getLocalItem('Department Name');
 
   useEffect(() => {
     setActiveItem(location.pathname);
@@ -88,7 +88,7 @@ const Sidebar = () => {
     const loginAttempts = localStorage.getItem('loginAttempts');
     const url = localStorage.getItem('url');
     const baseUrl = SecureStorage.getLocalItem('url') || url;
-    const usersId = SecureStorage.getSessionItem('user_id');
+    const usersId = SecureStorage.getLocalItem('user_id');
     
     // Log the logout to backend (best-effort)
     try {
@@ -125,7 +125,7 @@ const Sidebar = () => {
   const fetchNotifications = async () => {
     try {
       const baseUrl = SecureStorage.getLocalItem("url");
-      const currentUserId = SecureStorage.getSessionItem('user_id');
+      const currentUserId = SecureStorage.getLocalItem('user_id');
       
       // Fetch regular notifications
       const response = await fetch(`${baseUrl}/faculty&Staff.php`, {
@@ -165,7 +165,7 @@ const Sidebar = () => {
   const markNotificationsAsRead = async () => {
     try {
       const baseUrl = SecureStorage.getLocalItem("url");
-      const currentUserId = SecureStorage.getSessionItem('user_id');
+      const currentUserId = SecureStorage.getLocalItem('user_id');
 
       // Get regular notification IDs
       const regularNotificationIds = [];
@@ -237,7 +237,7 @@ const Sidebar = () => {
   // Add this function to fetch subscription status from backend
   const fetchPushSubscriptionStatus = useCallback(async () => {
     try {
-      const userId = SecureStorage.getSessionItem('user_id');
+      const userId = SecureStorage.getLocalItem('user_id');
       const baseUrl = SecureStorage.getLocalItem('url');
       // Provide device fingerprint to let backend verify device-specific match
       const deviceInfo = detectDeviceInfo();
@@ -315,7 +315,7 @@ const Sidebar = () => {
       });
 
       // Send subscription to server with device information
-      const userId = SecureStorage.getSessionItem('user_id');
+      const userId = SecureStorage.getLocalItem('user_id');
       const baseUrl = SecureStorage.getLocalItem("url");
       const deviceInfo = detectDeviceInfo();
       
@@ -383,7 +383,7 @@ const Sidebar = () => {
         });
       }
 
-      const userId = SecureStorage.getSessionItem('user_id');
+      const userId = SecureStorage.getLocalItem('user_id');
       const baseUrl = SecureStorage.getLocalItem('url');
       const deviceInfo = detectDeviceInfo();
 
@@ -867,11 +867,11 @@ const Sidebar = () => {
                   '/Admin/Venue', '/Admin/VehicleEntry', '/Admin/Equipment', '/Admin/Faculty', '/Admin/Holiday', '/Admin/vehiclemake', '/Admin/vehiclecategory', '/Admin/vehiclemodel', '/Admin/equipmentCategory', '/Admin/departments'
                 ].includes(activeItem)}
                 items={[
-                  { text: 'Venues', link: '/Admin/Venue', icon: FaBuilding },
-                  { text: 'Vehicles', link: '/Admin/VehicleEntry', icon: FaCar },
-                  { text: 'Equipments', link: '/Admin/Equipment', icon: FaListAlt },
-                  { text: 'Users', link: '/Admin/Faculty', icon: FaUsers },
-                  { text: 'Holidays', link: '/Admin/Holiday', icon: FaPlus },
+                  { text: 'Venue', link: '/Admin/Venue', icon: FaBuilding },
+                  { text: 'Vehicle', link: '/Admin/VehicleEntry', icon: FaCar },
+                  { text: 'Equipment', link: '/Admin/Equipment', icon: FaListAlt },
+                  { text: 'User', link: '/Admin/Faculty', icon: FaUsers },
+                  { text: 'Holiday', link: '/Admin/Holiday', icon: FaPlus },
                   { section: 'Sub-Vehicle ' },
                   { text: 'Vehicle Make', link: '/Admin/vehiclemake', icon: FaCar },
                   { text: 'Vehicle Category', link: '/Admin/vehiclecategory', icon: FaListAlt },
@@ -1179,14 +1179,15 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
 // Add SidebarDropdown component at the end of the file
 const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
   const [open, setOpen] = useState(false);
-
+  const location = useLocation();
+  const activeItem = location.pathname;
   
   useEffect(() => {
     if (active) setOpen(true);
   }, [active]);
 
   // Helper to check if any item is currently active (matches current pathname)
-  const isAnyItemActive = items.some(item => item.link && window.location.pathname === item.link);
+  const isAnyItemActive = items.some(item => item.link && activeItem === item.link);
 
   return (
     <div className="relative">
@@ -1231,6 +1232,7 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
                 );
               }
               const ItemIcon = item.icon;
+              const isItemActive = activeItem === item.link;
               return (
                 <button
                   key={item.link}
@@ -1241,12 +1243,12 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
                     window.location.assign(fullUrl);
                   }}
                   className={`w-full flex items-center gap-2 py-2 px-2 rounded-lg text-sm transition-all ${
-                    window.location.pathname === item.link
+                    isItemActive
                       ? 'bg-[#145414] text-white font-medium'
                       : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
                   }`}
                 >
-                  {ItemIcon && <ItemIcon size={15} className="min-w-[15px]" />}
+                  {ItemIcon && <ItemIcon size={15} className={isItemActive ? 'text-white' : 'text-[#145414]'} />}
                   {item.text}
                 </button>
               );

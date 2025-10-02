@@ -85,7 +85,7 @@ const ViewPersonnelTask = () => {
       setLoading(true);
       const response = await axios.post(`${baseUrl}personnel.php`, {
         operation: 'fetchAssignedRelease',
-        personnel_id: SecureStorage.getSessionItem('user_id')
+        personnel_id: SecureStorage.getLocalItem('user_id')
       }, {
         headers: {
           'Content-Type': 'application/json'
@@ -124,7 +124,7 @@ const ViewPersonnelTask = () => {
           type,
           reservation_id,
           resource_id,
-          user_personnel_id: SecureStorage.getSessionItem('user_id'),
+          user_personnel_id: SecureStorage.getLocalItem('user_id'),
         };
         if (quantity) payload.quantity = quantity;
         await axios.post(`${baseUrl}personnel.php`, payload, {
@@ -180,7 +180,7 @@ const ViewPersonnelTask = () => {
     try {
       const response = await axios.post(`${baseUrl}personnel.php`, {
         operation: 'fetchAssignedRelease',
-        personnel_id: SecureStorage.getSessionItem('user_id')
+        personnel_id: SecureStorage.getLocalItem('user_id')
       }, {
         headers: { 'Content-Type': 'application/json' }
       });
@@ -239,7 +239,7 @@ const ViewPersonnelTask = () => {
       setLoading(true);
       const response = await axios.post(`${baseUrl}personnel.php`, {
         operation: 'fetchAssignedRelease',
-        personnel_id: SecureStorage.getSessionItem('user_id')
+        personnel_id: SecureStorage.getLocalItem('user_id')
       }, {
         headers: {
           'Content-Type': 'application/json'

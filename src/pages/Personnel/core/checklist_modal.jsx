@@ -715,7 +715,7 @@ const ChecklistModal = ({
           operation: "updateTask",
           type: type,
           id: reservationChecklistId,
-          user_personnel_id: SecureStorage.getSessionItem("user_id"),
+          user_personnel_id: SecureStorage.getLocalItem("user_id"),
           isActive: Number(newValue),
         },
         {
@@ -752,7 +752,7 @@ const ChecklistModal = ({
       const updateStatusPayload = {
         operation: "updateReservationStatus",
         reservation_id: selectedTask.reservation_id,
-        user_personnel_id: SecureStorage.getSessionItem("user_id"),
+        user_personnel_id: SecureStorage.getLocalItem("user_id"),
       };
 
       const statusResponse = await axios.post(
@@ -837,7 +837,7 @@ const ChecklistModal = ({
         type: type,
         reservation_id: reservationId,
         resource_id: resourceId,
-        user_personnel_id: SecureStorage.getSessionItem("user_id"),
+        user_personnel_id: SecureStorage.getLocalItem("user_id"),
         ...(quantity && { quantity: quantity }),
       };
 
@@ -1106,7 +1106,7 @@ const ChecklistModal = ({
         reservation_id: reservation_id,
         resource_id: resource_id,
         condition: condition,
-        user_personnel_id: SecureStorage.getSessionItem("user_id"),
+        user_personnel_id: SecureStorage.getLocalItem("user_id"),
         remarks: remarks && remarks.trim() !== "" ? remarks : null,
         good_quantity: goodQuantity,
         bad_quantity: badQuantity,

@@ -448,3 +448,7 @@ WS IN [412]: {"type":"register","user_id":99}
 Registered 412 as user 99
 WS IN [417]: {"type":"register","user_id":99}
 Registered 417 as user 99
+WS IN [422]: {"type":"register","user_id":99}
+Registered 422 as user 99
+WS IN [427]: {"type":"register","user_id":99}
+Registered 427 as user 99

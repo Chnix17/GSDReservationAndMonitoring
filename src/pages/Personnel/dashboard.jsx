@@ -18,7 +18,7 @@ const Dashboard = () => {
   const itemsPerPage = 5;
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     if (decryptedUserLevel !== 2 && decryptedUserLevel !== 2) {
       localStorage.clear();
@@ -49,7 +49,7 @@ const Dashboard = () => {
         },
         body: JSON.stringify({
           operation: 'fetchAssignedRelease',
-          personnel_id: SecureStorage.getSessionItem('user_id')
+          personnel_id: SecureStorage.getLocalItem('user_id')
         })
       });
 

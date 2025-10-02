@@ -68,7 +68,7 @@ const Dashboard = () => {
   }, []);
 
   useEffect(() => {
-    const encryptedUserLevel = SecureStorage.getSessionItem("user_level_id"); 
+    const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
     if (decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 18) {
         localStorage.clear();
@@ -81,7 +81,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchReservations = async () => {
       try {
-        const userId = SecureStorage.getSessionItem('user_id');
+        const userId = SecureStorage.getLocalItem('user_id');
         const baseUrl = SecureStorage.getLocalItem("url");
         console.log('Fetching reservations for user ID:', userId);
 
@@ -305,7 +305,7 @@ const Dashboard = () => {
           operation: 'handleApproval',
           reservation_id: reservationId,
           is_accepted: isAccepted,
-          user_id: SecureStorage.getSessionItem("user_id"),
+          user_id: SecureStorage.getLocalItem("user_id"),
           notification_message: notification_message,
           notification_user_id: selectedRequest.user_id
         })

@@ -85,7 +85,7 @@ const Reports = () => {
         type: selectedResource.resource_type,
         resourceId: selectedResource.resource_id, // or the correct field for your resource
         recordId: selectedResource.record_id || selectedResource.maintenance_id,
-        user_personnel_id: SecureStorage.getSessionItem("user_id"),
+        user_personnel_id: SecureStorage.getLocalItem("user_id"),
         isFixed: isFixed
       });
       toast.success(isFixed ? "Resource marked as available for use." : "Resource marked as unavailable.");

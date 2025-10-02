@@ -36,7 +36,7 @@ const getStatus = (start, end) => {
 const DriverDashboard = () => {
     const [trips, setTrips] = useState([]);
     const encryptedUrl = SecureStorage.getLocalItem('url');
-    const driverId = SecureStorage.getSessionItem('user_id');
+    const driverId = SecureStorage.getLocalItem('user_id');
 
     useEffect(() => {
         const fetchTrips = async () => {

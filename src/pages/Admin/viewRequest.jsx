@@ -1888,7 +1888,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                         reservation_id: reservationDetails?.reservation_id,
                                         reschedule_start_date: startDate,
                                         reschedule_end_date: endDate,
-                                        user_admin_id: SecureStorage.getSessionItem('user_id')
+                                        user_admin_id: SecureStorage.getLocalItem('user_id')
                                     }, { headers: { 'Content-Type': 'application/json' } });
                                     if (!(dateResp?.data?.status === 'success')) {
                                         const msg = dateResp?.data?.message || 'Failed to update reservation dates';
@@ -2255,7 +2255,7 @@ const DetailModal = ({ visible, onClose, reservationDetails, setReservationDetai
                                                 reservation_id: reservationDetails?.reservation_id,
                                                 reschedule_start_date: startDate,
                                                 reschedule_end_date: endDate,
-                                                user_admin_id: SecureStorage.getSessionItem('user_id')
+                                                user_admin_id: SecureStorage.getLocalItem('user_id')
                                             }, { headers: { 'Content-Type': 'application/json' } });
                                             if (!(dateResp?.data?.status === 'success')) {
                                                 const msg = dateResp?.data?.message || 'Failed to update reservation dates';

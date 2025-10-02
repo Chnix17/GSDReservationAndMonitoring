@@ -108,7 +108,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     operation: "saveStock",
                     equip_id: equipmentId,
                     quantity: newQty,
-                    user_admin_id: SecureStorage.getSessionItem('user_id')
+                    user_admin_id: SecureStorage.getLocalItem('user_id')
                 });
 
                 const response = await axios.post(`${baseUrl}/Admin.php`, params);
@@ -148,7 +148,7 @@ const EquipmentView = ({ equipmentId, onUpdate, onClose, isOpen }) => {
                     equip_id: equipmentId,
                     serial_number: quickAdjustment.tagNumber,
                     status_availability_id: 1, // Default to available
-                    user_admin_id: SecureStorage.getSessionItem('user_id')
+                    user_admin_id: SecureStorage.getLocalItem('user_id')
                 });
 
                 console.log('Unit Data:', params.toString());

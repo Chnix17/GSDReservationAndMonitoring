@@ -163,7 +163,7 @@ const UpdateEquipmentModal = ({
             return;
         }
 
-        const user_admin_id = SecureStorage.getSessionItem('user_id');
+        const user_admin_id = SecureStorage.getLocalItem('user_id');
         const requestData = {
             operation: "updateEquipment",
             equip_id: equipmentId,

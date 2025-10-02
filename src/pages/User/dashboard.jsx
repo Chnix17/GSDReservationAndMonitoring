@@ -56,7 +56,7 @@ const Dashboard = () => {
   useEffect(() => {
     const fetchReservations = async () => {
       try {
-        const userId = SecureStorage.getSessionItem('user_id');
+        const userId = SecureStorage.getLocalItem('user_id');
         const baseUrl = SecureStorage.getLocalItem("url");
         console.log('Fetching reservations for user ID:', userId);
 
@@ -153,7 +153,7 @@ const Dashboard = () => {
         // Refresh the reservations data
         const fetchReservations = async () => {
           try {
-            const userId = SecureStorage.getSessionItem('user_id');
+            const userId = SecureStorage.getLocalItem('user_id');
             const baseUrl = SecureStorage.getLocalItem("url");
             
             const response = await fetch(`${baseUrl}/faculty&staff.php`, {

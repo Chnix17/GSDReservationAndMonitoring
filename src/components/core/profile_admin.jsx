@@ -42,7 +42,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   const fetchUserData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const userId = SecureStorage.getSessionItem('user_id'); // Use the stored user ID or default to 42
+      const userId = SecureStorage.getLocalItem('user_id'); // Use the stored user ID or default to 42
       
       console.log('Fetching user data for ID:', userId);
       
@@ -201,7 +201,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       fetchTitles();
       fetchUserLevels();
       // Check if user is admin
-      const userLevelId = SecureStorage.getSessionItem('user_level_id');
+      const userLevelId = SecureStorage.getLocalItem('user_level_id');
       setIsAdmin(userLevelId === 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -244,6 +244,10 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   // State for loading indicators
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSendingVerification, setIsSendingVerification] = useState(false);
+
+  // State for storing OTP locally
+  const [storedOtp, setStoredOtp] = useState(null);
+  const [otpExpiration, setOtpExpiration] = useState(null);
 
   // Handle modal close with ESC key
   useEffect(() => {
@@ -402,7 +406,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           },
           body: JSON.stringify({
             operation: "updatePassword",
-            userId: SecureStorage.getSessionItem('user_id') || 'user_id_here',
+            userId: SecureStorage.getLocalItem('user_id') || 'user_id_here',
             oldPassword: passwordData.currentPassword,
             newPassword: passwordData.newPassword
           })
@@ -448,7 +452,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       // Handle disabling 2FA
       try {
         setIsDisabling2FA(true);
-        const userId = SecureStorage.getSessionItem('user_id') || '42';
+        const userId = SecureStorage.getLocalItem('user_id');
         
         const response = await fetch(`${baseUrl}/login.php`, {
           method: 'POST',
@@ -513,26 +517,11 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     
     try {
       setIsVerifying(true);
-      const userId = SecureStorage.getSessionItem('user_id') || userData.users_id;
       
-      const response = await fetch(`${baseUrl}/login.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          operation: "validateEmailVerification",
-          json: {
-            user_id: userId,
-            token: verificationCode,
-            duration: twoFactorDuration.toString()
-          }
-        })
-      });
-      
-      const data = await response.json();
-      if (data.status === 'success') {
-        toast.success('Two-factor authentication enabled successfully!', {
+      // Check if OTP has expired (3 minutes)
+      if (!otpExpiration || new Date() > otpExpiration) {
+        setVerificationError('OTP has expired. Please request a new verification code.');
+        toast.error('OTP has expired. Please request a new verification code.', {
           position: "bottom-right",
           autoClose: 5000,
           hideProgressBar: false,
@@ -540,13 +529,14 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           pauseOnHover: true,
           draggable: true,
         });
-        setTwoFactorEnabled(true);
-        setShowTwoFactorSetup(false);
-        setIsVerifyingEmail(false);
-        // Save the duration setting to SecureStorage
-        SecureStorage.setSessionItem('2faDuration', twoFactorDuration.toString());
-      } else {
-        setVerificationError(data.message || 'Invalid verification code. Please try again.');
+        setStoredOtp(null);
+        setOtpExpiration(null);
+        return;
+      }
+      
+      // Validate OTP against stored value
+      if (verificationCode !== storedOtp) {
+        setVerificationError('Invalid verification code. Please try again.');
         toast.error('Invalid verification code. Please try again.', {
           position: "bottom-right",
           autoClose: 5000,
@@ -555,7 +545,26 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           pauseOnHover: true,
           draggable: true,
         });
+        return;
       }
+      
+      // OTP is valid
+      toast.success('Two-factor authentication enabled successfully!', {
+        position: "bottom-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+      });
+      setTwoFactorEnabled(true);
+      setShowTwoFactorSetup(false);
+      setIsVerifyingEmail(false);
+      // Clear stored OTP after successful validation
+      setStoredOtp(null);
+      setOtpExpiration(null);
+      // Save the duration setting to SecureStorage
+      SecureStorage.setSessionItem('2faDuration', twoFactorDuration.toString());
     } catch (error) {
       console.error("Error validating verification code:", error);
       setVerificationError('An error occurred while validating the verification code.');
@@ -577,26 +586,31 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     setVerificationError('');
     try {
       setIsSendingVerification(true);
-      const userId = SecureStorage.getSessionItem('user_id') || userData.users_id;
+      const email = SecureStorage.getLocalItem('email') || userData.users_email;
+      const userName = SecureStorage.getLocalItem('name') || `${userData.users_fname} ${userData.users_lname}`;
 
-      console.log("userId", userId);
-      const response = await fetch(`${baseUrl}/login.php`, {
+      console.log("Sending verification to email:", email);
+      // Use the send-2fa.js serverless endpoint with verificationType
+      const response = await fetch('/api/send-2fa', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          operation: "sendEmailVerification",
-          json: {
-            user_id: userId
-          }
+          email: email,
+          fullName: userName,
+          verificationType: 'email'
         })
       });
       
       const data = await response.json();
-      if (data.status !== 'success') {
-        setVerificationError(data.message || 'Failed to send verification email. Please try again.');
-        toast.error('Failed to send verification email. Please try again.', {
+      if (data.status === 'success') {
+        // Store OTP and expiration time (3 minutes from now)
+        setStoredOtp(data.otp);
+        const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
+        setOtpExpiration(expirationTime);
+        
+        toast.success('Verification code sent to your email!', {
           position: "bottom-right",
           autoClose: 5000,
           hideProgressBar: false,
@@ -605,7 +619,8 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           draggable: true,
         });
       } else {
-        toast.info('Verification email sent! Please check your inbox.', {
+        setVerificationError(data.message || 'Failed to send verification email. Please try again.');
+        toast.error('Failed to send verification email. Please try again.', {
           position: "bottom-right",
           autoClose: 5000,
           hideProgressBar: false,

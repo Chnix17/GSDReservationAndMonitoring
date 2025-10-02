@@ -148,7 +148,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 status_availability_id: parseInt(selectedStatus),
                 event_type: validatedData.event_type,
                 area_type: validatedData.area_type,
-                user_personnel_id: SecureStorage.getSessionItem("user_id")
+                user_personnel_id: SecureStorage.getLocalItem("user_id")
             };
 
             const response = await axios.post(

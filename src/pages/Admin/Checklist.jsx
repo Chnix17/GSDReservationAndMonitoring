@@ -146,7 +146,7 @@ function Checklist() {
         },
         body: JSON.stringify({
           operation: 'updateChecklist',
-          user_personnel_id: SecureStorage.getSessionItem("user_id"),
+          user_personnel_id: SecureStorage.getLocalItem("user_id"),
           data: {
             checklist_updates: [{
               type: currentTab === '1' ? 'venue' : currentTab === '2' ? 'equipment' : 'vehicle',
@@ -319,7 +319,7 @@ function Checklist() {
           checklistNames: checklistItems,
           type: resourceType,
           id: selectedResource,
-          user_personnel_id: SecureStorage.getSessionItem("user_id")
+          user_personnel_id: SecureStorage.getLocalItem("user_id")
         })
       });
 

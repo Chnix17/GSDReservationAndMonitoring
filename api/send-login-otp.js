@@ -31,9 +31,18 @@ function createTransport() {
 
 // Vercel serverless function handler
 export default async function handler(req, res) {
-	// Set CORS headers
-	const origin = req.headers.origin || "*";
-	res.setHeader("Access-Control-Allow-Origin", origin);
+	// Set CORS headers with allowed origin from environment
+	const allowedOrigin = process.env.ALLOWED_ORIGIN || "http://localhost:3000";
+	const requestOrigin = req.headers.origin;
+	
+	// Check if the request origin is allowed
+	if (requestOrigin && requestOrigin === allowedOrigin) {
+		res.setHeader("Access-Control-Allow-Origin", requestOrigin);
+		res.setHeader("Access-Control-Allow-Credentials", "true");
+	} else {
+		res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+	}
+	
 	res.setHeader("Vary", "Origin");
 	res.setHeader(
 		"Access-Control-Allow-Headers",

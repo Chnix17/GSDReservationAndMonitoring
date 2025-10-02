@@ -247,7 +247,7 @@ const Record = () => {
         {
           operation: "fetchReservationGenerateReport",
           month: monthStr,
-          user_personnel_id: SecureStorage.getSessionItem("user_id"),
+          user_personnel_id: SecureStorage.getLocalItem("user_id"),
         },
         {
           headers: {
