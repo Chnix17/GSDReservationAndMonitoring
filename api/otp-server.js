@@ -5,11 +5,21 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.MAIL_API_PORT || 4001;
-const ALLOWED_ORIGIN = process.env.ALLOWED_ORIGIN || 'http://localhost:3000';
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS || 'http://localhost:3000,https://gsd-reservation.vercel.app';
+const allowedOrigins = ALLOWED_ORIGINS.split(',').map(origin => origin.trim());
 
-// Configure CORS with allowed origin
+// Configure CORS with multiple allowed origins
 app.use(cors({
-  origin: ALLOWED_ORIGIN,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    } else {
+      return callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true
 }));
 app.use(express.json());

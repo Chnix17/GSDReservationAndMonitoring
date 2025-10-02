@@ -31,16 +31,16 @@ function createTransport() {
 
 // Vercel serverless function handler for sending password reset OTP
 export default async function handler(req, res) {
-	// Set CORS headers with allowed origin from environment
-	const allowedOrigin = process.env.ALLOWED_ORIGIN || "http://localhost:3000";
+	// Set CORS headers with multiple allowed origins
+	const allowedOriginsEnv = process.env.ALLOWED_ORIGINS || "http://localhost:3000,https://gsd-reservation.vercel.app";
+	const allowedOrigins = allowedOriginsEnv.split(',').map(origin => origin.trim());
 	const requestOrigin = req.headers.origin;
-	
-	// Check if the request origin is allowed
-	if (requestOrigin && requestOrigin === allowedOrigin) {
+
+	if (requestOrigin && allowedOrigins.includes(requestOrigin)) {
 		res.setHeader("Access-Control-Allow-Origin", requestOrigin);
 		res.setHeader("Access-Control-Allow-Credentials", "true");
 	} else {
-		res.setHeader("Access-Control-Allow-Origin", allowedOrigin);
+		res.setHeader("Access-Control-Allow-Origin", allowedOrigins[0]);
 	}
 	
 	res.setHeader("Vary", "Origin");
