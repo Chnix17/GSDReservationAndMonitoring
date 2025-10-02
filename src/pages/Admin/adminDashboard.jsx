@@ -1,13 +1,13 @@
-    import React, { useEffect, useState, useCallback } from 'react';
-    import { useNavigate } from 'react-router-dom';
-    import Sidebar from '../../components/core/Sidebar';
-    import {
+import React, { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import Sidebar from '../../components/core/Sidebar';
+import {
     FaCar, FaUsers, FaBuilding, FaTools
-    } from 'react-icons/fa';
-    import { motion } from 'framer-motion';
-    import axios from 'axios';
-    import { toast } from 'react-toastify';
-    import {
+} from 'react-icons/fa';
+import { motion } from 'framer-motion';
+import axios from 'axios';
+import { toast } from 'react-toastify';
+import {
     Chart as ChartJS,
     CategoryScale,
     LinearScale,
@@ -15,32 +15,38 @@
     LineElement,
     BarElement,
     ArcElement,
+    LineController,
+    BarController,
     DoughnutController,
     Title,
     Tooltip,
-    Legend
-    } from 'chart.js';
-    import ReservationChart from './core/ReservationChart';
-    import SimpleAreaChart from './core/Status_Areachart';
-    import RecentReservations from './core/RecentReservations';
+    Legend,
+    Filler
+} from 'chart.js';
+import ReservationChart from './core/ReservationChart';
+import SimpleAreaChart from './core/Status_Areachart';
+import RecentReservations from './core/RecentReservations';
 
-    import { SecureStorage } from '../../utils/encryption';
+import { SecureStorage } from '../../utils/encryption';
 
-    // Register ChartJS components
-    ChartJS.register(
+// Register ChartJS components
+ChartJS.register(
     CategoryScale,
     LinearScale,
     PointElement,
     LineElement,
     BarElement,
     ArcElement,
+    LineController,
+    BarController,
     DoughnutController,
     Title,
     Tooltip,
-    Legend
-    );
+    Legend,
+    Filler
+);
 
-    const Dashboard = () => {
+const Dashboard = () => {
         const navigate = useNavigate();
         const user_level = localStorage.getItem('user_level');
         const [loading, setLoading] = useState(true);

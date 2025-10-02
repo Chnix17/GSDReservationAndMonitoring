@@ -590,8 +590,22 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       const userName = SecureStorage.getLocalItem('name') || `${userData.users_fname} ${userData.users_lname}`;
 
       console.log("Sending verification to email:", email);
+      
+      // Use the same logic as otpUtils.js for API endpoint
+      const hostname = typeof window !== "undefined" ? window.location.hostname : "";
+      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
+      const baseOverride = process.env.REACT_APP_MAIL_API_BASE;
+      
+      const endpoint = baseOverride
+          ? `${baseOverride.replace(/\/$/, "")}/send-2fa`
+          : isLocal
+          ? "http://localhost:4001/send-2fa"
+          : "/api/send-2fa";
+      
+      console.log("Using endpoint:", endpoint);
+      
       // Use the send-2fa.js serverless endpoint with verificationType
-      const response = await fetch('/api/send-2fa', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
