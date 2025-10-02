@@ -514,18 +514,26 @@ function Logins() {
                         // 2FA has expired, bypass OTP and proceed to direct login
                         console.log("2FA expired, proceeding with direct login");
                         shouldBypass2FA = true;
-                    } else if (twoFaData && twoFaData.status === "success" && !twoFaData.requires_verification) {
-                        // 2FA is active and valid, send OTP
-                        canSendLoginOtp = true;
                     } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === false) {
-                        // No 2FA record found, bypass OTP
+                        // No 2FA record found, bypass OTP and proceed to direct login
+                        console.log("No 2FA record found, proceeding with direct login");
                         shouldBypass2FA = true;
+                    } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === true) {
+                        // 2FA is active and valid, send OTP
+                        console.log("2FA active, sending login OTP");
+                        canSendLoginOtp = true;
                     } else {
-                        // Other cases - show error
+                        // Other cases - show error and stop login
+                        console.error("Unexpected 2FA response:", twoFaData);
                         notify(twoFaData?.message || "2FA verification required.", 'error');
+                        setLoading(false);
+                        return;
                     }
                 } catch (e) {
+                    console.error("2FA check error:", e);
                     notify("Failed to verify 2FA status.", 'error');
+                    setLoading(false);
+                    return;
                 }
 
                 let otpResponse = { data: { status: 'error' } };
@@ -1056,7 +1064,7 @@ function Logins() {
             setOtpExpiration(null);
 
             // Get user_id and API URL
-            const userData = SecureStorage.getLocalItem("temp_user_id");
+            const userData = SecureStorage.getSessionItem("temp_user_id");
             const apiUrl = SecureStorage.getLocalItem("url");
 
             // Get user details for login completion
@@ -1181,7 +1189,7 @@ function Logins() {
     const handleResendLoginOTP = async () => {
         setIsResendingLoginOtp(true);
         try {
-            const userData = SecureStorage.getLocalItem("temp_user_id");
+            const userData = SecureStorage.getSessionItem("temp_user_id");
             
             const response = await sendLoginOtpMail(
                 userData || username,
@@ -1225,7 +1233,7 @@ function Logins() {
         // Re-authenticate with the new password
         try {
             const apiUrl = SecureStorage.getLocalItem("url");
-            const userId = SecureStorage.getLocalitem("temp_user_id");
+            const userId = SecureStorage.getSessionitem("temp_user_id");
             
             // Get user details again to proceed with login
             const userResponse = await axios.post(`${apiUrl}Admin.php`, {
