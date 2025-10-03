@@ -50,8 +50,12 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
 
   // Get the appropriate avatar URL based on whether it's own message or not
   const getAvatarUrl = (picture) => {
-    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
-    return `http://localhost/coc/gsd/${picture}`;
+    if (picture && picture.trim()) {
+      // If user has a profile picture, use it
+      return picture.startsWith('http') ? picture : `/gsd-reservation/uploads/profile/${picture}`;
+    }
+    // Fallback to default avatar with correct path (React public folder)
+    return `${process.env.PUBLIC_URL}/default-avatar.svg`;
   };
   
   // Format timestamp
@@ -110,7 +114,11 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             src={getAvatarUrl(message.senderPic)}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onError={(e) => { e.target.src = '/default-avatar.svg' }}
+            onLoad={(e) => console.log('✅ Avatar loaded successfully:', e.target.src)}
+            onError={(e) => { 
+              console.log('❌ Avatar failed to load:', e.target.src, 'Falling back to default');
+              e.target.src = `${process.env.PUBLIC_URL}/default-avatar.svg`;
+            }}
           />
         </div>
       )}
@@ -221,10 +229,14 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
       {isOwn && (
         <div className="ml-2 flex-shrink-0">
           <img 
-            src={getAvatarUrl(currentUser.picture)}
+            src={getAvatarUrl()}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onError={(e) => { e.target.src = '/default-avatar.svg' }}
+            onLoad={(e) => console.log('✅ Current user avatar loaded successfully:', e.target.src)}
+            onError={(e) => { 
+              console.log('❌ Current user avatar failed to load:', e.target.src, 'Falling back to default');
+              e.target.src = `${process.env.PUBLIC_URL}/default-avatar.svg`;
+            }}
           />
         </div>
       )}
@@ -236,7 +248,7 @@ const Chat = () => {
   // Import SecureStorage
   const [apiUrl] = useState(() => {
     const url = SecureStorage.getLocalItem("url");
-    return url || "http://localhost/coc/gsd/";
+    return url;
   });
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -250,8 +262,7 @@ const Chat = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [currentUser] = useState({
     id: SecureStorage.getLocalItem('user_id'),
-    name: SecureStorage.getLocalItem('name'),
-    picture: SecureStorage.getLocalItem('profile_pic')
+    name: SecureStorage.getLocalItem('name')
   });
 
   const navigate = useNavigate();
@@ -447,8 +458,12 @@ const Chat = () => {
 
   // Helper function to get avatar URL
   const getAvatarUrl = (picture) => {
-    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
-    return `${apiUrl}${picture}`;
+    if (picture && picture.trim()) {
+      // If user has a profile picture, use it
+      return picture.startsWith('http') ? picture : `/gsd-reservation/uploads/profile/${picture}`;
+    }
+    // Fallback to default avatar with correct path (React public folder)
+    return `${process.env.PUBLIC_URL}/default-avatar.svg`;
   };
 
   const renderChatHeader = () => {
@@ -470,10 +485,14 @@ const Chat = () => {
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <img 
-                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
+                    src={getAvatarUrl(activeConversation?.picture)}
                     className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
                     alt={activeConversation?.name || 'User'}
-                    onError={(e) => { e.target.src = '/default-avatar.svg' }}
+                    onLoad={(e) => console.log('✅ Chat header avatar loaded successfully:', e.target.src)}
+                    onError={(e) => { 
+                      console.log('❌ Chat header avatar failed to load:', e.target.src, 'Falling back to default');
+                      e.target.src = `${process.env.PUBLIC_URL}/default-avatar.svg`;
+                    }}
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
                     <div className="w-2 h-2 bg-white rounded-full"></div>
