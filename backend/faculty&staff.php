@@ -1,9 +1,56 @@
 <?php 
 
+// Enhanced CORS headers for production deployment
+// Handle preflight OPTIONS request first
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    // Get the origin of the request
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    
+    // Define allowed origins
+    $allowedOrigins = [
+        'https://gsd-reservation.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:3001',
+        'https://peachpuff-alligator-715719.hostingersite.com'
+    ];
+    
+    // Check if the origin is allowed
+    if (in_array($origin, $allowedOrigins)) {
+        header("Access-Control-Allow-Origin: $origin");
+    } else {
+        // Fallback to the main production origin
+        header("Access-Control-Allow-Origin: https://gsd-reservation.vercel.app");
+    }
+    
+    header("Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE");
+    header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+    header("Access-Control-Allow-Credentials: true");
+    header("Access-Control-Max-Age: 86400"); // Cache preflight for 24 hours
+    header('Content-Type: application/json');
+    
+    http_response_code(200);
+    exit();
+}
+
+// Set CORS headers for actual requests
+$origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+$allowedOrigins = [
+    'https://gsd-reservation.vercel.app',
+    'http://localhost:3000',
+    'http://localhost:3001',
+    'https://peachpuff-alligator-715719.hostingersite.com'
+];
+
+if (in_array($origin, $allowedOrigins)) {
+    header("Access-Control-Allow-Origin: $origin");
+} else {
+    header("Access-Control-Allow-Origin: https://gsd-reservation.vercel.app");
+}
+
+header("Access-Control-Allow-Methods: POST, GET, OPTIONS, PUT, DELETE");
+header("Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With");
+header("Access-Control-Allow-Credentials: true");
 header('Content-Type: application/json');
-header("Access-Control-Allow-Origin: *");
-header("Access-Control-Allow-Methods: POST, OPTIONS, GET");
-header("Access-Control-Allow-Headers: Content-Type, Authorization");
 
 class FacultyStaff {
     private $conn;
