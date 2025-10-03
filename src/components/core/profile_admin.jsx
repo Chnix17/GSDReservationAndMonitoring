@@ -6,6 +6,7 @@ import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 const ProfileAdminModal = ({ isOpen, onClose }) => {
+  // NOTE: 2FA features are temporarily commented out below
   // Get base URL from SecureStorage
   const baseUrl = SecureStorage.getLocalItem("url");
   
@@ -157,12 +158,12 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     }
   }, [baseUrl]);
 
+  /*
   // Function to fetch 2FA status
   const fetch2FAStatus = useCallback(async () => {
     try {
       setIs2FALoading(true);
       const userId = SecureStorage.getLocalItem('user_id') || '42';
-      
       const response = await fetch(`${baseUrl}/login.php`, {
         method: 'POST',
         headers: {
@@ -170,20 +171,13 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         },
         body: JSON.stringify({
           operation: "fetch2FA",
-          json: {
-            user_id: userId
-          }
+          json: { user_id: userId }
         })
       });
-      
       const responseData = await response.json();
-      console.log('2FA Status Response:', responseData);
-      
       if (responseData && responseData.status === 'success') {
         setTwoFactorData(responseData);
         setTwoFactorEnabled(responseData.is_active);
-      } else {
-        console.error('Failed to fetch 2FA status', responseData);
       }
     } catch (error) {
       console.error("Error fetching 2FA status:", error);
@@ -191,13 +185,14 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIs2FALoading(false);
     }
   }, [baseUrl]);
+  */
 
   // Fetch user data, departments, and 2FA status when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchUserData();
       fetchDepartments();
-      fetch2FAStatus();
+      // fetch2FAStatus(); // TEMP disabled
       fetchTitles();
       fetchUserLevels();
       // Check if user is admin
@@ -205,7 +200,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIsAdmin(userLevelId === 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, fetchUserData, fetchDepartments, fetch2FAStatus, fetchTitles, fetchUserLevels]);
+  }, [isOpen, fetchUserData, fetchDepartments, fetchTitles, fetchUserLevels]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({...userData});
@@ -447,258 +442,29 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     }
   };
 
+  /*
   const handleToggle2FA = async () => {
-    if (twoFactorEnabled) {
-      // Handle disabling 2FA
-      try {
-        setIsDisabling2FA(true);
-        const userId = SecureStorage.getLocalItem('user_id');
-        
-        const response = await fetch(`${baseUrl}/login.php`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            operation: "disable2FA",
-            json: {
-              user_id: userId
-            }
-          })
-        });
-        
-        const responseData = await response.json();
-        if (responseData && responseData.status === 'success') {
-          setTwoFactorEnabled(false);
-          setTwoFactorData({
-            is_active: false,
-            expires_at: '',
-            requires_verification: false
-          });
-          toast.success('Two-factor authentication disabled successfully!', {
-            position: "bottom-right",
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-          });
-        } else {
-          toast.error('Failed to disable two-factor authentication.', {
-            position: "bottom-right",
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
-          });
-        }
-      } catch (error) {
-        console.error("Error disabling 2FA:", error);
-        toast.error('An error occurred while disabling two-factor authentication.', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      } finally {
-        setIsDisabling2FA(false);
-      }
-    }
+    // TEMP disabled
   };
+  */
 
+  /*
   const handleVerifyCode = async () => {
-    if (verificationCode.trim() === '') {
-      setVerificationError('Please enter the verification code');
-      return;
-    }
-    
-    try {
-      setIsVerifying(true);
-      
-      // Check if OTP has expired (3 minutes)
-      if (!otpExpiration || new Date() > otpExpiration) {
-        setVerificationError('OTP has expired. Please request a new verification code.');
-        toast.error('OTP has expired. Please request a new verification code.', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-        setStoredOtp(null);
-        setOtpExpiration(null);
-        return;
-      }
-      
-      // Validate OTP against stored value
-      if (verificationCode !== storedOtp) {
-        setVerificationError('Invalid verification code. Please try again.');
-        toast.error('Invalid verification code. Please try again.', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-        return;
-      }
-      
-      // OTP is valid, now enable 2FA in the database
-      const userId = SecureStorage.getLocalItem('user_id');
-      
-      const enable2FAResponse = await fetch(`${baseUrl}/login.php`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          operation: "enable2FA",
-          json: {
-            user_id: userId,
-            duration_days: twoFactorDuration
-          }
-        })
-      });
-      
-      const enable2FAData = await enable2FAResponse.json();
-      
-      if (enable2FAData && enable2FAData.status === 'success') {
-        toast.success('Two-factor authentication enabled successfully!', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-        
-        setTwoFactorEnabled(true);
-        setTwoFactorData({
-          is_active: true,
-          expires_at: enable2FAData.expires_at,
-          requires_verification: false
-        });
-        setShowTwoFactorSetup(false);
-        setIsVerifyingEmail(false);
-        
-        // Clear stored OTP after successful validation
-        setStoredOtp(null);
-        setOtpExpiration(null);
-        
-        // Save the duration setting to SecureStorage
-        SecureStorage.setSessionItem('2faDuration', twoFactorDuration.toString());
-      } else {
-        toast.error('Failed to enable two-factor authentication in database.', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
-    } catch (error) {
-      console.error("Error validating verification code:", error);
-      setVerificationError('An error occurred while validating the verification code.');
-      toast.error('An error occurred while validating the verification code.', {
-        position: "bottom-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-    } finally {
-      setIsVerifying(false);
-    }
+    // TEMP disabled
   };
+  */
 
+  /*
   const sendEmailVerification = async () => {
-    setIsVerifyingEmail(true);
-    setVerificationError('');
-    try {
-      setIsSendingVerification(true);
-      const email = SecureStorage.getLocalItem('email') || userData.users_email;
-      const userName = SecureStorage.getLocalItem('name') || `${userData.users_fname} ${userData.users_lname}`;
-
-      console.log("Sending verification to email:", email);
-      
-      // Use the same logic as otpUtils.js for API endpoint
-      const hostname = typeof window !== "undefined" ? window.location.hostname : "";
-      const isLocal = /^(localhost|127\.0\.0\.1)$/i.test(hostname);
-      const baseOverride = process.env.REACT_APP_MAIL_API_BASE;
-      
-      const endpoint = baseOverride
-          ? `${baseOverride.replace(/\/$/, "")}/send-2fa`
-          : isLocal
-          ? "http://localhost:4001/send-2fa"
-          : "/api/send-2fa";
-      
-      console.log("Using endpoint:", endpoint);
-      
-      // Use the send-2fa.js serverless endpoint with verificationType
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          email: email,
-          fullName: userName,
-          verificationType: 'email'
-        })
-      });
-      
-      const data = await response.json();
-      if (data.status === 'success') {
-        // Store OTP and expiration time (3 minutes from now)
-        setStoredOtp(data.otp);
-        const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
-        setOtpExpiration(expirationTime);
-        
-        toast.success('Verification code sent to your email!', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      } else {
-        setVerificationError(data.message || 'Failed to send verification email. Please try again.');
-        toast.error('Failed to send verification email. Please try again.', {
-          position: "bottom-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: true,
-        });
-      }
-    } catch (error) {
-      console.error("Error sending verification email:", error);
-      setVerificationError('An error occurred while sending verification email. Please try again.');
-      toast.error('An error occurred while sending verification email.', {
-        position: "bottom-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: true,
-      });
-    } finally {
-      setIsSendingVerification(false);
-    }
+    // TEMP disabled
   };
+  */
 
+  /*
   const handle2FAVerification = () => {
-    sendEmailVerification();
+    // TEMP disabled
   };
+  */
 
   // Render a restricted field with appropriate styling
   const renderRestrictedField = (label, icon, value, fieldName, isSelectField = false) => {
@@ -1021,7 +787,8 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                {/* Two-Factor Authentication Section */}
+                {/* Two-Factor Authentication Section - TEMPORARILY DISABLED */}
+                {false && (
                 <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 p-6 rounded-xl shadow-sm">
                   <div className="flex justify-between items-center mb-4">
                     <div className="flex items-center space-x-3">
@@ -1235,6 +1002,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                     </motion.div>
                   )}
                 </div>
+                )}
                 
                 {/* Change Password Section */}
                 <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 p-6 rounded-xl shadow-sm">

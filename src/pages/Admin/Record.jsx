@@ -1,13 +1,10 @@
 import "react-toastify/dist/ReactToastify.css";
 import "bootstrap/dist/css/bootstrap.min.css";
 import {SecureStorage} from "../../utils/encryption";
-
 import {
-
   EyeOutlined,
   ReloadOutlined,
   SearchOutlined,
-
 } from "@ant-design/icons";
 import {
   Button,
@@ -247,7 +244,7 @@ const Record = () => {
         {
           operation: "fetchReservationGenerateReport",
           month: monthStr,
-          user_personnel_id: SecureStorage.getLocalItem("user_id"),
+          user_personnel_id: SecureStorage.getSessionItem("user_id"),
         },
         {
           headers: {

@@ -488,79 +488,79 @@ function Logins() {
                     timestamp: new Date().getTime() // Add timestamp for additional security
                 });
     
-                // Check 2FA status first using backend fetch2FA
-                let canSendLoginOtp = false;
-                let twoFaData = null;
-                let shouldBypass2FA = false;
+                // COMMENTED OUT: Check 2FA status first using backend fetch2FA
+                // let canSendLoginOtp = false;
+                // let twoFaData = null;
+                // let shouldBypass2FA = false;
                 
-                try {
-                    const twoFaResp = await axios.post(`${apiUrl}login.php`, {
-                        operation: "fetch2FA",
-                        json: { user_id: userData.user_id }
-                    });
-                    twoFaData = twoFaResp.data;
+                // try {
+                //     const twoFaResp = await axios.post(`${apiUrl}login.php`, {
+                //         operation: "fetch2FA",
+                //         json: { user_id: userData.user_id }
+                //     });
+                //     twoFaData = twoFaResp.data;
                     
-                    if (twoFaData && twoFaData.status === "expired") {
-                        // 2FA has expired, bypass OTP and proceed to direct login
-                        console.log("2FA expired, proceeding with direct login");
-                        shouldBypass2FA = true;
-                    } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === false) {
-                        // No 2FA record found, bypass OTP and proceed to direct login
-                        console.log("No 2FA record found, proceeding with direct login");
-                        shouldBypass2FA = true;
-                    } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === true) {
-                        // 2FA is active and valid, send OTP
-                        console.log("2FA active, sending login OTP");
-                        canSendLoginOtp = true;
-                    } else {
-                        // Other cases - show error and stop login
-                        console.error("Unexpected 2FA response:", twoFaData);
-                        notify(twoFaData?.message || "2FA verification required.", 'error');
-                        setLoading(false);
-                        return;
-                    }
-                } catch (e) {
-                    console.error("2FA check error:", e);
-                    notify("Failed to verify 2FA status.", 'error');
-                    setLoading(false);
-                    return;
-                }
+                //     if (twoFaData && twoFaData.status === "expired") {
+                //         // 2FA has expired, bypass OTP and proceed to direct login
+                //         console.log("2FA expired, proceeding with direct login");
+                //         shouldBypass2FA = true;
+                //     } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === false) {
+                //         // No 2FA record found, bypass OTP and proceed to direct login
+                //         console.log("No 2FA record found, proceeding with direct login");
+                //         shouldBypass2FA = true;
+                //     } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === true) {
+                //         // 2FA is active and valid, send OTP
+                //         console.log("2FA active, sending login OTP");
+                //         canSendLoginOtp = true;
+                //     } else {
+                //         // Other cases - show error and stop login
+                //         console.error("Unexpected 2FA response:", twoFaData);
+                //         notify(twoFaData?.message || "2FA verification required.", 'error');
+                //         setLoading(false);
+                //         return;
+                //     }
+                // } catch (e) {
+                //     console.error("2FA check error:", e);
+                //     notify("Failed to verify 2FA status.", 'error');
+                //     setLoading(false);
+                //     return;
+                // }
 
-                let otpResponse = { data: { status: 'error' } };
-                if (canSendLoginOtp) {
-                    // Now we'll send OTP using Node.js API
-                    const otpData = await sendLoginOtpMail(
-                        userData.user_id,
-                        userData.email,
-                        `${userData.firstname} ${userData.lastname}`
-                    );
-                    otpResponse = { data: otpData };
-                } else if (shouldBypass2FA) {
-                    // 2FA expired or not found; bypass OTP and proceed to direct login branch
-                    otpResponse = { data: { status: 'success', requires_2fa: false } };
-                }
+                // let otpResponse = { data: { status: 'error' } };
+                // if (canSendLoginOtp) {
+                //     // Now we'll send OTP using Node.js API
+                //     const otpData = await sendLoginOtpMail(
+                //         userData.user_id,
+                //         userData.email,
+                //         `${userData.firstname} ${userData.lastname}`
+                //     );
+                //     otpResponse = { data: otpData };
+                // } else if (shouldBypass2FA) {
+                //     // 2FA expired or not found; bypass OTP and proceed to direct login branch
+                //     otpResponse = { data: { status: 'success', requires_2fa: false } };
+                // }
                 
-                console.log("OTP response:", otpResponse.data);
+                // console.log("OTP response:", otpResponse.data);
                 
                 // Check the specific message from the API
-                if (otpResponse.data.status === "success") {
-                    if (otpResponse.data.requires_2fa) {
-                        // Store user_id and email temporarily for OTP verification
-                        SecureStorage.setSessionItem("temp_user_id", userData.user_id);
-                        SecureStorage.setSessionItem("temp_user_email", userData.email);
-                        setLoginPassword(password); // Store password for OTP context
+                // if (otpResponse.data.status === "success") {
+                //     if (otpResponse.data.requires_2fa) {
+                //         // Store user_id and email temporarily for OTP verification
+                //         SecureStorage.setSessionItem("temp_user_id", userData.user_id);
+                //         SecureStorage.setSessionItem("temp_user_email", userData.email);
+                //         setLoginPassword(password); // Store password for OTP context
                         
-                        // Store OTP and expiration in frontend state (no server storage)
-                        const expirationTime = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
-                        setOtpExpiration(expirationTime);
-                        setStoredOTP(otpResponse.data.otp); // Store the OTP from response
+                //         // Store OTP and expiration in frontend state (no server storage)
+                //         const expirationTime = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
+                //         setOtpExpiration(expirationTime);
+                //         setStoredOTP(otpResponse.data.otp); // Store the OTP from response
                         
-                        // Show OTP input form
-                        setShowLoginOTP(true);
-                        notify("OTP has been sent to your email. Please verify.");
-                    } else {
-                        // 2FA is not active, proceed with direct login
-                        console.log("2FA not active, proceeding with direct login");
+                //         // Show OTP input form
+                //         setShowLoginOTP(true);
+                //         notify("OTP has been sent to your email. Please verify.");
+                //     } else {
+                        // COMMENTED OUT: 2FA is not active, proceed with direct login
+                        console.log("BYPASSING 2FA - proceeding with direct login");
                         
                         // Save API URL before clearing localStorage
                         const savedApiUrl = apiUrl;
@@ -661,10 +661,10 @@ function Logins() {
                                 notify("User Login Successful");
                                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
                         }
-                    }
-                } else {
-                    notify(otpResponse.data.message || "Failed to check 2FA status", 'error');
-                }
+                    // }
+                // } else {
+                //     notify(otpResponse.data.message || "Failed to check 2FA status", 'error');
+                // }
             } else {
                 // Password is incorrect
                 notify("Incorrect password. Please try again.", 'error');
@@ -683,132 +683,140 @@ function Logins() {
         }
     };
 
+    // COMMENTED OUT: OTP Email Check Method
     const handleCheckEmail = async () => {
-        if (!email) {
-            notify("Please enter your email address", 'error');
-            return;
-        }
+        notify("Password reset via OTP is temporarily disabled", 'error');
+        return;
+        
+        // if (!email) {
+        //     notify("Please enter your email address", 'error');
+        //     return;
+        // }
 
-        setIsVerifyingEmail(true);
-        try {
-            const apiUrl = SecureStorage.getLocalItem("url");
-            if (!apiUrl) {
-                notify("API URL configuration is missing. Please contact support.", 'error');
-                setIsVerifyingEmail(false);
-                return;
-            }
+        // setIsVerifyingEmail(true);
+        // try {
+        //     const apiUrl = SecureStorage.getLocalItem("url");
+        //     if (!apiUrl) {
+        //         notify("API URL configuration is missing. Please contact support.", 'error');
+        //         setIsVerifyingEmail(false);
+        //         return;
+        //     }
 
-            // First, check if email exists in the database
-            const response = await axios.post(`${apiUrl}login.php`, {
-                operation: "checkEmail",
-                json: { email }
-            });
+        //     // First, check if email exists in the database
+        //     const response = await axios.post(`${apiUrl}login.php`, {
+        //         operation: "checkEmail",
+        //         json: { email }
+        //     });
 
-            let data = response.data;
-            console.log("CheckEmail response:", data);
+        //     let data = response.data;
+        //     console.log("CheckEmail response:", data);
 
-            if (typeof data === "string") {
-                try {
-                    data = JSON.parse(data);
-                } catch (e) {
-                    notify("Invalid response from server", 'error');
-                    setIsVerifyingEmail(false);
-                    return;
-                }
-            }
+        //     if (typeof data === "string") {
+        //         try {
+        //             data = JSON.parse(data);
+        //         } catch (e) {
+        //             notify("Invalid response from server", 'error');
+        //             setIsVerifyingEmail(false);
+        //             return;
+        //         }
+        //     }
 
-            console.log("Parsed data.status:", data.status);
+        //     console.log("Parsed data.status:", data.status);
 
-            if (data.status === "exists") {
-                console.log("Email exists, proceeding to send OTP");
+        //     if (data.status === "exists") {
+        //         console.log("Email exists, proceeding to send OTP");
                 
-                // Email exists, now send OTP using Node.js API
-                try {
-                    const otpData = await sendPasswordResetOtpMail(
-                        (email || '').trim().toLowerCase(),
-                        'User'
-                    );
-                    console.log("SendOTP response:", otpData);
+        //         // Email exists, now send OTP using Node.js API
+        //         try {
+        //             const otpData = await sendPasswordResetOtpMail(
+        //                 (email || '').trim().toLowerCase(),
+        //                 'User'
+        //             );
+        //             console.log("SendOTP response:", otpData);
 
-                    if (otpData.status === "success") {
-                        // Store OTP and expiration for validation
-                        const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-                        setOtpExpiration(expirationTime);
-                        setStoredOTP(otpData.otp); // Store the OTP from response
-                        setStoredOtpOwner((email || '').trim().toLowerCase()); // bind OTP to the requesting email
-                        console.log('[OTP DEBUG] issued password-reset OTP', {
-                            owner: (email || '').trim().toLowerCase(),
-                            otp_tail: String(otpData.otp).slice(-2),
-                            expiresAt: expirationTime.toISOString()
-                        });
+        //             if (otpData.status === "success") {
+        //                 // Store OTP and expiration for validation
+        //                 const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+        //                 setOtpExpiration(expirationTime);
+        //                 setStoredOTP(otpData.otp); // Store the OTP from response
+        //                 setStoredOtpOwner((email || '').trim().toLowerCase()); // bind OTP to the requesting email
+        //                 console.log('[OTP DEBUG] issued password-reset OTP', {
+        //                     owner: (email || '').trim().toLowerCase(),
+        //                     otp_tail: String(otpData.otp).slice(-2),
+        //                     expiresAt: expirationTime.toISOString()
+        //                 });
                         
-                        setShowOtpInput(true);
-                        setResendTimer(180); // Reset timer
-                        setCanResendOtp(false);
-                        notify("OTP sent to your email", 'success');
-                    } else {
-                        notify(otpData.message || "Failed to send OTP", 'error');
-                    }
-                } catch (otpError) {
-                    console.error("SendOTP error:", otpError);
-                    notify(otpError.response?.data?.message || "Error sending OTP", 'error');
-                }
-            } else {
-                console.log("Email not found block hit, status was:", data.status);
-                notify("Email not found in our records", 'error');
-            }
-        } catch (error) {
-            console.error("CheckEmail error:", error);
-            notify("Error verifying email", 'error');
-        } finally {
-            setIsVerifyingEmail(false);
-        }
+        //                 setShowOtpInput(true);
+        //                 setResendTimer(180); // Reset timer
+        //                 setCanResendOtp(false);
+        //                 notify("OTP sent to your email", 'success');
+        //             } else {
+        //                 notify(otpData.message || "Failed to send OTP", 'error');
+        //             }
+        //         } catch (otpError) {
+        //             console.error("SendOTP error:", otpError);
+        //             notify(otpError.response?.data?.message || "Error sending OTP", 'error');
+        //         }
+        //     } else {
+        //         console.log("Email not found block hit, status was:", data.status);
+        //         notify("Email not found in our records", 'error');
+        //     }
+        // } catch (error) {
+        //     console.error("CheckEmail error:", error);
+        //     notify("Error verifying email", 'error');
+        // } finally {
+        //     setIsVerifyingEmail(false);
+        // }
     };
 
+    // COMMENTED OUT: Send OTP Method
     const handleSendOTP = async (isResend = false) => {
-        if (!isResend && !isForgotPasswordCaptchaCorrect) {
-            notify("Please complete the CAPTCHA verification", 'error');
-            return;
-        }
+        notify("OTP functionality is temporarily disabled", 'error');
+        return;
+        
+        // if (!isResend && !isForgotPasswordCaptchaCorrect) {
+        //     notify("Please complete the CAPTCHA verification", 'error');
+        //     return;
+        // }
 
-        if (isResend) {
-            setIsResending(true);
-        } else {
-            // setIsSendingOtp(true);
-        }
+        // if (isResend) {
+        //     setIsResending(true);
+        // } else {
+        //     // setIsSendingOtp(true);
+        // }
 
-        try {
-            // Use Node.js API for password reset OTP
-            const normalizedEmail = (email || '').trim().toLowerCase();
-            const data = await sendPasswordResetOtpMail(
-                normalizedEmail,
-                'User'
-            );
-            console.log("SendOTP response:", data);
+        // try {
+        //     // Use Node.js API for password reset OTP
+        //     const normalizedEmail = (email || '').trim().toLowerCase();
+        //     const data = await sendPasswordResetOtpMail(
+        //         normalizedEmail,
+        //         'User'
+        //     );
+        //     console.log("SendOTP response:", data);
 
-            if (data.status === "success") {
-                // Store OTP and expiration for validation
-                const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-                setOtpExpiration(expirationTime);
-                setStoredOTP(data.otp); // Store the OTP from response
-                setStoredOtpOwner(normalizedEmail); // bind owner
+        //     if (data.status === "success") {
+        //         // Store OTP and expiration for validation
+        //         const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
+        //         setOtpExpiration(expirationTime);
+        //         setStoredOTP(data.otp); // Store the OTP from response
+        //         setStoredOtpOwner(normalizedEmail); // bind owner
                 
-                setShowOtpInput(true);
-                setResendTimer(180); // Reset timer
-                setCanResendOtp(false);
-                notify(isResend ? "OTP resent successfully" : "OTP sent to your email", 'success');
-            } else {
-                notify(data.message || "Failed to send OTP", 'error');
-            }
-        } catch (error) {
-            notify(error.response?.data?.message || "Error sending OTP", 'error');
-        } finally {
-            if (isResend) {
-                setIsResending(false);
-            } else {
-                // setIsSendingOtp(false);
-            }
-        }
+        //         setShowOtpInput(true);
+        //         setResendTimer(180); // Reset timer
+        //         setCanResendOtp(false);
+        //         notify(isResend ? "OTP resent successfully" : "OTP sent to your email", 'success');
+        //     } else {
+        //         notify(data.message || "Failed to send OTP", 'error');
+        //     }
+        // } catch (error) {
+        //     notify(error.response?.data?.message || "Error sending OTP", 'error');
+        // } finally {
+        //     if (isResend) {
+        //         setIsResending(false);
+        //     } else {
+        //         // setIsSendingOtp(false);
+        //     }
+        // }
     };
 
     const handleOtpChange = (index, value) => {
@@ -846,67 +854,70 @@ function Logins() {
         }
     };
 
+    // COMMENTED OUT: Verify OTP Method
     const handleVerifyOtp = async () => {
-        const otpValue = otpDigits.map(d => (d || '').trim()).join('');
-        if (otpValue.length !== 6) {
+        notify("OTP verification is temporarily disabled", 'error');
+        return;
+        
+        // const otpValue = otpDigits.map(d => (d || '').trim()).join('');
+        // if (otpValue.length !== 6) {
+        //     return;
+        // }
+
+        // try {
+        //     // Check if OTP has expired
+        //     if (otpExpiration && new Date() > otpExpiration) {
+        //         notify("OTP has expired. Please request a new one.", 'error');
+        //         setStoredOTP(null);
+        //         setOtpExpiration(null);
+        //         return;
+        //     }
+
+        //     // Normalize requester email for strict match
+        //     const normalizedEmail = (email || '').trim().toLowerCase();
+
+        //     // Verify OTP belongs to the same requester (defense-in-depth on client)
+        //     if (storedOtpOwner !== normalizedEmail) {
+        //         notify("This OTP was not requested for this email. Please request a new OTP.", 'error');
+        //         setOtpDigits(Array(6).fill(''));
+        //         return;
+        //     }
+
+        //     // Server-side validation to avoid mismatch from multiple OTP requests
+        //     try {
+        //         const data = await validatePasswordResetOtp(
+        //             normalizedEmail,
+        //             otpValue
+        //         );
+        //         console.log('[OTP DEBUG] server validate result', data);
+        //         if (data.status !== 'success') {
+        //             notify(data.message || "Invalid OTP. Please try again.", 'error');
+        //             setOtpDigits(Array(6).fill(''));
+        //             return;
+        //         }
+        //     } catch (err) {
+        //         console.log('[OTP DEBUG] server validate error', err?.response?.data || err?.message);
+        //         notify(err.response?.data?.message || "Invalid OTP. Please try again.", 'error');
+        //         setOtpDigits(Array(6).fill(''));
+        //         return;
+        //     }
+
+        //     // OTP is valid, proceed with password reset
+        //     console.log('[OTP DEBUG] client verify passed', {
+        //         owner: storedOtpOwner,
+        //         input_tail: String(otpValue).slice(-2),
+        //         stored_tail: String(storedOTP).slice(-2)
+        //     });
+        //     setShowPasswordReset(true);
+        //     notify("OTP verified successfully");
             
-            return;
-        }
-
-        try {
-            // Check if OTP has expired
-            if (otpExpiration && new Date() > otpExpiration) {
-                notify("OTP has expired. Please request a new one.", 'error');
-                setStoredOTP(null);
-                setOtpExpiration(null);
-                return;
-            }
-
-            // Normalize requester email for strict match
-            const normalizedEmail = (email || '').trim().toLowerCase();
-
-            // Verify OTP belongs to the same requester (defense-in-depth on client)
-            if (storedOtpOwner !== normalizedEmail) {
-                notify("This OTP was not requested for this email. Please request a new OTP.", 'error');
-                setOtpDigits(Array(6).fill(''));
-                return;
-            }
-
-            // Server-side validation to avoid mismatch from multiple OTP requests
-            try {
-                const data = await validatePasswordResetOtp(
-                    normalizedEmail,
-                    otpValue
-                );
-                console.log('[OTP DEBUG] server validate result', data);
-                if (data.status !== 'success') {
-                    notify(data.message || "Invalid OTP. Please try again.", 'error');
-                    setOtpDigits(Array(6).fill(''));
-                    return;
-                }
-            } catch (err) {
-                console.log('[OTP DEBUG] server validate error', err?.response?.data || err?.message);
-                notify(err.response?.data?.message || "Invalid OTP. Please try again.", 'error');
-                setOtpDigits(Array(6).fill(''));
-                return;
-            }
-
-            // OTP is valid, proceed with password reset
-            console.log('[OTP DEBUG] client verify passed', {
-                owner: storedOtpOwner,
-                input_tail: String(otpValue).slice(-2),
-                stored_tail: String(storedOTP).slice(-2)
-            });
-            setShowPasswordReset(true);
-            notify("OTP verified successfully");
-            
-            // Clear OTP data
-            setStoredOTP(null);
-            setStoredOtpOwner(null);
-            setOtpExpiration(null);
-        } catch (error) {
-            notify("Error validating OTP", 'error');
-        }
+        //     // Clear OTP data
+        //     setStoredOTP(null);
+        //     setStoredOtpOwner(null);
+        //     setOtpExpiration(null);
+        // } catch (error) {
+        //     notify("Error validating OTP", 'error');
+        // }
     };
 
     const handlePasswordReset = async () => {
@@ -1022,196 +1033,204 @@ function Logins() {
         }
     };
 
+    // COMMENTED OUT: Login OTP Verification Method
     const handleVerifyLoginOTP = async () => {
-        const otpValue = loginOtpDigits.join('');
-        if (otpValue.length !== 6) {
-            notify("Please enter complete OTP", 'error');
-            return;
-        }
+        notify("Login OTP verification is temporarily disabled", 'error');
+        return;
+        
+        // const otpValue = loginOtpDigits.join('');
+        // if (otpValue.length !== 6) {
+        //     notify("Please enter complete OTP", 'error');
+        //     return;
+        // }
 
-        setIsVerifyingLoginOtp(true);
-        try {
-            // Check if OTP has expired
-            if (otpExpiration && new Date() > otpExpiration) {
-                notify("OTP has expired. Please request a new one.", 'error');
-                setStoredOTP(null);
-                setOtpExpiration(null);
-                return;
-            }
+        // setIsVerifyingLoginOtp(true);
+        // try {
+        //     // Check if OTP has expired
+        //     if (otpExpiration && new Date() > otpExpiration) {
+        //         notify("OTP has expired. Please request a new one.", 'error');
+        //         setStoredOTP(null);
+        //         setOtpExpiration(null);
+        //         return;
+        //     }
 
-            // Verify OTP against frontend-stored value
-            if (otpValue !== storedOTP) {
-                notify("Invalid OTP. Please try again.", 'error');
-                setLoginOtpDigits(Array(6).fill(''));
-                return;
-            }
+        //     // Verify OTP against frontend-stored value
+        //     if (otpValue !== storedOTP) {
+        //         notify("Invalid OTP. Please try again.", 'error');
+        //         setLoginOtpDigits(Array(6).fill(''));
+        //         return;
+        //     }
 
-            // OTP is valid, proceed with login
-            console.log("OTP verified successfully");
+        //     // OTP is valid, proceed with login
+        //     console.log("OTP verified successfully");
 
-            // Clear OTP data
-            setStoredOTP(null);
-            setOtpExpiration(null);
+        //     // Clear OTP data
+        //     setStoredOTP(null);
+        //     setOtpExpiration(null);
 
-            // Get user_id and API URL
-            const userData = SecureStorage.getSessionItem("temp_user_id");
-            const apiUrl = SecureStorage.getLocalItem("url");
+        //     // Get user_id and API URL
+        //     const userData = SecureStorage.getSessionItem("temp_user_id");
+        //     const apiUrl = SecureStorage.getLocalItem("url");
 
-            // Get user details for login completion
-            const userResponse = await axios.post(`${apiUrl}Admin.php`, {
-                operation: "fetchUsersById",
-                id: userData
-            });
+        //     // Get user details for login completion
+        //     const userResponse = await axios.post(`${apiUrl}Admin.php`, {
+        //         operation: "fetchUsersById",
+        //         id: userData
+        //     });
 
-            if (userResponse.data.status === "success" && 
-                userResponse.data.data && 
-                userResponse.data.data.length > 0) {
+        //     if (userResponse.data.status === "success" && 
+        //         userResponse.data.data && 
+        //         userResponse.data.data.length > 0) {
                 
-                const userDetails = userResponse.data.data[0];
+        //         const userDetails = userResponse.data.data[0];
 
-                // Check if this is the first login and password needs to be changed
-                if (userDetails.first_login === true) {
-                    console.log("First login detected after OTP verification, forcing password change");
-                    setCurrentPassword(loginPassword); // Store current password for comparison
-                    setShowForcePassword(true);
-                    setShowLoginOTP(false);
-                    return;
-                }
+        //         // Check if this is the first login and password needs to be changed
+        //         if (userDetails.first_login === true) {
+        //             console.log("First login detected after OTP verification, forcing password change");
+        //             setCurrentPassword(loginPassword); // Store current password for comparison
+        //             setShowForcePassword(true);
+        //             setShowLoginOTP(false);
+        //             return;
+        //         }
                 
-                // Clear existing storage but preserve API URL
-                localStorage.clear();
-                sessionStorage.clear();
+        //         // Clear existing storage but preserve API URL
+        //         localStorage.clear();
+        //         sessionStorage.clear();
                 
-                // Restore API URL
-                SecureStorage.setLocalItem("url", apiUrl);
+        //         // Restore API URL
+        //         SecureStorage.setLocalItem("url", apiUrl);
                 
-                // Set localStorage items securely using the correct field names
-                SecureStorage.setLocalItem("user_id", userDetails.users_id);
-                SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
-                SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
-                SecureStorage.setLocalItem("email", userDetails.users_email);
-                SecureStorage.setLocalItem("Department Name", userDetails.department_name);
-                SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
-                SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
-                SecureStorage.setLocalItem("user_level_id", userDetails.users_user_level_id);
-                SecureStorage.setLocalItem("department_id", userDetails.users_department_id);
-                SecureStorage.setLocalItem("profile_pic", userDetails.users_pic || "");
-                SecureStorage.setLocalItem("loggedIn", "true");
-                SecureStorage.setLocalItem("lastActivity", Date.now().toString());
+        //         // Set localStorage items securely using the correct field names
+        //         SecureStorage.setLocalItem("user_id", userDetails.users_id);
+        //         SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
+        //         SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
+        //         SecureStorage.setLocalItem("email", userDetails.users_email);
+        //         SecureStorage.setLocalItem("Department Name", userDetails.department_name);
+        //         SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
+        //         SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
+        //         SecureStorage.setLocalItem("user_level_id", userDetails.users_user_level_id);
+        //         SecureStorage.setLocalItem("department_id", userDetails.users_department_id);
+        //         SecureStorage.setLocalItem("profile_pic", userDetails.users_pic || "");
+        //         SecureStorage.setLocalItem("loggedIn", "true");
+        //         SecureStorage.setLocalItem("lastActivity", Date.now().toString());
                 
-                // Set session storage items
-                SecureStorage.setSessionItem("user_id", userDetails.users_id);
-                SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
-                SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
-                SecureStorage.setSessionItem("email", userDetails.users_email);
-                SecureStorage.setSessionItem("Department Name", userDetails.department_name);
-                SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
-                SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
-                SecureStorage.setSessionItem("user_level_id", userDetails.users_user_level_id);
-                SecureStorage.setSessionItem("department_id", userDetails.users_department_id);
-                SecureStorage.setSessionItem("profile_pic", userDetails.users_pic || "");
-                SecureStorage.setSessionItem("loggedIn", "true");
+        //         // Set session storage items
+        //         SecureStorage.setSessionItem("user_id", userDetails.users_id);
+        //         SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
+        //         SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
+        //         SecureStorage.setSessionItem("email", userDetails.users_email);
+        //         SecureStorage.setSessionItem("Department Name", userDetails.department_name);
+        //         SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
+        //         SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
+        //         SecureStorage.setSessionItem("user_level_id", userDetails.users_user_level_id);
+        //         SecureStorage.setSessionItem("department_id", userDetails.users_department_id);
+        //         SecureStorage.setSessionItem("profile_pic", userDetails.users_pic || "");
+        //         SecureStorage.setSessionItem("loggedIn", "true");
 
-                refreshSessionCookie('userSession');
+        //         refreshSessionCookie('userSession');
 
-                // --- PUSH NOTIFICATION SUBSCRIPTION ---
-                if (window.pushNotificationManager) {
-                    const userId = SecureStorage.getLocalItem("user_id");
-                    window.pushNotificationManager.subscribe(userId)
-                        .then(() => {
-                            console.log("Push subscription successful for user:", userId);
-                        })
-                        .catch((err) => {
-                            console.error("Push subscription failed:", err);
-                        });
-                }
+        //         // --- PUSH NOTIFICATION SUBSCRIPTION ---
+        //         if (window.pushNotificationManager) {
+        //             const userId = SecureStorage.getLocalItem("user_id");
+        //             window.pushNotificationManager.subscribe(userId)
+        //                 .then(() => {
+        //                     console.log("Push subscription successful for user:", userId);
+        //                 })
+        //                 .catch((err) => {
+        //                     console.error("Push subscription failed:", err);
+        //                 });
+        //         }
 
-                // Handle "Remember Me" functionality
-                if (rememberMe) {
-                    localStorage.setItem("rememberedUsername", username);
-                } else {
-                    localStorage.removeItem("rememberedUsername");
-                }
+        //         // Handle "Remember Me" functionality
+        //         if (rememberMe) {
+        //             localStorage.setItem("rememberedUsername", username);
+        //         } else {
+        //             localStorage.removeItem("rememberedUsername");
+        //         }
 
-                // Navigate based on user level
-                const userLevel = userDetails.user_level_name;
-                switch(userLevel) {
-                    case "Super Admin":
-                        notify("Super Admin Login Successful");
-                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
-                        break;
-                    case "Personnel":
-                        notify("Personnel Login Successful");
-                        setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
-                        break;
-                    case "Admin":
-                        notify("Admin Login Successful");
-                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
-                        break;
-                    case "Dean":
-                    case "Department Head":
-                    case "Secretary":
-                        notify("Dean Login Successful");
-                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
-                        break;
-                    case "Driver":
-                        notify("Driver Login Successful");
-                        setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
-                        break;
-                    default:
-                        notify("User Login Successful");
-                        setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
-                }
-            } else {
-                notify("Failed to get user details", 'error');
-            }
-        } catch (error) {
-            console.error('OTP verification error:', error);
-            notify("OTP verification failed. Please try again.", 'error');
-            // Clear any stored passwords on error
-            setCurrentPassword('');
-            setLoginPassword('');
-        } finally {
-            setIsVerifyingLoginOtp(false);
-        }
+        //         // Navigate based on user level
+        //         const userLevel = userDetails.user_level_name;
+        //         switch(userLevel) {
+        //             case "Super Admin":
+        //                 notify("Super Admin Login Successful");
+        //                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+        //                 break;
+        //             case "Personnel":
+        //                 notify("Personnel Login Successful");
+        //                 setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
+        //                 break;
+        //             case "Admin":
+        //                 notify("Admin Login Successful");
+        //                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+        //                 break;
+        //             case "Dean":
+        //             case "Department Head":
+        //             case "Secretary":
+        //                 notify("Dean Login Successful");
+        //                 setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+        //                 break;
+        //             case "Driver":
+        //                 notify("Driver Login Successful");
+        //                 setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+        //                 break;
+        //             default:
+        //                 notify("User Login Successful");
+        //                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
+        //         }
+        //     } else {
+        //         notify("Failed to get user details", 'error');
+        //     }
+        // } catch (error) {
+        //     console.error('OTP verification error:', error);
+        //     notify("OTP verification failed. Please try again.", 'error');
+        //     // Clear any stored passwords on error
+        //     setCurrentPassword('');
+        //     setLoginPassword('');
+        // } finally {
+        //     setIsVerifyingLoginOtp(false);
+        // }
     };
 
+    // COMMENTED OUT: Resend Login OTP Method
     const handleResendLoginOTP = async () => {
-        setIsResendingLoginOtp(true);
-        try {
-            const userData = SecureStorage.getSessionItem("temp_user_id");
+        notify("Resend login OTP is temporarily disabled", 'error');
+        return;
+        
+        // setIsResendingLoginOtp(true);
+        // try {
+        //     const userData = SecureStorage.getSessionItem("temp_user_id");
             
-            const response = await sendLoginOtpMail(
-                userData || username,
-                null,
-                null
-            );
+        //     const response = await sendLoginOtpMail(
+        //         userData || username,
+        //         null,
+        //         null
+        //     );
 
-            if (response.status === "success") {
-                setLoginResendTimer(180);
-                setCanResendLoginOtp(false);
+        //     if (response.status === "success") {
+        //         setLoginResendTimer(180);
+        //         setCanResendLoginOtp(false);
                 
-                if (response.requires_2fa) {
-                    // Generate new OTP for frontend verification
-                    const frontendOTP = Math.floor(100000 + Math.random() * 900000).toString();
-                    setStoredOTP(frontendOTP);
+        //         if (response.requires_2fa) {
+        //             // Generate new OTP for frontend verification
+        //             const frontendOTP = Math.floor(100000 + Math.random() * 900000).toString();
+        //             setStoredOTP(frontendOTP);
                     
-                    // Reset expiration time
-                    const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
-                    setOtpExpiration(expirationTime);
+        //             // Reset expiration time
+        //             const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
+        //             setOtpExpiration(expirationTime);
                     
-                    notify("OTP has been resent to your email");
-                } else {
-                    notify("2FA is not active for this user");
-                }
-            } else {
-                notify(response.data.message || "Failed to resend OTP", 'error');
-            }
-        } catch (error) {
-            notify("Error resending OTP", 'error');
-        } finally {
-            setIsResendingLoginOtp(false);
-        }
+        //             notify("OTP has been resent to your email");
+        //         } else {
+        //             notify("2FA is not active for this user");
+        //         }
+        //     } else {
+        //         notify(response.data.message || "Failed to resend OTP", 'error');
+        //     }
+        // } catch (error) {
+        //     notify("Error resending OTP", 'error');
+        // } finally {
+        //     setIsResendingLoginOtp(false);
+        // }
     };
 
     const handlePasswordChanged = async () => {
