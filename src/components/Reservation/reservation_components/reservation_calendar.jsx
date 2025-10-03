@@ -292,7 +292,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             status: res.reservation_status_status_id,
             isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === '6' || 
                        res.reservation_status_status_id === 8 || res.reservation_status_status_id === '8' || 
-                       res.reservation_status_status_id === 7 ||
+                       res.reservation_status_status_id === 7 || res.reservation_status_status_id === '7' || 
                        res.reservation_status_status_id === 10 || res.reservation_status_status_id === '10' || 
                        res.reservation_status_status_id === 11 || res.reservation_status_status_id === '11' || 
                        res.reservation_status_status_id === 14 || res.reservation_status_status_id === '14',
@@ -746,9 +746,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                               parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                               String(res.reservation_user_id) === String(currentUserId);
 
-      // All users should see existing reservations for availability checking
-      // Bypass roles can still make reservations over conflicts, but they should see the conflicts
-      const shouldInclude = res.isReserved || isOwnReservation;
+      const shouldInclude = isBypassRole ? isOwnReservation : (res.isReserved || isOwnReservation);
       
       if (!shouldInclude) return false;
       
@@ -990,9 +988,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                                     parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                                     String(res.reservation_user_id) === String(currentUserId);
 
-            // All users should see existing reservations in calendar display
-            // Bypass roles can still make reservations over conflicts, but they should see the conflicts
-            const shouldInclude = res.isReserved || isOwnReservation;
+            const shouldInclude = (isCooDepartmentHead || isSecretaryGSD) ? isOwnReservation : (res.isReserved || isOwnReservation);
             
             if (!shouldInclude) {
               console.log('Reservation filtered out - not included based on filtering rules');
@@ -4826,9 +4822,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                                 parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                                 String(res.reservation_user_id) === String(currentUserId);
 
-        // All users should see existing reservations for time slot blocking
-        // Bypass roles can still select conflicting times, but they should see the conflicts
-        const shouldInclude = res.isReserved || isOwnReservation;
+        const shouldInclude = isBypassRole ? isOwnReservation : (res.isReserved || isOwnReservation);
         
         console.log('Checking reservation:', {
           reservationId: res.reservation_id,
