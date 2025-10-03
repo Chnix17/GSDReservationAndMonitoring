@@ -2275,7 +2275,7 @@ class FacultyStaff {
                         'reservation_id' => $reservationId,
                         'type' => 'reservation_confirmation'
                     ];
-                    $pushUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+                    $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
 
                     foreach ($pushUsers as $pushUser) {
                         $pushPayload = [
@@ -2330,7 +2330,7 @@ class FacultyStaff {
                         'type' => 'reservation_approval',
                         'department_id' => $userLevel['users_department_id'],
                     ];
-                    $pushUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+                    $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
 
                     $successCount = 0;
                     $errorCount = 0;
@@ -2956,7 +2956,7 @@ class FacultyStaff {
                 'recipient_type' => 'admin'
             ]);
             
-            $pushUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+            $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
             $successCount = 0;
             $errorCount = 0;
             
@@ -3088,7 +3088,7 @@ class FacultyStaff {
                 'recipient_type' => 'department_approval'
             ];
             
-            $pushUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+            $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
             $successCount = 0;
             $errorCount = 0;
             
@@ -3302,7 +3302,7 @@ class FacultyStaff {
                 'department' => $department
             ];
             
-            $pushUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+            $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
             
             $successCount = 0;
             $errorCount = 0;

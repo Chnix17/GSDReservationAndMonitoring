@@ -9,7 +9,6 @@ import { setSessionCookie, removeSessionCookie, refreshSessionCookie } from '../
 import { initializeSessionManager, updateLastActivity } from '../../utils/sessionManager';
 import { SecureStorage } from '../../utils/encryption';
 import ForcePassword from '../../components/forcePassword';
-import { getApiBaseUrl } from '../../utils/apiConfig';
 import { sendLoginOtpMail, sendPasswordResetOtpMail, validatePasswordResetOtp } from '../../utils/otpUtils';
 
 function Logins() {
@@ -68,15 +67,6 @@ function Logins() {
     const [storedOtpOwner, setStoredOtpOwner] = useState(null); // track who requested the OTP
     const [otpExpiration, setOtpExpiration] = useState(null);
 
-    // Determine the correct base path for public assets based on API base URL
-    const assetBasePath = (() => {
-        try {
-            const apiBase = getApiBaseUrl();
-            return new URL(apiBase).pathname.replace(/\/api\/?$/, '');
-        } catch (e) {
-            return '';
-        }
-    })();
 
     const generateCaptcha = useCallback(() => {
         const canvas = captchaCanvasRef.current;
@@ -1368,7 +1358,7 @@ function Logins() {
                         <div className="w-full max-w-md text-center mb-12">
                             <div className="flex justify-center mb-6">
                                 <img 
-                                    src={`${assetBasePath}/public/images/assets/phinma.png`} 
+                                    src="/phinma.png" 
                                     alt="PHINMA CDO Logo" 
                                     className="w-24 h-24 object-contain filter drop-shadow-lg"
                                 />
@@ -1393,7 +1383,7 @@ function Logins() {
                         {/* Mobile Logo (visible only on small screens) */}
                         <div className="flex flex-col items-center lg:hidden mb-10">
                             <img 
-                                src={`${assetBasePath}/public/images/assets/phinma.png`} 
+                                src="/phinma.png" 
                                 alt="PHINMA CDO Logo" 
                                 className="w-20 h-20 object-contain mb-4"
                             />

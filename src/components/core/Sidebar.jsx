@@ -12,7 +12,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Popover, Transition } from '@headlessui/react';
 import { SecureStorage } from '../../utils/encryption';
 import ProfileAdminModal from './profile_admin';
-import { getApiBaseUrl } from '../../utils/apiConfig';
 
 const SidebarContext = createContext();
 
@@ -35,15 +34,6 @@ const Sidebar = () => {
   const [needRepair, setNeedRepair] = useState(false);
   const [repairReason, setRepairReason] = useState('');
 
-  // Compute correct base path for public assets (works under /gsd-reservation or other subpaths)
-  const assetBasePath = (() => {
-    try {
-      const apiBase = getApiBaseUrl();
-      return new URL(apiBase).pathname.replace(/\/api\/?$/, '');
-    } catch (e) {
-      return '';
-    }
-  })();
 
   const name = SecureStorage.getLocalItem('name') || 'Admin User';
   const userLevelName = SecureStorage.getLocalItem('user_level') || SecureStorage.getLocalItem('user_level');
@@ -722,7 +712,7 @@ const Sidebar = () => {
               <FaBars size={20} />
             </button>
                           <div className="flex items-center">
-              <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
+              <img src="/phinma.png" alt="Logo" className="w-8 h-8" />
               <span className="ml-2 font-bold text-black dark:text-white">GSD Portal</span>
             </div>
           </div>
@@ -809,7 +799,7 @@ const Sidebar = () => {
               {isDesktopSidebarOpen ? (
                 <>
                   <div className="flex items-center space-x-2">
-                    <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
+                    <img src="/phinma.png" alt="Logo" className="w-8 h-8" />
                     <span className="font-bold text-black dark:text-white">GSD Portal</span>
                   </div>
                   <button onClick={toggleDesktopSidebar} className="text-[#0b2a0b] dark:text-[#202521] p-1 rounded-full hover:bg-[#538c4c] dark:hover:bg-[#83b383]">
@@ -960,7 +950,7 @@ const Sidebar = () => {
             {/* Close button */}
             <div className="flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800">
               <div className="flex items-center space-x-2">
-                <img src={`${assetBasePath}/public/images/assets/phinma.png`} alt="Logo" className="w-8 h-8" />
+                <img src="/phinma.png" alt="Logo" className="w-8 h-8" />
                 <span className="font-bold text-green-600 dark:text-green-400">GSD Portal</span>
               </div>
               <button onClick={toggleMobileSidebar} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">

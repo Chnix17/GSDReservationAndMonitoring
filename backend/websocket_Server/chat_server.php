@@ -12,7 +12,12 @@ class Chat implements MessageComponentInterface {
     public function __construct() {
         $this->clients = new \SplObjectStorage;
         
-        $this->db = new \mysqli('localhost', 'root', '', 'dbgsd');
+        // Include database configuration from connection-pdo.php
+        require_once dirname(__DIR__) . '/connection-pdo.php';
+        
+        // Use the same database configuration as the main application
+        global $servername, $dbusername, $dbpassword, $dbname;
+        $this->db = new \mysqli($servername, $dbusername, $dbpassword, $dbname);
 
         if ($this->db->connect_error) {
             die("Connection failed: " . $this->db->connect_error);
