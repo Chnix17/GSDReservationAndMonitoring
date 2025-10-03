@@ -292,6 +292,7 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             status: res.reservation_status_status_id,
             isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === '6' || 
                        res.reservation_status_status_id === 8 || res.reservation_status_status_id === '8' || 
+                       res.reservation_status_status_id === 7 ||
                        res.reservation_status_status_id === 10 || res.reservation_status_status_id === '10' || 
                        res.reservation_status_status_id === 11 || res.reservation_status_status_id === '11' || 
                        res.reservation_status_status_id === 14 || res.reservation_status_status_id === '14',
