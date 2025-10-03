@@ -128,7 +128,7 @@ const Sidebar = () => {
       const currentUserId = SecureStorage.getLocalItem('user_id');
       
       // Fetch regular notifications
-      const response = await fetch(`${baseUrl}faculty&Staff.php`, {
+      const response = await fetch(`${baseUrl}faculty&staff.php`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -178,7 +178,7 @@ const Sidebar = () => {
 
       // Update regular notifications if any exist
       if (regularNotificationIds.length > 0) {
-        const response = await fetch(`${baseUrl}faculty&Staff.php`, {
+        const response = await fetch(`${baseUrl}faculty&staff.php`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

@@ -72,13 +72,8 @@ try {
         $thresholds = [1440 => '1 day', 300 => '5 hours', 120 => '2 hours', 60 => '1 hour'];
 
         // Build absolute URL to sender once
-        if ($isCli) {
-            $base = 'http://localhost/coc/gsd';
-        } else {
-            $scheme = isset($_SERVER['REQUEST_SCHEME']) ? $_SERVER['REQUEST_SCHEME'] : (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off' ? 'https' : 'http');
-            $base = $scheme . '://' . $_SERVER['HTTP_HOST'] . rtrim(dirname($_SERVER['REQUEST_URI']), '/');
-        }
-        $url = $base . '/send-push-notification.php';
+        // Use the same API base URL structure as the main application
+        $url = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
 
         $now = time();
         foreach ($data as $reservation) {

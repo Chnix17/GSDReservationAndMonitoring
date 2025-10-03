@@ -4440,7 +4440,8 @@ public function fetchEquipmentAndInactiveUnits() {
     public function sendPushNotificationToUser($userId, $title = 'Notification', $body = 'You have a new notification', $data = []) {
         try {
             // Make a POST request to the push notification service
-            $pushNotificationUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+            // Use absolute URL for production environment compatibility
+            $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
             
             $postData = json_encode([
                 'operation' => 'send',

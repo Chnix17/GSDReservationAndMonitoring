@@ -949,7 +949,7 @@ public function fetchApprovalNotification($departmentId, $userLevelId) {
     public function sendApprovalPushNotification($reservationId, $isAccepted, $userId, $data = []) {
         try {
             // Make a POST request to the push notification service
-            $pushNotificationUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+            $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
             
             $title = 'Department Approval Update';
             $body = $isAccepted ? 'Your reservation has been approved by the department.' : 'Your reservation has been declined by the department.';

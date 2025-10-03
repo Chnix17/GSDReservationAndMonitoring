@@ -62,7 +62,8 @@ class User {
         ];
 
         // Call the existing push sender via HTTP to avoid including its request handler
-        $url = (isset($_SERVER['REQUEST_SCHEME']) ? $_SERVER['REQUEST_SCHEME'] : 'http') . '://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/send-push-notification.php';
+        // Use the same API base URL structure as the main application
+        $url = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
 
         try {
             $ch = curl_init($url);

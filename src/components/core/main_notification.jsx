@@ -37,7 +37,7 @@ const NotificationPage = () => {
         const userId = SecureStorage.getSessionItem('user_id');
 
         // Regular notifications
-        const regularResponse = await fetch(`${baseUrl}faculty&Staff.php`, {
+        const regularResponse = await fetch(`${baseUrl}faculty&staff.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -137,7 +137,7 @@ const NotificationPage = () => {
 
       if (notif.notification_reservation_id) {
         // Regular notification
-        await fetch(`${baseUrl}faculty&Staff.php`, {
+        await fetch(`${baseUrl}faculty&staff.php`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({

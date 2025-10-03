@@ -134,7 +134,8 @@ class Chat implements MessageComponentInterface {
             // Mirror faculty&staff.php logic: http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php
             // Since faculty&staff.php resides under /gsd-reservation/backend/, the resolved URL is:
             //   http://localhost/gsd-reservation/backend/server/send-push-notification.php
-            $pushUrl = 'http://localhost/gsd-reservation/backend/server/send-push-notification.php';
+            // Use the same API base URL structure as the main application
+            $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
             echo "--- Building Push URL ---\n";
             echo "Value of \$_SERVER['HTTP_HOST']: " . ($_SERVER['HTTP_HOST'] ?? '[not set]') . "\n";
             echo "Value of \$_SERVER['REQUEST_URI']: " . ($_SERVER['REQUEST_URI'] ?? '[not set]') . "\n";

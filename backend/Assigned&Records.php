@@ -1558,7 +1558,7 @@ class Assigned {
     // Local helper: send push notification via PHP push service
     private function sendPushNotificationToUser($userId, $title = 'Notification', $body = 'You have a new notification', $data = []) {
         try {
-            $pushNotificationUrl = 'http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php';
+            $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
 
             $postData = json_encode([
                 'operation' => 'send',
