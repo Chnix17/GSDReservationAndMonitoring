@@ -745,7 +745,9 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                               parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                               String(res.reservation_user_id) === String(currentUserId);
 
-      const shouldInclude = isBypassRole ? isOwnReservation : (res.isReserved || isOwnReservation);
+      // All users should see existing reservations for availability checking
+      // Bypass roles can still make reservations over conflicts, but they should see the conflicts
+      const shouldInclude = res.isReserved || isOwnReservation;
       
       if (!shouldInclude) return false;
       
@@ -987,7 +989,9 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                                     parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                                     String(res.reservation_user_id) === String(currentUserId);
 
-            const shouldInclude = (isCooDepartmentHead || isSecretaryGSD) ? isOwnReservation : (res.isReserved || isOwnReservation);
+            // All users should see existing reservations in calendar display
+            // Bypass roles can still make reservations over conflicts, but they should see the conflicts
+            const shouldInclude = res.isReserved || isOwnReservation;
             
             if (!shouldInclude) {
               console.log('Reservation filtered out - not included based on filtering rules');
@@ -4821,7 +4825,9 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                                 parseInt(res.reservation_user_id) === parseInt(currentUserId) ||
                                 String(res.reservation_user_id) === String(currentUserId);
 
-        const shouldInclude = isBypassRole ? isOwnReservation : (res.isReserved || isOwnReservation);
+        // All users should see existing reservations for time slot blocking
+        // Bypass roles can still select conflicting times, but they should see the conflicts
+        const shouldInclude = res.isReserved || isOwnReservation;
         
         console.log('Checking reservation:', {
           reservationId: res.reservation_id,

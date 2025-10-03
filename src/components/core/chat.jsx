@@ -15,9 +15,9 @@ import {  FaRegLaughBeam} from 'react-icons/fa';
 import { useInView } from 'react-intersection-observer';
 import Sidebar from './Sidebar';
 import {SecureStorage} from '../../utils/encryption';
+import API_BASE_URL, { getApiBaseUrl } from '../../utils/apiConfig';
 import { useNavigate } from 'react-router-dom'; 
 import { toast } from 'sonner';
-import { getApiBaseUrl } from '../../utils/apiConfig';
 
 
 const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPicker, onReaction, currentUser }) => {
@@ -51,12 +51,16 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
 
   // Get the appropriate avatar URL based on whether it's own message or not
   const getAvatarUrl = (picture) => {
-    if (picture && picture.trim()) {
-      // If user has a profile picture, use it
-      return picture.startsWith('http') ? picture : `/gsd-reservation/uploads/profile/${picture}`;
+    if (!picture || picture === undefined || picture === null) return '/gsd-reservation/public/default-avatar.svg';
+    
+    // Check if it's already a full URL
+    if (picture.startsWith('http://') || picture.startsWith('https://')) {
+      return picture;
     }
-    // Fallback to default avatar with correct path (React public folder)
-    return `${process.env.PUBLIC_URL}/default-avatar.svg`;
+    
+    // Use the stored API URL
+    const apiUrl = SecureStorage.getLocalItem("url") || "http://localhost/gsd-reservation/";
+    return `${apiUrl}uploads/profile/${picture}`;
   };
   
   // Format timestamp
@@ -115,11 +119,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             src={getAvatarUrl(message.senderPic)}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onLoad={(e) => console.log('✅ Avatar loaded successfully:', e.target.src)}
-            onError={(e) => { 
-              console.log('❌ Avatar failed to load:', e.target.src, 'Falling back to default');
-              e.target.src = `${process.env.PUBLIC_URL}/default-avatar.svg`;
-            }}
+            onError={(e) => { e.target.src = '/gsd-reservation/public/default-avatar.svg' }}
           />
         </div>
       )}
@@ -230,14 +230,10 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
       {isOwn && (
         <div className="ml-2 flex-shrink-0">
           <img 
-            src={getAvatarUrl()}
+            src={getAvatarUrl(currentUser.picture)}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onLoad={(e) => console.log('✅ Current user avatar loaded successfully:', e.target.src)}
-            onError={(e) => { 
-              console.log('❌ Current user avatar failed to load:', e.target.src, 'Falling back to default');
-              e.target.src = `${process.env.PUBLIC_URL}/default-avatar.svg`;
-            }}
+            onError={(e) => { e.target.src = '/gsd-reservation/public/default-avatar.svg' }}
           />
         </div>
       )}
@@ -246,38 +242,10 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
 });
 
 const Chat = () => {
-  // Initialize API URL consistently with the main application
+  // Import SecureStorage
   const [apiUrl] = useState(() => {
-    const storedUrl = SecureStorage.getLocalItem("url");
-    const defaultUrl = getApiBaseUrl();
-    console.log('[Chat] Stored URL:', storedUrl, 'Default URL:', defaultUrl);
-    
-    // Always use the current default URL to ensure we're using deployed backend
-    if (!storedUrl || storedUrl !== defaultUrl) {
-      SecureStorage.setLocalItem("url", defaultUrl);
-      console.log('[Chat] Updated stored URL to:', defaultUrl);
-    }
-    
-    return defaultUrl;
-  });
-  
-  // WebSocket URL configuration
-  const [wsUrl] = useState(() => {
-    const baseUrl = getApiBaseUrl();
-    let websocketUrl;
-    
-    console.log('[Chat] Determining WebSocket URL from API base:', baseUrl);
-    
-    // Use the correct WebSocket endpoint for deployed backend
-    if (baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1')) {
-      websocketUrl = 'ws://localhost:8080';
-    } else {
-      // Use the correct deployed WebSocket endpoint based on backend structure
-      websocketUrl = 'wss://peachpuff-alligator-715719.hostingersite.com/gsd/api/websocket_Server/';
-    }
-    
-    console.log('[Chat] Configuration - API URL:', baseUrl, 'WebSocket URL:', websocketUrl);
-    return websocketUrl;
+    const url = SecureStorage.getLocalItem("url");
+    return url || "http://localhost/coc/gsd/";
   });
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -291,7 +259,8 @@ const Chat = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [currentUser] = useState({
     id: SecureStorage.getLocalItem('user_id'),
-    name: SecureStorage.getLocalItem('name')
+    name: SecureStorage.getLocalItem('name'),
+    picture: SecureStorage.getLocalItem('profile_pic')
   });
 
   const navigate = useNavigate();
@@ -319,6 +288,7 @@ const Chat = () => {
   const [conversationSearch, setConversationSearch] = useState('');
 
   const wsRef = useRef(null);
+  const wsUrlRef = useRef(null);
 
   // Set up responsive design
 
@@ -487,12 +457,8 @@ const Chat = () => {
 
   // Helper function to get avatar URL
   const getAvatarUrl = (picture) => {
-    if (picture && picture.trim()) {
-      // If user has a profile picture, use it
-      return picture.startsWith('http') ? picture : `/gsd-reservation/uploads/profile/${picture}`;
-    }
-    // Fallback to default avatar with correct path (React public folder)
-    return `${process.env.PUBLIC_URL}/default-avatar.svg`;
+    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
+    return `${apiUrl}${picture}`;
   };
 
   const renderChatHeader = () => {
@@ -514,14 +480,10 @@ const Chat = () => {
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <img 
-                    src={getAvatarUrl(activeConversation?.picture)}
+                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
                     className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
                     alt={activeConversation?.name || 'User'}
-                    onLoad={(e) => console.log('✅ Chat header avatar loaded successfully:', e.target.src)}
-                    onError={(e) => { 
-                      console.log('❌ Chat header avatar failed to load:', e.target.src, 'Falling back to default');
-                      e.target.src = `${process.env.PUBLIC_URL}/default-avatar.svg`;
-                    }}
+                    onError={(e) => { e.target.src = '/gsd-reservation/public/default-avatar.svg' }}
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
                     <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -852,13 +814,9 @@ const Chat = () => {
         ));
       } catch {}
 
-      // Try to send through WebSocket if available, otherwise rely on polling to fetch new messages
+      // Try to send through WebSocket if available
       if (ws && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify(messageData));
-      } else {
-        // In polling mode, the message is already saved via the API call above
-        // The polling mechanism will fetch it for other users
-        console.log('[Chat] Message sent via API (polling mode)');
       }
 
       // Reset states
@@ -1004,71 +962,80 @@ const Chat = () => {
   const RECONNECT_DELAY = 1000; // 1 second - faster reconnection
   const [reconnectAttempts, setReconnectAttempts] = useState(0);
   const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  // Polling-based chat system (fallback when WebSocket is not available)
-  const [pollingInterval, setPollingInterval] = useState(null);
-  const lastMessageTimestamp = useRef(null);
+  // Add polling fallback state
+  const [usePolling, setUsePolling] = useState(false);
+  const pollingIntervalRef = useRef(null);
 
+  // Start polling fallback
   const startPolling = useCallback(() => {
-    console.log('[Chat] Starting polling-based chat system');
-    setConnectionStatus('connected');
-    setIsConnected(true);
+    if (pollingIntervalRef.current) return; // Already polling
     
-    const interval = setInterval(async () => {
+    console.log('[Chat] Starting polling fallback (every 2 seconds)');
+    setUsePolling(true);
+    setConnectionStatus('polling');
+    
+    pollingIntervalRef.current = setInterval(() => {
       if (activeConversation) {
-        try {
-          // Poll for new messages
-          await memorizeFetchAllChats();
-        } catch (error) {
-          console.error('Error polling for messages:', error);
-        }
+        memorizeFetchAllChats();
       }
     }, 2000); // Poll every 2 seconds
-    
-    setPollingInterval(interval);
-    return interval;
   }, [activeConversation, memorizeFetchAllChats]);
 
+  // Stop polling fallback
   const stopPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-      setPollingInterval(null);
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+      pollingIntervalRef.current = null;
+      setUsePolling(false);
+      console.log('[Chat] Stopped polling fallback');
     }
-    setIsConnected(false);
-    setConnectionStatus('disconnected');
-  }, [pollingInterval]);
+  }, []);
 
   const connectWebSocket = useCallback(() => {
     if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      console.log('[Chat] Max WebSocket attempts reached, falling back to polling');
-      startPolling();
+      setConnectionStatus('failed');
+      console.error('Max reconnection attempts reached, falling back to polling');
+      startPolling(); // Start polling when WebSocket fails completely
       return;
     }
 
     try {
-      // Try WebSocket connection first
-      console.log('[Chat] Attempting WebSocket connection to:', wsUrl, '(Attempt', reconnectAttempts + 1, '/' + MAX_RECONNECT_ATTEMPTS + ')');
+      // Derive WebSocket URL from settings or API base URL
+      if (!wsUrlRef.current) {
+        const overrideWs = SecureStorage.getLocalItem('ws_url');
+        if (overrideWs) {
+          wsUrlRef.current = overrideWs;
+        } else {
+          let base = SecureStorage.getLocalItem('url') || getApiBaseUrl?.() || API_BASE_URL || window.location.origin + '/';
+          try {
+            const u = new URL(base);
+            const isHttps = u.protocol === 'https:';
+            const wsProto = isHttps ? 'wss' : 'ws';
+            const isLocal = (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
+            // Use port-based connection for both local and production
+            wsUrlRef.current = `${wsProto}://${u.hostname}:8080`;
+          } catch (e) {
+            // Fallbacks
+            const locIsHttps = window.location.protocol === 'https:';
+            const locWsProto = locIsHttps ? 'wss' : 'ws';
+            wsUrlRef.current = `${locWsProto}://${window.location.hostname}:8080`;
+          }
+        }
+      }
+      const wsUrl = wsUrlRef.current;
+      console.log('[Chat] Connecting WebSocket to:', wsUrl, '(Attempt', reconnectAttempts + 1, '/' + MAX_RECONNECT_ATTEMPTS + ')');
 
       const socket = new WebSocket(wsUrl);
       wsRef.current = socket;
       setConnectionStatus('connecting');
 
-      const connectionTimeout = setTimeout(() => {
-        if (socket.readyState !== WebSocket.OPEN) {
-          console.log('[Chat] WebSocket connection timeout, falling back to polling');
-          socket.close();
-          setReconnectAttempts(MAX_RECONNECT_ATTEMPTS); // Force fallback to polling
-          startPolling();
-        }
-      }, 5000); // 5 second timeout
-
       socket.onopen = () => {
-        clearTimeout(connectionTimeout);
         console.log('WebSocket Connected');
         setIsConnected(true);
         setConnectionStatus('connected');
         setReconnectAttempts(0);
-        
-        // Register this connection with the backend
+        stopPolling(); // Stop polling when WebSocket connects
+        // Register this connection with the backend to bind user_id to socket
         try {
           if (currentUser?.id) {
             const registerPayload = {
@@ -1084,24 +1051,25 @@ const Chat = () => {
       };
 
       socket.onclose = (event) => {
-        clearTimeout(connectionTimeout);
         console.log('WebSocket Disconnected', event.code, event.reason);
         setIsConnected(false);
         setConnectionStatus('disconnected');
         wsRef.current = null;
         
-        // Fall back to polling if WebSocket fails
-        if (!event.wasClean && reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
-          const delay = RECONNECT_DELAY;
-          console.log(`Attempting to reconnect in ${delay/1000} seconds... (Attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-          setReconnectAttempts(prev => prev + 1);
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connectWebSocket();
-          }, delay);
-        } else {
-          console.log('[Chat] WebSocket failed, falling back to polling');
-          startPolling();
+        // Don't reconnect if closure was clean
+        if (event.wasClean) {
+          console.log('Clean disconnection');
+          return;
         }
+
+        // Attempt to reconnect with constant delay for faster reconnection
+        const delay = RECONNECT_DELAY;
+        console.log(`Attempting to reconnect in ${delay/1000} seconds... (Attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
+        setReconnectAttempts(prev => prev + 1);
+        reconnectTimeoutRef.current = setTimeout(() => {
+          // Port-based connection is already configured correctly
+          connectWebSocket();
+        }, delay);
       };
 
       socket.onmessage = (event) => {
@@ -1109,9 +1077,11 @@ const Chat = () => {
           const data = JSON.parse(event.data);
           console.log('Received WebSocket message:', data);
           
-          // Process the incoming message (same logic as before)
+          // Process the incoming message
           if (data.message && (data.sender_id || data.receiver_id)) {
             const messageId = data.message_id || Date.now().toString();
+
+            // Determine if this message belongs to the currently active conversation
             const activeId = activeConversation ? parseInt(activeConversation.id) : null;
             const belongsToActive = !!activeConversation && (
               (data.sender_id === parseInt(currentUser.id) && data.receiver_id === activeId) ||
@@ -1131,8 +1101,11 @@ const Chat = () => {
             };
 
             if (belongsToActive) {
+              // Add the message to the open chat if not already present
               setMessages(prev => {
                 if (prev.some(msg => msg.id === messageId)) return prev;
+
+                // If this is our own message, attempt to merge with an optimistic one
                 if (newMessage.isOwn) {
                   const idx = prev.findIndex(m => (
                     m.isOwn === true &&
@@ -1149,14 +1122,16 @@ const Chat = () => {
                 return [...prev, newMessage];
               });
             } else {
+              // Not the active chat: flag new messages for the list
               setHasNewMessages(true);
             }
 
-            // Update conversations list
+            // Update conversations list (last message, timestamp, unread counter)
             setConversations(prev => {
               const otherId = data.sender_id === parseInt(currentUser.id) ? data.receiver_id : data.sender_id;
               const otherName = data.sender_id === parseInt(currentUser.id) ? data.receiver_name : data.sender_name;
               const ts = new Date(data.timestamp || Date.now());
+
               const existing = Array.isArray(prev) ? prev.find(c => c.id === otherId) : undefined;
               const unreadIncrement = belongsToActive ? 0 : 1;
 
@@ -1178,18 +1153,23 @@ const Chat = () => {
       };
 
       socket.onerror = (error) => {
-        clearTimeout(connectionTimeout);
         console.error('WebSocket Error:', error);
         setConnectionStatus('error');
-        // Fall back to polling on error
-        setReconnectAttempts(MAX_RECONNECT_ATTEMPTS);
-        startPolling();
+        // Hint user which URL is being used
+        toast.error(`Chat connection error. Retrying...`);
       };
+
+      // Set up ping/pong to keep connection alive
+      const pingInterval = setInterval(() => {
+        if (socket.readyState === WebSocket.OPEN) {
+          socket.send(JSON.stringify({ type: 'ping' }));
+        }
+      }, 30000); // Send ping every 30 seconds
 
       setWs(socket);
 
       return () => {
-        clearTimeout(connectionTimeout);
+        clearInterval(pingInterval);
         if (reconnectTimeoutRef.current) {
           clearTimeout(reconnectTimeoutRef.current);
         }
@@ -1200,19 +1180,24 @@ const Chat = () => {
     } catch (error) {
       console.error('Error creating WebSocket:', error);
       setConnectionStatus('error');
-      // Fall back to polling
-      startPolling();
+      // Attempt to reconnect
+      const delay = RECONNECT_DELAY;
+      console.log(`Reconnecting after error in ${delay/1000} seconds...`);
+      setReconnectAttempts(prev => prev + 1);
+      reconnectTimeoutRef.current = setTimeout(() => {
+        connectWebSocket();
+      }, delay);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reconnectAttempts, currentUser.id, wsUrl, startPolling]);
+  }, [reconnectAttempts, currentUser.id]);
 
   useEffect(() => {
     // Only connect once on mount
-    console.log('[Chat] Initializing connection...');
+    console.log('[Chat] Initializing WebSocket connection...');
     const cleanup = connectWebSocket();
     
     return () => {
-      console.log('[Chat] Cleaning up connection...');
+      console.log('[Chat] Cleaning up WebSocket connection...');
       if (cleanup && typeof cleanup === 'function') cleanup();
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
@@ -1220,8 +1205,7 @@ const Chat = () => {
       if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.close(1000, 'Component unmounting');
       }
-      // Clean up polling
-      stopPolling();
+      stopPolling(); // Stop polling on cleanup
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Empty deps - only run once on mount
@@ -1231,10 +1215,10 @@ const Chat = () => {
     if (connectionStatus !== 'connected' && activeConversation) {
       // Show connection status to user
       const statusMessages = {
-        disconnected: 'Connecting to chat server...',
+        disconnected: 'Disconnected from chat server. Reconnecting...',
         connecting: 'Connecting to chat server...',
-        error: 'Connection error. Using fallback mode...',
-        failed: 'Using polling mode for chat.'
+        error: 'Connection error. Retrying...',
+        failed: 'Failed to connect to chat server. Please refresh the page.'
       };
       
       // You can show this status in your UI
@@ -1910,11 +1894,19 @@ const Chat = () => {
         )}
       </AnimatePresence>
 
-      {/* Update WebSocket connection status display */}
-      {!isConnected && (
+      {/* Update connection status display */}
+      {!isConnected && connectionStatus !== 'polling' && (
         <div className="fixed bottom-4 right-4 z-50 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
           <FiAlertCircle className="w-5 h-5" />
           <p>Connection lost. Attempting to reconnect...</p>
+        </div>
+      )}
+      
+      {/* Show polling mode indicator */}
+      {usePolling && (
+        <div className="fixed bottom-4 right-4 z-50 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
+          <FiRefreshCw className="w-5 h-5 animate-spin" />
+          <p>Chat in polling mode</p>
         </div>
       )}
 

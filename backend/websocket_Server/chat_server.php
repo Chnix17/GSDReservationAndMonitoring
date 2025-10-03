@@ -7,24 +7,14 @@ require dirname(__DIR__) . '/vendor/autoload.php';
 
 class Chat implements MessageComponentInterface {
     protected $clients;
-    private $db;
+    private $conn;
 
     public function __construct() {
-        $this->clients = new \SplObjectStorage;
-        
-        // Include database configuration from connection-pdo.php
-        require_once dirname(__DIR__) . '/connection-pdo.php';
-        
-        // Use the same database configuration as the main application
-        global $servername, $dbusername, $dbpassword, $dbname;
-        $this->db = new \mysqli($servername, $dbusername, $dbpassword, $dbname);
-
-        if ($this->db->connect_error) {
-            die("Connection failed: " . $this->db->connect_error);
-        }
-        echo "Database connection successful\n";
-        echo "Chat server build: assoc-array validation enabled\n";
+        include __DIR__ . '/../connection-pdo.php'; // safe include
+        $this->conn = $conn; // PDO instance from connection-pdo.php
+        $this->clients = new \SplObjectStorage();
     }
+    
 
     public function onOpen(ConnectionInterface $conn) {
         // Store the new connection to send messages to later
@@ -88,15 +78,20 @@ class Chat implements MessageComponentInterface {
             return;
         }
 
-        $stmt = $this->db->prepare("INSERT INTO tbl_chat (sender_id, receiver_id, message) VALUES (?, ?, ?)");
-        if (!$stmt) {
-            echo "Prepare failed: {$this->db->error}\n";
-            @error_log("DB prepare failed: {$this->db->error}\n", 3, __DIR__ . '/chat_server.log');
+        try {
+            $stmt = $this->conn->prepare("INSERT INTO tbl_chat (sender_id, receiver_id, message) VALUES (:sender_id, :receiver_id, :message)");
+            $ok = $stmt->execute([
+                ':sender_id' => $sender_id,
+                ':receiver_id' => $receiver_id,
+                ':message' => $message
+            ]);
+        } catch (\Throwable $e) {
+            echo "DB error saving message: {$e->getMessage()}\n";
+            @error_log("DB error saving message: {$e->getMessage()}\n", 3, __DIR__ . '/chat_server.log');
             return;
         }
-        $stmt->bind_param("iis", $sender_id, $receiver_id, $message);
-        
-        if ($stmt->execute()) {
+
+        if ($ok) {
             echo "Message saved to database\n";
 
             // Non-blocking audit logging for chat message insertion
@@ -105,33 +100,25 @@ class Chat implements MessageComponentInterface {
                 $fullNameSql = "SELECT CONCAT(\n                                    users_fname,\n                                    CASE WHEN users_mname IS NOT NULL AND users_mname != '' THEN CONCAT(' ', LEFT(users_mname, 1), '.') ELSE '' END,\n                                    ' ', users_lname\n                                 ) AS full_name\n                               FROM tbl_users WHERE users_id = ?";
 
                 $sender_name = null; $receiver_name = null;
-                if ($ns = $this->db->prepare($fullNameSql)) {
-                    $ns->bind_param("i", $sender_id);
-                    $ns->execute();
-                    $ns->bind_result($sender_name);
-                    $ns->fetch();
-                    $ns->close();
-                }
-                if ($nr = $this->db->prepare($fullNameSql)) {
-                    $nr->bind_param("i", $receiver_id);
-                    $nr->execute();
-                    $nr->bind_result($receiver_name);
-                    $nr->fetch();
-                    $nr->close();
-                }
+                $ns = $this->conn->prepare($fullNameSql);
+                $ns->execute([$sender_id]);
+                $sender_name = $ns->fetchColumn();
+                $nr = $this->conn->prepare($fullNameSql);
+                $nr->execute([$receiver_id]);
+                $receiver_name = $nr->fetchColumn();
 
                 $sender_name = $sender_name ?: ('User #' . (int)$sender_id);
                 $receiver_name = $receiver_name ?: ('User #' . (int)$receiver_id);
 
                 $snippet = substr((string)$message, 0, 200);
-                $desc = "User {$sender_name} sent a message to {$receiver_name}: '" . $this->db->real_escape_string($snippet) . "'";
-
-                if ($al = $this->db->prepare("INSERT INTO audit_log (description, action, created_at, created_by) VALUES (?, ?, NOW(), ?)")) {
-                    $action = 'SEND MESSAGE';
-                    $al->bind_param("ssi", $desc, $action, $sender_id);
-                    $al->execute();
-                    $al->close();
-                }
+                $desc = "User {$sender_name} sent a message to {$receiver_name}: '" . str_replace("'", "''", $snippet) . "'";
+                $action = 'SEND MESSAGE';
+                $al = $this->conn->prepare("INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)");
+                $al->execute([
+                    ':description' => $desc,
+                    ':action' => $action,
+                    ':created_by' => $sender_id
+                ]);
             } catch (\Throwable $e) { /* ignore audit logging errors */ }
 
             // Send push notification to receiver
@@ -139,15 +126,20 @@ class Chat implements MessageComponentInterface {
             // Mirror faculty&staff.php logic: http://' . $_SERVER['HTTP_HOST'] . dirname($_SERVER['REQUEST_URI']) . '/server/send-push-notification.php
             // Since faculty&staff.php resides under /gsd-reservation/backend/, the resolved URL is:
             //   http://localhost/gsd-reservation/backend/server/send-push-notification.php
-            // Use the same API base URL structure as the main application
-            $pushUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
+            $base = getenv('GSD_BASE_URL');
+            if (!$base) {
+                // Fallback to common localhost path
+                $base = 'http://localhost/gsd-reservation/backend/';
+            }
+            $base = rtrim($base, '/') . '/';
+            $pushUrl = $base . 'server/send-push-notification.php';
             echo "--- Building Push URL ---\n";
             echo "Value of \$_SERVER['HTTP_HOST']: " . ($_SERVER['HTTP_HOST'] ?? '[not set]') . "\n";
             echo "Value of \$_SERVER['REQUEST_URI']: " . ($_SERVER['REQUEST_URI'] ?? '[not set]') . "\n";
             echo "Constructed URL: $pushUrl\n";
             echo "---------------------------\n";
 
-            $pushData = [
+            $pushData = [       
                 'operation' => 'send',
                 'user_id' => $receiver_id,
                 'title' => 'New Message',
@@ -183,9 +175,8 @@ class Chat implements MessageComponentInterface {
                 echo "Push notification sent successfully to chat receiver $receiver_id\n";
             }
         } else {
-            echo "Error saving message: {$stmt->error}\n";
+            echo "Error saving message (execute returned false)\n";
         }
-        $stmt->close();
 
         // Broadcast sanitized payload to all clients
         $broadcast = [
@@ -220,14 +211,15 @@ use Ratchet\Server\IoServer;
 use Ratchet\Http\HttpServer;
 use Ratchet\WebSocket\WsServer;
 
+$port = getenv('GSD_WS_PORT') ? (int)getenv('GSD_WS_PORT') : 8081;
 $server = IoServer::factory(
     new HttpServer(
         new WsServer(
             new Chat()
         )
     ),
-    8080
+    $port
 );
 
-echo "WebSocket server running at ws://localhost:8080\n";
+echo "WebSocket server running at ws://localhost:$port\n";
 $server->run(); 

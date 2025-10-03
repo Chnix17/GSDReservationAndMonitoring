@@ -1,0 +1,312 @@
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [171]: {"type":"register","user_id":99}
+Registered 171 as user 99
+WS IN [176]: {"type":"register","user_id":99}
+Registered 176 as user 99
+WS IN [176]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 176
+WS IN [54]: {"type":"register","user_id":99}
+Registered 54 as user 99
+WS IN [89]: {"type":"register","user_id":99}
+Registered 89 as user 99
+WS IN [54]: {"type":"register","user_id":99}
+Registered 54 as user 99
+WS IN [89]: {"type":"register","user_id":99}
+Registered 89 as user 99
+WS IN [94]: {"type":"register","user_id":99}
+Registered 94 as user 99
+WS IN [99]: {"type":"register","user_id":99}
+Registered 99 as user 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [108]: {"type":"register","user_id":99}
+Registered 108 as user 99
+WS IN [113]: {"type":"register","user_id":99}
+Registered 113 as user 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [108]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 108
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [113]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 113
+WS IN [142]: {"type":"register","user_id":99}
+Registered 142 as user 99
+WS IN [147]: {"type":"register","user_id":99}
+Registered 147 as user 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [147]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 147
+WS IN [212]: {"type":"register","user_id":99}
+Registered 212 as user 99
+WS IN [215]: {"type":"register","user_id":99}
+Registered 215 as user 99
+WS IN [222]: {"type":"register","user_id":99}
+Registered 222 as user 99
+WS IN [227]: {"type":"register","user_id":99}
+Registered 227 as user 99
+WS IN [232]: {"type":"register","user_id":99}
+Registered 232 as user 99
+WS IN [237]: {"type":"register","user_id":99}
+Registered 237 as user 99
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [212]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 212
+WS IN [250]: {"type":"register","user_id":99}
+Registered 250 as user 99
+WS IN [255]: {"type":"register","user_id":99}
+Registered 255 as user 99
+WS IN [222]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 222
+WS IN [232]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 232
+WS IN [212]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 212
+WS IN [142]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 142
+WS IN [268]: {"type":"register","user_id":99}
+Registered 268 as user 99
+WS IN [273]: {"type":"register","user_id":99}
+Registered 273 as user 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [268]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 268
+WS IN [273]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 273
+WS IN [338]: {"type":"register","user_id":99}
+Registered 338 as user 99
+WS IN [343]: {"type":"register","user_id":99}
+Registered 343 as user 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [343]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 343
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [343]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 343
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [343]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 343
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [343]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 343
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [343]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 343
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [343]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 343
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [338]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 338
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
+WS IN [89]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 89
+WS IN [99]: {"type":"ping"}
+Ignoring non-chat message type 'ping' from 99
