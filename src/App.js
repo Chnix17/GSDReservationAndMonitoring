@@ -40,6 +40,7 @@ import Archive from './pages/Admin/archive';
 import NotFound from './utils/NotFound';
 import Checklists from './pages/Admin/Checklist';
 import Reports from './pages/Admin/Reports';
+import IssueBugsReports from './pages/Admin/IssueBugsReports';
 import { SecureStorage } from './utils/encryption';
 
 import Holiday from './pages/Admin/Holiday';
@@ -60,6 +61,7 @@ import PersonnelLayout from './layouts/PersonnelLayout';
 import DriverLayout from './layouts/DriverLayout';
 import LoginRedirect from './components/LoginRedirect';
 import { getApiBaseUrl } from './utils/apiConfig';
+import SubmitReport from './pages/common/SubmitReport';
 
 // Service worker registration is handled by pushNotificationManager.js
 
@@ -146,6 +148,7 @@ const App = () => {
                             <Route path="record" element={<Record />} />
                             <Route path="archive" element={<Archive />} />
                             <Route path="Reports" element={<Reports />} />
+                            <Route path="IssueBugsReports" element={<IssueBugsReports />} />
                            
                             <Route path="Chat" element={<Chat />} />
                             <Route path="Notification" element={<Notification />} />
@@ -172,6 +175,7 @@ const App = () => {
                             <Route path="MyReservations" element={<MyReservation />} />
                             <Route path="ViewApproval" element={<ViewApproval />} />
                             <Route path="MyTicketRequest" element={<MyTicketRequest />} />
+                            <Route path="SubmitReport" element={<SubmitReport />} />
                           
                             <Route path="Chat" element={<Chat />} />
                             <Route path="Notification" element={<Notification />} />
@@ -184,6 +188,7 @@ const App = () => {
                             <Route index element={<PersonnelDashboard />} />
                             <Route path="Dashboard" element={<PersonnelDashboard />} />
                             <Route path="ViewTask" element={<ViewTask />} />
+                            <Route path="SubmitReport" element={<SubmitReport />} />
                             <Route path="Notification" element={<Notification />} />
                             <Route path="Chat" element={<Chat />} />
                             {/* Catch-all for invalid Personnel routes */}

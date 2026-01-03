@@ -882,13 +882,17 @@ const Sidebar = () => {
       { type: 'section', text: 'Reservation Management' },
       { type: 'link', icon: FaCar, text: 'Make Request', link: '/Department/addReservation' },
       { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/Department/MyReservations' },
-      { type: 'link', icon: FaFileAlt, text: 'My Ticket Request', link: '/Department/MyTicketRequest' }
+      { type: 'link', icon: FaFileAlt, text: 'My Ticket Request', link: '/Department/MyTicketRequest' },
+      { type: 'section', text: 'Reports' },
+      { type: 'link', icon: FaFileAlt, text: 'Submit Report', link: '/Department/SubmitReport' }
       
     ],
     personnel: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Personnel/Dashboard' },
       { type: 'link', icon: FaComments, text: 'Chat', link: '/Personnel/Chat' },
       { type: 'link', icon: FaFileAlt, text: 'View Task', link: '/Personnel/ViewTask' },
+      { type: 'section', text: 'Reports' },
+      { type: 'link', icon: FaFileAlt, text: 'Submit Report', link: '/Personnel/SubmitReport' },
     ],
     driver: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Driver/Dashboard' },
@@ -1180,7 +1184,7 @@ const Sidebar = () => {
               />
 
             
-              <SectionLabel text="Manage Reservation" isExpanded={isDesktopSidebarOpen} />
+              <SectionLabel text="RESERVATION & WORK MANAGEMENT" isExpanded={isDesktopSidebarOpen} />
 
               <MiniSidebarItem 
                 icon={FaUserCircle} 
@@ -1201,7 +1205,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFolder} 
-                text="View Requests" 
+                text="Reservation Request" 
                 link="/Admin/ViewRequest" 
                 active={activeItem === '/Admin/ViewRequest'}
                 isExpanded={isDesktopSidebarOpen}
@@ -1215,6 +1219,8 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
+              <SectionLabel text="REPORTS & LOGS" isExpanded={isDesktopSidebarOpen} />
+
               <MiniSidebarItem 
                 icon={FaChartBar} 
                 text="Defect Reports" 
@@ -1225,13 +1231,27 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="Records" 
+                text="Issue & Bugs Reports" 
+                link="/Admin/IssueBugsReports" 
+                active={activeItem === '/Admin/IssueBugsReports'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
+              <MiniSidebarItem 
+                icon={FaArchive} 
+                text="Reservation Records" 
                 link="/Admin/record" 
                 active={activeItem === '/Admin/record'}
                 isExpanded={isDesktopSidebarOpen}
               />
-              
-                
+
+              <MiniSidebarItem 
+                icon={FaFileAlt} 
+                text="Complaint Report" 
+                link="/Admin/AllJobOrders" 
+                active={activeItem === '/Admin/AllJobOrders'}
+                isExpanded={isDesktopSidebarOpen}
+              />
               
               <MiniSidebarItem 
                 icon={FaHistory} 
@@ -1354,7 +1374,7 @@ const Sidebar = () => {
 
              
 
-              <SectionLabel text="Manage Reservation" isExpanded={true} />
+              <SectionLabel text="RESERVATION & WORK MANAGEMENT" isExpanded={true} />
 
               <MiniSidebarItem 
                 icon={FaUserCircle} 
@@ -1375,7 +1395,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFolder} 
-                text="View Requests" 
+                text="Reservation Request" 
                 link="/Admin/ViewRequest" 
                 active={activeItem === '/Admin/ViewRequest'}
                 isExpanded={true}
@@ -1389,6 +1409,8 @@ const Sidebar = () => {
                 isExpanded={true}
               />
 
+              <SectionLabel text="REPORTS & LOGS" isExpanded={true} />
+
               <MiniSidebarItem 
                 icon={FaChartBar} 
                 text="Defect Reports" 
@@ -1399,9 +1421,25 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="Records" 
+                text="Issue & Bugs Reports" 
+                link="/Admin/IssueBugsReports" 
+                active={activeItem === '/Admin/IssueBugsReports'}
+                isExpanded={true}
+              />
+
+              <MiniSidebarItem 
+                icon={FaArchive} 
+                text="Reservation Records" 
                 link="/Admin/record" 
                 active={activeItem === '/Admin/record'}
+                isExpanded={true}
+              />
+
+              <MiniSidebarItem 
+                icon={FaFileAlt} 
+                text="Complaint Report" 
+                link="/Admin/AllJobOrders" 
+                active={activeItem === '/Admin/AllJobOrders'}
                 isExpanded={true}
               />
 

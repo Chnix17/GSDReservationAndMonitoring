@@ -23,6 +23,7 @@ import {
 } from 'date-fns';
 import { SecureStorage } from '../../utils/encryption';
 import ReservationDetails from '../../components/core/reservation_details';
+import JobOrderDetailsModal from '../../components/core/JobOrderDetailsModal';
 
 // Updated theme constants
 const themeColors = {
@@ -36,6 +37,23 @@ const themeColors = {
   text: '#1F2937',
   border: '#E5E7EB',
   gradient: 'from-green-100 to-white'
+};
+
+const ticketStatusColors = {
+  pending: '#F59E0B',
+  ongoing: '#3B82F6',
+  completed: '#10B981',
+  declined: '#EF4444',
+  default: '#6B7280'
+};
+
+const getTicketColor = (statusName) => {
+  const statusLower = String(statusName || '').toLowerCase();
+  if (statusLower.includes('pending')) return ticketStatusColors.pending;
+  if (statusLower.includes('ongoing') || statusLower.includes('on-going') || statusLower.includes('in progress')) return ticketStatusColors.ongoing;
+  if (statusLower.includes('complete') || statusLower.includes('done') || statusLower.includes('closed')) return ticketStatusColors.completed;
+  if (statusLower.includes('decline') || statusLower.includes('reject') || statusLower.includes('cancel')) return ticketStatusColors.declined;
+  return ticketStatusColors.default;
 };
 
 // Reservation type and status color mapping
@@ -178,9 +196,15 @@ const Calendar = () => {
   const [setShowYearSelect] = useState(false);
   const [isYearModalOpen, setIsYearModalOpen] = useState(false);
   const [reservations, setReservations] = useState([]);
+  const [tickets, setTickets] = useState([]);
+
+  const [calendarFilter, setCalendarFilter] = useState('all');
 
   const [isDetailsModalOpen, setIsDetailsModalOpen] = useState(false);
   const [selectedReservation, setSelectedReservation] = useState(null);
+
+  const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [selectedTicket, setSelectedTicket] = useState(null);
 
 
   const encryptedUrl = SecureStorage.getLocalItem("url");
@@ -235,6 +259,37 @@ const Calendar = () => {
     }
   }, [encryptedUrl]);
 
+  const fetchTickets = useCallback(async () => {
+    try {
+      if (!encryptedUrl) return;
+      const response = await axios({
+        method: 'POST',
+        url: `${encryptedUrl}/Admin.php`,
+        data: JSON.stringify({ operation: 'getAllTickets' }),
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
+        setTickets(response.data.data);
+      } else {
+        setTickets([]);
+      }
+    } catch (error) {
+      console.error('Error fetching tickets:', error);
+      console.error('Error details:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+
+      if (!navigator.onLine || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else {
+        toast.error('Failed to load tickets. Please try again later.');
+      }
+      setTickets([]);
+    }
+  }, [encryptedUrl]);
+
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
@@ -247,7 +302,8 @@ const Calendar = () => {
 
   useEffect(() => {
     fetchReservations();
-  }, [fetchReservations]);
+    fetchTickets();
+  }, [fetchReservations, fetchTickets]);
 
   const isDateInRange = (date, startDate, endDate) => {
     const compareDate = new Date(date);
@@ -261,9 +317,11 @@ const Calendar = () => {
     return compareDate >= start && compareDate <= end;
   };
 
-  const getReservationForDate = (date) => {
-    console.log('Getting reservations for date:', date);
-    const filteredReservations = reservations.filter(reservation => {
+  const getEventsForDate = (date) => {
+    const includeReservations = calendarFilter === 'all' || calendarFilter === 'reservations';
+    const includeTickets = calendarFilter === 'all' || calendarFilter === 'tickets';
+
+    const filteredReservations = includeReservations ? reservations.filter(reservation => {
       // Display all reservations regardless of status
       // Removed the reservation_active check to show all reservations
 
@@ -296,10 +354,18 @@ const Calendar = () => {
       const isInRange = isDateInRange(date, startDate, endDate);
       console.log('Is date in range:', isInRange);
       return isInRange;
-    });
+    }) : [];
 
-    console.log('Filtered reservations for date:', filteredReservations);
-    return filteredReservations.map(reservation => {
+    const filteredTickets = includeTickets ? tickets.filter(ticket => {
+      const startDateRaw = ticket.comp_date;
+      const endDateRaw = ticket.comp_end_date || ticket.comp_date;
+      const startDate = new Date(startDateRaw);
+      const endDate = new Date(endDateRaw);
+      if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) return false;
+      return isDateInRange(date, startDate, endDate);
+    }) : [];
+
+    const reservationEvents = filteredReservations.map(reservation => {
       // Determine which dates to use for display - prioritize effective dates
       const hasEffectiveDates = reservation.effective_start_date && reservation.effective_end_date;
       const displayStartDate = hasEffectiveDates ? 
@@ -324,7 +390,31 @@ const Calendar = () => {
         ...reservation,
         displayInfo
       };
+    }).map((ev) => ({ ...ev, __eventType: 'reservation' }));
+
+    const ticketEvents = filteredTickets.map(ticket => {
+      const displayStartDate = new Date(ticket.comp_date);
+      const displayEndDate = new Date(ticket.comp_end_date || ticket.comp_date);
+
+      const displayInfo = {
+        title: ticket.comp_subject || `Ticket #${ticket.comp_id}`,
+        user: ticket.client_full_name || 'Unknown User',
+        type: ticket.operation_name || 'Ticket',
+        startDate: displayStartDate,
+        endDate: displayEndDate,
+        status: ticket.comp_status,
+        hasEffectiveDates: false,
+        color: getTicketColor(ticket.comp_status)
+      };
+
+      return {
+        ...ticket,
+        displayInfo,
+        __eventType: 'ticket'
+      };
     });
+
+    return [...reservationEvents, ...ticketEvents];
   };
 
 
@@ -445,7 +535,7 @@ const Calendar = () => {
       >
         {days.map((day) => {
           const isCurrentMonth = isSameMonth(day, currentDate);
-          const dayReservations = getReservationForDate(day);
+          const dayReservations = getEventsForDate(day);
           const isToday = isSameDay(day, new Date());
           const hasEvents = dayReservations.length > 0;
           
@@ -506,7 +596,7 @@ const Calendar = () => {
                 <div className="mt-2 flex items-center text-sm text-gray-500">
                   {dayReservations.slice(0, 3).map((reservation, idx) => (
                     <div 
-                      key={`event-${reservation.reservation_id}-${idx}`}
+                      key={`event-${reservation.__eventType}-${reservation.reservation_id || reservation.comp_id}-${idx}`}
                       className="h-1.5 rounded-full"
                       style={{
                         backgroundColor: reservation.displayInfo.color,
@@ -535,12 +625,12 @@ const Calendar = () => {
               {dayEventsModal.events.length > 0 ? (
                 dayEventsModal.events.map((event, idx) => (
                   <motion.div
-                    key={`modal-event-${event.approval_id}-${idx}`}
+                    key={`modal-event-${event.__eventType}-${event.approval_id || event.comp_id}-${idx}`}
                     className="p-3 rounded-lg border border-gray-200 hover:shadow-md transition-shadow cursor-pointer bg-white"
                     whileHover={{ scale: 1.02 }}
                     onClick={() => {
                       setDayEventsModal(prev => ({ ...prev, isOpen: false }));
-                      handleReservationClick(event);
+                      handleCalendarEventClick(event);
                     }}
                   >
                     <div className="flex items-start">
@@ -619,12 +709,12 @@ const Calendar = () => {
                       {dayEventsModal.events.length > 0 ? (
                         dayEventsModal.events.map((event, idx) => (
                           <motion.div
-                            key={`modal-event-${event.approval_id}-${idx}`}
+                            key={`modal-event-${event.__eventType}-${event.approval_id || event.comp_id}-${idx}`}
                             className={`${isTablet ? 'p-3' : 'p-4'} rounded-xl border border-gray-200 hover:shadow-md transition-shadow cursor-pointer`}
                             whileHover={{ x: 4 }}
                             onClick={() => {
                               setDayEventsModal(prev => ({ ...prev, isOpen: false }));
-                              handleReservationClick(event);
+                              handleCalendarEventClick(event);
                             }}
                           >
                             <div className="flex items-start">
@@ -722,13 +812,23 @@ const Calendar = () => {
       }
     } catch (error) {
       console.error('Error fetching reservation details:', error);
-      
+
       if (!navigator.onLine || error.code === 'ERR_NETWORK' || error.message === 'Network Error') {
         toast.error('Network connection lost. Please check your internet connection and try again.');
       } else {
         toast.error('Error fetching reservation details. Please try again.');
       }
     }
+  };
+
+  const handleCalendarEventClick = (event) => {
+    if (event?.__eventType === 'ticket') {
+      setSelectedTicket(event);
+      setIsTicketModalOpen(true);
+      return;
+    }
+
+    handleReservationClick(event);
   };
 
 
@@ -781,6 +881,18 @@ const Calendar = () => {
                   </svg>
                 </motion.button>
               </div>
+
+              <div className={`${isMobile ? 'w-full' : ''} flex items-center justify-center`}> 
+                <select
+                  value={calendarFilter}
+                  onChange={(e) => setCalendarFilter(e.target.value)}
+                  className={`${isMobile ? 'w-full' : 'w-auto'} px-3 py-2 border border-gray-300 rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500`}
+                >
+                  <option value="all">All</option>
+                  <option value="reservations">Reservation Requests</option>
+                  <option value="tickets">Ticket Requests</option>
+                </select>
+              </div>
               
               {/* Color Legend */}
               {!isMobile && (
@@ -792,39 +904,47 @@ const Calendar = () => {
                 >
                   <span className={`${isTablet ? 'text-xs' : 'text-sm'} font-medium text-gray-600`}>Legend:</span>
                   <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center space-x-1">
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.approved }} />
+                      <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Reservation</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: ticketStatusColors.ongoing }} />
+                      <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Ticket</span>
+                    </div>
                     {/* Status indicators */}
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-teal-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.reserved }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Reserved</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-purple-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.approved }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Approved</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-blue-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.processed }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Processed</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-amber-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.pending }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Pending</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-green-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.completed }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Completed</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-red-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.declined }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Declined</span>
                     </div>
                     
                     <div className="flex items-center space-x-1">
-                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full bg-gray-500`} />
+                      <div className={`${isTablet ? 'w-2 h-2' : 'w-3 h-3'} rounded-full`} style={{ backgroundColor: reservationColors.Trip.cancelled }} />
                       <span className={`${isTablet ? 'text-xs' : 'text-xs'} text-gray-600`}>Cancelled</span>
                     </div>
                   </div>
@@ -856,6 +976,16 @@ const Calendar = () => {
           setSelectedReservation(null);
         }}
         reservationDetails={selectedReservation}
+      />
+
+      <JobOrderDetailsModal
+        open={isTicketModalOpen}
+        onClose={() => {
+          setIsTicketModalOpen(false);
+          setSelectedTicket(null);
+        }}
+        ticket={selectedTicket}
+        baseUrl={encryptedUrl}
       />
     </div>
   );
