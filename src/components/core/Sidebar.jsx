@@ -1154,6 +1154,7 @@ const Sidebar = () => {
                   { text: 'User', link: '/Admin/Faculty', icon: FaUsers },
                   { text: 'Holiday', link: '/Admin/Holiday', icon: FaPlus },
                   { text: 'Venue Location', link: '/Admin/VenueBuilding', icon: FaBuilding },
+                  { text: 'Locations', link: '/Admin/Locations', icon: FaBuilding },
                   { section: '___________________________ ' },
                   { text: 'Vehicle Make', link: '/Admin/vehiclemake', icon: FaCar },
                   { text: 'Vehicle Category', link: '/Admin/vehiclecategory', icon: FaListAlt },
@@ -1248,8 +1249,8 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="Complaint Report" 
-                link="/Admin/AllJobOrders" 
-                active={activeItem === '/Admin/AllJobOrders'}
+                link="/Admin/ComplaintReport" 
+                active={activeItem === '/Admin/ComplaintReport'}
                 isExpanded={isDesktopSidebarOpen}
               />
               
@@ -1343,6 +1344,7 @@ const Sidebar = () => {
                   { text: 'Equipment', link: '/Admin/Equipment', icon: FaListAlt },
                   { text: 'Users', link: '/Admin/Faculty', icon: FaUsers },
                   { text: 'Holidays', link: '/Admin/Holiday', icon: FaPlus },
+                  { text: 'Locations', link: '/Admin/Locations', icon: FaBuilding },
                   { section: 'Sub-Vehicle ' },
                   { text: 'Vehicle Make', link: '/Admin/vehiclemake', icon: FaCar },
                   { text: 'Vehicle Category', link: '/Admin/vehiclecategory', icon: FaListAlt },
@@ -1438,8 +1440,8 @@ const Sidebar = () => {
               <MiniSidebarItem 
                 icon={FaFileAlt} 
                 text="Complaint Report" 
-                link="/Admin/AllJobOrders" 
-                active={activeItem === '/Admin/AllJobOrders'}
+                link="/Admin/ComplaintReport" 
+                active={activeItem === '/Admin/ComplaintReport'}
                 isExpanded={true}
               />
 

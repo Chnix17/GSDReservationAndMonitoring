@@ -44,6 +44,7 @@ import IssueBugsReports from './pages/Admin/IssueBugsReports';
 import { SecureStorage } from './utils/encryption';
 
 import Holiday from './pages/Admin/Holiday';
+import Locations from './pages/Admin/Locations';
 import DriverDashboard from './pages/Driver/DriverDashboard';
 import DriverTrips from './pages/Driver/Trips'
 import AuditTrail from './pages/Admin/audit_trail';
@@ -62,6 +63,7 @@ import DriverLayout from './layouts/DriverLayout';
 import LoginRedirect from './components/LoginRedirect';
 import { getApiBaseUrl } from './utils/apiConfig';
 import SubmitReport from './pages/common/SubmitReport';
+import ComplaintReport from './pages/Admin/ComplaintReport';
 
 // Service worker registration is handled by pushNotificationManager.js
 
@@ -131,6 +133,7 @@ const App = () => {
                             <Route path="Venue" element={<Venue />} />
                             <Route path="LandCalendar" element={<LandCalendar />} />
                             <Route path="VenueBuilding" element={<VenueBuilding />} />
+                            <Route path="Locations" element={<Locations />} />
                             {/* User Management */}
                             <Route path="Faculty" element={<Faculty />} />
                             <Route path="departments" element={<Departments />} />
@@ -145,6 +148,7 @@ const App = () => {
                             {/* Request & Record */}
                             <Route path="ViewRequest" element={<ViewRequest />} />
                             <Route path="AllJobOrders" element={<AllJobOrders />} />
+                            <Route path="ComplaintReport" element={<ComplaintReport />} />
                             <Route path="record" element={<Record />} />
                             <Route path="archive" element={<Archive />} />
                             <Route path="Reports" element={<Reports />} />
