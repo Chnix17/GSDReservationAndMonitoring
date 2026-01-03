@@ -14,70 +14,93 @@ class Assigned {
 
     public function fetchAllAssignedReleases() {
         try {
-            error_log('[fetchAllAssignedReleases] start');
             $reservations = [];
     
-            // 1) Venue checklist items
-            $sqlVenue = "
-                SELECT
-                    rc_venue.checklist_venue_id,
-                    rc_venue.reservation_checklist_venue_id,
-                    rc_venue.isChecked AS venue_isChecked,
-                    rc_venue.personnel_id AS venue_personnel_id,
-                    rc_venue.admin_id AS venue_admin_id,
+            // 1) Venue data - Use 3-step approach to avoid duplicates
+            // Step 1a: Get all venues for status 6 reservations
+            $sqlVenues = "
+                SELECT DISTINCT
                     rv.reservation_reservation_id,
                     rv.reservation_venue_id,
                     rv.reservation_venue_venue_id,
                     rv.reservation_change_venue_id,
+                    rv.reservation_participants,
                     rv.active AS venue_active,
                     CASE 
                         WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_venue_id IS NOT NULL 
                         THEN cv.ven_name 
                         ELSE v.ven_name 
                     END AS venue_name,
-                    cvc.checklist_name AS checklist_venue_name,
+                    CASE 
+                        WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_venue_id IS NOT NULL 
+                        THEN cvb.venue_building_name 
+                        ELSE vb.venue_building_name 
+                    END AS venue_building_name,
                     CASE 
                         WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_venue_id IS NOT NULL 
                         THEN ctsa.status_availability_name 
                         ELSE tsa.status_availability_name 
                     END AS venue_availability_status_name
-                FROM tbl_reservation_checklist_venue rc_venue
-                INNER JOIN tbl_reservation_venue rv
-                    ON rc_venue.reservation_venue_id = rv.reservation_venue_id
-                LEFT JOIN tbl_venue v
-                    ON rv.reservation_venue_venue_id = v.ven_id
-                LEFT JOIN tbl_venue cv
-                    ON rv.reservation_change_venue_id = cv.ven_id
-                LEFT JOIN tbl_checklist_venue_master cvc
-                    ON rc_venue.checklist_venue_id = cvc.checklist_venue_id
-                INNER JOIN tbl_reservation r
-                    ON rv.reservation_reservation_id = r.reservation_id
-                INNER JOIN tbl_reservation_status rs
-                    ON r.reservation_id = rs.reservation_reservation_id
-                LEFT JOIN tbl_status_availability tsa
-                    ON v.status_availability_id = tsa.status_availability_id
-                LEFT JOIN tbl_status_availability ctsa
-                    ON cv.status_availability_id = ctsa.status_availability_id
-                WHERE rs.reservation_status_status_id = 6
-                  AND rs.reservation_active IN (0, 1)
+                FROM tbl_reservation_venue rv
+                INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                LEFT JOIN tbl_venue v ON rv.reservation_venue_venue_id = v.ven_id
+                LEFT JOIN tbl_venue_building vb ON v.venue_building_id = vb.venue_building_id
+                LEFT JOIN tbl_venue cv ON rv.reservation_change_venue_id = cv.ven_id
+                LEFT JOIN tbl_venue_building cvb ON cv.venue_building_id = cvb.venue_building_id
+                LEFT JOIN tbl_status_availability tsa ON v.status_availability_id = tsa.status_availability_id
+                LEFT JOIN tbl_status_availability ctsa ON cv.status_availability_id = ctsa.status_availability_id
+                WHERE rs.reservation_status_status_id IN (4, 5, 6)
                 ORDER BY rv.reservation_reservation_id DESC
             ";
-            $stmtVenue = $this->conn->query($sqlVenue);
-            if ($stmtVenue === false) {
+            $stmtVenues = $this->conn->query($sqlVenues);
+            if ($stmtVenues === false) {
                 $ei = $this->conn->errorInfo();
                 throw new PDOException('Venue query failed: ' . ($ei[2] ?? 'unknown error'));
             }
-            $venueData = $stmtVenue->fetchAll(PDO::FETCH_ASSOC);
-            error_log('[fetchAllAssignedReleases] venue rows=' . count($venueData));
-    
-            // 2) Vehicle checklist items
-            $sqlVehicle = "
+            $venues = $stmtVenues->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Step 1b: Get all venue checklists
+            $sqlVenueChecklists = "
                 SELECT
-                    rc_vehicle.checklist_vehicle_id,
-                    rc_vehicle.reservation_checklist_vehicle_id,
-                    rc_vehicle.isChecked AS vehicle_isChecked,
-                    rc_vehicle.personnel_id AS vehicle_personnel_id,
-                    rc_vehicle.admin_id AS vehicle_admin_id,
+                    rc.reservation_venue_id,
+                    rc.checklist_venue_id,
+                    rc.reservation_checklist_venue_id,
+                    rc.isChecked,
+                    rc.personnel_id,
+                    rc.admin_id,
+                    cvm.checklist_name
+                FROM tbl_reservation_checklist_venue rc
+                INNER JOIN tbl_reservation_venue rv ON rc.reservation_venue_id = rv.reservation_venue_id
+                INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                LEFT JOIN tbl_checklist_venue_master cvm ON rc.checklist_venue_id = cvm.checklist_venue_id
+                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+            ";
+            $stmtVenueChecklists = $this->conn->query($sqlVenueChecklists);
+            if ($stmtVenueChecklists === false) {
+                $ei = $this->conn->errorInfo();
+                throw new PDOException('Venue checklist query failed: ' . ($ei[2] ?? 'unknown error'));
+            }
+            $venueChecklists = $stmtVenueChecklists->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Step 1c: Merge venues with their checklists
+            $venueData = [];
+            foreach ($venues as $venue) {
+                $checklists = array_filter($venueChecklists, function($c) use ($venue) {
+                    return $c['reservation_venue_id'] == $venue['reservation_venue_id'];
+                });
+                
+                $venueData[] = array_merge($venue, [
+                    'checklists' => array_values($checklists),
+                    'checklist_venue_id' => null // Mark as venue data
+                ]);
+            }
+    
+            // 2) Vehicle data - Use 3-step approach to avoid duplicates
+            // Step 2a: Get all vehicles for status 6 reservations
+            $sqlVehicles = "
+                SELECT DISTINCT
                     rv.reservation_reservation_id,
                     rv.reservation_vehicle_id,
                     rv.reservation_vehicle_vehicle_id,
@@ -93,99 +116,164 @@ class Assigned {
                         THEN cv.vehicle_model_id 
                         ELSE vm.vehicle_model_id 
                     END AS vehicle_model_id,
-                    cvcv.checklist_name AS checklist_vehicle_name,
+                    CASE 
+                        WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_vehicle_id IS NOT NULL 
+                        THEN cvmd.vehicle_model_name 
+                        ELSE vmd.vehicle_model_name 
+                    END AS vehicle_model_name,
+                    CASE 
+                        WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_vehicle_id IS NOT NULL 
+                        THEN cvmk.vehicle_make_name 
+                        ELSE vmk.vehicle_make_name 
+                    END AS vehicle_make_name,
+                    CASE 
+                        WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_vehicle_id IS NOT NULL 
+                        THEN cvc.vehicle_category_name 
+                        ELSE vc.vehicle_category_name 
+                    END AS vehicle_category_name,
                     CASE 
                         WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_vehicle_id IS NOT NULL 
                         THEN ctsa.status_availability_name 
                         ELSE tsa.status_availability_name 
                     END AS vehicle_availability_status_name
-                FROM tbl_reservation_checklist_vehicle rc_vehicle
-                INNER JOIN tbl_reservation_vehicle rv
-                    ON rc_vehicle.reservation_vehicle_id = rv.reservation_vehicle_id
-                LEFT JOIN tbl_vehicle vm
-                    ON rv.reservation_vehicle_vehicle_id = vm.vehicle_id
-                LEFT JOIN tbl_vehicle cv
-                    ON rv.reservation_change_vehicle_id = cv.vehicle_id
-                LEFT JOIN tbl_checklist_vehicle_master cvcv
-                    ON rc_vehicle.checklist_vehicle_id = cvcv.checklist_vehicle_id
-                INNER JOIN tbl_reservation r
-                    ON rv.reservation_reservation_id = r.reservation_id
-                INNER JOIN tbl_reservation_status rs
-                    ON r.reservation_id = rs.reservation_reservation_id
-                LEFT JOIN tbl_status_availability tsa
-                    ON vm.status_availability_id = tsa.status_availability_id
-                LEFT JOIN tbl_status_availability ctsa
-                    ON cv.status_availability_id = ctsa.status_availability_id
-                WHERE rs.reservation_status_status_id = 6
-                  AND rs.reservation_active IN (0, 1)
+                FROM tbl_reservation_vehicle rv
+                INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                LEFT JOIN tbl_vehicle vm ON rv.reservation_vehicle_vehicle_id = vm.vehicle_id
+                LEFT JOIN tbl_vehicle_model vmd ON vm.vehicle_model_id = vmd.vehicle_model_id
+                LEFT JOIN tbl_vehicle_make vmk ON vmd.vehicle_model_vehicle_make_id = vmk.vehicle_make_id
+                LEFT JOIN tbl_vehicle_category vc ON vmd.vehicle_category_id = vc.vehicle_category_id
+                LEFT JOIN tbl_vehicle cv ON rv.reservation_change_vehicle_id = cv.vehicle_id
+                LEFT JOIN tbl_vehicle_model cvmd ON cv.vehicle_model_id = cvmd.vehicle_model_id
+                LEFT JOIN tbl_vehicle_make cvmk ON cvmd.vehicle_model_vehicle_make_id = cvmk.vehicle_make_id
+                LEFT JOIN tbl_vehicle_category cvc ON cvmd.vehicle_category_id = cvc.vehicle_category_id
+                LEFT JOIN tbl_status_availability tsa ON vm.status_availability_id = tsa.status_availability_id
+                LEFT JOIN tbl_status_availability ctsa ON cv.status_availability_id = ctsa.status_availability_id
+                WHERE rs.reservation_status_status_id IN (4, 5, 6)
                 ORDER BY rv.reservation_reservation_id DESC
             ";
-            $stmtVehicle = $this->conn->query($sqlVehicle);
-            if ($stmtVehicle === false) {
+            $stmtVehicles = $this->conn->query($sqlVehicles);
+            if ($stmtVehicles === false) {
                 $ei = $this->conn->errorInfo();
                 throw new PDOException('Vehicle query failed: ' . ($ei[2] ?? 'unknown error'));
             }
-            $vehicleData = $stmtVehicle->fetchAll(PDO::FETCH_ASSOC);
-            error_log('[fetchAllAssignedReleases] vehicle rows=' . count($vehicleData));
+            $vehicles = $stmtVehicles->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Step 2b: Get all vehicle checklists
+            $sqlVehicleChecklists = "
+                SELECT
+                    rc.reservation_vehicle_id,
+                    rc.checklist_vehicle_id,
+                    rc.reservation_checklist_vehicle_id,
+                    rc.isChecked,
+                    rc.personnel_id,
+                    rc.admin_id,
+                    cvm.checklist_name
+                FROM tbl_reservation_checklist_vehicle rc
+                INNER JOIN tbl_reservation_vehicle rv ON rc.reservation_vehicle_id = rv.reservation_vehicle_id
+                INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                LEFT JOIN tbl_checklist_vehicle_master cvm ON rc.checklist_vehicle_id = cvm.checklist_vehicle_id
+                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+            ";
+            $stmtVehicleChecklists = $this->conn->query($sqlVehicleChecklists);
+            if ($stmtVehicleChecklists === false) {
+                $ei = $this->conn->errorInfo();
+                throw new PDOException('Vehicle checklist query failed: ' . ($ei[2] ?? 'unknown error'));
+            }
+            $vehicleChecklists = $stmtVehicleChecklists->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Step 2c: Merge vehicles with their checklists
+            $vehicleData = [];
+            foreach ($vehicles as $vehicle) {
+                $checklists = array_filter($vehicleChecklists, function($c) use ($vehicle) {
+                    return $c['reservation_vehicle_id'] == $vehicle['reservation_vehicle_id'];
+                });
+                
+                $vehicleData[] = array_merge($vehicle, [
+                    'checklists' => array_values($checklists),
+                    'checklist_vehicle_id' => null // Mark as vehicle data
+                ]);
+            }
     
-            // 3) Equipment checklist items
-            $sqlEquipment = "
-                SELECT  
-                    rc_equipment.checklist_equipment_id,
-                    rc_equipment.reservation_checklist_equipment_id,
-                    rc_equipment.isChecked AS equipment_isChecked,
-                    rc_equipment.personnel_id AS equipment_personnel_id,
-                    rc_equipment.admin_id AS equipment_admin_id,
+            // 3) Equipment data - Use 3-step approach to avoid duplicates
+            // Step 3a: Get all equipment for status 6 reservations
+            $sqlEquipments = "
+                SELECT DISTINCT
                     re.reservation_reservation_id,
                     re.reservation_equipment_id,
                     re.reservation_equipment_equip_id,
                     re.reservation_equipment_quantity AS quantity,
                     re.active AS equipment_active,
                     e.equip_name,
-                    cvce.checklist_name AS checklist_equipment_name,
                     eq.quantity_id,
                     tsa.status_availability_name AS equipment_availability_status_name
-                FROM tbl_reservation_checklist_equipment rc_equipment
-                INNER JOIN tbl_reservation_equipment re
-                    ON rc_equipment.reservation_equipment_id = re.reservation_equipment_id
-                LEFT JOIN tbl_equipments e
-                    ON re.reservation_equipment_equip_id = e.equip_id
-                LEFT JOIN tbl_checklist_equipment_master cvce
-                    ON rc_equipment.checklist_equipment_id = cvce.checklist_equipment_id
-                INNER JOIN tbl_reservation r
-                    ON re.reservation_reservation_id = r.reservation_id
-                INNER JOIN tbl_reservation_status rs
-                    ON r.reservation_id = rs.reservation_reservation_id
-                LEFT JOIN tbl_equipment_quantity eq
-                    ON re.reservation_equipment_equip_id = eq.equip_id
-                LEFT JOIN tbl_status_availability tsa
-                    ON eq.status_availability_id = tsa.status_availability_id
-                WHERE rs.reservation_status_status_id = 6
-                  AND rs.reservation_active IN (0, 1)
+                FROM tbl_reservation_equipment re
+                INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                LEFT JOIN tbl_equipments e ON re.reservation_equipment_equip_id = e.equip_id
+                LEFT JOIN tbl_equipment_quantity eq ON re.reservation_equipment_equip_id = eq.equip_id
+                LEFT JOIN tbl_status_availability tsa ON eq.status_availability_id = tsa.status_availability_id
+                WHERE rs.reservation_status_status_id IN (4, 5, 6)
                 ORDER BY re.reservation_reservation_id DESC
             ";
-            $stmtEquipment = $this->conn->query($sqlEquipment);
-            if ($stmtEquipment === false) {
+            $stmtEquipments = $this->conn->query($sqlEquipments);
+            if ($stmtEquipments === false) {
                 $ei = $this->conn->errorInfo();
                 throw new PDOException('Equipment query failed: ' . ($ei[2] ?? 'unknown error'));
             }
-            $equipmentData = $stmtEquipment->fetchAll(PDO::FETCH_ASSOC);
-            error_log('[fetchAllAssignedReleases] equipment rows=' . count($equipmentData));
+            $equipments = $stmtEquipments->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Step 3b: Get all equipment checklists
+            $sqlEquipmentChecklists = "
+                SELECT
+                    rc.reservation_equipment_id,
+                    rc.checklist_equipment_id,
+                    rc.reservation_checklist_equipment_id,
+                    rc.isChecked,
+                    rc.personnel_id,
+                    rc.admin_id,
+                    cvm.checklist_name
+                FROM tbl_reservation_checklist_equipment rc
+                INNER JOIN tbl_reservation_equipment re ON rc.reservation_equipment_id = re.reservation_equipment_id
+                INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                LEFT JOIN tbl_checklist_equipment_master cvm ON rc.checklist_equipment_id = cvm.checklist_equipment_id
+                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+            ";
+            $stmtEquipmentChecklists = $this->conn->query($sqlEquipmentChecklists);
+            if ($stmtEquipmentChecklists === false) {
+                $ei = $this->conn->errorInfo();
+                throw new PDOException('Equipment checklist query failed: ' . ($ei[2] ?? 'unknown error'));
+            }
+            $equipmentChecklists = $stmtEquipmentChecklists->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Step 3c: Merge equipment with their checklists
+            $equipmentData = [];
+            foreach ($equipments as $equipment) {
+                $checklists = array_filter($equipmentChecklists, function($c) use ($equipment) {
+                    return $c['reservation_equipment_id'] == $equipment['reservation_equipment_id'];
+                });
+                
+                $equipmentData[] = array_merge($equipment, [
+                    'checklists' => array_values($checklists),
+                    'checklist_equipment_id' => null // Mark as equipment data
+                ]);
+            }
     
             // Collect all relevant user IDs (personnel and admins) from checklist items
             $userIds = [];
             foreach (array_merge($venueData, $vehicleData, $equipmentData) as $row) {
-                if (!empty($row['venue_personnel_id'])) { $userIds[] = $row['venue_personnel_id']; }
-                if (!empty($row['vehicle_personnel_id'])) { $userIds[] = $row['vehicle_personnel_id']; }
-                if (!empty($row['equipment_personnel_id'])) { $userIds[] = $row['equipment_personnel_id']; }
-                if (!empty($row['venue_admin_id'])) { $userIds[] = $row['venue_admin_id']; }
-                if (!empty($row['vehicle_admin_id'])) { $userIds[] = $row['vehicle_admin_id']; }
-                if (!empty($row['equipment_admin_id'])) { $userIds[] = $row['equipment_admin_id']; }
+                if (isset($row['checklists']) && is_array($row['checklists'])) {
+                    foreach ($row['checklists'] as $checklist) {
+                        if (!empty($checklist['personnel_id'])) { $userIds[] = $checklist['personnel_id']; }
+                        if (!empty($checklist['admin_id'])) { $userIds[] = $checklist['admin_id']; }
+                    }
+                }
             }
     
             //  Remove duplicates and empty values, then reindex for positional params
             $userIds = array_values(array_unique(array_filter($userIds)));
-            error_log('[fetchAllAssignedReleases] unique userIds count=' . count($userIds));
     
             // Fetch names in a single query
             $userNames = [];
@@ -212,11 +300,26 @@ class Assigned {
                 foreach ($userData as $person) {
                     $userNames[$person['users_id']] = $person['full_name'];
                 }
-                error_log('[fetchAllAssignedReleases] fetched user names=' . count($userData));
             }
     
             foreach (array_merge($venueData, $vehicleData, $equipmentData) as $row) {
                 $rid = $row['reservation_reservation_id'];
+                
+                // Skip if reservation_reservation_id is empty or invalid
+                if (empty($rid)) {
+                    continue;
+                }
+                
+                // Debug logging for row type detection
+                $rowType = 'UNKNOWN';
+                if (isset($row['checklist_venue_id']) && !isset($row['checklist_vehicle_id']) && !isset($row['checklist_equipment_id'])) {
+                    $rowType = 'VENUE';
+                } elseif (isset($row['checklist_vehicle_id']) && !isset($row['checklist_venue_id']) && !isset($row['checklist_equipment_id'])) {
+                    $rowType = 'VEHICLE';
+                } elseif (isset($row['checklist_equipment_id']) && !isset($row['checklist_venue_id']) && !isset($row['checklist_vehicle_id'])) {
+                    $rowType = 'EQUIPMENT';
+                }
+                
                 if (!isset($reservations[$rid])) {
                     $reservations[$rid] = [
                         'reservation_id'          => $rid,
@@ -224,7 +327,6 @@ class Assigned {
                         'reservation_description' => '',
                         'reservation_start_date'  => '',
                         'reservation_end_date'    => '',
-                        'reservation_participants'=> '',
                         'reservation_user_id'     => '',
                         'user_details'            => [],
                         'venues'                  => [],
@@ -232,128 +334,140 @@ class Assigned {
                         'equipments'              => [],
                     ];
                 }
-                // VENUE
-                if (isset($row['reservation_venue_id'])) {
-                    $found = false;
-                    foreach ($reservations[$rid]['venues'] as &$v) {
-                        if ($v['reservation_venue_id'] == $row['reservation_venue_id']) {
-                            $v['checklists'][] = [
-                                'checklist_venue_id'             => $row['checklist_venue_id'],
-                                'reservation_checklist_venue_id' => $row['reservation_checklist_venue_id'],
-                                'checklist_name'                 => $row['checklist_venue_name'],
-                                'isChecked'                      => (int)$row['venue_isChecked'],
-                                'personnel_id'                   => $row['venue_personnel_id'],
-                                'personnel_name'                 => $userNames[$row['venue_personnel_id']] ?? 'N/A',
-                                'admin_id'                       => $row['venue_admin_id'],
-                                'admin_name'                     => $userNames[$row['venue_admin_id']] ?? 'N/A'
+                // VENUE - Process pre-merged venue data (already has checklists attached)
+                if (isset($row['reservation_venue_id']) && !isset($row['checklist_venue_id'])
+                    && !isset($row['checklist_vehicle_id']) && !isset($row['checklist_equipment_id'])) {
+                    // Format checklists with user names
+                    $formattedChecklists = [];
+                    if (isset($row['checklists']) && is_array($row['checklists'])) {
+                        foreach ($row['checklists'] as $checklist) {
+                            $formattedChecklists[] = [
+                                'checklist_venue_id'             => $checklist['checklist_venue_id'] ?? null,
+                                'reservation_checklist_venue_id' => $checklist['reservation_checklist_venue_id'] ?? null,
+                                'checklist_name'                 => $checklist['checklist_name'] ?? null,
+                                'isChecked'                      => (int)($checklist['isChecked'] ?? 0),
+                                'personnel_id'                   => $checklist['personnel_id'] ?? null,
+                                'personnel_name'                 => isset($checklist['personnel_id']) ? ($userNames[$checklist['personnel_id']] ?? 'N/A') : 'N/A',
+                                'admin_id'                       => $checklist['admin_id'] ?? null,
+                                'admin_name'                     => isset($checklist['admin_id']) ? ($userNames[$checklist['admin_id']] ?? 'N/A') : 'N/A'
                             ];
-                            $found = true;
-                            break;
                         }
                     }
-                    if (!$found) {
-                        $reservations[$rid]['venues'][] = [
-                            'reservation_venue_id'       => $row['reservation_venue_id'],
-                            'reservation_venue_venue_id' => $row['reservation_venue_venue_id'],
-                            'name'                       => $row['venue_name'],
-                            'availability_status'        => $row['venue_availability_status_name'],
-                            'active'                     => (int)$row['venue_active'],
-                            'checklists'                 => [[
-                                'checklist_venue_id'             => $row['checklist_venue_id'],
-                                'reservation_checklist_venue_id' => $row['reservation_checklist_venue_id'],
-                                'checklist_name'                 => $row['checklist_venue_name'],
-                                'isChecked'                      => (int)$row['venue_isChecked'],
-                                'personnel_id'                   => $row['venue_personnel_id'],
-                                'personnel_name'                 => $userNames[$row['venue_personnel_id']] ?? 'N/A',
-                                'admin_id'                       => $row['venue_admin_id'],
-                                'admin_name'                     => $userNames[$row['venue_admin_id']] ?? 'N/A'
-                            ]]
-                        ];
-                    }
+                    
+                    $reservations[$rid]['venues'][] = [
+                        'reservation_venue_id'       => $row['reservation_venue_id'],
+                        'reservation_venue_venue_id' => $row['reservation_venue_venue_id'],
+                        'name'                       => $row['venue_name'],
+                        'building_name'              => $row['venue_building_name'] ?? null,
+                        'participants'               => $row['reservation_participants'],
+                        'availability_status'        => $row['venue_availability_status_name'],
+                        'active'                     => (int)$row['venue_active'],
+                        'checklists'                 => $formattedChecklists
+                    ];
                 }
-                // VEHICLE
-                if (isset($row['reservation_vehicle_id'])) {
-                    $found = false;
-                    foreach ($reservations[$rid]['vehicles'] as &$v) {
-                        if ($v['reservation_vehicle_id'] == $row['reservation_vehicle_id']) {
-                            $v['checklists'][] = [
-                                'checklist_vehicle_id'             => $row['checklist_vehicle_id'],
-                                'reservation_checklist_vehicle_id' => $row['reservation_checklist_vehicle_id'],
-                                'checklist_name'                   => $row['checklist_vehicle_name'],
-                                'isChecked'                        => (int)$row['vehicle_isChecked'],
-                                'personnel_id'                     => $row['vehicle_personnel_id'],
-                                'personnel_name'                   => $userNames[$row['vehicle_personnel_id']] ?? 'N/A',
-                                'admin_id'                         => $row['vehicle_admin_id'],
-                                'admin_name'                       => $userNames[$row['vehicle_admin_id']] ?? 'N/A'
+                // VEHICLE - Process pre-merged vehicle data (already has checklists attached)
+                else if (isset($row['reservation_vehicle_id']) && !isset($row['checklist_vehicle_id'])
+                    && !isset($row['checklist_venue_id']) && !isset($row['checklist_equipment_id'])) {
+                    // Format checklists with user names
+                    $formattedChecklists = [];
+                    if (isset($row['checklists']) && is_array($row['checklists'])) {
+                        foreach ($row['checklists'] as $checklist) {
+                            $formattedChecklists[] = [
+                                'checklist_vehicle_id'             => $checklist['checklist_vehicle_id'] ?? null,
+                                'reservation_checklist_vehicle_id' => $checklist['reservation_checklist_vehicle_id'] ?? null,
+                                'checklist_name'                   => $checklist['checklist_name'] ?? null,
+                                'isChecked'                        => (int)($checklist['isChecked'] ?? 0),
+                                'personnel_id'                     => $checklist['personnel_id'] ?? null,
+                                'personnel_name'                   => isset($checklist['personnel_id']) ? ($userNames[$checklist['personnel_id']] ?? 'N/A') : 'N/A',
+                                'admin_id'                         => $checklist['admin_id'] ?? null,
+                                'admin_name'                       => isset($checklist['admin_id']) ? ($userNames[$checklist['admin_id']] ?? 'N/A') : 'N/A'
                             ];
-                            $found = true;
-                            break;
                         }
                     }
-                    if (!$found) {
-                        $reservations[$rid]['vehicles'][] = [
-                            'reservation_vehicle_id'       => $row['reservation_vehicle_id'],
-                            'reservation_vehicle_vehicle_id' => $row['reservation_vehicle_vehicle_id'],
-                            'vehicle_license'                => $row['vehicle_license'],
-                            'vehicle_model_id'               => $row['vehicle_model_id'],
-                            'availability_status'            => $row['vehicle_availability_status_name'],
-                            'active'                         => (int)$row['vehicle_active'],
-                            'checklists'                     => [[
-                                'checklist_vehicle_id'             => $row['checklist_vehicle_id'],
-                                'reservation_checklist_vehicle_id' => $row['reservation_checklist_vehicle_id'],
-                                'checklist_name'                   => $row['checklist_vehicle_name'],
-                                'isChecked'                        => (int)$row['vehicle_isChecked'],
-                                'personnel_id'                     => $row['vehicle_personnel_id'],
-                                'personnel_name'                   => $userNames[$row['vehicle_personnel_id']] ?? 'N/A',
-                                'admin_id'                         => $row['vehicle_admin_id'],
-                                'admin_name'                       => $userNames[$row['vehicle_admin_id']] ?? 'N/A'
-                            ]]
-                        ];
-                    }
+                    
+                    $reservations[$rid]['vehicles'][] = [
+                        'reservation_vehicle_id'         => $row['reservation_vehicle_id'],
+                        'reservation_vehicle_vehicle_id' => $row['reservation_vehicle_vehicle_id'],
+                        'vehicle_license'                => $row['vehicle_license'],
+                        'vehicle_model_id'               => $row['vehicle_model_id'],
+                        'vehicle_model_name'             => $row['vehicle_model_name'],
+                        'vehicle_make_name'              => $row['vehicle_make_name'],
+                        'vehicle_category_name'          => $row['vehicle_category_name'],
+                        'availability_status'            => $row['vehicle_availability_status_name'],
+                        'active'                         => (int)$row['vehicle_active'],
+                        'checklists'                     => $formattedChecklists
+                    ];
                 }
-                // EQUIPMENT
-                if (isset($row['reservation_equipment_id'])) {
-                    $found = false;
-                    foreach ($reservations[$rid]['equipments'] as &$e) {
-                        if ($e['reservation_equipment_id'] == $row['reservation_equipment_id']) {
-                            $e['checklists'][] = [
-                                'checklist_equipment_id'             => $row['checklist_equipment_id'],
-                                'reservation_checklist_equipment_id' => $row['reservation_checklist_equipment_id'],
-                                'checklist_name'                     => $row['checklist_equipment_name'],
-                                'isChecked'                          => (int)$row['equipment_isChecked'],
-                                'personnel_id'                       => $row['equipment_personnel_id'],
-                                'personnel_name'                     => $userNames[$row['equipment_personnel_id']] ?? 'N/A',
-                                'admin_id'                           => $row['equipment_admin_id'],
-                                'admin_name'                         => $userNames[$row['equipment_admin_id']] ?? 'N/A'
+                // EQUIPMENT - Process pre-merged equipment data (already has checklists attached)
+                else if (isset($row['reservation_equipment_id']) && !isset($row['checklist_equipment_id'])
+                    && !isset($row['checklist_venue_id']) && !isset($row['checklist_vehicle_id'])) {
+                    // Format checklists with user names
+                    $formattedChecklists = [];
+                    if (isset($row['checklists']) && is_array($row['checklists'])) {
+                        foreach ($row['checklists'] as $checklist) {
+                            $formattedChecklists[] = [
+                                'checklist_equipment_id'             => $checklist['checklist_equipment_id'] ?? null,
+                                'reservation_checklist_equipment_id' => $checklist['reservation_checklist_equipment_id'] ?? null,
+                                'checklist_name'                     => $checklist['checklist_name'] ?? null,
+                                'isChecked'                          => (int)($checklist['isChecked'] ?? 0),
+                                'personnel_id'                       => $checklist['personnel_id'] ?? null,
+                                'personnel_name'                     => isset($checklist['personnel_id']) ? ($userNames[$checklist['personnel_id']] ?? 'N/A') : 'N/A',
+                                'admin_id'                           => $checklist['admin_id'] ?? null,
+                                'admin_name'                         => isset($checklist['admin_id']) ? ($userNames[$checklist['admin_id']] ?? 'N/A') : 'N/A'
                             ];
-                            $found = true;
-                            break;
                         }
                     }
-                    if (!$found) {
-                        $reservations[$rid]['equipments'][] = [
-                            'reservation_equipment_id'       => $row['reservation_equipment_id'],
-                            'reservation_equipment_equip_id' => $row['reservation_equipment_equip_id'],
-                            'name'                           => $row['equip_name'],
-                            'quantity'                       => $row['quantity'],
-                            'quantity_id'                    => $row['quantity_id'],
-                            'units'                          => [], // will fill below
-                            'availability_status'            => $row['equipment_availability_status_name'],
-                            'active'                         => (int)$row['equipment_active'],
-                            'checklists'                     => [[
-                                'checklist_equipment_id'             => $row['checklist_equipment_id'],
-                                'reservation_checklist_equipment_id' => $row['reservation_checklist_equipment_id'],
-                                'checklist_name'                     => $row['checklist_equipment_name'],
-                                'isChecked'                          => (int)$row['equipment_isChecked'],
-                                'personnel_id'                       => $row['equipment_personnel_id'],
-                                'personnel_name'                     => $userNames[$row['equipment_personnel_id']] ?? 'N/A',
-                                'admin_id'                           => $row['equipment_admin_id'],
-                                'admin_name'                         => $userNames[$row['equipment_admin_id']] ?? 'N/A'
-                            ]]
-                        ];
-                    }
+                    
+                    $reservations[$rid]['equipments'][] = [
+                        'reservation_equipment_id'       => $row['reservation_equipment_id'],
+                        'reservation_equipment_equip_id' => $row['reservation_equipment_equip_id'],
+                        'name'                           => $row['equip_name'],
+                        'quantity'                       => $row['quantity'],
+                        'quantity_id'                    => $row['quantity_id'],
+                        'units'                          => [], // will fill below
+                        'availability_status'            => $row['equipment_availability_status_name'],
+                        'active'                         => (int)$row['equipment_active'],
+                        'checklists'                     => $formattedChecklists
+                    ];
                 }
             }
+            
+            // 3.5) Cleanup step: Remove any items that were incorrectly placed in wrong arrays
+            foreach ($reservations as $rid => &$res) {
+                
+                // Remove any venue items from vehicles array
+                // Vehicles MUST have reservation_vehicle_id, vehicle_license, and vehicle_model_id
+                // Venues have reservation_venue_id and name (not vehicle fields)
+                $res['vehicles'] = array_values(array_filter($res['vehicles'], function($item) use ($rid) {
+                    $isVehicle = isset($item['reservation_vehicle_id']) 
+                                && isset($item['vehicle_license']) 
+                                && isset($item['vehicle_model_id'])
+                                && !isset($item['name']); // Venues have 'name', vehicles don't
+                    return $isVehicle;
+                }));
+                
+                // Remove any vehicle items from venues array
+                // Venues MUST have reservation_venue_id and name (not vehicle fields)
+                $res['venues'] = array_values(array_filter($res['venues'], function($item) use ($rid) {
+                    $isVenue = isset($item['reservation_venue_id']) 
+                              && isset($item['name']) 
+                              && !isset($item['vehicle_license'])
+                              && !isset($item['vehicle_model_id']);
+                    return $isVenue;
+                }));
+                
+                // Remove any non-equipment items from equipments array
+                // Equipment MUST have reservation_equipment_id and quantity, NOT vehicle/venue IDs
+                $res['equipments'] = array_values(array_filter($res['equipments'], function($item) use ($rid) {
+                    $isEquipment = isset($item['reservation_equipment_id']) 
+                                  && isset($item['quantity']) // Equipment has quantity
+                                  && !isset($item['vehicle_license']) 
+                                  && !isset($item['vehicle_model_id'])
+                                  && !isset($item['reservation_venue_id']); // Don't have venue ID
+                    return $isEquipment;
+                }));
+            }
+            unset($res);
     
             // 4) Fetch & merge reservation units
             $allEqIds = [];
@@ -372,6 +486,9 @@ class Assigned {
                         ru.unit_id,
                         ru.active AS unit_active,
                         eu.serial_number AS unit_serial_number,
+                        eu.equipment_brand,
+                        eu.equipment_model,
+                        eu.inch,
                         tsa.status_availability_name AS unit_availability_status_name
                     FROM tbl_reservation_unit ru
                     LEFT JOIN tbl_equipment_unit eu
@@ -383,7 +500,6 @@ class Assigned {
                 $stmtUnits = $this->conn->prepare($sqlUnits);
                 $stmtUnits->execute($allEqIds);
                 $unitsData = $stmtUnits->fetchAll(PDO::FETCH_ASSOC);
-                error_log('[fetchAllAssignedReleases] units rows=' . count($unitsData));
     
                 // group by reservation_equipment_id
                 $unitsByResEquip = [];
@@ -392,6 +508,9 @@ class Assigned {
                         'reservation_unit_id' => $u['reservation_unit_id'],
                         'unit_id'             => $u['unit_id'],
                         'unit_serial_number'  => $u['unit_serial_number'],
+                        'equipment_brand'     => $u['equipment_brand'],
+                        'equipment_model'     => $u['equipment_model'],
+                        'inch'                => $u['inch'],
                         'availability_status' => $u['unit_availability_status_name'],
                         'active'              => (int)$u['unit_active'],
                     ];
@@ -407,7 +526,169 @@ class Assigned {
                 unset($eq, $res);
             }
     
-            // 5) Fetch reservation header & user info
+            // 5) Fetch conditions for all resources
+            // Get all reservation IDs
+            $allReservationIds = array_keys($reservations);
+            
+            // Fetch equipment conditions
+            $equipmentConditions = [];
+            if (!empty($allReservationIds)) {
+                $placeholders = implode(',', array_fill(0, count($allReservationIds), '?'));
+                $sqlEquipConditions = "
+                    SELECT rce.id, rce.reservation_equipment_id, rce.condition_id, rce.qty_bad, 
+                           rce.user_personnel_id, rce.remarks, rce.admin_remarks, rce.created_at, 
+                           rce.updated_at, rce.is_active, c.condition_name,
+                           re.reservation_reservation_id
+                    FROM tbl_reservation_condition_equipment rce
+                    LEFT JOIN tbl_condition c ON rce.condition_id = c.id
+                    INNER JOIN tbl_reservation_equipment re ON rce.reservation_equipment_id = re.reservation_equipment_id
+                    WHERE re.reservation_reservation_id IN ($placeholders)
+                ";
+                $stmtEquipCond = $this->conn->prepare($sqlEquipConditions);
+                $stmtEquipCond->execute($allReservationIds);
+                $equipCondData = $stmtEquipCond->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($equipCondData as $cond) {
+                    $equipmentConditions[$cond['reservation_equipment_id']][] = $cond;
+                }
+            }
+            
+            // Fetch unit conditions
+            $unitConditions = [];
+            if (!empty($allEqIds)) {
+                $placeholders = implode(',', array_fill(0, count($allEqIds), '?'));
+                $sqlUnitConditions = "
+                    SELECT rcu.id, rcu.reservation_unit_id, rcu.condition_id, rcu.is_active,
+                           rcu.user_personnel_id, rcu.remarks, rcu.admin_remarks, rcu.created_at,
+                           rcu.updated_at, c.condition_name, ru.reservation_equipment_id
+                    FROM tbl_reservation_condition_unit rcu
+                    LEFT JOIN tbl_condition c ON rcu.condition_id = c.id
+                    INNER JOIN tbl_reservation_unit ru ON rcu.reservation_unit_id = ru.reservation_unit_id
+                    WHERE ru.reservation_equipment_id IN ($placeholders)
+                ";
+                $stmtUnitCond = $this->conn->prepare($sqlUnitConditions);
+                $stmtUnitCond->execute($allEqIds);
+                $unitCondData = $stmtUnitCond->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($unitCondData as $cond) {
+                    $unitConditions[$cond['reservation_unit_id']][] = $cond;
+                }
+            }
+            
+            // Fetch vehicle conditions
+            $vehicleConditions = [];
+            $allVehicleIds = [];
+            foreach ($reservations as $res) {
+                foreach ($res['vehicles'] as $v) {
+                    $allVehicleIds[] = $v['reservation_vehicle_id'];
+                }
+            }
+            if (!empty($allVehicleIds)) {
+                $placeholders = implode(',', array_fill(0, count($allVehicleIds), '?'));
+                $sqlVehicleConditions = "
+                    SELECT rcv.id, rcv.reservation_vehicle_id, rcv.condition_id, rcv.is_active,
+                           rcv.user_personnel_id, rcv.remarks, rcv.admin_remarks, rcv.created_at,
+                           rcv.updated_at, c.condition_name
+                    FROM tbl_reservation_condition_vehicle rcv
+                    LEFT JOIN tbl_condition c ON rcv.condition_id = c.id
+                    WHERE rcv.reservation_vehicle_id IN ($placeholders)
+                ";
+                $stmtVehicleCond = $this->conn->prepare($sqlVehicleConditions);
+                $stmtVehicleCond->execute($allVehicleIds);
+                $vehicleCondData = $stmtVehicleCond->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($vehicleCondData as $cond) {
+                    $vehicleConditions[$cond['reservation_vehicle_id']][] = $cond;
+                }
+            }
+            
+            // Fetch venue conditions
+            $venueConditions = [];
+            $allVenueIds = [];
+            foreach ($reservations as $res) {
+                foreach ($res['venues'] as $v) {
+                    // Safety check: only process if it's actually a venue record
+                    if (isset($v['reservation_venue_id'])) {
+                        $allVenueIds[] = $v['reservation_venue_id'];
+                    }
+                }
+            }
+            if (!empty($allVenueIds)) {
+                $placeholders = implode(',', array_fill(0, count($allVenueIds), '?'));
+                $sqlVenueConditions = "
+                    SELECT rcv.id, rcv.reservation_venue_id, rcv.condition_id, rcv.is_active,
+                           rcv.user_personnel_id, rcv.remarks, rcv.admin_remarks, rcv.created_at,
+                           rcv.updated_at, c.condition_name
+                    FROM tbl_reservation_condition_venue rcv
+                    LEFT JOIN tbl_condition c ON rcv.condition_id = c.id
+                    WHERE rcv.reservation_venue_id IN ($placeholders)
+                ";
+                $stmtVenueCond = $this->conn->prepare($sqlVenueConditions);
+                $stmtVenueCond->execute($allVenueIds);
+                $venueCondData = $stmtVenueCond->fetchAll(PDO::FETCH_ASSOC);
+                foreach ($venueCondData as $cond) {
+                    $venueConditions[$cond['reservation_venue_id']][] = $cond;
+                }
+            }
+            
+            // 6) Inject conditions into resources
+            foreach ($reservations as &$res) {
+                // Add conditions to venues
+                foreach ($res['venues'] as &$venue) {
+                    // Safety check: only add conditions if it's actually a venue record
+                    if (isset($venue['reservation_venue_id'])) {
+                        $venue['conditions'] = $venueConditions[$venue['reservation_venue_id']] ?? [];
+                    } else {
+                        $venue['conditions'] = [];
+                    }
+                }
+                
+                // Add conditions to vehicles
+                foreach ($res['vehicles'] as &$vehicle) {
+                    // Safety check: only add conditions if it's actually a vehicle record
+                    if (isset($vehicle['reservation_vehicle_id'])) {
+                        $vehicle['conditions'] = $vehicleConditions[$vehicle['reservation_vehicle_id']] ?? [];
+                    } else {
+                        $vehicle['conditions'] = [];
+                    }
+                }
+                
+                // Add conditions to equipment
+                foreach ($res['equipments'] as &$equip) {
+                    // Safety check: only add conditions if it's actually an equipment record
+                    if (!isset($equip['reservation_equipment_id'])) {
+                        $equip['conditions'] = [];
+                        continue;
+                    }
+                    $equipId = $equip['reservation_equipment_id'];
+                    $equipConditions = $equipmentConditions[$equipId] ?? [];
+                    
+                    $equip['conditions'] = $equipConditions;
+                    
+                    // Only calculate good and bad quantities when conditions are reported
+                    if (!empty($equipConditions)) {
+                        $totalQtyBad = 0;
+                        foreach ($equipConditions as $cond) {
+                            $totalQtyBad += (int)$cond['qty_bad'];
+                        }
+                        $totalQty = (int)$equip['quantity'];
+                        $qtyGood = max(0, $totalQty - $totalQtyBad);
+                        
+                        $equip['qty_good'] = $qtyGood;
+                        $equip['qty_bad'] = $totalQtyBad;
+                    } else {
+                        // No conditions reported yet - don't set qty_good or qty_bad
+                        $equip['qty_good'] = null;
+                        $equip['qty_bad'] = null;
+                    }
+                    
+                    // Add conditions to units (display all units that have conditions)
+                    foreach ($equip['units'] as &$unit) {
+                        $unitId = $unit['reservation_unit_id'];
+                        $unit['conditions'] = $unitConditions[$unitId] ?? [];
+                    }
+                }
+            }
+            unset($res, $venue, $vehicle, $equip, $unit);
+    
+            // 7) Fetch reservation header & user info
             foreach ($reservations as $rid => &$res) {
                 $sqlR = "
                     SELECT
@@ -415,13 +696,30 @@ class Assigned {
                         r.reservation_description,
                         r.reservation_start_date,
                         r.reservation_end_date,
-                        r.reservation_participants,
                         r.reservation_user_id,
                         u.users_fname,
                         u.users_mname,
                         u.users_lname,
                         d.departments_name,
-                        ul.user_level_name AS role
+                        ul.user_level_name AS role,
+                        latest_status.reservation_status_status_id AS status_id,
+                        sm.status_master_name AS status_name,
+                        latest_status.reservation_active AS active,
+                        CASE 
+                            WHEN EXISTS (
+                                SELECT 1 FROM tbl_reservation_vehicle rv 
+                                WHERE rv.reservation_reservation_id = r.reservation_id
+                            ) THEN 'Trip'
+                            WHEN EXISTS (
+                                SELECT 1 FROM tbl_reservation_venue rven 
+                                WHERE rven.reservation_reservation_id = r.reservation_id
+                            ) THEN 'Activity/Event'
+                            WHEN EXISTS (
+                                SELECT 1 FROM tbl_reservation_equipment re 
+                                WHERE re.reservation_reservation_id = r.reservation_id
+                            ) THEN 'EQ'
+                            ELSE 'Unknown'
+                        END AS reservation_type
                     FROM tbl_reservation r
                     INNER JOIN tbl_users u
                         ON r.reservation_user_id = u.users_id
@@ -429,6 +727,17 @@ class Assigned {
                         ON u.users_department_id = d.departments_id
                     LEFT JOIN tbl_user_level ul
                         ON u.users_user_level_id = ul.user_level_id
+                    LEFT JOIN (
+                        SELECT rs1.*
+                        FROM tbl_reservation_status rs1
+                        INNER JOIN (
+                            SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_status_id
+                            FROM tbl_reservation_status
+                            GROUP BY reservation_reservation_id
+                        ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id
+                        AND rs1.reservation_status_id = rs2.max_status_id
+                    ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                    LEFT JOIN tbl_status_master sm ON sm.status_master_id = latest_status.reservation_status_status_id
                     WHERE r.reservation_id = :rid
                 ";
                 $st  = $this->conn->prepare($sqlR);
@@ -442,8 +751,11 @@ class Assigned {
                     $res['reservation_description']  = $hdr['reservation_description'];
                     $res['reservation_start_date']   = $hdr['reservation_start_date'];
                     $res['reservation_end_date']     = $hdr['reservation_end_date'];
-                    $res['reservation_participants'] = $hdr['reservation_participants'];
                     $res['reservation_user_id']      = $hdr['reservation_user_id'];
+                    $res['status_id']                = $hdr['status_id'];
+                    $res['status_name']              = $hdr['status_name'];
+                    $res['active']                   = $hdr['active'];
+                    $res['reservation_type']         = $hdr['reservation_type'];
     
                     $fullName = trim(
                         $hdr['users_fname'] . ' ' .
@@ -465,7 +777,6 @@ class Assigned {
             });
     
             // Final return
-            error_log('[fetchAllAssignedReleases] success reservations=' . count($reservations) . ' filtered=' . count($filteredReservations));
             return json_encode([
                 'status' => 'success',
                 'data'   => array_values($filteredReservations)
@@ -502,6 +813,7 @@ class Assigned {
                     rv.reservation_venue_venue_id,
                     rv.active AS venue_active,
                     v.ven_name AS venue_name,
+                    vb.venue_building_name,
                     cvc.checklist_name AS checklist_venue_name,
                     tsa.status_availability_name AS venue_availability_status_name
                 FROM tbl_reservation_checklist_venue rc_venue
@@ -509,6 +821,8 @@ class Assigned {
                     ON rc_venue.reservation_venue_id = rv.reservation_venue_id
                 LEFT JOIN tbl_venue v
                     ON rv.reservation_venue_venue_id = v.ven_id
+                LEFT JOIN tbl_venue_building vb
+                    ON v.venue_building_id = vb.venue_building_id
                 LEFT JOIN tbl_checklist_venue_master cvc
                     ON rc_venue.checklist_venue_id = cvc.checklist_venue_id
                 INNER JOIN tbl_reservation r
@@ -670,6 +984,7 @@ class Assigned {
                             'reservation_venue_id'       => $row['reservation_venue_id'],
                             'reservation_venue_venue_id' => $row['reservation_venue_venue_id'],
                             'name'                       => $row['venue_name'],
+                            'building_name'              => $row['venue_building_name'] ?? null,
                             'availability_status'        => $row['venue_availability_status_name'],
                             'active'                     => (int)$row['venue_active'],
                             'checklists'                 => [[
@@ -818,7 +1133,7 @@ class Assigned {
                         r.reservation_description,
                         r.reservation_start_date,
                         r.reservation_end_date,
-                        r.reservation_participants,
+               
                         r.reservation_user_id,
                         u.users_fname,
                         u.users_mname,
@@ -842,7 +1157,7 @@ class Assigned {
                     $res['reservation_description']  = $hdr['reservation_description'];
                     $res['reservation_start_date']   = $hdr['reservation_start_date'];
                     $res['reservation_end_date']     = $hdr['reservation_end_date'];
-                    $res['reservation_participants'] = $hdr['reservation_participants'];
+                  
                     $res['reservation_user_id']      = $hdr['reservation_user_id'];
     
                     $fullName = trim(
@@ -889,7 +1204,7 @@ class Assigned {
                     reservation_description,
                     reservation_start_date,
                     reservation_end_date,
-                    reservation_participants,
+                 
                     reservation_user_id,
                     reservation_created_at
                 FROM 
@@ -1342,6 +1657,67 @@ class Assigned {
                     'message' => 'Missing or invalid checklist_ids.'
                 ]);
             }
+
+            // Check reservation status before proceeding - use the same logic as handleProcessed
+            $reservationId = isset($data['notification_reservation_reservation_id']) 
+                ? (int)$data['notification_reservation_reservation_id'] 
+                : null;
+
+            if (!$reservationId) {
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'Reservation ID is required for checklist assignment'
+                ]);
+            }
+
+            // First, check the current status of the reservation (same as handleProcessed)
+            $checkSql = "
+                SELECT 
+                    rs.reservation_status_status_id,
+                    rs.reservation_active,
+                    sm.status_master_name
+                FROM tbl_reservation_status rs
+                LEFT JOIN tbl_status_master sm ON rs.reservation_status_status_id = sm.status_master_id
+                WHERE rs.reservation_reservation_id = :reservation_id
+                ORDER BY rs.reservation_status_id DESC
+                LIMIT 1
+            ";
+            
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $checkStmt->execute();
+            $currentStatus = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$currentStatus) {
+                return json_encode(['status' => 'error', 'message' => 'Reservation not found']);
+            }
+            
+            $currentStatusId = (int)$currentStatus['reservation_status_status_id'];
+            
+            // Check if reservation is in final states (cancelled, completed, declined) - same as handleProcessed
+            if ($currentStatusId === 2) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot assign checklist: Reservation has been cancelled',
+                    'current_status' => $currentStatus['status_master_name']
+                ]);
+            }
+            
+            if ($currentStatusId === 4) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot assign checklist: Reservation has been declined/rejected',
+                    'current_status' => $currentStatus['status_master_name']
+                ]);
+            }
+            
+            if ($currentStatusId === 5) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot assign checklist: Reservation has been completed',
+                    'current_status' => $currentStatus['status_master_name']
+                ]);
+            }
     
             $this->conn->beginTransaction();
             $results = [];
@@ -1369,10 +1745,8 @@ class Assigned {
                 $personnelFullName = null;
             }
     
-            // Pick a single parent reservation_id to notify (can be passed explicitly)
-            $reservationIdForNotif = isset($data['notification_reservation_reservation_id'])
-                ? (int)$data['notification_reservation_reservation_id']
-                : null;
+            // Use the validated reservation ID for notifications
+            $reservationIdForNotif = $reservationId;
     
             foreach ($data['checklist_ids'] as $checklist) {
                 $admin_id = $data['admin_id'];
@@ -1558,8 +1932,12 @@ class Assigned {
     // Local helper: send push notification via PHP push service
     private function sendPushNotificationToUser($userId, $title = 'Notification', $body = 'You have a new notification', $data = []) {
         try {
-            $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
-
+            // $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
+            // Include push notification configuration
+            require_once __DIR__ . '/config/pushConfig.php';
+            
+            // Get push notification URL from configuration
+            $pushNotificationUrl = getPushNotificationUrl();
             $postData = json_encode([
                 'operation' => 'send',
                 'user_id' => $userId,
@@ -1567,29 +1945,35 @@ class Assigned {
                 'body' => $body,
                 'data' => $data
             ]);
-
-            $context = stream_context_create([
-                'http' => [
-                    'method' => 'POST',
-                    'header' => [
-                        'Content-Type: application/json',
-                        'Content-Length: ' . strlen($postData)
-                    ],
-                    'content' => $postData,
-                    'timeout' => 10
-                ]
+            // Use cURL instead of file_get_contents to avoid warnings
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $pushNotificationUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($postData)
             ]);
-
-            $result = @file_get_contents($pushNotificationUrl, false, $context);
-            if ($result === false) {
-                error_log("[Assigned.saveChecklist] Failed to send push notification to user {$userId}");
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            
+            $result = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $error = curl_error($ch);
+            curl_close($ch);
+            
+            if ($error || $httpCode < 200 || $httpCode >= 300 || $result === false) {
+                // Log error but don't show warning - fail silently
+                error_log("[Assigned.saveChecklist] Push notification failed for user $userId: " . ($error ?: "HTTP $httpCode"));
                 return false;
             }
+            
             $response = json_decode($result, true);
             if ($response && isset($response['status']) && $response['status'] === 'success') {
                 return true;
             }
-            error_log("[Assigned.saveChecklist] Push notification failed for user {$userId}: " . ($response['message'] ?? 'Unknown error'));
+            error_log("[Assigned.saveChecklist] Push notification failed for user $userId: " . ($response['message'] ?? 'Unknown error'));
             return false;
         } catch (Throwable $e) {
             error_log("[Assigned.saveChecklist] Exception sending push: " . $e->getMessage());
@@ -1612,7 +1996,6 @@ class Assigned {
                     r.reservation_end_date, 
                     r.reschedule_start_date,
                     r.reschedule_end_date,
-                    r.reservation_participants, 
                     r.reservation_user_id,
                     r.reservation_created_at,
                     r.additional_note,
@@ -1634,13 +2017,15 @@ class Assigned {
                     ) AS requester_name,
                     dep.departments_name AS department_name,
 
-                    -- Venue details
+                    -- Venue details with participants and building name
                     GROUP_CONCAT(DISTINCT 
                         CONCAT(
                             COALESCE(v.reservation_venue_id, ''), ':', 
                             COALESCE(v.reservation_venue_venue_id, ''), ':',
                             COALESCE(venue.ven_name, ''), ':',
-                            COALESCE(venue.ven_occupancy, '')
+                            COALESCE(venue.ven_occupancy, ''), ':',
+                            COALESCE(v.reservation_participants, '0'), ':',
+                            COALESCE(vb.venue_building_name, '')
                         ) SEPARATOR '|'
                     ) as venue_data,
 
@@ -1692,6 +2077,7 @@ class Assigned {
 
                 LEFT JOIN tbl_reservation_venue v ON r.reservation_id = v.reservation_reservation_id
                 LEFT JOIN tbl_venue venue ON v.reservation_venue_venue_id = venue.ven_id
+                LEFT JOIN tbl_venue_building vb ON venue.venue_building_id = vb.venue_building_id
 
                 LEFT JOIN tbl_reservation_vehicle ve ON r.reservation_id = ve.reservation_reservation_id
                 LEFT JOIN tbl_vehicle vm ON ve.reservation_vehicle_vehicle_id = vm.vehicle_id
@@ -1720,6 +2106,7 @@ class Assigned {
                 $equipment = [];
                 $passengers = [];
                 $statusHistory = [];
+                $totalParticipants = 0; // Initialize total participants counter
 
                 // Fetch condition data for this reservation first
                 $conditionData = [];
@@ -1734,7 +2121,6 @@ class Assigned {
                 ");
                 $equipmentConditionStmt->execute([':reservation_id' => $row['reservation_id']]);
                 $equipmentConditions = $equipmentConditionStmt->fetchAll(PDO::FETCH_ASSOC);
-                error_log("FIRST Equipment conditions query result for reservation_id {$row['reservation_id']}: " . json_encode($equipmentConditions));
                 
                 // Debug: Show all reservation_equipment_id values for this reservation
                 $debugStmt = $this->conn->prepare("
@@ -1744,7 +2130,6 @@ class Assigned {
                 ");
                 $debugStmt->execute([':reservation_id' => $row['reservation_id']]);
                 $debugResults = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
-                error_log("All reservation_equipment_id values for reservation_id {$row['reservation_id']}: " . json_encode($debugResults));
                 
                 // Unit conditions
                 $unitConditionStmt = $this->conn->prepare("
@@ -1790,8 +2175,11 @@ class Assigned {
                 if (!empty($row['venue_data']) && $row['venue_data'] !== '::::::') {
                     foreach (explode('|', $row['venue_data']) as $venueStr) {
                         $venueParts = explode(':', $venueStr);
-                        if (count($venueParts) >= 4 && !empty(array_filter($venueParts))) {
+                        if (count($venueParts) >= 5 && !empty(array_filter($venueParts))) {
                             $venueId = $venueParts[0] ?: '';
+                            $venueParticipants = (int)($venueParts[4] ?: 0);
+                            $totalParticipants += $venueParticipants; // Add to total
+                            
                             $venueConditionsForThis = array_filter($venueConditions, function($condition) use ($venueId) {
                                 return $condition['reservation_venue_id'] == $venueId;
                             });
@@ -1806,6 +2194,7 @@ class Assigned {
                                 'venue_id' => $venueParts[1] ?: '',
                                 'venue_name' => $venueParts[2] ?: '',
                                 'occupancy' => $venueParts[3] ?: '',
+                                'venue_location' => $venueParts[5] ?: '', // Building name
                                 'conditions' => array_values($venueConditionsForThis),
                                 'issue_counts' => [
                                     'total_issues' => $venueTotalIssues
@@ -1846,14 +2235,11 @@ class Assigned {
 
                 // EQUIPMENT
                 if (!empty($row['equipment_data'])) {
-                    error_log("Equipment data received: " . $row['equipment_data']);
                     foreach (explode('|', $row['equipment_data']) as $equipStr) {
                         $equipParts = explode(':', $equipStr);
-                        error_log("Equipment string: " . $equipStr . ", Parts: " . json_encode($equipParts));
                         if (count($equipParts) >= 3) {
                             $equipmentId = $equipParts[0];
-                            error_log("Total equipment conditions fetched: " . count($equipmentConditions));
-                            error_log("All equipment conditions fetched: " . json_encode($equipmentConditions));
+                          
                             // Get the reservation_equipment_id for this equipment
                             $reservationEquipmentStmt = $this->conn->prepare("
                                 SELECT `reservation_equipment_id` 
@@ -1868,15 +2254,9 @@ class Assigned {
                             $reservationEquipmentResult = $reservationEquipmentStmt->fetch(PDO::FETCH_ASSOC);
                             $reservationEquipmentId = $reservationEquipmentResult ? $reservationEquipmentResult['reservation_equipment_id'] : null;
                             
-                            error_log("Equipment ID: {$equipmentId}, Reservation Equipment ID: {$reservationEquipmentId}");
-                            
                             $equipmentConditionsForThis = array_filter($equipmentConditions, function($condition) use ($reservationEquipmentId) {
                                 return $condition['reservation_equipment_id'] == $reservationEquipmentId;
                             });
-                            error_log("Equipment conditions for reservation_equipment_id {$equipmentId}: " . count($equipmentConditionsForThis));
-                            foreach ($equipmentConditionsForThis as $condition) {
-                                error_log("Found condition for equipment {$equipmentId}: " . json_encode($condition));
-                            }
                             
                             // Get equipment type directly using debug approach
                             $debugStmt = $this->conn->prepare("
@@ -1887,7 +2267,6 @@ class Assigned {
                             $debugStmt->execute([':equipment_id' => $equipmentId]);
                             $debugResult = $debugStmt->fetch(PDO::FETCH_ASSOC);
                             $reservationEquipId = $debugResult ? $debugResult['reservation_equipment_equip_id'] : null;
-                            error_log("Reservation Equipment ID: {$equipmentId}, Reservation Equipment Equip ID: {$reservationEquipId}");
                             
                             // Get equipment type from tbl_equipments
                             $equipmentType = 'unknown';
@@ -1900,11 +2279,9 @@ class Assigned {
                                 ");
                                 $debugEquipStmt->execute([':equip_id' => $reservationEquipId]);
                                 $debugEquipResult = $debugEquipStmt->fetch(PDO::FETCH_ASSOC);
-                                error_log("Equip ID from reservation: {$reservationEquipId}, Found in tbl_equipments: " . ($debugEquipResult ? 'YES' : 'NO'));
                                 if ($debugEquipResult) {
                                     $equipmentType = $debugEquipResult['equip_type'];
                                     $equipId = $debugEquipResult['equip_id'];
-                                    error_log("Equip Type from tbl_equipments: {$equipmentType}");
                                 }
                             } else {
                                 // Try to get equipment type by name if reservation_equipment_equip_id is null
@@ -1916,14 +2293,11 @@ class Assigned {
                                 ");
                                 $debugEquipStmt->execute([':equip_name' => $equipmentName]);
                                 $debugEquipResult = $debugEquipStmt->fetch(PDO::FETCH_ASSOC);
-                                error_log("Equipment Name: {$equipmentName}, Found in tbl_equipments: " . ($debugEquipResult ? 'YES' : 'NO'));
                                 if ($debugEquipResult) {
                                     $equipmentType = $debugEquipResult['equip_type'];
                                     $equipId = $debugEquipResult['equip_id'];
-                                    error_log("Equip Type from tbl_equipments by name: {$equipmentType}");
                                 }
                             }
-                            error_log("Final - Equipment ID: {$equipmentId}, Equip ID: {$equipId}, Equipment Type: {$equipmentType}");
                             
                             // Debug: Check if reservation_equipment_equip_id exists
                             $debugStmt = $this->conn->prepare("
@@ -1934,7 +2308,6 @@ class Assigned {
                             $debugStmt->execute([':equipment_id' => $equipmentId]);
                             $debugResult = $debugStmt->fetch(PDO::FETCH_ASSOC);
                             $reservationEquipId = $debugResult ? $debugResult['reservation_equipment_equip_id'] : null;
-                            error_log("Reservation Equipment ID: {$equipmentId}, Reservation Equipment Equip ID: {$reservationEquipId}");
                             
                             // Debug: Check if equip_id exists in tbl_equipments
                             if ($reservationEquipId) {
@@ -1945,27 +2318,14 @@ class Assigned {
                                 ");
                                 $debugEquipStmt->execute([':equip_id' => $reservationEquipId]);
                                 $debugEquipResult = $debugEquipStmt->fetch(PDO::FETCH_ASSOC);
-                                error_log("Equip ID from reservation: {$reservationEquipId}, Found in tbl_equipments: " . ($debugEquipResult ? 'YES' : 'NO'));
-                                if ($debugEquipResult) {
-                                    error_log("Equip Type from tbl_equipments: {$debugEquipResult['equip_type']}");
-                                }
                             }
-                            error_log("Processing equipment ID: {$equipmentId}, Name: {$equipParts[1]}, Type: {$equipmentType}");
-                            error_log("Equipment conditions for this equipment: " . json_encode($equipmentConditionsForThis));
-                            error_log("DEBUG: Equipment ID: {$equipmentId}, Equipment Type: {$equipmentType}, Equip Parts: " . json_encode($equipParts));
                             
                             if ($equipmentType == 'Bulk') {
                                 // For bulk equipment, count qty_bad (no condition_id filter)
                                 $bulkTotalIssues = 0;
-                                error_log("Processing BULK equipment: {$equipParts[1]} (ID: {$equipmentId})");
-                                error_log("All tbl_reservation_condition_equipment data for bulk equipment {$equipParts[1]} (ID: {$equipmentId}): " . json_encode($equipmentConditionsForThis));
                                 foreach ($equipmentConditionsForThis as $condition) {
-                                    error_log("Bulk condition: " . json_encode($condition));
                                     $bulkTotalIssues += (int)$condition['qty_bad'];
-                                    error_log("Added qty_bad: {$condition['qty_bad']} for bulk equipment: {$equipParts[1]} (ID: {$equipmentId})");
                                 }
-                                error_log("Total bulk issues for {$equipParts[1]} (ID: {$equipmentId}): {$bulkTotalIssues}");
-                                error_log("Adding bulk equipment to array with total_issues: {$bulkTotalIssues}");
                                 
                                 // Remove condition_id from conditions array for bulk equipment
                                 $filteredConditions = array_map(function($condition) {
@@ -1983,11 +2343,9 @@ class Assigned {
                                         'total_issues' => $bulkTotalIssues
                                     ]
                                 ];
-                                error_log("Bulk equipment added to array: " . json_encode($equipment[count($equipment)-1]));
                             } elseif ($equipmentType == 'Serialized') {
                                 // For serialized equipment, count unit conditions (exclude condition_id = 2)
                                 $unitConditionsForThis = [];
-                                error_log("Processing SERIALIZED equipment: {$equipParts[1]} (ID: {$equipmentId})");
                                 // Get unit conditions for serialized equipment
                                 $unitConditionStmt = $this->conn->prepare("
                                     SELECT rcu.`id`, rcu.`reservation_unit_id`, rcu.`condition_id`, rcu.`is_active`, rcu.`user_personnel_id`, rcu.`remarks`, rcu.`created_at`, rcu.`updated_at` 
@@ -1997,20 +2355,14 @@ class Assigned {
                                 ");
                                 $unitConditionStmt->execute([':reservation_equipment_id' => $reservationEquipmentId]);
                                 $unitConditionsForThis = $unitConditionStmt->fetchAll(PDO::FETCH_ASSOC);
-                                error_log("Found " . count($unitConditionsForThis) . " unit conditions for serialized equipment: {$equipParts[1]} (ID: {$equipmentId}, Reservation Equipment ID: {$reservationEquipmentId})");
                                 
                                 $unitTotalIssues = 0;
                                 foreach ($unitConditionsForThis as $condition) {
-                                    error_log("Unit condition: " . json_encode($condition));
                                     $conditionId = (int)$condition['condition_id'];
                                     if ($conditionId == 3 || $conditionId == 4 || $conditionId == 7) {
                                         $unitTotalIssues++;
-                                        error_log("Counted unit condition (ID: {$conditionId}) for serialized equipment: {$equipParts[1]} (ID: {$equipmentId})");
-                                    } else {
-                                        error_log("Skipped condition_id {$conditionId} for unit condition in serialized equipment: {$equipParts[1]} (ID: {$equipmentId})");
                                     }
                                 }
-                                error_log("Total unit issues for serialized equipment {$equipParts[1]} (ID: {$equipmentId}): {$unitTotalIssues}");
                                 
                                 $equipment[] = [
                                     'equipment_id' => $equipmentId,
@@ -2023,10 +2375,6 @@ class Assigned {
                                         'total_issues' => $unitTotalIssues
                                     ]
                                 ];
-                            } else {
-                                // Unknown equipment type - don't process
-                                error_log("Unknown equipment type for {$equipParts[1]} (ID: {$equipmentId}): {$equipmentType}");
-                                error_log("Equipment conditions for unknown type: " . json_encode($equipmentConditionsForThis));
                             }
                         }
                     }
@@ -2163,7 +2511,7 @@ class Assigned {
                     'reservation_end_date' => $row['reservation_end_date'],
                     'reschedule_start_date' => $row['reschedule_start_date'],
                     'reschedule_end_date' => $row['reschedule_end_date'],
-                    'reservation_participants' => $row['reservation_participants'],
+                    'reservation_participants' => $totalParticipants, // Sum of all venue participants
                     'additional_note' => $row['additional_note'],
                     'status_name' => $row['status_name'],
                     'active' => $row['active'],
@@ -2220,156 +2568,611 @@ class Assigned {
         }
     }
 
-    public function insertUnits($equipIds, $quantities, $reservationId, $startDate, $endDate) {
+    public function fetchAssignedRelease($reservationId) {
         try {
-            $this->conn->beginTransaction();
-            $results = [];
-            $allocatedUnits = []; // Track units allocated in this session
             
-            // Log the start of unit allocation
-            error_log("insertUnits: Starting allocation for reservation_id: $reservationId, equipIds: " . json_encode($equipIds) . ", quantities: " . json_encode($quantities));
-    
-            for ($i = 0; $i < count($equipIds); $i++) {
-                $equipId = $equipIds[$i];
-                $quantity = $quantities[$i];
-    
-                // Get equipment type
-                $stmtType = $this->conn->prepare("SELECT equip_type FROM tbl_equipments WHERE equip_id = :equip_id");
-                $stmtType->execute([':equip_id' => $equipId]);
-                $equipData = $stmtType->fetch(PDO::FETCH_ASSOC);
-    
-                if (!$equipData) {
-                    throw new Exception("Equipment ID $equipId not found.");
+            // Get equipment for this reservation with type (Bulk/Serialized)
+            $sqlEquipment = "
+                SELECT 
+                    e.equip_id,
+                    e.equip_name,
+                    e.equip_type,
+                    e.is_active,
+                    e.equipments_category_id,
+                    re.reservation_equipment_id,
+                    re.reservation_equipment_quantity AS quantity_requested,
+                    re.active AS equipment_active,
+                    ec.equipments_category_name
+                FROM tbl_reservation_equipment re
+                INNER JOIN tbl_equipments e ON re.reservation_equipment_equip_id = e.equip_id
+                LEFT JOIN tbl_equipments_category ec ON e.equipments_category_id = ec.equipments_category_id
+                WHERE re.reservation_reservation_id = :reservation_id
+                    AND e.is_active = 1
+                ORDER BY e.equip_name ASC
+            ";
+            
+            $stmtEquipment = $this->conn->prepare($sqlEquipment);
+            $stmtEquipment->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $stmtEquipment->execute();
+            $equipments = $stmtEquipment->fetchAll(PDO::FETCH_ASSOC);
+            
+            $result = [];
+            
+            foreach ($equipments as $equipment) {
+                $isSerialized = strtolower($equipment['equip_type']) === 'serialized';
+                
+                $equipData = [
+                    'equip_id' => $equipment['equip_id'],
+                    'equip_name' => $equipment['equip_name'],
+                    'equip_type' => $equipment['equip_type'],
+                    'is_serialized' => $isSerialized,
+                    'skip_stock_check' => $isSerialized, // For serialized equipment, skip stock validation
+                    'category_name' => $equipment['equipments_category_name'],
+                    'reservation_equipment_id' => $equipment['reservation_equipment_id'],
+                    'quantity_requested' => (int)$equipment['quantity_requested'],
+                    'units' => [],
+                    'units_already_assigned' => 0,
+                    'units_needed' => (int)$equipment['quantity_requested'],
+                    'available_stock' => 0 // Will be populated for bulk equipment
+                ];
+                
+                // Check how many units are already assigned
+                $sqlAssignedUnits = "
+                    SELECT COUNT(*) as assigned_count
+                    FROM tbl_reservation_unit ru
+                    WHERE ru.reservation_equipment_id = :reservation_equipment_id
+                        AND ru.active = 1
+                ";
+                
+                $stmtAssigned = $this->conn->prepare($sqlAssignedUnits);
+                $stmtAssigned->bindParam(':reservation_equipment_id', $equipment['reservation_equipment_id'], PDO::PARAM_INT);
+                $stmtAssigned->execute();
+                $assignedData = $stmtAssigned->fetch(PDO::FETCH_ASSOC);
+                $equipData['units_already_assigned'] = (int)$assignedData['assigned_count'];
+                $equipData['units_needed'] = $equipData['quantity_requested'] - $equipData['units_already_assigned'];
+                
+                // For Bulk equipment, check available stock quantity
+                if (!$isSerialized) {
+                    $sqlBulkQty = "
+                        SELECT quantity 
+                        FROM tbl_equipment_quantity 
+                        WHERE equip_id = :equip_id
+                    ";
+                    
+                    $stmtBulkQty = $this->conn->prepare($sqlBulkQty);
+                    $stmtBulkQty->bindParam(':equip_id', $equipment['equip_id'], PDO::PARAM_INT);
+                    $stmtBulkQty->execute();
+                    $bulkQty = $stmtBulkQty->fetch(PDO::FETCH_ASSOC);
+                    $equipData['available_stock'] = $bulkQty ? (int)$bulkQty['quantity'] : 0;
                 }
-    
-                $equipType = strtolower($equipData['equip_type']);
-    
-                // Get reservation_equipment_id
-                $stmtReservationEquip = $this->conn->prepare("SELECT reservation_equipment_id 
-                                                              FROM tbl_reservation_equipment 
-                                                              WHERE reservation_equipment_equip_id = :equip_id 
-                                                              AND reservation_reservation_id = :reservation_id");
-                $stmtReservationEquip->execute([
-                    ':equip_id' => $equipId,
-                    ':reservation_id' => $reservationId
-                ]);
-                $reservationEquip = $stmtReservationEquip->fetch(PDO::FETCH_ASSOC);
-    
-                if (!$reservationEquip) {
-                    throw new Exception("No reservation_equipment found for equip_id $equipId and reservation_id $reservationId");
-                }
-    
-                $reservationEquipmentId = $reservationEquip['reservation_equipment_id'];
-    
-                if ($equipType === 'bulk') {
-                    // Check available quantity (but don't deduct)
-                    $stmtQty = $this->conn->prepare("SELECT quantity FROM tbl_equipment_quantity WHERE equip_id = :equip_id");
-                    $stmtQty->execute([':equip_id' => $equipId]);
-                    $qtyData = $stmtQty->fetch(PDO::FETCH_ASSOC);
-                    $availableQty = $qtyData ? (int)$qtyData['quantity'] : 0;
-    
-                    if ($availableQty < $quantity) {
-                        throw new Exception("Not enough quantity for bulk equipment ID $equipId. Only $availableQty available.");
-                    }
-    
-                    // Commented out quantity deduction for bulk equipment
-                    // $stmtUpdateQty = $this->conn->prepare("UPDATE tbl_equipment_quantity SET quantity = quantity - :qty WHERE equip_id = :equip_id");
-                    // $stmtUpdateQty->execute([
-                    //     ':qty' => $quantity,
-                    //     ':equip_id' => $equipId
-                    // ]);
-    
-                    $results[] = [
-                        'equip_id' => $equipId,
-                        'reservation_equipment_id' => $reservationEquipmentId,
-                        'type' => 'bulk',
-                        'quantity_used' => $quantity,
-                        'can_release' => true
-                    ];
-                } else {
-                    // New approach: Get all available units first, then filter step by step
-                    error_log("insertUnits: Processing serialized equipment $equipId, quantity needed: $quantity");
-    
-                    // Determine effective start/end datetime for the CURRENT reservation (use reschedule dates when applicable)
-                    // This avoids false negatives if $startDate/$endDate are passed as DATE only without time.
-                    $sqlLatestStatusCurrent = "
+                
+                // If equipment is Serialized, fetch available units
+                if ($isSerialized) {
+                    
+                    // Get reservation date range
+                    $sqlReservation = "
                         SELECT 
-                            rs.reservation_status_status_id,
-                            rs.reservation_active,
-                            rs.reservation_updated_at
-                        FROM tbl_reservation_status rs
-                        WHERE rs.reservation_reservation_id = :reservation_id
-                        ORDER BY rs.reservation_updated_at DESC, rs.reservation_status_id DESC
-                        LIMIT 1";
-    
-                    $stmtLatestCur = $this->conn->prepare($sqlLatestStatusCurrent);
-                    $stmtLatestCur->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                    $stmtLatestCur->execute();
-                    $latestCur = $stmtLatestCur->fetch(PDO::FETCH_ASSOC) ?: [];
-    
-                    $sqlResHeader = "
-                        SELECT reservation_start_date, reservation_end_date, reschedule_start_date, reschedule_end_date
-                        FROM tbl_reservation
-                        WHERE reservation_id = :reservation_id";
-                    $stmtResHdr = $this->conn->prepare($sqlResHeader);
-                    $stmtResHdr->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                    $stmtResHdr->execute();
-                    $resHdr = $stmtResHdr->fetch(PDO::FETCH_ASSOC) ?: [];
-    
-                    $useResched = false;
-                    if (!empty($latestCur) && in_array((int)$latestCur['reservation_status_status_id'], [10,11,14], true)
-                        && !empty($resHdr['reschedule_start_date']) && !empty($resHdr['reschedule_end_date'])) {
-                        $useResched = true;
+                            r.reservation_start_date,
+                            r.reservation_end_date,
+                            r.reschedule_start_date,
+                            r.reschedule_end_date,
+                            rs.reservation_status_status_id
+                        FROM tbl_reservation r
+                        INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
+                        WHERE r.reservation_id = :reservation_id
+                            AND rs.reservation_active = 1
+                        ORDER BY rs.reservation_updated_at DESC
+                        LIMIT 1
+                    ";
+                    
+                    $stmtReservation = $this->conn->prepare($sqlReservation);
+                    $stmtReservation->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                    $stmtReservation->execute();
+                    $reservation = $stmtReservation->fetch(PDO::FETCH_ASSOC);
+                    
+                    // Determine effective dates (use reschedule dates if status is 10, 11, or 14)
+                    $useReschedule = false;
+                    if ($reservation && in_array((int)$reservation['reservation_status_status_id'], [10, 11, 14], true)
+                        && !empty($reservation['reschedule_start_date']) && !empty($reservation['reschedule_end_date'])) {
+                        $useReschedule = true;
                     }
-    
-                    $effectiveStart = $useResched ? $resHdr['reschedule_start_date'] : $resHdr['reservation_start_date'];
-                    $effectiveEnd   = $useResched ? $resHdr['reschedule_end_date']   : $resHdr['reservation_end_date'];
-    
-                    // Fallback: if for some reason header is missing, use provided parameters
-                    if (empty($effectiveStart)) { $effectiveStart = $startDate; }
-                    if (empty($effectiveEnd))   { $effectiveEnd   = $endDate; }
-    
-                    error_log("insertUnits: Effective window for reservation $reservationId -> start: $effectiveStart, end: $effectiveEnd (useResched=" . ($useResched ? '1' : '0') . ")");
                     
-                    // Step 1: Get all units for this equipment that are active and not broken
-                    $sqlAllUnits = "
-                        SELECT eu.unit_id, eu.serial_number 
+                    $startDate = $useReschedule ? $reservation['reschedule_start_date'] : $reservation['reservation_start_date'];
+                    $endDate = $useReschedule ? $reservation['reschedule_end_date'] : $reservation['reservation_end_date'];
+                    
+                    // Get all units for this equipment
+                    $sqlUnits = "
+                        SELECT 
+                            eu.unit_id,
+                            eu.equip_id,
+                            eu.equipment_brand,
+                            eu.equipment_model,
+                            eu.equipment_description,
+                            eu.equipment_specs,
+                            eu.inch,
+                            eu.serial_number,
+                            eu.status_availability_id,
+                            sa.status_availability_name,
+                            eu.unit_created_at,
+                            eu.is_active
                         FROM tbl_equipment_unit eu
-                        WHERE eu.equip_id = :equip_id 
-                            AND eu.status_availability_id != 2 
+                        LEFT JOIN tbl_status_availability sa ON eu.status_availability_id = sa.status_availability_id
+                        WHERE eu.equip_id = :equip_id
                             AND eu.is_active = 1
-                        ORDER BY eu.unit_id ASC";
+                            AND eu.status_availability_id != 2
+                        ORDER BY eu.unit_id ASC
+                    ";
                     
-                    $stmtAllUnits = $this->conn->prepare($sqlAllUnits);
-                    $stmtAllUnits->bindParam(':equip_id', $equipId, PDO::PARAM_INT);
-                    $stmtAllUnits->execute();
-                    $allUnits = $stmtAllUnits->fetchAll(PDO::FETCH_ASSOC);
+                    $stmtUnits = $this->conn->prepare($sqlUnits);
+                    $stmtUnits->bindParam(':equip_id', $equipment['equip_id'], PDO::PARAM_INT);
+                    $stmtUnits->execute();
+                    $units = $stmtUnits->fetchAll(PDO::FETCH_ASSOC);
                     
-                    error_log("insertUnits: Found " . count($allUnits) . " total units for equipment $equipId");
-                    error_log("insertUnits: All units from tbl_equipment_unit: " . json_encode($allUnits));
+                    // Check availability of each unit
+                    foreach ($units as &$unit) {
+                        // Check if unit is already assigned to current reservation
+                        $sqlCurrentReservation = "
+                            SELECT ru.reservation_unit_id
+                            FROM tbl_reservation_unit ru
+                            INNER JOIN tbl_reservation_equipment re ON ru.reservation_equipment_id = re.reservation_equipment_id
+                            WHERE ru.unit_id = :unit_id
+                                AND re.reservation_reservation_id = :reservation_id
+                                AND ru.active = 1
+                        ";
+                        
+                        $stmtCurrent = $this->conn->prepare($sqlCurrentReservation);
+                        $stmtCurrent->bindParam(':unit_id', $unit['unit_id'], PDO::PARAM_INT);
+                        $stmtCurrent->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                        $stmtCurrent->execute();
+                        $isAssignedToCurrent = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
+                        
+                        $unit['is_assigned_to_current'] = !empty($isAssignedToCurrent);
+                        
+                        // Check if unit is reserved by other reservations with date overlap
+                        $sqlOtherReservations = "
+                            SELECT COUNT(*) as conflict_count
+                            FROM tbl_reservation_unit ru
+                            INNER JOIN tbl_reservation_equipment re ON ru.reservation_equipment_id = re.reservation_equipment_id
+                            INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                            INNER JOIN (
+                                SELECT 
+                                    rs1.reservation_reservation_id,
+                                    rs1.reservation_status_status_id,
+                                    rs1.reservation_active
+                                FROM tbl_reservation_status rs1
+                                WHERE rs1.reservation_status_id = (
+                                    SELECT MAX(rs2.reservation_status_id)
+                                    FROM tbl_reservation_status rs2
+                                    WHERE rs2.reservation_reservation_id = rs1.reservation_reservation_id
+                                )
+                            ) latest_status ON r.reservation_id = latest_status.reservation_reservation_id
+                            WHERE ru.unit_id = :unit_id
+                                AND ru.active = 1
+                                AND re.reservation_reservation_id != :reservation_id
+                                AND latest_status.reservation_status_status_id NOT IN (2, 5)
+                                AND (
+                                    (latest_status.reservation_status_status_id IN (10, 11, 14) 
+                                     AND r.reschedule_start_date IS NOT NULL 
+                                     AND r.reschedule_end_date IS NOT NULL
+                                     AND NOT (
+                                         r.reschedule_end_date < :start_date 
+                                         OR r.reschedule_start_date > :end_date
+                                     ))
+                                    OR
+                                    (latest_status.reservation_status_status_id NOT IN (10, 11, 14)
+                                     AND NOT (
+                                         r.reservation_end_date < :start_date 
+                                         OR r.reservation_start_date > :end_date
+                                     ))
+                                )
+                        ";
+                        
+                        $stmtOther = $this->conn->prepare($sqlOtherReservations);
+                        $stmtOther->bindParam(':unit_id', $unit['unit_id'], PDO::PARAM_INT);
+                        $stmtOther->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                        $stmtOther->bindParam(':start_date', $startDate);
+                        $stmtOther->bindParam(':end_date', $endDate);
+                        $stmtOther->execute();
+                        $conflictData = $stmtOther->fetch(PDO::FETCH_ASSOC);
+                        
+                        $unit['is_available'] = ($conflictData['conflict_count'] == 0 && !$unit['is_assigned_to_current']);
+                        $unit['has_conflict'] = ($conflictData['conflict_count'] > 0);
+                    }
+                    unset($unit);
                     
-                    // Step 2: Get units already allocated to current reservation
-                    $sqlCurrentReservationUnits = "
-                        SELECT DISTINCT tru.unit_id
-                        FROM tbl_reservation_unit tru
-                        INNER JOIN tbl_reservation_equipment tre ON tru.reservation_equipment_id = tre.reservation_equipment_id
-                        WHERE tre.reservation_reservation_id = :reservation_id";
+                    $equipData['units'] = $units;
+                    $equipData['total_units'] = count($units);
+                    $equipData['available_units'] = count(array_filter($units, function($u) {
+                        return $u['is_available'];
+                    }));
+                }
+                
+                $result[] = $equipData;
+            }
+            
+            return json_encode([
+                'status' => 'success',
+                'data' => $result,
+                'reservation_id' => $reservationId
+            ]);
+            
+        } catch (Exception $e) {
+            error_log('[fetchAssignedRelease] Error: ' . $e->getMessage());
+            return json_encode([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    public function fetchUnitByEquipId($equipId, $reservationId = null) {
+        try {
+            
+            // Get equipment details first
+            $sqlEquipment = "
+                SELECT 
+                    e.equip_id,
+                    e.equip_name,
+                    e.equip_type,
+                    e.equipments_category_id,
+                    ec.equipments_category_name
+                FROM tbl_equipments e
+                LEFT JOIN tbl_equipments_category ec ON e.equipments_category_id = ec.equipments_category_id
+                WHERE e.equip_id = :equip_id
+                    AND e.is_active = 1
+            ";
+            
+            $stmtEquipment = $this->conn->prepare($sqlEquipment);
+            $stmtEquipment->bindParam(':equip_id', $equipId, PDO::PARAM_INT);
+            $stmtEquipment->execute();
+            $equipment = $stmtEquipment->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$equipment) {
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'Equipment not found or inactive'
+                ]);  
+            }
+            
+            // Check if equipment is serialized
+            if (strtolower($equipment['equip_type']) !== 'serialized') {
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'This equipment is not serialized. It does not have individual units.'
+                ]);
+            }
+            
+            // Get reservation date range if reservation_id is provided
+            $startDate = null;
+            $endDate = null;
+            
+            if ($reservationId) {
+                $sqlReservation = "
+                    SELECT 
+                        r.reservation_start_date,
+                        r.reservation_end_date,
+                        r.reschedule_start_date,
+                        r.reschedule_end_date,
+                        rs.reservation_status_status_id
+                    FROM tbl_reservation r
+                    INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
+                    WHERE r.reservation_id = :reservation_id
+                        AND rs.reservation_active = 1
+                    ORDER BY rs.reservation_updated_at DESC
+                    LIMIT 1
+                ";
+                
+                $stmtReservation = $this->conn->prepare($sqlReservation);
+                $stmtReservation->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtReservation->execute();
+                $reservation = $stmtReservation->fetch(PDO::FETCH_ASSOC);
+                
+                if ($reservation) {
+                    // Determine effective dates (use reschedule dates if status is 10, 11, or 14)
+                    $useReschedule = false;
+                    if (in_array((int)$reservation['reservation_status_status_id'], [10, 11, 14], true)
+                        && !empty($reservation['reschedule_start_date']) && !empty($reservation['reschedule_end_date'])) {
+                        $useReschedule = true;
+                    }
                     
-                    $stmtCurrentUnits = $this->conn->prepare($sqlCurrentReservationUnits);
-                    $stmtCurrentUnits->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                    $stmtCurrentUnits->execute();
-                    $currentReservationUnits = $stmtCurrentUnits->fetchAll(PDO::FETCH_COLUMN);
+                    $startDate = $useReschedule ? $reservation['reschedule_start_date'] : $reservation['reservation_start_date'];
+                    $endDate = $useReschedule ? $reservation['reschedule_end_date'] : $reservation['reservation_end_date'];
+                }
+            }
+            
+            // Get all units for this equipment
+            $sqlUnits = "
+                SELECT 
+                    eu.unit_id,
+                    eu.equip_id,
+                    eu.equipment_brand,
+                    eu.equipment_model,
+                    eu.equipment_description,
+                    eu.equipment_specs,
+                    eu.serial_number,
+                    eu.status_availability_id,
+                    sa.status_availability_name,
+                    eu.unit_created_at,
+                    eu.is_active,
+                    eu.user_admin_id
+                FROM tbl_equipment_unit eu
+                LEFT JOIN tbl_status_availability sa ON eu.status_availability_id = sa.status_availability_id
+                WHERE eu.equip_id = :equip_id
+                    AND eu.is_active = 1
+                    AND eu.status_availability_id != 2
+                ORDER BY eu.unit_id ASC
+            ";
+            
+            $stmtUnits = $this->conn->prepare($sqlUnits);
+            $stmtUnits->bindParam(':equip_id', $equipId, PDO::PARAM_INT);
+            $stmtUnits->execute();
+            $units = $stmtUnits->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Check availability of each unit if reservation_id is provided
+            if ($reservationId && $startDate && $endDate) {
+                foreach ($units as &$unit) {
+                    // Check if unit is already assigned to current reservation
+                    $sqlCurrentReservation = "
+                        SELECT ru.reservation_unit_id
+                        FROM tbl_reservation_unit ru
+                        INNER JOIN tbl_reservation_equipment re ON ru.reservation_equipment_id = re.reservation_equipment_id
+                        WHERE ru.unit_id = :unit_id
+                            AND re.reservation_reservation_id = :reservation_id
+                            AND ru.active = 1
+                    ";
                     
-                    error_log("insertUnits: Current reservation query: " . $sqlCurrentReservationUnits);
-                    error_log("insertUnits: Current reservation_id parameter: " . $reservationId);
-                    error_log("insertUnits: Units already allocated to current reservation: " . json_encode($currentReservationUnits));
+                    $stmtCurrent = $this->conn->prepare($sqlCurrentReservation);
+                    $stmtCurrent->bindParam(':unit_id', $unit['unit_id'], PDO::PARAM_INT);
+                    $stmtCurrent->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                    $stmtCurrent->execute();
+                    $isAssignedToCurrent = $stmtCurrent->fetch(PDO::FETCH_ASSOC);
                     
-                    // Step 3: Get units reserved in other active reservations with date overlap
+                    $unit['is_assigned_to_current'] = !empty($isAssignedToCurrent);
+                    
+                    // Check if unit is reserved by other reservations with date overlap
+                    $sqlOtherReservations = "
+                        SELECT COUNT(*) as conflict_count
+                        FROM tbl_reservation_unit ru
+                        INNER JOIN tbl_reservation_equipment re ON ru.reservation_equipment_id = re.reservation_equipment_id
+                        INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                        INNER JOIN (
+                            SELECT 
+                                rs1.reservation_reservation_id,
+                                rs1.reservation_status_status_id,
+                                rs1.reservation_active
+                            FROM tbl_reservation_status rs1
+                            WHERE rs1.reservation_status_id = (
+                                SELECT MAX(rs2.reservation_status_id)
+                                FROM tbl_reservation_status rs2
+                                WHERE rs2.reservation_reservation_id = rs1.reservation_reservation_id
+                            )
+                        ) latest_status ON r.reservation_id = latest_status.reservation_reservation_id
+                        WHERE ru.unit_id = :unit_id
+                            AND ru.active = 1
+                            AND re.reservation_reservation_id != :reservation_id
+                            AND latest_status.reservation_status_status_id NOT IN (2, 5)
+                            AND (
+                                (latest_status.reservation_status_status_id IN (10, 11, 14) 
+                                 AND r.reschedule_start_date IS NOT NULL 
+                                 AND r.reschedule_end_date IS NOT NULL
+                                 AND NOT (
+                                     r.reschedule_end_date < :start_date 
+                                     OR r.reschedule_start_date > :end_date
+                                 ))
+                                OR
+                                (latest_status.reservation_status_status_id NOT IN (10, 11, 14)
+                                 AND NOT (
+                                     r.reservation_end_date < :start_date 
+                                     OR r.reservation_start_date > :end_date
+                                 ))
+                            )
+                    ";
+                    
+                    $stmtOther = $this->conn->prepare($sqlOtherReservations);
+                    $stmtOther->bindParam(':unit_id', $unit['unit_id'], PDO::PARAM_INT);
+                    $stmtOther->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                    $stmtOther->bindParam(':start_date', $startDate);
+                    $stmtOther->bindParam(':end_date', $endDate);
+                    $stmtOther->execute();
+                    $conflictData = $stmtOther->fetch(PDO::FETCH_ASSOC);
+                    
+                    $unit['is_available'] = ($conflictData['conflict_count'] == 0 && !$unit['is_assigned_to_current']);
+                    $unit['has_conflict'] = ($conflictData['conflict_count'] > 0);
+                }
+                unset($unit);
+            } else {
+                // If no reservation_id, just mark all units as available
+                foreach ($units as &$unit) {
+                    $unit['is_assigned_to_current'] = false;
+                    $unit['is_available'] = true;
+                    $unit['has_conflict'] = false;
+                }
+                unset($unit);
+            }
+            
+            return json_encode([
+                'status' => 'success',
+                'data' => [
+                    'equipment' => $equipment,
+                    'units' => $units,
+                    'total_units' => count($units)
+                ]
+            ]);
+            
+        } catch (Exception $e) {
+            error_log('[fetchUnitByEquipId] Error: ' . $e->getMessage());
+            return json_encode([
+                'status' => 'error',
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+        public function insertUnits($equipIds, $quantities, $reservationId, $startDate, $endDate, $userId) {
+    try {
+        $this->conn->beginTransaction();
+        $results = [];
+        $allocatedUnits = []; // Track units allocated in this session
+        
+        // Check if user can bypass equipment assignment restrictions
+        $canBypassEquipmentRestrictions = false;
+        
+        // Get user level and department information
+        $sqlUserInfo = "
+            SELECT 
+                u.users_user_level_id,
+                u.users_department_id,
+                ul.user_level_name,
+                d.departments_name
+            FROM tbl_users u
+            LEFT JOIN tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
+            LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
+            WHERE u.users_id = :user_id
+        ";
+        $stmtUserInfo = $this->conn->prepare($sqlUserInfo);
+        $stmtUserInfo->bindParam(':user_id', $userId, PDO::PARAM_INT);
+        $stmtUserInfo->execute();
+        $userInfo = $stmtUserInfo->fetch(PDO::FETCH_ASSOC);
+        
+        if ($userInfo) {
+            $userLevelId = $userInfo['users_user_level_id'];
+            $userDepartmentId = $userInfo['users_department_id'];
+            $userLevelName = $userInfo['user_level_name'];
+            $departmentName = $userInfo['departments_name'];
+            
+            // Check if user is Department Head (level 5) from COO department OR Secretary (level 6) from GSD department
+            $isDepartmentHeadFromCOO = ($userLevelId == 5 && strtoupper($departmentName) == 'COO');
+            $isSecretaryFromGSD = ($userLevelId == 6 && strtoupper($departmentName) == 'GSD');
+            
+            $canBypassEquipmentRestrictions = $isDepartmentHeadFromCOO || $isSecretaryFromGSD;
+        }
+
+        for ($i = 0; $i < count($equipIds); $i++) {
+            $equipId = $equipIds[$i];
+            $quantity = $quantities[$i];
+
+            // Get equipment type
+            $stmtType = $this->conn->prepare("SELECT equip_type FROM tbl_equipments WHERE equip_id = :equip_id");
+            $stmtType->execute([':equip_id' => $equipId]);
+            $equipData = $stmtType->fetch(PDO::FETCH_ASSOC);
+
+            if (!$equipData) {
+                throw new Exception("Equipment ID $equipId not found.");
+            }
+
+            $equipType = strtolower($equipData['equip_type']);
+
+            // Get reservation_equipment_id
+            $stmtReservationEquip = $this->conn->prepare("SELECT reservation_equipment_id 
+                                                          FROM tbl_reservation_equipment 
+                                                          WHERE reservation_equipment_equip_id = :equip_id 
+                                                          AND reservation_reservation_id = :reservation_id");
+            $stmtReservationEquip->execute([
+                ':equip_id' => $equipId,
+                ':reservation_id' => $reservationId
+            ]);
+            $reservationEquip = $stmtReservationEquip->fetch(PDO::FETCH_ASSOC);
+
+            if (!$reservationEquip) {
+                throw new Exception("No reservation_equipment found for equip_id $equipId and reservation_id $reservationId");
+            }
+
+            $reservationEquipmentId = $reservationEquip['reservation_equipment_id'];
+
+            if ($equipType === 'bulk') {
+                // Check available quantity (but don't deduct)
+                $stmtQty = $this->conn->prepare("SELECT quantity FROM tbl_equipment_quantity WHERE equip_id = :equip_id");
+                $stmtQty->execute([':equip_id' => $equipId]);
+                $qtyData = $stmtQty->fetch(PDO::FETCH_ASSOC);
+                $availableQty = $qtyData ? (int)$qtyData['quantity'] : 0;
+
+                if ($availableQty < $quantity) {
+                    throw new Exception("Not enough quantity for bulk equipment ID $equipId. Only $availableQty available.");
+                }
+
+                $results[] = [
+                    'equip_id' => $equipId,
+                    'reservation_equipment_id' => $reservationEquipmentId,
+                    'type' => 'bulk',
+                    'quantity_used' => $quantity,
+                    'can_release' => true,
+                    'bypass_mode' => $canBypassEquipmentRestrictions
+                ];
+            } else {
+                // New approach: Get all available units first, then filter step by step
+
+                // Determine effective start/end datetime for the CURRENT reservation
+                $sqlLatestStatusCurrent = "
+                    SELECT 
+                        rs.reservation_status_status_id,
+                        rs.reservation_active,
+                        rs.reservation_updated_at
+                    FROM tbl_reservation_status rs
+                    WHERE rs.reservation_reservation_id = :reservation_id
+                    ORDER BY rs.reservation_updated_at DESC, rs.reservation_status_id DESC
+                    LIMIT 1";
+
+                $stmtLatestCur = $this->conn->prepare($sqlLatestStatusCurrent);
+                $stmtLatestCur->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtLatestCur->execute();
+                $latestCur = $stmtLatestCur->fetch(PDO::FETCH_ASSOC) ?: [];
+
+                $sqlResHeader = "
+                    SELECT reservation_start_date, reservation_end_date, reschedule_start_date, reschedule_end_date
+                    FROM tbl_reservation
+                    WHERE reservation_id = :reservation_id";
+                $stmtResHdr = $this->conn->prepare($sqlResHeader);
+                $stmtResHdr->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtResHdr->execute();
+                $resHdr = $stmtResHdr->fetch(PDO::FETCH_ASSOC) ?: [];
+
+                $useResched = false;
+                if (!empty($latestCur) && in_array((int)$latestCur['reservation_status_status_id'], [10,11,14], true)
+                    && !empty($resHdr['reschedule_start_date']) && !empty($resHdr['reschedule_end_date'])) {
+                    $useResched = true;
+                }
+
+                $effectiveStart = $useResched ? $resHdr['reschedule_start_date'] : $resHdr['reservation_start_date'];
+                $effectiveEnd   = $useResched ? $resHdr['reschedule_end_date']   : $resHdr['reservation_end_date'];
+
+                // Fallback
+                if (empty($effectiveStart)) { $effectiveStart = $startDate; }
+                if (empty($effectiveEnd))   { $effectiveEnd   = $endDate; }
+                
+                // Step 1: Get all units for this equipment that are active and not broken
+                $sqlAllUnits = "
+                    SELECT eu.unit_id, eu.serial_number 
+                    FROM tbl_equipment_unit eu
+                    WHERE eu.equip_id = :equip_id 
+                        AND eu.status_availability_id != 2 
+                        AND eu.is_active = 1
+                    ORDER BY eu.unit_id ASC";
+                
+                $stmtAllUnits = $this->conn->prepare($sqlAllUnits);
+                $stmtAllUnits->bindParam(':equip_id', $equipId, PDO::PARAM_INT);
+                $stmtAllUnits->execute();
+                $allUnits = $stmtAllUnits->fetchAll(PDO::FETCH_ASSOC);
+                
+                // Step 2: Get units already allocated to current reservation
+                $sqlCurrentReservationUnits = "
+                    SELECT DISTINCT tru.unit_id
+                    FROM tbl_reservation_unit tru
+                    INNER JOIN tbl_reservation_equipment tre ON tru.reservation_equipment_id = tre.reservation_equipment_id
+                    WHERE tre.reservation_reservation_id = :reservation_id";
+                
+                $stmtCurrentUnits = $this->conn->prepare($sqlCurrentReservationUnits);
+                $stmtCurrentUnits->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtCurrentUnits->execute();
+                $currentReservationUnits = $stmtCurrentUnits->fetchAll(PDO::FETCH_COLUMN);
+                
+                // Step 3: Get units reserved in other active reservations with date overlap
+                $otherReservationUnits = [];
+                
+                if (!$canBypassEquipmentRestrictions) {
                     $sqlOtherReservationUnits = "
                         SELECT DISTINCT tru.unit_id
                         FROM tbl_reservation_unit tru
                         INNER JOIN tbl_reservation_equipment tre ON tru.reservation_equipment_id = tre.reservation_equipment_id
-                        INNER JOIN tbl_reservation tr ON tre.reservation_reservation_id = tr.reservation_id
                         INNER JOIN (
                             SELECT 
                                 rs1.reservation_reservation_id,
@@ -2387,140 +3190,188 @@ class Assigned {
                                     WHERE rs3.reservation_reservation_id = rs1.reservation_reservation_id
                                 )
                             )
-                        ) latest_status ON latest_status.reservation_reservation_id = tr.reservation_id
+                        ) latest_status ON latest_status.reservation_reservation_id = tre.reservation_reservation_id
+                        INNER JOIN tbl_reservation tr ON tre.reservation_reservation_id = tr.reservation_id
                         WHERE tr.reservation_id != :reservation_id
-                            AND latest_status.reservation_status_status_id IN (6, 8, 10, 11, 14)
+                            AND latest_status.reservation_status_status_id IN (1,3,7,6,8,10,11,14)
                             AND (
-                                (latest_status.reservation_status_status_id IN (10, 11, 14) AND 
+                                (latest_status.reservation_status_status_id IN (10,11,14) AND 
                                  COALESCE(tr.reschedule_start_date, tr.reservation_start_date) <= :end_date AND 
                                  COALESCE(tr.reschedule_end_date, tr.reservation_end_date) >= :start_date)
                                 OR
-                                (latest_status.reservation_status_status_id NOT IN (10, 11, 14) AND 
+                                (latest_status.reservation_status_status_id NOT IN (10,11,14) AND 
                                  tr.reservation_start_date <= :end_date AND tr.reservation_end_date >= :start_date)
                             )";
                     
                     $stmtOtherUnits = $this->conn->prepare($sqlOtherReservationUnits);
                     $stmtOtherUnits->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                    // Use effective start/end which include proper times and reschedules
                     $stmtOtherUnits->bindParam(':start_date', $effectiveStart);
                     $stmtOtherUnits->bindParam(':end_date', $effectiveEnd);
-                    
-                    error_log("insertUnits: SQL Query for other reservations: " . $sqlOtherReservationUnits);
-                    error_log("insertUnits: Query parameters - reservation_id: $reservationId, start_date: $effectiveStart, end_date: $effectiveEnd");
-                    
                     $stmtOtherUnits->execute();
                     $otherReservationUnits = $stmtOtherUnits->fetchAll(PDO::FETCH_COLUMN);
-                    
-                    error_log("insertUnits: Units reserved in other overlapping reservations: " . json_encode($otherReservationUnits));
-                    
-                    // Debug: Check if there are ANY units for equipment 48 in tbl_reservation_unit
-                    $debugSql = "
-                        SELECT DISTINCT tru.unit_id, tre.reservation_reservation_id
-                        FROM tbl_reservation_unit tru
-                        INNER JOIN tbl_reservation_equipment tre ON tru.reservation_equipment_id = tre.reservation_equipment_id
-                        WHERE tre.reservation_equipment_equip_id = :equip_id";
-                    $debugStmt = $this->conn->prepare($debugSql);
-                    $debugStmt->bindParam(':equip_id', $equipId, PDO::PARAM_INT);
-                    $debugStmt->execute();
-                    $debugUnits = $debugStmt->fetchAll(PDO::FETCH_ASSOC);
-                    error_log("insertUnits: DEBUG - All units for equipment $equipId in tbl_reservation_unit: " . json_encode($debugUnits));
-                    
-                    // Debug: Check reservation statuses for any reservations with unit 20
-                    if (!empty($debugUnits)) {
-                        foreach ($debugUnits as $debugUnit) {
-                            $statusSql = "
-                                SELECT rs.reservation_status_status_id, rs.reservation_active, rs.reservation_updated_at, tr.reservation_start_date, tr.reservation_end_date
-                                FROM tbl_reservation_status rs
-                                INNER JOIN tbl_reservation tr ON rs.reservation_reservation_id = tr.reservation_id
-                                WHERE rs.reservation_reservation_id = :res_id
-                                ORDER BY rs.reservation_updated_at DESC, rs.reservation_status_id DESC
-                                LIMIT 1";
-                            $statusStmt = $this->conn->prepare($statusSql);
-                            $statusStmt->bindParam(':res_id', $debugUnit['reservation_reservation_id'], PDO::PARAM_INT);
-                            $statusStmt->execute();
-                            $statusInfo = $statusStmt->fetch(PDO::FETCH_ASSOC);
-                            error_log("insertUnits: DEBUG - Unit " . $debugUnit['unit_id'] . " in reservation " . $debugUnit['reservation_reservation_id'] . " has status: " . json_encode($statusInfo));
-                        }
+                }
+                
+                // Step 4: Combine all excluded units
+                $excludedUnits = array_merge($currentReservationUnits, $otherReservationUnits, $allocatedUnits);
+                $excludedUnits = array_unique($excludedUnits);
+                
+                // Step 5: Filter available units
+                $availableUnits = [];
+                foreach ($allUnits as $unit) {
+                    if (!in_array($unit['unit_id'], $excludedUnits)) {
+                        $availableUnits[] = $unit;
                     }
+                }
+                
+                // Select units to insert
+                $actualUnitsToInsert = array_slice($availableUnits, 0, $quantity);
+                
+                if (count($actualUnitsToInsert) === 0) {
+                    $message = $canBypassEquipmentRestrictions ? 
+                        "No units available for equipment ID $equipId (bypass mode - all units may be broken/inactive)" : 
+                        "No available units for equipment ID $equipId";
                     
-                    // Step 4: Combine all excluded units
-                    $excludedUnits = array_merge($currentReservationUnits, $otherReservationUnits, $allocatedUnits);
-                    $excludedUnits = array_unique($excludedUnits);
-                    
-                    error_log("insertUnits: All excluded units: " . json_encode($excludedUnits));
-                    
-                    // Step 5: Filter available units (get ALL available, don't break early)
-                    $availableUnits = [];
-                    foreach ($allUnits as $unit) {
-                        error_log("insertUnits: Checking unit " . $unit['unit_id'] . " - excluded: " . (in_array($unit['unit_id'], $excludedUnits) ? 'YES' : 'NO'));
-                        if (!in_array($unit['unit_id'], $excludedUnits)) {
-                            $availableUnits[] = $unit;
-                        }
-                    }
-                    
-                    error_log("insertUnits: Available units after filtering: " . json_encode(array_column($availableUnits, 'unit_id')));
-                    
-                    $actualUnitsToInsert = array_slice($availableUnits, 0, $quantity);
-                    
-                    if (count($actualUnitsToInsert) === 0) {
-                        error_log("insertUnits: No available units for equipment $equipId");
-                        $results[] = [
-                            'equip_id' => $equipId,
-                            'reservation_equipment_id' => $reservationEquipmentId,
-                            'type' => 'serialized',
-                            'units_inserted' => 0,
-                            'units' => [],
-                            'can_release' => false,
-                            'message' => "No available units for equipment ID $equipId"
-                        ];
-                        continue;
-                    }
-    
-                    // Step 6: Insert the selected units and track them
-                    $stmtInsert = $this->conn->prepare("INSERT INTO tbl_reservation_unit 
-                                                        (reservation_equipment_id, unit_id, active) 
-                                                        VALUES (:reservation_equipment_id, :unit_id, 0)");
-                    
-                    $insertedUnits = [];
-                    foreach ($actualUnitsToInsert as $unit) {
-                        $stmtInsert->execute([
-                            ':reservation_equipment_id' => $reservationEquipmentId,
-                            ':unit_id' => $unit['unit_id']
-                        ]);
-                        $insertedUnits[] = $unit;
-                        $allocatedUnits[] = $unit['unit_id']; // Track for next iteration
-                    }
-                    
-                    error_log("insertUnits: Inserted units for equipment $equipId: " . json_encode(array_column($insertedUnits, 'unit_id')));
-    
                     $results[] = [
                         'equip_id' => $equipId,
                         'reservation_equipment_id' => $reservationEquipmentId,
                         'type' => 'serialized',
-                        'units_inserted' => count($insertedUnits),
-                        'units_missing' => max(0, $quantity - count($insertedUnits)),
-                        'units' => $insertedUnits,
-                        'can_release' => count($insertedUnits) > 0
+                        'units_inserted' => 0,
+                        'units' => [],
+                        'can_release' => false,
+                        'message' => $message,
+                        'bypass_mode' => $canBypassEquipmentRestrictions
                     ];
+                    continue;
                 }
+
+                // Step 6: Insert the selected units
+                $stmtInsert = $this->conn->prepare("INSERT INTO tbl_reservation_unit 
+                                                    (reservation_equipment_id, unit_id, active) 
+                                                    VALUES (:reservation_equipment_id, :unit_id, 0)");
+                
+                $insertedUnits = [];
+                foreach ($actualUnitsToInsert as $unit) {
+                    $stmtInsert->execute([
+                        ':reservation_equipment_id' => $reservationEquipmentId,
+                        ':unit_id' => $unit['unit_id']
+                    ]);
+                    $insertedUnits[] = $unit;
+                    $allocatedUnits[] = $unit['unit_id'];
+                }
+
+                $results[] = [
+                    'equip_id' => $equipId,
+                    'reservation_equipment_id' => $reservationEquipmentId,
+                    'type' => 'serialized',
+                    'units_inserted' => count($insertedUnits),
+                    'units_missing' => max(0, $quantity - count($insertedUnits)),
+                    'units' => $insertedUnits,
+                    'can_release' => count($insertedUnits) > 0,
+                    'bypass_mode' => $canBypassEquipmentRestrictions
+                ];
             }
-    
-            $this->conn->commit();
-    
-            return json_encode([
-                'operation' => 'insertUnits',
-                'status' => 'success',
-                'data' => $results
-            ]);
-        } catch (Exception $e) {
-            $this->conn->rollBack();
-            return json_encode([
-                'operation' => 'insertUnits',
-                'status' => 'error',
-                'message' => $e->getMessage()
-            ]);
         }
+
+        $this->conn->commit();
+
+        return json_encode([
+            'operation' => 'insertUnits',
+            'status' => 'success',
+            'data' => $results
+        ]);
+    } catch (Exception $e) {
+        $this->conn->rollBack();
+        return json_encode([
+            'operation' => 'insertUnits',
+            'status' => 'error',
+            'message' => $e->getMessage()
+        ]);
     }
+}
+
+        public function insertSingleUnit($reservationId, $equipId, $unitId) {
+            try {
+                $this->conn->beginTransaction();
+                
+                // Get reservation_equipment_id
+                $stmtResEquip = $this->conn->prepare("
+                    SELECT reservation_equipment_id 
+                    FROM tbl_reservation_equipment 
+                    WHERE reservation_equipment_equip_id = :equip_id 
+                    AND reservation_reservation_id = :reservation_id
+                ");
+                $stmtResEquip->execute([
+                    ':equip_id' => $equipId,
+                    ':reservation_id' => $reservationId
+                ]);
+                $resEquipData = $stmtResEquip->fetch(PDO::FETCH_ASSOC);
+                
+                if (!$resEquipData) {
+                    $this->conn->rollBack();
+                    return json_encode(['status' => 'error', 'message' => 'Reservation equipment not found']);
+                }
+                
+                $reservationEquipmentId = $resEquipData['reservation_equipment_id'];
+                
+                // Insert directly into tbl_reservation_unit with active = 1
+                $stmtInsert = $this->conn->prepare("
+                    INSERT INTO tbl_reservation_unit (
+                        reservation_equipment_id,
+                        unit_id,
+                        active
+                    ) VALUES (
+                        :reservation_equipment_id,
+                        :unit_id,
+                        1
+                    )
+                ");
+                
+                $stmtInsert->execute([
+                    ':reservation_equipment_id' => $reservationEquipmentId,
+                    ':unit_id' => $unitId
+                ]);
+                
+                $reservationUnitId = $this->conn->lastInsertId();
+                
+                // Update unit status to "In Use" (status_availability_id = 5)
+                $stmtUpdateUnit = $this->conn->prepare("
+                    UPDATE tbl_equipment_unit
+                    SET status_availability_id = 5
+                      
+                    WHERE unit_id = :unit_id
+                ");
+                $stmtUpdateUnit->execute([':unit_id' => $unitId]);
+                
+                // Increment release_quantity and update reservation equipment
+                $stmtUpdateEquip = $this->conn->prepare("
+                    UPDATE tbl_reservation_equipment
+                    SET release_quantity = COALESCE(release_quantity, 0) + 1,
+                        active = CASE 
+                            WHEN COALESCE(release_quantity, 0) + 1 >= reservation_equipment_quantity THEN 1 
+                            ELSE 0 
+                        END
+                    WHERE reservation_equipment_id = :reservation_equipment_id
+                ");
+                $stmtUpdateEquip->execute([':reservation_equipment_id' => $reservationEquipmentId]);
+                
+                $this->conn->commit();
+                
+                return json_encode([
+                    'status' => 'success',
+                    'message' => 'Unit inserted and activated successfully',
+                    'data' => [
+                        'reservation_unit_id' => $reservationUnitId,
+                        'unit_id' => $unitId
+                    ]
+                ]);
+            } catch (Exception $e) {
+                $this->conn->rollBack();
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'Database error: ' . $e->getMessage()
+                ]);
+            }
+        }
 
     public function fetchVenueHistory($venueId = null) {
         try {
@@ -2714,7 +3565,7 @@ class Assigned {
                     reservation_description,
                     reservation_start_date,
                     reservation_end_date,
-                    reservation_participants,
+                 
                     reservation_user_id,
                     reservation_created_at
                 FROM 
@@ -2933,7 +3784,7 @@ class Assigned {
                     r.reservation_description,
                     r.reservation_start_date, 
                     r.reservation_end_date, 
-                    r.reservation_participants, 
+                 
                     r.reservation_user_id, 
                     CONCAT(u.users_fname, ' ', 
                            COALESCE(CONCAT(LEFT(u.users_mname, 1), '. '), ''), 
@@ -3129,7 +3980,7 @@ class Assigned {
                     r.reservation_description,
                     r.reservation_start_date,
                     r.reservation_end_date,
-                    r.reservation_participants,
+               
                     CONCAT(u.users_fname, ' ', u.users_lname) AS reserved_by,
                     rs.reservation_status_status_id,
                     sm.status_master_name AS reservation_status,
@@ -3243,7 +4094,7 @@ class Assigned {
                     r.reservation_description,
                     r.reservation_start_date,
                     r.reservation_end_date,
-                    r.reservation_participants,
+
                     CONCAT(u.users_fname, ' ', u.users_lname) AS reserved_by,
                     rs.reservation_status_status_id,
                     sm.status_master_name AS reservation_status,
@@ -3332,7 +4183,11 @@ class Assigned {
                 SELECT 
                     eu.unit_id,
                     eu.serial_number,
-         
+                    eu.equipment_brand,
+                    eu.equipment_model,
+                    eu.equipment_description,
+                    eu.equipment_specs,
+                    eu.inch,
                     eu.status_availability_id,
                     sa.status_availability_name,
                     eu.unit_created_at,
@@ -3372,7 +4227,7 @@ class Assigned {
                     r.reservation_description,
                     r.reservation_start_date,
                     r.reservation_end_date,
-                    r.reservation_participants,
+         
                     CONCAT(u.users_fname, ' ', u.users_lname) AS reserved_by,
                     rs.reservation_status_status_id,
                     sm.status_master_name AS reservation_status,
@@ -3468,7 +4323,7 @@ class Assigned {
                     r.reservation_description,
                     r.reservation_start_date,
                     r.reservation_end_date,
-                    r.reservation_participants,
+            
                     CONCAT(u.users_fname, ' ', u.users_lname) AS reserved_by,
                     rs.reservation_status_status_id,
                     sm.status_master_name AS reservation_status,
@@ -3528,22 +4383,53 @@ class Assigned {
     public function displayedMaintenanceResourcesDone() {
         try {
             $records = [];
-
+    
+            // 1) Equipment (Bulk) under maintenance — display qty_bad
             $sql = "
                 SELECT 
                     rce.id                             AS record_id,
-                    'equipment_bulk'                  AS resource_type,
+                    'equipment_bulk'                   AS resource_type,
                     e.equip_name                       AS resource_name,
                     rce.qty_bad                        AS quantity,
                     re.reservation_equipment_equip_id  AS resource_id,
                     c.condition_name                   AS condition_name,
-                    rce.remarks                        AS remarks
+                    rce.remarks                        AS remarks,
+                    rce.admin_remarks                  AS admin_remarks,
+                    rce.created_at                     AS created_at,
+                    rce.user_personnel_id              AS reported_by_id,
+                    r.reservation_title                AS reservation_title,
+                    r.reservation_description          AS reservation_description,
+                    r.reservation_start_date           AS reservation_date,
+                    CONCAT(
+                        COALESCE(t.abbreviation, ''),
+                        CASE WHEN t.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_fname, ''),
+                        CASE WHEN u.users_fname IS NOT NULL AND u.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_lname, ''),
+                        CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_suffix, '')
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_equipment rce
                 JOIN tbl_reservation_equipment     re ON rce.reservation_equipment_id = re.reservation_equipment_id
+                JOIN tbl_reservation               r  ON re.reservation_reservation_id = r.reservation_id
+                JOIN tbl_users                     u  ON r.reservation_user_id = u.users_id
+                LEFT JOIN titles                   t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                up ON rce.user_personnel_id = up.users_id
+                LEFT JOIN titles                   pt ON up.title_id = pt.id
                 JOIN tbl_equipments                e  ON re.reservation_equipment_equip_id = e.equip_id
                 JOIN tbl_condition                 c  ON rce.condition_id = c.id
                 WHERE rce.condition_id != 2
                   AND rce.is_active = 0
+                ORDER BY rce.created_at DESC
             ";
             foreach ($this->conn->query($sql, PDO::FETCH_ASSOC) as $row) {
                 $records[] = $row;
@@ -3556,12 +4442,65 @@ class Assigned {
                     'venue'                           AS resource_type,
                     v.ven_name                        AS resource_name,
                     NULL                              AS quantity,
-                    rv.reservation_venue_venue_id     AS resource_id,
+                    CASE 
+                        WHEN EXISTS (
+                            SELECT 1 
+                              FROM tbl_reservation_status rs 
+                             WHERE rs.reservation_reservation_id = r.reservation_id 
+                               AND rs.reservation_status_status_id IN (10, 14) 
+                               AND rs.reservation_active = 1
+                        )
+                         AND rv.reservation_change_venue_id IS NOT NULL
+                         AND rv.reservation_change_venue_id > 0
+                        THEN rv.reservation_change_venue_id
+                        ELSE rv.reservation_venue_venue_id
+                    END                              AS resource_id,
                     c.condition_name                  AS condition_name,
-                    rcv.remarks                       AS remarks
+                    rcv.remarks                       AS remarks,
+                    rcv.admin_remarks                 AS admin_remarks,
+                    rcv.created_at                    AS created_at,
+                    rcv.user_personnel_id             AS reported_by_id,
+                    r.reservation_title               AS reservation_title,
+                    r.reservation_description         AS reservation_description,
+                    r.reservation_start_date          AS reservation_date,
+                    CONCAT(
+                        COALESCE(t.abbreviation, ''),
+                        CASE WHEN t.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_fname, ''),
+                        CASE WHEN u.users_fname IS NOT NULL AND u.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_lname, ''),
+                        CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_suffix, '')
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_venue rcv
                 JOIN tbl_reservation_venue         rv ON rcv.reservation_venue_id = rv.reservation_venue_id
-                JOIN tbl_venue                     v  ON rv.reservation_venue_venue_id = v.ven_id
+                JOIN tbl_reservation               r  ON rv.reservation_reservation_id = r.reservation_id
+                JOIN tbl_users                     u  ON r.reservation_user_id = u.users_id
+                LEFT JOIN titles                   t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                up ON rcv.user_personnel_id = up.users_id
+                LEFT JOIN titles                   pt ON up.title_id = pt.id
+                JOIN tbl_venue                     v  ON v.ven_id = CASE 
+                        WHEN EXISTS (
+                            SELECT 1 
+                              FROM tbl_reservation_status rs 
+                             WHERE rs.reservation_reservation_id = r.reservation_id 
+                               AND rs.reservation_status_status_id IN (10, 14) 
+                               AND rs.reservation_active = 1
+                        )
+                         AND rv.reservation_change_venue_id IS NOT NULL
+                         AND rv.reservation_change_venue_id > 0
+                        THEN rv.reservation_change_venue_id
+                        ELSE rv.reservation_venue_venue_id
+                    END
                 JOIN tbl_condition                 c  ON rcv.condition_id = c.id
                 WHERE rcv.condition_id != 2
                   AND rcv.is_active = 0
@@ -3576,13 +4515,66 @@ class Assigned {
                     rcvh.id                           AS record_id,
                     'vehicle'                         AS resource_type,
                     CONCAT(vm.vehicle_model_name, ' (', vh.vehicle_license, ')') AS resource_name,
-                    NULL                              AS quantity,
-                    rv.reservation_vehicle_vehicle_id AS resource_id,
+                    NULL                                 AS quantity,
+                    CASE 
+                        WHEN EXISTS (
+                            SELECT 1 
+                              FROM tbl_reservation_status rs 
+                             WHERE rs.reservation_reservation_id = r.reservation_id 
+                               AND rs.reservation_status_status_id IN (6, 10, 14) 
+                               AND rs.reservation_active = 1
+                        )
+                         AND rv.reservation_change_vehicle_id IS NOT NULL
+                         AND rv.reservation_change_vehicle_id > 0
+                        THEN rv.reservation_change_vehicle_id
+                        ELSE rv.reservation_vehicle_vehicle_id
+                    END                               AS resource_id,
                     c.condition_name                  AS condition_name,
-                    rcvh.remarks                      AS remarks
+                    rcvh.remarks                      AS remarks,
+                    rcvh.admin_remarks                AS admin_remarks,
+                    rcvh.created_at                   AS created_at,
+                    rcvh.user_personnel_id            AS reported_by_id,
+                    r.reservation_title              AS reservation_title,
+                    r.reservation_description        AS reservation_description,
+                    r.reservation_start_date         AS reservation_date,
+                    CONCAT(
+                        COALESCE(t.abbreviation, ''),
+                        CASE WHEN t.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_fname, ''),
+                        CASE WHEN u.users_fname IS NOT NULL AND u.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_lname, ''),
+                        CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_suffix, '')
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_vehicle rcvh
                 JOIN tbl_reservation_vehicle        rv ON rcvh.reservation_vehicle_id = rv.reservation_vehicle_id
-                JOIN tbl_vehicle                    vh ON rv.reservation_vehicle_vehicle_id = vh.vehicle_id
+                JOIN tbl_reservation                r  ON rv.reservation_reservation_id = r.reservation_id
+                JOIN tbl_users                      u  ON r.reservation_user_id = u.users_id
+                LEFT JOIN titles                    t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                 up ON rcvh.user_personnel_id = up.users_id
+                LEFT JOIN titles                    pt ON up.title_id = pt.id
+                JOIN tbl_vehicle                    vh ON vh.vehicle_id = CASE 
+                        WHEN EXISTS (
+                            SELECT 1 
+                              FROM tbl_reservation_status rs 
+                             WHERE rs.reservation_reservation_id = r.reservation_id 
+                               AND rs.reservation_status_status_id IN (6, 10, 14) 
+                               AND rs.reservation_active = 1
+                        )
+                         AND rv.reservation_change_vehicle_id IS NOT NULL
+                         AND rv.reservation_change_vehicle_id > 0
+                        THEN rv.reservation_change_vehicle_id
+                        ELSE rv.reservation_vehicle_vehicle_id
+                    END
                 JOIN tbl_vehicle_model              vm ON vh.vehicle_model_id = vm.vehicle_model_id
                 JOIN tbl_condition                  c  ON rcvh.condition_id = c.id
                 WHERE rcvh.condition_id != 2
@@ -3598,11 +4590,42 @@ class Assigned {
                     rcu.id           AS record_id,
                     'equipment_unit' AS resource_type,
                     eu.serial_number AS resource_name,
+                    NULL             AS quantity,
                     eu.unit_id       AS resource_id,
                     c.condition_name AS condition_name,
-                    rcu.remarks     AS remarks
+                    rcu.remarks      AS remarks,
+                    rcu.admin_remarks AS admin_remarks,
+                    rcu.created_at   AS created_at,
+                    rcu.user_personnel_id AS reported_by_id,
+                    r.reservation_title             AS reservation_title,
+                    r.reservation_description       AS reservation_description,
+                    r.reservation_start_date        AS reservation_date,
+                    CONCAT(
+                        COALESCE(t.abbreviation, ''),
+                        CASE WHEN t.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_fname, ''),
+                        CASE WHEN u.users_fname IS NOT NULL AND u.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_lname, ''),
+                        CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(u.users_suffix, '')
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_unit rcu
                 JOIN tbl_reservation_unit           ru ON rcu.reservation_unit_id = ru.reservation_unit_id
+                JOIN tbl_reservation_equipment      re ON ru.reservation_equipment_id = re.reservation_equipment_id
+                JOIN tbl_reservation                r  ON re.reservation_reservation_id = r.reservation_id
+                JOIN tbl_users                      u  ON r.reservation_user_id = u.users_id
+                LEFT JOIN titles                    t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                 up ON rcu.user_personnel_id = up.users_id
+                LEFT JOIN titles                    pt ON up.title_id = pt.id
                 JOIN tbl_equipment_unit             eu ON ru.unit_id = eu.unit_id
                 JOIN tbl_condition                  c  ON rcu.condition_id = c.id
                 WHERE rcu.condition_id != 2
@@ -3611,6 +4634,11 @@ class Assigned {
             foreach ($this->conn->query($sql, PDO::FETCH_ASSOC) as $row) {
                 $records[] = $row;
             }
+    
+            // Sort all records by created_at in descending order
+            usort($records, function($a, $b) {
+                return strcmp($b['created_at'], $a['created_at']);
+            });
     
             return json_encode([
                 'status' => 'success',
@@ -3632,13 +4660,14 @@ class Assigned {
             $sql = "
                 SELECT 
                     rce.id                             AS record_id,
-                    'equipment_bulk'                             AS resource_type,
+                    'equipment_bulk'                   AS resource_type,
                     e.equip_name                       AS resource_name,
                     rce.qty_bad                        AS quantity,
                     re.reservation_equipment_equip_id  AS resource_id,
                     c.condition_name                   AS condition_name,
                     rce.remarks                        AS remarks,
                     rce.created_at                     AS created_at,
+                    rce.user_personnel_id              AS reported_by_id,
                     r.reservation_title                AS reservation_title,
                     r.reservation_description          AS reservation_description,
                     r.reservation_start_date           AS reservation_date,
@@ -3650,12 +4679,23 @@ class Assigned {
                         COALESCE(u.users_lname, ''),
                         CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
                         COALESCE(u.users_suffix, '')
-                    ) AS requester_name
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_equipment rce
                 JOIN tbl_reservation_equipment     re ON rce.reservation_equipment_id = re.reservation_equipment_id
                 JOIN tbl_reservation               r  ON re.reservation_reservation_id = r.reservation_id
                 JOIN tbl_users                     u  ON r.reservation_user_id = u.users_id
-                LEFT JOIN titles               t  ON u.title_id = t.id
+                LEFT JOIN titles                   t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                up ON rce.user_personnel_id = up.users_id
+                LEFT JOIN titles                   pt ON up.title_id = pt.id
                 JOIN tbl_equipments                e  ON re.reservation_equipment_equip_id = e.equip_id
                 JOIN tbl_condition                 c  ON rce.condition_id = c.id
                 WHERE rce.condition_id != 2
@@ -3689,6 +4729,7 @@ class Assigned {
                     c.condition_name                  AS condition_name,
                     rcv.remarks                       AS remarks,
                     rcv.created_at                    AS created_at,
+                    rcv.user_personnel_id             AS reported_by_id,
                     r.reservation_title               AS reservation_title,
                     r.reservation_description         AS reservation_description,
                     r.reservation_start_date          AS reservation_date,
@@ -3700,12 +4741,23 @@ class Assigned {
                         COALESCE(u.users_lname, ''),
                         CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
                         COALESCE(u.users_suffix, '')
-                    ) AS requester_name
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_venue rcv
                 JOIN tbl_reservation_venue         rv ON rcv.reservation_venue_id = rv.reservation_venue_id
                 JOIN tbl_reservation               r  ON rv.reservation_reservation_id = r.reservation_id
                 JOIN tbl_users                     u  ON r.reservation_user_id = u.users_id
-                LEFT JOIN titles               t  ON u.title_id = t.id
+                LEFT JOIN titles                   t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                up ON rcv.user_personnel_id = up.users_id
+                LEFT JOIN titles                   pt ON up.title_id = pt.id
                 JOIN tbl_venue                     v  ON v.ven_id = CASE 
                         WHEN EXISTS (
                             SELECT 1 
@@ -3750,6 +4802,7 @@ class Assigned {
                     c.condition_name                  AS condition_name,
                     rcvh.remarks                      AS remarks,
                     rcvh.created_at                   AS created_at,
+                    rcvh.user_personnel_id            AS reported_by_id,
                     r.reservation_title              AS reservation_title,
                     r.reservation_description        AS reservation_description,
                     r.reservation_start_date         AS reservation_date,
@@ -3761,12 +4814,23 @@ class Assigned {
                         COALESCE(u.users_lname, ''),
                         CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
                         COALESCE(u.users_suffix, '')
-                    ) AS requester_name
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_vehicle rcvh
                 JOIN tbl_reservation_vehicle        rv ON rcvh.reservation_vehicle_id = rv.reservation_vehicle_id
                 JOIN tbl_reservation                r  ON rv.reservation_reservation_id = r.reservation_id
                 JOIN tbl_users                      u  ON r.reservation_user_id = u.users_id
-                LEFT JOIN titles                t  ON u.title_id = t.id
+                LEFT JOIN titles                    t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                 up ON rcvh.user_personnel_id = up.users_id
+                LEFT JOIN titles                    pt ON up.title_id = pt.id
                 JOIN tbl_vehicle                    vh ON vh.vehicle_id = CASE 
                         WHEN EXISTS (
                             SELECT 1 
@@ -3795,10 +4859,12 @@ class Assigned {
                     rcu.id           AS record_id,
                     'equipment_unit' AS resource_type,
                     eu.serial_number AS resource_name,
+                    NULL             AS quantity,
                     eu.unit_id       AS resource_id,
                     c.condition_name AS condition_name,
                     rcu.remarks      AS remarks,
                     rcu.created_at   AS created_at,
+                    rcu.user_personnel_id AS reported_by_id,
                     r.reservation_title             AS reservation_title,
                     r.reservation_description       AS reservation_description,
                     r.reservation_start_date        AS reservation_date,
@@ -3810,13 +4876,24 @@ class Assigned {
                         COALESCE(u.users_lname, ''),
                         CASE WHEN u.users_lname IS NOT NULL AND u.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
                         COALESCE(u.users_suffix, '')
-                    ) AS requester_name
+                    ) AS requester_name,
+                    CONCAT(
+                        COALESCE(pt.abbreviation, ''),
+                        CASE WHEN pt.abbreviation IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_fname, ''),
+                        CASE WHEN up.users_fname IS NOT NULL AND up.users_lname IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_lname, ''),
+                        CASE WHEN up.users_lname IS NOT NULL AND up.users_suffix IS NOT NULL THEN ' ' ELSE '' END,
+                        COALESCE(up.users_suffix, '')
+                    ) AS reported_by_name
                 FROM tbl_reservation_condition_unit rcu
                 JOIN tbl_reservation_unit           ru ON rcu.reservation_unit_id = ru.reservation_unit_id
                 JOIN tbl_reservation_equipment      re ON ru.reservation_equipment_id = re.reservation_equipment_id
                 JOIN tbl_reservation                r  ON re.reservation_reservation_id = r.reservation_id
                 JOIN tbl_users                      u  ON r.reservation_user_id = u.users_id
                 LEFT JOIN titles                    t  ON u.title_id = t.id
+                LEFT JOIN tbl_users                 up ON rcu.user_personnel_id = up.users_id
+                LEFT JOIN titles                    pt ON up.title_id = pt.id
                 JOIN tbl_equipment_unit             eu ON ru.unit_id = eu.unit_id
                 JOIN tbl_condition                  c  ON rcu.condition_id = c.id
                 WHERE rcu.condition_id != 2
@@ -3843,7 +4920,7 @@ class Assigned {
         }
     }
 
-public function updateResourceStatusAndCondition($type, $resourceId, $recordId, $isFixed = false, $user_personnel_id = null) {
+public function updateResourceStatusAndCondition($type, $resourceId, $recordId, $isFixed = false, $user_personnel_id = null, $admin_remarks = null) {
     try {
         $type       = strtolower($type);
         $resourceId = (int)$resourceId;
@@ -3866,6 +4943,80 @@ public function updateResourceStatusAndCondition($type, $resourceId, $recordId, 
             return json_encode(['status'=>'error','message'=>'Invalid resource type.']);
         }
 
+        // CHECK IF THERE'S A NEXT REQUEST WAITING IN THE CHECKLIST
+        // Exclude reservations that are declined (2), completed (4), or cancelled (5)
+        // If any reservation exists that is NOT in those statuses, prevent marking as unavailable
+        if (!$isFixed) {
+            $hasNextRequest = false;
+            
+            switch ($type) {
+                case 'venue':
+                    // Check if this venue has any reservations that are NOT declined/completed/cancelled
+                    $checkStmt = $this->conn->prepare("
+                        SELECT COUNT(DISTINCT r.reservation_id) as count
+                        FROM tbl_reservation_venue rv
+                        INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                        WHERE (rv.reservation_venue_venue_id = :rid OR rv.reservation_change_venue_id = :rid)
+                            AND r.reservation_id NOT IN (
+                                SELECT DISTINCT reservation_reservation_id 
+                                FROM tbl_reservation_status 
+                                WHERE reservation_active = 1
+                                    AND reservation_status_status_id IN (2, 4, 5)
+                            )
+                    ");
+                    $checkStmt->execute(['rid' => $resourceId]);
+                    $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                    $hasNextRequest = ($result['count'] > 0);
+                    break;
+                    
+                case 'vehicle':
+                    // Check if this vehicle has any reservations that are NOT declined/completed/cancelled
+                    $checkStmt = $this->conn->prepare("
+                        SELECT COUNT(DISTINCT r.reservation_id) as count
+                        FROM tbl_reservation_vehicle rv
+                        INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                        WHERE (rv.reservation_vehicle_vehicle_id = :rid OR rv.reservation_change_vehicle_id = :rid)
+                            AND r.reservation_id NOT IN (
+                                SELECT DISTINCT reservation_reservation_id 
+                                FROM tbl_reservation_status 
+                                WHERE reservation_active = 1
+                                    AND reservation_status_status_id IN (2, 4, 5)
+                            )
+                    ");
+                    $checkStmt->execute(['rid' => $resourceId]);
+                    $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                    $hasNextRequest = ($result['count'] > 0);
+                    break;
+                    
+                case 'equipment_unit':
+                    // Check if this equipment unit has any reservations that are NOT declined/completed/cancelled
+                    $checkStmt = $this->conn->prepare("
+                        SELECT COUNT(DISTINCT r.reservation_id) as count
+                        FROM tbl_reservation_unit ru
+                        INNER JOIN tbl_reservation_equipment re ON ru.reservation_equipment_id = re.reservation_equipment_id
+                        INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                        WHERE ru.unit_id = :rid
+                            AND r.reservation_id NOT IN (
+                                SELECT DISTINCT reservation_reservation_id 
+                                FROM tbl_reservation_status 
+                                WHERE reservation_active = 1
+                                    AND reservation_status_status_id IN (2, 4, 5)
+                            )
+                    ");
+                    $checkStmt->execute(['rid' => $resourceId]);
+                    $result = $checkStmt->fetch(PDO::FETCH_ASSOC);
+                    $hasNextRequest = ($result['count'] > 0);
+                    break;
+            }
+            
+            if ($hasNextRequest) {
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'Cannot set resource to unavailable. There is a next request waiting in the checklist that will use this resource.'
+                ]);
+            }
+        }
+
         $this->conn->beginTransaction();
 
         switch ($type) {
@@ -3883,14 +5034,15 @@ public function updateResourceStatusAndCondition($type, $resourceId, $recordId, 
                 ");
                 $stmt->execute(['status' => $status, 'rid' => $resourceId]);
 
-                // 2) Deactivate condition record
+                // 2) Deactivate condition record and set admin_remarks
                 $ctbl   = $conditionMap[$type]['table'];
                 $stmt   = $this->conn->prepare("
                     UPDATE {$ctbl}
-                       SET is_active = 0
+                       SET is_active = 0,
+                           admin_remarks = :admin_remarks
                      WHERE id = :cid
                 ");
-                $stmt->execute(['cid' => $recordId]);
+                $stmt->execute(['cid' => $recordId, 'admin_remarks' => $admin_remarks]);
                 break;
 
             case 'equipment_unit':
@@ -3915,12 +5067,13 @@ public function updateResourceStatusAndCondition($type, $resourceId, $recordId, 
                 ");
                 $update->execute(['status' => $status, 'uid' => $resourceId]);
 
-                // 3) Deactivate the condition record
+                // 3) Deactivate the condition record and set admin_remarks
                 $this->conn->prepare("
                     UPDATE tbl_reservation_condition_unit
-                       SET is_active = 0
+                       SET is_active = 0,
+                           admin_remarks = :admin_remarks
                      WHERE id = :cid
-                ")->execute(['cid' => $recordId]);
+                ")->execute(['cid' => $recordId, 'admin_remarks' => $admin_remarks]);
                 break;
 
             case 'equipment_bulk':
@@ -3958,12 +5111,13 @@ public function updateResourceStatusAndCondition($type, $resourceId, $recordId, 
                     }
                 }
 
-                // 3) deactivate the condition record
+                // 3) deactivate the condition record and set admin_remarks
                 $this->conn->prepare("
                     UPDATE tbl_reservation_condition_equipment
-                       SET is_active = 0
+                       SET is_active = 0,
+                           admin_remarks = :admin_remarks
                      WHERE id = :cid
-                ")->execute(['cid' => $recordId]);
+                ")->execute(['cid' => $recordId, 'admin_remarks' => $admin_remarks]);
                 break;
         }
 
@@ -4043,94 +5197,609 @@ public function updateResourceStatusAndCondition($type, $resourceId, $recordId, 
     }
 }
 
-public function getConsumableUsage($equipId) {
-    try {
-        // Fetch equipment details
-        $equipmentSql = "
-            SELECT 
-                e.equip_id,
-                e.equip_name,
-                e.equip_type,
-                e.equip_created_at,
-                e.equipments_category_id,
-                e.is_active,
-                e.user_admin_id
-            FROM tbl_equipments e
-            WHERE e.equip_id = :equipId
-        ";
+    public function getConsumableUsage($equipId) {
+        try {
+            // Fetch equipment details
+            $equipmentSql = "
+                SELECT 
+                    e.equip_id,
+                    e.equip_name,
+                    e.equip_type,
+                    e.equip_created_at,
+                    e.equipments_category_id,
+                    e.is_active,
+                    e.user_admin_id
+                FROM tbl_equipments e
+                WHERE e.equip_id = :equipId
+            ";
 
-        $stmt = $this->conn->prepare($equipmentSql);
-        $stmt->execute([':equipId' => $equipId]);
-        $equipmentDetails = $stmt->fetch(PDO::FETCH_ASSOC);
+            $stmt = $this->conn->prepare($equipmentSql);
+            $stmt->execute([':equipId' => $equipId]);
+            $equipmentDetails = $stmt->fetch(PDO::FETCH_ASSOC);
 
-        if (!$equipmentDetails) {
-            return json_encode(['status' => 'error', 'message' => 'Consumable equipment not found']);
+            if (!$equipmentDetails) {
+                return json_encode(['status' => 'error', 'message' => 'Consumable equipment not found']);
+            }
+
+            // Fetch reservations of this equipment
+            $reservationsSql = "
+                SELECT 
+                    r.reservation_id,
+                    r.reservation_title,
+                    r.reservation_description,
+                    r.reservation_start_date,
+                    r.reservation_end_date,
+                 
+                    CONCAT(u.users_fname, ' ', u.users_lname) AS reserved_by,
+                    rs.reservation_status_status_id,
+                    sm.status_master_name AS reservation_status,
+                    re.reservation_equipment_id,
+                    re.reservation_equipment_quantity,
+                    re.active AS reservation_equipment_active,
+                    rce.qty_bad
+                FROM tbl_reservation_equipment re
+                INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
+                LEFT JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
+                    AND rs.reservation_status_status_id = 6
+                    AND rs.reservation_active = 0
+                LEFT JOIN tbl_status_master sm ON rs.reservation_status_status_id = sm.status_master_id
+                LEFT JOIN tbl_reservation_condition_equipment rce ON rce.reservation_equipment_id = re.reservation_equipment_id
+                WHERE re.reservation_equipment_equip_id = :equipId
+                ORDER BY r.reservation_start_date DESC
+            ";
+
+            $stmt = $this->conn->prepare($reservationsSql);
+            $stmt->execute([':equipId' => $equipId]);
+            $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            // Calculate statistics
+            $totalUsage = 0;
+            $totalQtyBad = 0;
+
+            foreach ($reservations as $reservation) {
+                $totalUsage += (int) $reservation['reservation_equipment_quantity'];
+                $totalQtyBad += (int) $reservation['qty_bad'];
+            }
+
+            // Response
+            $response = [
+                'status' => 'success',
+                'data' => [
+                    'equipment_details' => $equipmentDetails,
+                    'usage_statistics' => [
+                        'total_usage_quantity' => $totalUsage,
+                        'total_qty_bad' => $totalQtyBad,
+                        'total_good_quantity' => $totalUsage - $totalQtyBad
+                    ],
+                    'reservations' => $reservations
+                ]
+            ];
+
+            return json_encode($response);
+
+        } catch (PDOException $e) {
+            return json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
         }
-
-        // Fetch reservations of this equipment
-        $reservationsSql = "
-            SELECT 
-                r.reservation_id,
-                r.reservation_title,
-                r.reservation_description,
-                r.reservation_start_date,
-                r.reservation_end_date,
-                r.reservation_participants,
-                CONCAT(u.users_fname, ' ', u.users_lname) AS reserved_by,
-                rs.reservation_status_status_id,
-                sm.status_master_name AS reservation_status,
-                re.reservation_equipment_id,
-                re.reservation_equipment_quantity,
-                re.active AS reservation_equipment_active,
-                rce.qty_bad
-            FROM tbl_reservation_equipment re
-            INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
-            LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
-            LEFT JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
-                AND rs.reservation_status_status_id = 6
-                AND rs.reservation_active = 0
-            LEFT JOIN tbl_status_master sm ON rs.reservation_status_status_id = sm.status_master_id
-            LEFT JOIN tbl_reservation_condition_equipment rce ON rce.reservation_equipment_id = re.reservation_equipment_id
-            WHERE re.reservation_equipment_equip_id = :equipId
-            ORDER BY r.reservation_start_date DESC
-        ";
-
-        $stmt = $this->conn->prepare($reservationsSql);
-        $stmt->execute([':equipId' => $equipId]);
-        $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Calculate statistics
-        $totalUsage = 0;
-        $totalQtyBad = 0;
-
-        foreach ($reservations as $reservation) {
-            $totalUsage += (int) $reservation['reservation_equipment_quantity'];
-            $totalQtyBad += (int) $reservation['qty_bad'];
-        }
-
-        // Response
-        $response = [
-            'status' => 'success',
-            'data' => [
-                'equipment_details' => $equipmentDetails,
-                'usage_statistics' => [
-                    'total_usage_quantity' => $totalUsage,
-                    'total_qty_bad' => $totalQtyBad,
-                    'total_good_quantity' => $totalUsage - $totalQtyBad
-                ],
-                'reservations' => $reservations
-            ]
-        ];
-
-        return json_encode($response);
-
-    } catch (PDOException $e) {
-        return json_encode([
-            'status' => 'error',
-            'message' => 'Database error: ' . $e->getMessage()
-        ]);
     }
-}
+
+    // Venue Approval Management Functions
+    public function fetchVenueApprovals() {
+        try {
+            $sql = "SELECT 
+                        va.approval_venue_id,
+                        va.approval_venue_venue_id,
+                        va.approval_venue_department_id,
+                        va.updated_by,
+                        va.updated_at,
+                        v.ven_name,
+                        d.departments_name,
+                        u.users_fname,
+                        u.users_lname
+                    FROM tbl_venue_department_approval va
+                    LEFT JOIN tbl_venue v ON va.approval_venue_venue_id = v.ven_id
+                    LEFT JOIN tbl_departments d ON va.approval_venue_department_id = d.departments_id
+                    LEFT JOIN tbl_users u ON va.updated_by = u.users_id
+                    ORDER BY va.approval_venue_id DESC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function fetchDepartments() {
+        try {
+            $sql = "SELECT departments_id, departments_name, department_type 
+                    FROM tbl_departments 
+                
+                    WHERE departments_id NOT IN (
+                        SELECT DISTINCT approval_venue_department_id 
+                        FROM tbl_venue_department_approval
+                    )
+                    ORDER BY departments_name ASC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function fetchDepartmentsForEdit($currentDepartmentId) {
+        try {
+            $sql = "SELECT departments_id, departments_name, department_type 
+                    FROM tbl_departments 
+                    WHERE departments_id NOT IN (27, 48, 54)
+                    AND (departments_id = :current_dept_id OR departments_id NOT IN (
+                        SELECT DISTINCT approval_venue_department_id 
+                        FROM tbl_venue_department_approval
+                    ))
+                    ORDER BY departments_name ASC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([':current_dept_id' => $currentDepartmentId]);
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function fetchVenues() {
+        try {
+            $sql = "SELECT ven_id, ven_name, ven_occupancy, event_type, area_type
+                    FROM tbl_venue 
+                    WHERE is_active = 1 
+                    ORDER BY ven_name ASC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function addVenueApproval($venueIds, $departmentId, $userId) {
+        try {
+            $this->conn->beginTransaction();
+            
+            // Validate inputs
+            if (empty($venueIds) || !is_array($venueIds) || empty($departmentId) || empty($userId)) {
+                throw new Exception('Missing required parameters');
+            }
+
+            $insertedCount = 0;
+            $duplicateCount = 0;
+
+            foreach ($venueIds as $venueId) {
+                // Check if combination already exists
+                $checkSql = "SELECT COUNT(*) FROM tbl_venue_department_approval 
+                           WHERE approval_venue_venue_id = :venue_id 
+                           AND approval_venue_department_id = :department_id";
+                $checkStmt = $this->conn->prepare($checkSql);
+                $checkStmt->execute([
+                    ':venue_id' => $venueId,
+                    ':department_id' => $departmentId
+                ]);
+                
+                if ($checkStmt->fetchColumn() > 0) {
+                    $duplicateCount++;
+                    continue;
+                }
+
+                // Insert new venue approval
+                $insertSql = "INSERT INTO tbl_venue_department_approval 
+                            (approval_venue_venue_id, approval_venue_department_id, updated_by, updated_at) 
+                            VALUES (:venue_id, :department_id, :user_id, NOW())";
+                $insertStmt = $this->conn->prepare($insertSql);
+                $insertStmt->execute([
+                    ':venue_id' => $venueId,
+                    ':department_id' => $departmentId,
+                    ':user_id' => $userId
+                ]);
+                $insertedCount++;
+            }
+
+            $this->conn->commit();
+            
+            $message = "Successfully added $insertedCount venue approval(s)";
+            if ($duplicateCount > 0) {
+                $message .= " ($duplicateCount duplicate(s) skipped)";
+            }
+            
+            return json_encode(['status' => 'success', 'message' => $message]);
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+    }
+
+    private function checkVenueApprovalUsage($venueIds, $departmentId) {
+        try {
+            if (empty($venueIds) || !is_array($venueIds)) {
+                return ['has_active_usage' => false, 'active_reservations' => []];
+            }
+
+            $placeholders = str_repeat('?,', count($venueIds) - 1) . '?';
+            
+            // Check if any of these venues are being used in problematic status reservations
+            $sql = "
+                SELECT DISTINCT 
+                    r.reservation_id,
+                    r.reservation_title,
+                    r.reservation_start_date,
+                    r.reservation_end_date,
+                    sm.status_master_name,
+                    latest_status.reservation_status_status_id
+                FROM tbl_reservation_venue rv
+                INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                INNER JOIN (
+                    SELECT rs1.*
+                    FROM tbl_reservation_status rs1
+                    INNER JOIN (
+                        SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                        FROM tbl_reservation_status
+                        GROUP BY reservation_reservation_id
+                    ) mu ON rs1.reservation_reservation_id = mu.reservation_reservation_id
+                         AND rs1.reservation_updated_at = mu.max_updated_at
+                    INNER JOIN (
+                        SELECT x.reservation_reservation_id, MAX(x.reservation_status_id) AS max_id
+                        FROM tbl_reservation_status x
+                        INNER JOIN (
+                            SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                            FROM tbl_reservation_status
+                            GROUP BY reservation_reservation_id
+                        ) y ON y.reservation_reservation_id = x.reservation_reservation_id
+                           AND y.max_updated_at = x.reservation_updated_at
+                        GROUP BY x.reservation_reservation_id
+                    ) mid ON rs1.reservation_reservation_id = mid.reservation_reservation_id
+                         AND rs1.reservation_status_id = mid.max_id
+                ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                LEFT JOIN tbl_status_master sm ON latest_status.reservation_status_status_id = sm.status_master_id
+                WHERE rv.reservation_venue_venue_id IN ($placeholders)
+                AND latest_status.reservation_status_status_id IN (1, 3, 6, 11, 10, 14, 7) -- Check for problematic statuses: Pending, Approved, Reserved, Change Request, Rescheduled, Admin Approved
+                AND latest_status.reservation_active = 1
+            ";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($venueIds);
+            $activeReservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return [
+                'has_active_usage' => !empty($activeReservations),
+                'active_reservations' => $activeReservations
+            ];
+        } catch (PDOException $e) {
+            error_log("Error checking venue approval usage: " . $e->getMessage());
+            return ['has_active_usage' => true, 'active_reservations' => []]; // Assume usage to be safe
+        }
+    }
+
+    public function updateVenueApproval($approvalId, $venueIds, $departmentId, $userId) {
+        try {
+            $this->conn->beginTransaction();
+            
+            // Validate inputs
+            if (empty($approvalId) || empty($venueIds) || !is_array($venueIds) || empty($departmentId) || empty($userId)) {
+                throw new Exception('Missing required parameters');
+            }
+
+            // Check if any venues are being used in active reservations
+            $usageCheck = $this->checkVenueApprovalUsage($venueIds, $departmentId);
+            if ($usageCheck['has_active_usage']) {
+                $reservationDetails = array_map(function($res) {
+                    return "Reservation #{$res['reservation_id']} ({$res['reservation_title']}) - Status: {$res['status_master_name']}";
+                }, $usageCheck['active_reservations']);
+                
+                throw new Exception('Cannot update venue approval: Some venues are currently being used in active reservations. ' . 
+                    'Active reservations: ' . implode(', ', $reservationDetails));
+            }
+
+            // First, get the current department for this approval
+            $getCurrentSql = "SELECT approval_venue_department_id FROM tbl_venue_department_approval WHERE approval_venue_id = :approval_id";
+            $getCurrentStmt = $this->conn->prepare($getCurrentSql);
+            $getCurrentStmt->execute([':approval_id' => $approvalId]);
+            $currentDept = $getCurrentStmt->fetchColumn();
+            
+            if (!$currentDept) {
+                throw new Exception('Venue approval not found');
+            }
+
+            // Get existing venues for the current department (before any changes)
+            $getCurrentVenuesSql = "SELECT approval_venue_venue_id FROM tbl_venue_department_approval WHERE approval_venue_department_id = :current_dept_id";
+            $getCurrentVenuesStmt = $this->conn->prepare($getCurrentVenuesSql);
+            $getCurrentVenuesStmt->execute([':current_dept_id' => $currentDept]);
+            $currentDeptVenues = $getCurrentVenuesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            // Get existing venues for the target department (if different)
+            $getExistingSql = "SELECT approval_venue_venue_id FROM tbl_venue_department_approval WHERE approval_venue_department_id = :department_id";
+            $getExistingStmt = $this->conn->prepare($getExistingSql);
+            $getExistingStmt->execute([':department_id' => $departmentId]);
+            $existingVenues = $getExistingStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            $removedCount = 0;
+
+            // If department is changing, move venues from old department to new department
+            if ($currentDept != $departmentId) {
+                // Only remove venues from old department that are NOT in the new selection
+                $venuesToRemoveFromOld = array_diff($currentDeptVenues, $venueIds);
+                if (!empty($venuesToRemoveFromOld)) {
+                    $placeholders = str_repeat('?,', count($venuesToRemoveFromOld) - 1) . '?';
+                    $removeSql = "DELETE FROM tbl_venue_department_approval 
+                                WHERE approval_venue_department_id = ? AND approval_venue_venue_id IN ($placeholders)";
+                    $removeStmt = $this->conn->prepare($removeSql);
+                    $removeStmt->execute(array_merge([$currentDept], $venuesToRemoveFromOld));
+                    $removedCount = count($venuesToRemoveFromOld);
+                }
+                // Reset existing venues since we're moving to new department
+                $existingVenues = [];
+            } else {
+                // Same department: Only remove venues that are unselected (not in new selection)
+                $venuesToRemove = array_diff($currentDeptVenues, $venueIds);
+                if (!empty($venuesToRemove)) {
+                    $placeholders = str_repeat('?,', count($venuesToRemove) - 1) . '?';
+                    $removeSql = "DELETE FROM tbl_venue_department_approval 
+                                WHERE approval_venue_department_id = ? AND approval_venue_venue_id IN ($placeholders)";
+                    $removeStmt = $this->conn->prepare($removeSql);
+                    $removeStmt->execute(array_merge([$departmentId], $venuesToRemove));
+                    $removedCount = count($venuesToRemove);
+                }
+            }
+
+            // Insert only new venues (avoid duplicates)
+            $insertedCount = 0;
+            $skippedCount = 0;
+            
+            foreach ($venueIds as $venueId) {
+                if (!in_array($venueId, $existingVenues)) {
+                    $insertSql = "INSERT INTO tbl_venue_department_approval 
+                                (approval_venue_venue_id, approval_venue_department_id, updated_by, updated_at) 
+                                VALUES (:venue_id, :department_id, :user_id, NOW())";
+                    $insertStmt = $this->conn->prepare($insertSql);
+                    $insertStmt->execute([
+                        ':venue_id' => $venueId,
+                        ':department_id' => $departmentId,
+                        ':user_id' => $userId
+                    ]);
+                    $insertedCount++;
+                } else {
+                    $skippedCount++;
+                }
+            }
+
+            $this->conn->commit();
+            
+            $messageParts = [];
+            
+            if ($insertedCount > 0) {
+                $messageParts[] = "Added $insertedCount new venue(s)";
+            }
+            
+            if ($removedCount > 0) {
+                $messageParts[] = "Removed $removedCount venue(s)";
+            }
+            
+            if ($skippedCount > 0) {
+                $messageParts[] = "Kept $skippedCount existing venue(s)";
+            }
+            
+            if (empty($messageParts)) {
+                $message = "No changes made";
+            } else {
+                $message = "Successfully updated: " . implode(", ", $messageParts);
+            }
+            if ($currentDept != $departmentId) {
+                $message .= " and moved assignment to new department";
+            }
+            
+            return json_encode(['status' => 'success', 'message' => $message]);
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function deleteVenueApproval($approvalId) {
+        try {
+            $this->conn->beginTransaction();
+            
+            // Get the department ID and venue IDs first
+            $getDeptSql = "SELECT approval_venue_department_id FROM tbl_venue_department_approval WHERE approval_venue_id = :approval_id";
+            $getDeptStmt = $this->conn->prepare($getDeptSql);
+            $getDeptStmt->execute([':approval_id' => $approvalId]);
+            $departmentId = $getDeptStmt->fetchColumn();
+            
+            if (!$departmentId) {
+                return json_encode(['status' => 'error', 'message' => 'Venue approval not found']);
+            }
+
+            // Get all venue IDs for this department
+            $getVenuesSql = "SELECT approval_venue_venue_id FROM tbl_venue_department_approval WHERE approval_venue_department_id = :department_id";
+            $getVenuesStmt = $this->conn->prepare($getVenuesSql);
+            $getVenuesStmt->execute([':department_id' => $departmentId]);
+            $venueIds = $getVenuesStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            // Check if any venues are being used in active reservations
+            if (!empty($venueIds)) {
+                $usageCheck = $this->checkVenueApprovalUsage($venueIds, $departmentId);
+                if ($usageCheck['has_active_usage']) {
+                    $reservationDetails = array_map(function($res) {
+                        return "Reservation #{$res['reservation_id']} ({$res['reservation_title']}) - Status: {$res['status_master_name']}";
+                    }, $usageCheck['active_reservations']);
+                    
+                    throw new Exception('Cannot delete venue approval: Some venues are currently being used in active reservations. ' . 
+                        'Active reservations: ' . implode(', ', $reservationDetails));
+                }
+            }
+
+            // Delete all venues for this department
+            $deleteSql = "DELETE FROM tbl_venue_department_approval WHERE approval_venue_department_id = :department_id";
+            $deleteStmt = $this->conn->prepare($deleteSql);
+            $deleteStmt->execute([':department_id' => $departmentId]);
+            
+            $deletedCount = $deleteStmt->rowCount();
+            
+            $this->conn->commit();
+            return json_encode(['status' => 'success', 'message' => "Successfully deleted $deletedCount venue approval(s)"]);
+        } catch (Exception $e) {
+            $this->conn->rollBack();
+            return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        } catch (PDOException $e) {
+            $this->conn->rollBack();
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    // Role Exclusive Management Functions
+    public function fetchRoleExclusives() {
+        try {
+            $sql = "SELECT 
+                        re.approval_exclusive_id,
+                        re.approval_exclusive_user_level_id,
+                        re.approval_exclusive_department_id,
+                        re.updated_by,
+                        re.updated_at,
+                        ul.user_level_name,
+                        ul.user_level_desc,
+                        d.departments_name,
+                        u.users_fname,
+                        u.users_lname
+                    FROM tbl_approval_exclusive re
+                    LEFT JOIN tbl_user_level ul ON re.approval_exclusive_user_level_id = ul.user_level_id
+                    LEFT JOIN tbl_departments d ON re.approval_exclusive_department_id = d.departments_id
+                    LEFT JOIN tbl_users u ON re.updated_by = u.users_id
+                    ORDER BY re.approval_exclusive_id DESC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function fetchUserLevels() {
+        try {
+            $sql = "SELECT user_level_id, user_level_name, user_level_desc 
+                    FROM tbl_user_level 
+                    WHERE user_level_id NOT IN (
+                        SELECT DISTINCT approval_exclusive_user_level_id 
+                        FROM tbl_approval_exclusive
+                    )
+                    ORDER BY user_level_name ASC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function addRoleExclusive($userLevelId, $departmentIds, $userId) {
+        try {
+            // Check if this user level already has an exclusive assignment
+            $checkSql = "SELECT COUNT(*) FROM tbl_approval_exclusive WHERE approval_exclusive_user_level_id = :user_level_id";
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->execute([':user_level_id' => $userLevelId]);
+            
+            if ($checkStmt->fetchColumn() > 0) {
+                return json_encode(['status' => 'error', 'message' => 'This user level already has an exclusive assignment']);
+            }
+
+            // Insert multiple department assignments for this user level
+            $insertSql = "INSERT INTO tbl_approval_exclusive 
+                         (approval_exclusive_user_level_id, approval_exclusive_department_id, updated_by, updated_at) 
+                         VALUES (:user_level_id, :department_id, :user_id, NOW())";
+            
+            $insertStmt = $this->conn->prepare($insertSql);
+            
+            foreach ($departmentIds as $departmentId) {
+                $insertStmt->execute([
+                    ':user_level_id' => $userLevelId,
+                    ':department_id' => $departmentId,
+                    ':user_id' => $userId
+                ]);
+            }
+            
+            return json_encode(['status' => 'success', 'message' => 'Role exclusive assignments added successfully']);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateRoleExclusive($userLevelId, $departmentIds, $userId) {
+        try {
+            // Check if the user level exists and get current assignments
+            $getCurrentSql = "SELECT approval_exclusive_user_level_id FROM tbl_approval_exclusive WHERE approval_exclusive_user_level_id = :user_level_id LIMIT 1";
+            $getCurrentStmt = $this->conn->prepare($getCurrentSql);
+            $getCurrentStmt->execute([':user_level_id' => $userLevelId]);
+            $currentUserLevel = $getCurrentStmt->fetchColumn();
+            
+            if (!$currentUserLevel) {
+                return json_encode(['status' => 'error', 'message' => 'Role exclusive assignment not found']);
+            }
+
+            // Delete all existing assignments for this user level
+            $deleteSql = "DELETE FROM tbl_approval_exclusive WHERE approval_exclusive_user_level_id = :user_level_id";
+            $deleteStmt = $this->conn->prepare($deleteSql);
+            $deleteStmt->execute([':user_level_id' => $userLevelId]);
+
+            // Insert new assignments
+            $insertSql = "INSERT INTO tbl_approval_exclusive 
+                         (approval_exclusive_user_level_id, approval_exclusive_department_id, updated_by, updated_at) 
+                         VALUES (:user_level_id, :department_id, :user_id, NOW())";
+            
+            $insertStmt = $this->conn->prepare($insertSql);
+            
+            foreach ($departmentIds as $departmentId) {
+                $insertStmt->execute([
+                    ':user_level_id' => $userLevelId,
+                    ':department_id' => $departmentId,
+                    ':user_id' => $userId
+                ]);
+            }
+            
+            return json_encode(['status' => 'success', 'message' => 'Role exclusive assignments updated successfully']);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteRoleExclusive($userLevelId) {
+        try {
+            $deleteSql = "DELETE FROM tbl_approval_exclusive WHERE approval_exclusive_user_level_id = :user_level_id";
+            $deleteStmt = $this->conn->prepare($deleteSql);
+            $deleteStmt->execute([':user_level_id' => $userLevelId]);
+            
+            if ($deleteStmt->rowCount() > 0) {
+                return json_encode(['status' => 'success', 'message' => 'Role exclusive assignments deleted successfully']);
+            } else {
+                return json_encode(['status' => 'error', 'message' => 'Role exclusive assignments not found']);
+            }
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
     
     
 }
@@ -4140,8 +5809,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $assigned = new Assigned();
     $data = json_decode(file_get_contents('php://input'), true);
 
-    if (isset($data['operation'])) {
-        switch ($data['operation']) {
+    // Handle both JSON and form data
+    $operation = $data['operation'] ?? ($_POST['operation'] ?? null);
+
+    if ($operation) {
+        switch ($operation) {
 
             
         case "getConsumableUsage":
@@ -4159,8 +5831,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $recordId = $data['recordId'] ?? ($_POST['recordId'] ?? null);
                 $isFixed = $data['isFixed'] ?? ($_POST['isFixed'] ?? false);
                 $user_personnel_id = $data['user_personnel_id'] ?? ($_POST['user_personnel_id'] ?? null);
+                $admin_remarks = $data['admin_remarks'] ?? ($_POST['admin_remarks'] ?? null);
                 if ($type && $resourceId && $recordId) {
-                    echo $assigned->updateResourceStatusAndCondition($type, $resourceId, $recordId, $isFixed, $user_personnel_id);
+                    echo $assigned->updateResourceStatusAndCondition($type, $resourceId, $recordId, $isFixed, $user_personnel_id, $admin_remarks);
                 } else {
                     echo json_encode(['status' => 'error', 'message' => 'Missing required parameters (type, resourceId, recordId)']);
                 }
@@ -4183,7 +5856,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
     
             case "getEquipmentUnitUsage":
-                $unitId = $data['unitId'] ?? null;
+                $unitId = $data['unitId'] ?? ($_POST['unitId'] ?? null);
                 if ($unitId) {
                     echo $assigned->getEquipmentUnitUsage($unitId);
                 } else {
@@ -4245,18 +5918,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
            
 
             case "insertUnits":
-                $equipIds = $data['equip_ids'] ?? [];
+                $equipIds = $data['equipIds'] ?? $data['equip_ids'] ?? [];
                 $quantities = $data['quantities'] ?? [];
+                $unitId = $data['unit_id'] ?? null;
                 $reservationId = $data['reservation_id'] ?? null;
-                $startDate = $data['start_date'] ?? null;
-                $endDate = $data['end_date'] ?? null;
+                $startDate = $data['startDate'] ?? $data['start_date'] ?? null;
+                $endDate = $data['endDate'] ?? $data['end_date'] ?? null;
+                $userId = $data['userId'] ?? $data['user_id'] ?? null;
     
-                if (empty($equipIds) || empty($quantities) || $reservationId === null || $startDate === null || $endDate === null) {
-                    echo json_encode(['status' => 'error', 'message' => 'Equip IDs, Quantities, Reservation ID, Start Date, and End Date are required']);
+                // If unit_id is provided, use direct insert approach
+                if ($unitId !== null && $reservationId !== null) {
+                    $equipId = !empty($equipIds) ? $equipIds[0] : null;
+                    
+                    if (!$equipId) {
+                        echo json_encode(['status' => 'error', 'message' => 'Equip ID is required']);
+                        break;
+                    }
+                    
+                    // Call the new insertSingleUnit method
+                    echo $assigned->insertSingleUnit($reservationId, $equipId, $unitId);
                     break;
                 }
     
-                echo $assigned->insertUnits($equipIds, $quantities, $reservationId, $startDate, $endDate);
+                // Original insertUnits logic for bulk quantities
+                if (empty($equipIds) || empty($quantities) || $reservationId === null || $startDate === null || $endDate === null || $userId === null) {
+                    echo json_encode(['status' => 'error', 'message' => 'Equip IDs, Quantities, Reservation ID, Start Date, End Date, and User ID are required']);
+                    break;
+                }
+    
+                echo $assigned->insertUnits($equipIds, $quantities, $reservationId, $startDate, $endDate, $userId);
                 break;
 
             case "fetchReservationGenerateReport":
@@ -4289,6 +5979,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             case "fetchAllAssignedReleases":
                 echo $assigned->fetchAllAssignedReleases();
                 break;
+
+            case "fetchAssignedRelease":
+                $reservationId = $data['reservation_id'] ?? null;
+                if ($reservationId === null) {
+                    echo json_encode(['status' => 'error', 'message' => 'Reservation ID is required']);
+                    break;
+                }
+                echo $assigned->fetchAssignedRelease($reservationId);
+                break;
+
+            case "fetchUnitByEquipId":
+                $equipId = $data['equip_id'] ?? null;
+                $reservationId = $data['reservation_id'] ?? null;
+                
+                if ($equipId === null) {
+                    echo json_encode(['status' => 'error', 'message' => 'Equipment ID is required']);
+                    break;
+                }
+                
+                echo $assigned->fetchUnitByEquipId($equipId, $reservationId);
+                break;
     
             case "fetchDoneAssignedReleases":
                 echo $assigned->fetchDoneAssignedReleases();
@@ -4302,6 +6013,108 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
                 echo $assigned->saveChecklist($data);
                 break;
+
+            // Venue Approval Management Operations
+            case "fetchVenueApprovals":
+                echo $assigned->fetchVenueApprovals();
+                break;
+
+            case "fetchDepartments":
+                echo $assigned->fetchDepartments();
+                break;
+
+            case "fetchDepartmentsForEdit":
+                $currentDepartmentId = $data['current_department_id'] ?? null;
+                
+                if ($currentDepartmentId) {
+                    echo $assigned->fetchDepartmentsForEdit($currentDepartmentId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing current department ID']);
+                }
+                break;
+
+            case "fetchVenues":
+                echo $assigned->fetchVenues();
+                break;
+
+            case "addVenueApproval":
+                $venueIds = $data['venue_ids'] ?? null;
+                $departmentId = $data['department_id'] ?? null;
+                $userId = $data['user_id'] ?? null;
+                
+                if ($venueIds && $departmentId && $userId) {
+                    echo $assigned->addVenueApproval($venueIds, $departmentId, $userId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+                }
+                break;
+
+            case "updateVenueApproval":
+                $approvalId = $data['approval_id'] ?? null;
+                $venueIds = $data['venue_ids'] ?? null;
+                $departmentId = $data['department_id'] ?? null;
+                $userId = $data['user_id'] ?? null;
+                
+                if ($approvalId && $venueIds && $departmentId && $userId) {
+                    echo $assigned->updateVenueApproval($approvalId, $venueIds, $departmentId, $userId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+                }
+                break;
+
+            case "deleteVenueApproval":
+                $approvalId = $data['approval_id'] ?? null;
+                
+                if ($approvalId) {
+                    echo $assigned->deleteVenueApproval($approvalId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing approval ID']);
+                }
+                break;
+
+            // Role Exclusive Management Operations
+            case "fetchRoleExclusives":
+                echo $assigned->fetchRoleExclusives();
+                break;
+
+            case "fetchUserLevels":
+                echo $assigned->fetchUserLevels();
+                break;
+
+            case "addRoleExclusive":
+                $userLevelId = $data['user_level_id'] ?? null;
+                $departmentIds = $data['department_ids'] ?? null;
+                $userId = $data['user_id'] ?? null;
+                
+                if ($userLevelId && $departmentIds && $userId) {
+                    echo $assigned->addRoleExclusive($userLevelId, $departmentIds, $userId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+                }
+                break;
+
+            case "updateRoleExclusive":
+                $userLevelId = $data['user_level_id'] ?? null;
+                $departmentIds = $data['department_ids'] ?? null;
+                $userId = $data['user_id'] ?? null;
+                
+                if ($userLevelId && $departmentIds && $userId) {
+                    echo $assigned->updateRoleExclusive($userLevelId, $departmentIds, $userId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+                }
+                break;
+
+            case "deleteRoleExclusive":
+                $userLevelId = $data['user_level_id'] ?? null;
+                
+                if ($userLevelId) {
+                    echo $assigned->deleteRoleExclusive($userLevelId);
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'Missing user level ID']);
+                }
+                break;
+
             default:
                 echo json_encode(['status' => 'error', 'message' => 'Invalid operation.']);
         }

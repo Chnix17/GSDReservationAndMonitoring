@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
+import { Card, Empty, Tag, Spin, Input, Pagination, Button, Select } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsBuilding } from 'react-icons/bs';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
@@ -55,7 +55,7 @@ const VenueCard = React.forwardRef(({ venue, isSelected, onClick, isMobile }, re
                 {venue.ven_name}
               </h3>
               {isSelected && (
-                <Tag 
+                <Tag
                   color="green"
                   className={`
                     flex items-center font-medium whitespace-nowrap
@@ -67,14 +67,50 @@ const VenueCard = React.forwardRef(({ venue, isSelected, onClick, isMobile }, re
                 </Tag>
               )}
             </div>
-            {venue.ven_occupancy && (
-              <p className={`
-                text-gray-500 mt-0
-                ${isMobile ? 'text-[10px]' : 'text-xs'}
-              `}>
-                Capacity: {venue.ven_occupancy}
-              </p>
-            )}
+            <div className="flex flex-col gap-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                {venue.ven_occupancy && (
+                  <span className={`
+                    text-gray-500
+                    ${isMobile ? 'text-[10px]' : 'text-xs'}
+                  `}>
+                    👥 {venue.ven_occupancy}
+                  </span>
+                )}
+                {venue.venue_building_name && (
+                  <span className={`
+                    text-gray-600
+                    ${isMobile ? 'text-[10px]' : 'text-xs'}
+                  `}>
+                    📍 {venue.venue_building_name}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 flex-wrap mt-0.5">
+                {venue.event_type && (
+                  <Tag
+                    color={venue.event_type === 'Big Event' ? 'blue' : 'cyan'}
+                    className={`
+                      ${isMobile ? 'text-[8px] px-1 py-0' : 'text-[10px] px-1.5 py-0'}
+                      m-0
+                    `}
+                  >
+                    {venue.event_type}
+                  </Tag>
+                )}
+                {venue.area_type && (
+                  <Tag
+                    color={venue.area_type === 'Open Area' ? 'orange' : 'purple'}
+                    className={`
+                      ${isMobile ? 'text-[8px] px-1 py-0' : 'text-[10px] px-1.5 py-0'}
+                      m-0
+                    `}
+                  >
+                    {venue.area_type}
+                  </Tag>
+                )}
+              </div>
+            </div>
           </div>
         </div>
       </Card>
@@ -82,11 +118,14 @@ const VenueCard = React.forwardRef(({ venue, isSelected, onClick, isMobile }, re
   );
 });
 
-const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
+const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile, showSelectedOnly = false, onFilterToggle }) => {
   const [venues, setVenues] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [eventTypeFilter, setEventTypeFilter] = useState('all');
+  const [areaTypeFilter, setAreaTypeFilter] = useState('all');
+  const [buildingFilter, setBuildingFilter] = useState('all');
   const itemsPerPage = 8;
 
   // Normalize selected IDs to numbers for robust comparison
@@ -97,10 +136,33 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   const firstVenueRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
-  const filteredVenues = venues.filter(venue =>
-    venue.ven_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (venue.ven_occupancy?.toString() || '').includes(searchQuery)
-  );
+  const filteredVenues = venues.filter(venue => {
+    // Apply search filter
+    const matchesSearch = venue.ven_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      (venue.ven_occupancy?.toString() || '').includes(searchQuery);
+
+    // Apply selected filter - automatically show all if no items are selected
+    const isSelected = selectedIds.includes(parseInt(venue.ven_id, 10));
+    const hasSelectedItems = selectedIds.length > 0;
+    const matchesSelectedFilter = !showSelectedOnly || !hasSelectedItems || isSelected;
+
+    // Apply event type filter
+    const matchesEventType = eventTypeFilter === 'all' ||
+      (eventTypeFilter === 'none' && !venue.event_type) ||
+      venue.event_type === eventTypeFilter;
+
+    // Apply area type filter
+    const matchesAreaType = areaTypeFilter === 'all' ||
+      (areaTypeFilter === 'none' && !venue.area_type) ||
+      venue.area_type === areaTypeFilter;
+
+    // Apply building filter
+    const matchesBuilding = buildingFilter === 'all' ||
+      (buildingFilter === 'none' && !venue.venue_building_name) ||
+      venue.venue_building_name === buildingFilter;
+
+    return matchesSearch && matchesSelectedFilter && matchesEventType && matchesAreaType && matchesBuilding;
+  });
 
   const totalItems = filteredVenues.length;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -122,6 +184,26 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
     setSearchQuery(value);
     setCurrentPage(1);
   };
+
+  const handleEventTypeFilter = (value) => {
+    setEventTypeFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleAreaTypeFilter = (value) => {
+    setAreaTypeFilter(value);
+    setCurrentPage(1);
+  };
+
+  const handleBuildingFilter = (value) => {
+    setBuildingFilter(value);
+    setCurrentPage(1);
+  };
+
+  // Get unique event types, area types, and buildings from venues
+  const eventTypes = ['all', ...new Set(venues.map(v => v.event_type).filter(Boolean)), 'none'];
+  const areaTypes = ['all', ...new Set(venues.map(v => v.area_type).filter(Boolean)), 'none'];
+  const buildings = ['all', ...new Set(venues.map(v => v.venue_building_name).filter(Boolean)), 'none'];
 
   const fetchVenues = async () => {
     try {
@@ -150,7 +232,11 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
       }
     } catch (error) {
       console.error("Error fetching venues:", error);
-      toast.error("An error occurred while fetching venues.");
+      if (!error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK' || !navigator.onLine)) {
+        toast.error("Network connection lost. Please check your internet connection and try again.");
+      } else {
+        toast.error("An error occurred while fetching venues.");
+      }
     } finally {
       setLoading(false);
     }
@@ -161,17 +247,16 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
   }, []);
 
   return (
-    <motion.div 
+    <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       className={`flex flex-col h-full ${isMobile ? 'p-1' : 'p-3'}`}
     >
-      {/* Fixed Header Section */}
+      {/* Header Section */}
       <div className={`
         flex flex-col gap-3
         bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
         ${isMobile ? 'p-3 mb-2' : 'p-4 mb-3'}
-        sticky top-0 z-10
         border border-gray-100/20
       `}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -193,6 +278,25 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                 : 'Select venues to proceed'}
             </p>
           </div>
+
+          {/* Filter Button */}
+          {selectedIds.length > 0 && onFilterToggle && (
+            <Button
+              type={showSelectedOnly ? "primary" : "default"}
+              icon={<FilterOutlined />}
+              onClick={onFilterToggle}
+              size={isMobile ? "small" : "middle"}
+              className={`
+                flex items-center gap-1
+                ${showSelectedOnly
+                  ? 'bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600'
+                  : 'border-gray-300 hover:border-green-500 hover:text-green-500'}
+                transition-all duration-200
+              `}
+            >
+              {showSelectedOnly ? 'Show All' : 'Show Selected'}
+            </Button>
+          )}
         </div>
 
         {/* Search Input */}
@@ -208,13 +312,62 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
             allowClear
           />
         </div>
+
+        {/* Filter Dropdowns */}
+        <div className={`flex flex-col sm:flex-row gap-2 ${isMobile ? 'mt-1' : 'mt-2'}`}>
+          <div className="flex-1">
+            <Select
+              value={eventTypeFilter}
+              onChange={handleEventTypeFilter}
+              className="w-full"
+              size={isMobile ? 'middle' : 'large'}
+              placeholder="Filter by Event Type"
+            >
+              {eventTypes.map(type => (
+                <Select.Option key={type} value={type}>
+                  {type === 'all' ? 'All Event Types' : type === 'none' ? 'No Event Type' : type}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex-1">
+            <Select
+              value={areaTypeFilter}
+              onChange={handleAreaTypeFilter}
+              className="w-full"
+              size={isMobile ? 'middle' : 'large'}
+              placeholder="Filter by Area Type"
+            >
+              {areaTypes.map(type => (
+                <Select.Option key={type} value={type}>
+                  {type === 'all' ? 'All Area Types' : type === 'none' ? 'No Area Type' : type}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+          <div className="flex-1">
+            <Select
+              value={buildingFilter}
+              onChange={handleBuildingFilter}
+              className="w-full"
+              size={isMobile ? 'middle' : 'large'}
+              placeholder="Filter by Location"
+            >
+              {buildings.map(building => (
+                <Select.Option key={building} value={building}>
+                  {building === 'all' ? 'All Locations' : building === 'none' ? 'No Location' : building}
+                </Select.Option>
+              ))}
+            </Select>
+          </div>
+        </div>
       </div>
 
       {/* Scrollable Content Section */}
-      <div 
+      <div
         ref={scrollContainerRef}
         className="flex-1 overflow-y-auto px-1" // Added horizontal padding
-        style={{ 
+        style={{
           maxHeight: 'calc(100vh - 180px)',
           scrollBehavior: 'smooth',
           WebkitOverflowScrolling: 'touch'
@@ -252,7 +405,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                         font-medium text-gray-800 mb-1
                         ${isMobile ? 'text-sm' : 'text-base'}
                       `}>
-                        {searchQuery 
+                        {searchQuery
                           ? 'No venues match your search'
                           : 'No Venues Available'}
                       </h3>
@@ -260,7 +413,7 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
                         text-gray-500
                         ${isMobile ? 'text-xs' : 'text-sm'}
                       `}>
-                        {searchQuery 
+                        {searchQuery
                           ? 'Try different keywords or clear the search'
                           : 'Check back later for available venues'}
                       </p>
@@ -274,12 +427,11 @@ const ResourceVenue = ({ selectedVenues, onVenueSelect, isMobile }) => {
         )}
       </div>
 
-      {/* Fixed Pagination Section */}
+      {/* Pagination Section */}
       {filteredVenues.length > 0 && (
         <div className={`
           bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
           ${isMobile ? 'p-2 mt-1' : 'p-3 mt-2'}
-          sticky bottom-0 z-10
           border border-gray-100/20
         `}>
           <Pagination

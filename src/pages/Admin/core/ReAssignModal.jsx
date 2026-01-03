@@ -376,7 +376,11 @@ const ReAssignModal = ({ isOpen, onClose, selectedReservation, onSuccess }) => {
               <div>
                 <Text strong>Participants:</Text>
                 <br />
-                <Text>{reservationData.reservation.reservation_participants}</Text>
+                <Text>
+                  {reservationData.reservation.venues && reservationData.reservation.venues.length > 0 
+                    ? reservationData.reservation.venues[0].participants || 'N/A'
+                    : 'N/A'}
+                </Text>
               </div>
               <div>
                 <Text strong>Start Date:</Text>

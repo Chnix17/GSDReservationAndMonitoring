@@ -1,6 +1,118 @@
 // Push Notification Manager
 import { SecureStorage } from './encryption';
 
+// Helper function to derive service worker path/scope from baseName (homepage in package.json)
+const getServiceWorkerConfig = () => {
+    const publicUrl = (process.env.PUBLIC_URL || '').trim();
+    const base = (() => {
+        if (!publicUrl || publicUrl === '.') return '';
+        const withLeading = publicUrl.startsWith('/') ? publicUrl : `/${publicUrl}`;
+        return withLeading.replace(/\/$/, '');
+    })();
+    const path = `${base}/sw.js` || '/sw.js';
+    const scope = `${base}/` || '/';
+    console.log('Resolved Service Worker config from PUBLIC_URL:', { publicUrl, base, path, scope });
+    return { path, scope };
+};
+
+// Create inline service worker as fallback for development
+const createInlineServiceWorker = () => {
+    const swCode = `
+// Inline Service Worker for Push Notifications (Development Fallback)
+console.log('🚀 Inline Service Worker loaded at:', new Date().toISOString());
+
+// Install event
+self.addEventListener('install', function(event) {
+    console.log('🔧 Service Worker installing at:', new Date().toISOString());
+    self.skipWaiting();
+});
+
+// Activate event
+self.addEventListener('activate', function(event) {
+    console.log('⚙️ Service Worker activating at:', new Date().toISOString());
+    event.waitUntil(self.clients.claim().then(() => {
+        console.log('⚙️ Service Worker now controls all clients');
+    }));
+});
+
+// Push event handler
+self.addEventListener('push', function(event) {
+    console.log('🔥 [Service Worker] PUSH EVENT RECEIVED! 🔥');
+    console.log('[Service Worker] Push Received:', event);
+    
+    let notificationData = {
+        title: 'New Notification',
+        body: 'You have a new notification',
+        icon: '/phinma.png',
+        badge: '/phinma.png',
+        requireInteraction: true,
+        data: {
+            url: '/',
+            timestamp: Date.now()
+        }
+    };
+    
+    if (event.data) {
+        try {
+            const payload = event.data.json();
+            console.log('[Service Worker] Parsed payload:', payload);
+            notificationData = {
+                title: payload.title || notificationData.title,
+                body: payload.body || notificationData.body,
+                icon: payload.icon || notificationData.icon,
+                badge: payload.badge || notificationData.badge,
+                requireInteraction: payload.requireInteraction !== undefined ? payload.requireInteraction : true,
+                data: payload.data || notificationData.data,
+                actions: payload.actions || []
+            };
+        } catch (e) {
+            console.error('[Service Worker] Error parsing push data:', e);
+        }
+    }
+    
+    event.waitUntil(
+        self.registration.showNotification(notificationData.title, notificationData)
+    );
+});
+
+// Notification click handler
+self.addEventListener('notificationclick', function(event) {
+    console.log('[Service Worker] Notification clicked:', event);
+    event.notification.close();
+    
+    const urlToOpen = event.notification.data?.url || '/';
+    
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true })
+            .then(function(clientList) {
+                for (let i = 0; i < clientList.length; i++) {
+                    const client = clientList[i];
+                    if (client.url === urlToOpen && 'focus' in client) {
+                        return client.focus();
+                    }
+                }
+                if (clients.openWindow) {
+                    return clients.openWindow(urlToOpen);
+                }
+            })
+    );
+});
+
+// Message handler
+self.addEventListener('message', function(event) {
+    console.log('[Service Worker] Message received:', event.data);
+    
+    if (event.data && event.data.type === 'SKIP_WAITING') {
+        self.skipWaiting();
+        return;
+    }
+});
+`;
+    
+    const blob = new Blob([swCode], { type: 'application/javascript' });
+    return URL.createObjectURL(blob);
+};
+
 class PushNotificationManager {
     constructor() {
         // Try to load VAPID key from server or use the hardcoded one
@@ -95,24 +207,121 @@ class PushNotificationManager {
             console.log('Converting VAPID public key...');
             this.applicationServerKey = this.urlBase64ToUint8Array(this.vapidPublicKey);
             console.log('VAPID key converted successfully');
-            // Register service worker with absolute path for consistent scope
-            const swPath = '/sw.js';
-            console.log('Registering service worker at:', swPath);
+            // Register service worker with dynamic path based on API URL
+            const swConfig = getServiceWorkerConfig();
+            console.log('Service worker config:', swConfig);
             
-            // Check if service worker is already registered
-            const existingRegistration = await navigator.serviceWorker.getRegistration(swPath);
-            if (existingRegistration) {
+            // Determine if we should use inline fallback
+            let useInlineFallback = false;
+            
+            if (swConfig.path === null) {
+                console.log('Service worker path is null - using inline fallback');
+                useInlineFallback = true;
+            } else {
+                console.log('Full service worker URL will be:', window.location.origin + swConfig.path);
+                
+                // Verify service worker file exists before registration
+                console.log('Checking service worker availability...');
+                console.log('Current location:', window.location.href);
+                console.log('Service worker path:', swConfig.path);
+                console.log('Full SW URL:', window.location.origin + swConfig.path);
+                
+                try {
+                    const swResponse = await fetch(swConfig.path, { method: 'HEAD' });
+                    console.log('SW fetch response status:', swResponse.status);
+                    console.log('SW fetch response headers:', swResponse.headers);
+                    
+                    if (!swResponse.ok) {
+                        console.warn(`Service worker file not accessible at ${swConfig.path} (Status: ${swResponse.status})`);
+                        console.log('Response details:', {
+                            status: swResponse.status,
+                            statusText: swResponse.statusText,
+                            url: swResponse.url,
+                            type: swResponse.type
+                        });
+                        useInlineFallback = true;
+                    } else {
+                        console.log('Service worker file verified at:', swConfig.path);
+                        const contentType = swResponse.headers.get('content-type');
+                        console.log('Service worker content-type:', contentType);
+                    }
+                } catch (fetchError) {
+                    console.warn('Service worker file check failed:', fetchError);
+                    console.log('Error details:', {
+                        name: fetchError.name,
+                        message: fetchError.message,
+                        stack: fetchError.stack
+                    });
+                    console.log('Will use inline fallback service worker for development');
+                    useInlineFallback = true;
+                }
+            }
+            
+            // Check for any existing registrations first
+            const allRegistrations = await navigator.serviceWorker.getRegistrations();
+            console.log('Existing service worker registrations:', allRegistrations);
+            
+            // Do not aggressively unregister other scopes; keep existing SWs intact
+            
+            // Register service worker (either file-based or inline fallback)
+            let finalSwPath = swConfig.path;
+            let finalScope = swConfig.scope;
+            
+            if (useInlineFallback) {
+                console.log('Using inline fallback service worker...');
+                finalSwPath = createInlineServiceWorker();
+                finalScope = '/'; // Inline service worker can use root scope
+            }
+            
+            console.log('Final SW path:', finalSwPath);
+            console.log('Final scope:', finalScope);
+            
+            // Check if service worker is already registered at our specific scope
+            const existingRegistration = await navigator.serviceWorker.getRegistration(finalScope);
+            if (existingRegistration && !useInlineFallback) {
                 console.log('Service Worker already registered:', existingRegistration);
                 this.registration = existingRegistration;
             } else {
-                this.registration = await navigator.serviceWorker.register(swPath);
-                console.log('Service Worker registered:', this.registration);
+                // Unregister existing if we're switching to inline or different scope
+                if (existingRegistration && (useInlineFallback || existingRegistration.scope !== window.location.origin + finalScope)) {
+                    console.log('Unregistering existing service worker...');
+                    await existingRegistration.unregister();
+                }
+                
+                console.log('Registering new service worker...');
+                try {
+                    this.registration = await navigator.serviceWorker.register(finalSwPath, {
+                        scope: finalScope,
+                        updateViaCache: 'none' // Ensure we get the latest version
+                    });
+                    console.log('Service Worker registered successfully:', this.registration);
+                } catch (registrationError) {
+                    console.error('Service Worker registration failed:', registrationError);
+                    
+                    // If file-based registration failed, try inline fallback
+                    if (!useInlineFallback) {
+                        console.log('Trying inline fallback after file registration failed...');
+                        try {
+                            const inlineSwPath = createInlineServiceWorker();
+                            this.registration = await navigator.serviceWorker.register(inlineSwPath, {
+                                scope: '/',
+                                updateViaCache: 'none'
+                            });
+                            console.log('Inline fallback service worker registered successfully:', this.registration);
+                        } catch (fallbackError) {
+                            console.error('Inline fallback registration also failed:', fallbackError);
+                            throw new Error(`Both service worker registration methods failed: ${registrationError.message} | ${fallbackError.message}`);
+                        }
+                    } else {
+                        throw new Error(`Failed to register service worker: ${registrationError.message}`);
+                    }
+                }
             }
 
             // Wait for service worker to be ready
             console.log('Waiting for service worker to be ready...');
-            await navigator.serviceWorker.ready;
-            console.log('Service Worker is ready');
+            this.registration = await navigator.serviceWorker.ready;
+            console.log('Service Worker is ready:', this.registration);
             
             // Check if service worker is active
             if (this.registration.active) {
@@ -178,6 +387,12 @@ class PushNotificationManager {
     async requestPermission() {
         if (!this.isSupported) {
             throw new Error('Push notifications not supported');
+        }
+
+        // Check if Notification API is available (not available in iOS Safari)
+        if (typeof Notification === 'undefined') {
+            console.warn('Notification API not available on this device');
+            return false;
         }
 
         const permission = await Notification.requestPermission();
@@ -465,17 +680,20 @@ class PushNotificationManager {
             return { supported: false };
         }
 
+        // Check if Notification API is available
+        const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+
         if (!this.registration) {
             return {
                 supported: true,
                 subscribed: false,
-                permission: Notification.permission,
+                permission: notificationPermission,
                 registration: null
             };
         }
 
         const subscription = await this.registration.pushManager.getSubscription();
-        const permission = Notification.permission;
+        const permission = notificationPermission;
 
         return {
             supported: true,

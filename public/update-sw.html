@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Service Worker Updater</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button.danger {
+            background-color: #f44336;
+        }
+        button.danger:hover {
+            background-color: #da190b;
+        }
+        #output {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-left: 4px solid #4CAF50;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            white-space: pre-wrap;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .success {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        .error {
+            color: #f44336;
+            font-weight: bold;
+        }
+        .info {
+            color: #2196F3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Service Worker Updater</h1>
+        <p>Use this page to force update your service worker to the latest version (v2.2)</p>
+        
+        <div>
+            <button onclick="checkServiceWorker()">Check Current Version</button>
+            <button onclick="forceUpdate()">Force Update</button>
+            <button class="danger" onclick="unregisterAll()">Unregister All</button>
+            <button onclick="clearOutput()">Clear Log</button>
+        </div>
+        
+        <div id="output"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const output = document.getElementById('output');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            output.innerHTML += `<div class="${className}">[${timestamp}] ${message}</div>`;
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        async function checkServiceWorker() {
+            log('Checking service worker registration...', 'info');
+            
+            if (!('serviceWorker' in navigator)) {
+                log('❌ Service Worker not supported in this browser!', 'error');
+                return;
+            }
+
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                
+                if (registrations.length === 0) {
+                    log('✓ No service workers registered', 'success');
+                    return;
+                }
+
+                log(`Found ${registrations.length} service worker(s):`, 'info');
+                
+                registrations.forEach((reg, index) => {
+                    log(`\nService Worker #${index + 1}:`, 'info');
+                    log(`  - Scope: ${reg.scope}`, 'info');
+                    log(`  - Active: ${reg.active ? 'Yes' : 'No'}`, 'info');
+                    log(`  - Installing: ${reg.installing ? 'Yes' : 'No'}`, 'info');
+                    log(`  - Waiting: ${reg.waiting ? 'Yes' : 'No'}`, 'info');
+                    
+                    if (reg.active && reg.active.scriptURL) {
+                        log(`  - Script URL: ${reg.active.scriptURL}`, 'info');
+                    }
+                });
+
+                log('\n✓ Check complete', 'success');
+            } catch (error) {
+                log(`❌ Error checking service worker: ${error.message}`, 'error');
+            }
+        }
+
+        async function forceUpdate() {
+            log('Starting force update...', 'info');
+            
+            if (!('serviceWorker' in navigator)) {
+                log('❌ Service Worker not supported!', 'error');
+                return;
+            }
+
+            try {
+                // Step 1: Unregister all existing service workers
+                log('Step 1: Unregistering existing service workers...', 'info');
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                
+                for (const reg of registrations) {
+                    const success = await reg.unregister();
+                    if (success) {
+                        log(`✓ Unregistered service worker at: ${reg.scope}`, 'success');
+                    }
+                }
+
+                // Step 2: Clear service worker cache
+                log('\nStep 2: Clearing cache...', 'info');
+                if ('caches' in window) {
+                    const cacheNames = await caches.keys();
+                    await Promise.all(
+                        cacheNames.map(cacheName => caches.delete(cacheName))
+                    );
+                    log(`✓ Cleared ${cacheNames.length} cache(s)`, 'success');
+                }
+
+                // Step 3: Register new service worker
+                log('\nStep 3: Registering new service worker...', 'info');
+                
+                // Try to detect the correct path
+                const possiblePaths = [
+                    '/sw.js',
+                    '/gsd-reservation/public/sw.js',
+                    '/reservation/sw.js',
+                    './sw.js'
+                ];
+
+                let registered = false;
+                for (const path of possiblePaths) {
+                    try {
+                        const registration = await navigator.serviceWorker.register(path, {
+                            scope: '/',
+                            updateViaCache: 'none'
+                        });
+                        
+                        log(`✓ Successfully registered service worker at: ${path}`, 'success');
+                        
+                        // Wait for it to be ready
+                        await navigator.serviceWorker.ready;
+                        log('✓ Service worker is ready', 'success');
+                        
+                        registered = true;
+                        break;
+                    } catch (e) {
+                        // Try next path
+                        continue;
+                    }
+                }
+
+                if (!registered) {
+                    log('⚠️ Could not register service worker automatically. Please refresh the page.', 'error');
+                } else {
+                    log('\n✅ Force update complete!', 'success');
+                    log('⚠️ Please close ALL browser tabs and reopen the app to see changes.', 'info');
+                }
+
+            } catch (error) {
+                log(`❌ Error during force update: ${error.message}`, 'error');
+                log('Stack: ' + error.stack, 'error');
+            }
+        }
+
+        async function unregisterAll() {
+            if (!confirm('Are you sure you want to unregister all service workers? You will need to refresh the page.')) {
+                return;
+            }
+
+            log('Unregistering all service workers...', 'info');
+            
+            if (!('serviceWorker' in navigator)) {
+                log('❌ Service Worker not supported!', 'error');
+                return;
+            }
+
+            try {
+                const registrations = await navigator.serviceWorker.getRegistrations();
+                
+                if (registrations.length === 0) {
+                    log('✓ No service workers to unregister', 'success');
+                    return;
+                }
+
+                for (const reg of registrations) {
+                    const success = await reg.unregister();
+                    if (success) {
+                        log(`✓ Unregistered: ${reg.scope}`, 'success');
+                    } else {
+                        log(`❌ Failed to unregister: ${reg.scope}`, 'error');
+                    }
+                }
+
+                log('\n✅ All service workers unregistered!', 'success');
+                log('⚠️ Please refresh the page.', 'info');
+
+            } catch (error) {
+                log(`❌ Error unregistering: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check on page load
+        window.addEventListener('load', () => {
+            log('Service Worker Updater loaded', 'info');
+            log('Ready to check/update service workers\n', 'info');
+            checkServiceWorker();
+        });
+    </script>
+</body>
+</html>

@@ -19,12 +19,16 @@ const ForcePassword = ({ onPasswordChanged, currentPassword }) => {
     });
 
     const checkPasswordStrength = (password) => {
+        // Additional check: password should not be only whitespace
+        const trimmedPassword = password.trim();
+        const hasNonWhitespace = trimmedPassword.length > 0;
+        
         return {
-            length: password.length >= 8,
-            uppercase: /[A-Z]/.test(password),
-            lowercase: /[a-z]/.test(password),
-            number: /[0-9]/.test(password),
-            special: /[!@#$%^&*(),.?":{}|<>]/.test(password)
+            length: password.length >= 8 && hasNonWhitespace,
+            uppercase: /[A-Z]/.test(password) && hasNonWhitespace,
+            lowercase: /[a-z]/.test(password) && hasNonWhitespace,
+            number: /[0-9]/.test(password) && hasNonWhitespace,
+            special: /[!@#$%^&*(),.?":{}|<>]/.test(password) && hasNonWhitespace
         };
     };
 
@@ -44,6 +48,17 @@ const ForcePassword = ({ onPasswordChanged, currentPassword }) => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        
+        // Check for whitespace-only password
+        if (newPassword && newPassword.trim() === '') {
+            toast.error("Password cannot contain only whitespace!");
+            return;
+        }
+
+        if (confirmPassword && confirmPassword.trim() === '') {
+            toast.error("Confirm password cannot contain only whitespace!");
+            return;
+        }
         
         if (!isPasswordValid()) {
             toast.error("Please ensure password meets all requirements");

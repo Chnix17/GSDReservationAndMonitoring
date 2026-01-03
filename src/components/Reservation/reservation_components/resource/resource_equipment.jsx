@@ -1,9 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
+import { Card, Empty, Tag, Spin, Input, Pagination, Button } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { BsTools } from 'react-icons/bs';
 import { MdInventory } from 'react-icons/md';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
@@ -104,7 +104,7 @@ const EquipmentCard = React.forwardRef(({ equipment, isSelected, onClick, isMobi
               <div className="flex items-center gap-1 text-gray-600">
                 <MdInventory className={`text-green-500 ${isMobile ? 'text-xs' : 'text-sm'}`} />
                 <span className={`${isMobile ? 'text-[10px]' : 'text-xs'}`}>
-                  Available: {availableQuantity}
+                  QTY: {availableQuantity}
                 </span>
               </div>
             </div>
@@ -118,9 +118,11 @@ const EquipmentCard = React.forwardRef(({ equipment, isSelected, onClick, isMobi
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onQuantityChange(equipment.equipment_id, Math.max(0, currentQuantity - 1));
+                    const newQuantity = Math.max(0, currentQuantity - 1);
+                    console.log('Decrease clicked:', { current: currentQuantity, new: newQuantity });
+                    onQuantityChange(equipment.equipment_id, newQuantity);
                   }}
-                  disabled={currentQuantity === 0}
+                  disabled={currentQuantity <= 0}
                   className={`
                     w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold
                     ${currentQuantity > 0 
@@ -172,11 +174,13 @@ const EquipmentCard = React.forwardRef(({ equipment, isSelected, onClick, isMobi
 });
 
 const ResourceEquipment = ({ 
-  equipmentQuantities,
-  onQuantityChange,
-  isMobile,
-  startDate,
-  endDate
+    equipmentQuantities,
+    onQuantityChange,
+    isMobile,
+    startDate,
+    endDate,
+    showSelectedOnly = false,
+    onFilterToggle
 }) => {
   const [equipment, setEquipment] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -189,26 +193,46 @@ const ResourceEquipment = ({
   const scrollContainerRef = useRef(null);
 
   const handleEquipmentQuantityChange = (equipId, value) => {
-    const numericValue = parseInt(value) || 0;
+    console.log('Equipment quantity change:', { equipId, value, type: typeof value });
+    const numericValue = value === 0 ? 0 : (parseInt(value) || 0);
+    console.log('Numeric value:', numericValue);
+    
     const equip = equipment.find(e => 
       e.equipment_id.toString() === equipId.toString() || 
       e.equip_id?.toString() === equipId.toString()
     );
     
-    if (!equip) return;
+    if (!equip) {
+      console.log('Equipment not found for id:', equipId);
+      return;
+    }
 
     const availableQuantity = parseInt(equip.available_quantity) || 0;
     const validatedValue = Math.min(Math.max(0, numericValue), availableQuantity);
+    console.log('Validated value:', validatedValue);
     
-    // Update the quantities object
-    const updatedQuantities = { ...equipmentQuantities };
+    // Use equipment_id as the consistent key
+    const consistentKey = equip.equipment_id;
     
+    // Update the quantities object - remove ALL possible key variations first
+    const updatedQuantities = {};
+    Object.keys(equipmentQuantities).forEach(key => {
+      // Keep all entries except the one we're updating
+      if (key.toString() !== equipId.toString() && 
+          key.toString() !== consistentKey.toString()) {
+        updatedQuantities[key] = equipmentQuantities[key];
+      }
+    });
+    
+    // Add the new value only if it's greater than 0
     if (validatedValue > 0) {
-      updatedQuantities[equipId] = validatedValue;
+      updatedQuantities[consistentKey] = validatedValue;
+      console.log('Setting quantity to:', validatedValue, 'for key:', consistentKey);
     } else {
-      delete updatedQuantities[equipId];
+      console.log('Removing equipment from selection, key:', consistentKey);
     }
     
+    console.log('Updated quantities object:', updatedQuantities);
     // Send the entire updated quantities object to parent
     onQuantityChange(updatedQuantities);
   };
@@ -223,7 +247,7 @@ const ResourceEquipment = ({
       }
 
       const response = await axios.post(
-        `${encryptedUrl}Admin.php`,
+        `${encryptedUrl}reservation.php`,
         { operation: 'fetchEquipments' },
         { headers: { 'Content-Type': 'application/json' } }
       );
@@ -255,7 +279,11 @@ const ResourceEquipment = ({
       }
     } catch (error) {
       console.error("Error fetching equipment:", error);
-      toast.error("An error occurred while fetching equipment.");
+      if (!error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK' || !navigator.onLine)) {
+        toast.error("Network connection lost. Please check your internet connection and try again.");
+      } else {
+        toast.error("An error occurred while fetching equipment.");
+      }
     } finally {
       setLoading(false);
     }
@@ -314,10 +342,18 @@ const ResourceEquipment = ({
     fetchAllEquipments();
   }, []);
 
-  const filteredEquipment = equipment.filter(item => 
-    searchQuery === '' || 
-    item.equipment_name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredEquipment = equipment.filter(item => {
+    // Apply search filter
+    const matchesSearch = searchQuery === '' || 
+      item.equipment_name.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Apply selected filter - automatically show all if no items are selected
+    const isSelected = equipmentQuantities[item.equipment_id] > 0;
+    const hasSelectedItems = Object.values(equipmentQuantities).filter(qty => qty > 0).length > 0;
+    const matchesSelectedFilter = !showSelectedOnly || !hasSelectedItems || isSelected;
+    
+    return matchesSearch && matchesSelectedFilter;
+  });
 
   const totalItems = filteredEquipment.length;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -346,12 +382,11 @@ const ResourceEquipment = ({
       animate={{ opacity: 1 }}
       className={`flex flex-col h-full ${isMobile ? 'p-1' : 'p-3'}`}
     >
-      {/* Fixed Header Section */}
+      {/* Header Section */}
       <div className={`
         flex flex-col gap-3
         bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
         ${isMobile ? 'p-3 mb-2' : 'p-4 mb-3'}
-        sticky top-0 z-10
         border border-gray-100/20
       `}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -373,6 +408,25 @@ const ResourceEquipment = ({
                 : 'Select equipment to proceed'}
             </p>
           </div>
+          
+          {/* Filter Button */}
+          {Object.values(equipmentQuantities).filter(qty => qty > 0).length > 0 && onFilterToggle && (
+            <Button
+              type={showSelectedOnly ? "primary" : "default"}
+              icon={<FilterOutlined />}
+              onClick={onFilterToggle}
+              size={isMobile ? "small" : "middle"}
+              className={`
+                flex items-center gap-1
+                ${showSelectedOnly 
+                  ? 'bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600' 
+                  : 'border-gray-300 hover:border-green-500 hover:text-green-500'}
+                transition-all duration-200
+              `}
+            >
+              {showSelectedOnly ? 'Show All' : 'Show Selected'}
+            </Button>
+          )}
         </div>
 
         {/* Search Input */}
@@ -464,12 +518,11 @@ const ResourceEquipment = ({
         )}
       </div>
 
-      {/* Fixed Pagination Section */}
+      {/* Pagination Section */}
       {filteredEquipment.length > 0 && (
         <div className={`
           bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
           ${isMobile ? 'p-2 mt-1' : 'p-3 mt-2'}
-          sticky bottom-0 z-10
           border border-gray-100/20
         `}>
           <Pagination
@@ -490,7 +543,7 @@ const ResourceEquipment = ({
       {/* Summary Footer */}
       {Object.values(equipmentQuantities).filter(qty => qty > 0).length > 0 && (
         <div className={`
-          sticky bottom-0 bg-white/80 backdrop-blur-sm border-t border-gray-100/20 shadow-lg
+          bg-white/80 backdrop-blur-sm border-t border-gray-100/20 shadow-lg
           ${isMobile ? 'p-2' : 'p-3'}
         `}>
           <div className="flex items-center justify-between">

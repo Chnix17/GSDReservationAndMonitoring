@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo, memo } from 'react';
 import { format, parse, isToday, isYesterday } from 'date-fns';
 import { motion, AnimatePresence } from 'framer-motion';
+import Pusher from 'pusher-js';
 import { 
-  FiMessageCircle, FiPaperclip, 
+  FiMessageCircle, 
   FiSend, FiX, FiChevronLeft, 
-  FiSmile, FiImage, FiVideo, FiFile,
+  FiSmile, FiFile,
   FiSearch, 
   FiMoreHorizontal,
   FiCheck, FiCheckCircle, FiUserPlus, FiRefreshCw,
@@ -15,10 +16,145 @@ import {  FaRegLaughBeam} from 'react-icons/fa';
 import { useInView } from 'react-intersection-observer';
 import Sidebar from './Sidebar';
 import {SecureStorage} from '../../utils/encryption';
-import API_BASE_URL, { getApiBaseUrl } from '../../utils/apiConfig';
 import { useNavigate } from 'react-router-dom'; 
 import { toast } from 'sonner';
+import * as Filter from 'leo-profanity';
 
+// Asset base path helper - uses React's PUBLIC_URL or basename from package.json
+const assetBasePath = process.env.PUBLIC_URL || '/gsd/grms';
+
+// Pusher configuration - moved outside component since it's constant
+const PUSHER_CONFIG = {
+  key: '838be046a73c19032b25',
+  cluster: 'ap1',
+  encrypted: true,
+  forceTLS: true
+};
+
+// Initialize profanity filter
+Filter.loadDictionary('en'); // Load English dictionary
+
+// Add custom Filipino/Cebuano bad words
+Filter.add([
+  'spam', 
+  'scam',
+  'yawa',
+  'yw',
+  'boyshet',
+  'bwesit',
+  'giatay',
+  'tang ina',
+  'potang ina mo',
+  'putang ina',
+  'puta',
+  'punyeta',
+  'leche',
+  'hayop',
+  'animal',
+  'gago',
+  'tanga',
+  'bobo',
+  'ulol',
+  'tarantado',
+  'buwisit',
+  'peste',
+  'kingina',
+  'tangina',
+  'pucha',
+  'pakshet',
+  'pakyu',
+  'fuck you',
+  'amputa',
+  'amputangina',
+  'hinayupak',
+  'hudas',
+  'demonyo',
+  'diablos',
+  'shet',
+  'shit',
+  'damn',
+  'hell',
+  'bastard',
+  'bitch',
+  'asshole',
+  'motherfucker',
+  'son of a bitch',
+  'wtf',
+  'stfu'
+]);
+
+// Configure filter options
+Filter.clearList(); // Clear default list to start fresh
+Filter.loadDictionary('en'); // Reload English dictionary
+// Add all custom words again after clearing
+Filter.add([
+  'yawa',
+  'yw', 
+  'boyshet',
+  'bwesit',
+  'giatay',
+  'tang ina',
+  'potang ina mo',
+  'putang ina',
+  'puta',
+  'punyeta',
+  'leche',
+  'hayop',
+  'animal',
+  'gago',
+  'tanga',
+  'bobo',
+  'ulol',
+  'tarantado',
+  'buwisit',
+  'peste',
+  'kingina',
+  'tangina',
+  'pucha',
+  'pakshet',
+  'pakyu',
+  'fuck you',
+  'amputa',
+  'amputangina',
+  'hinayupak',
+  'hudas',
+  'demonyo',
+  'diablos',
+  'shet',
+  'shit',
+  'damn',
+  'hell',
+  'bastard',
+  'bitch',
+  'asshole',
+  'motherfucker',
+  'son of a bitch',
+  'wtf',
+  'stfu'
+]);
+
+// Shared timestamp formatter - Messenger style with detailed time
+const formatMessageTimestamp = (value) => {
+  if (!value) return '';
+  let dt;
+  if (typeof value === 'string') {
+    const parsed = parse(value, 'yyyy-MM-dd HH:mm:ss', new Date());
+    dt = isNaN(parsed.getTime()) ? new Date(value) : parsed;
+  } else {
+    dt = new Date(value);
+  }
+  if (isNaN(dt.getTime())) return '';
+
+  // Messenger-style detailed time formatting
+  if (isToday(dt)) {
+    return format(dt, 'h:mm a'); // e.g., 11:00 AM
+  }
+  if (isYesterday(dt)) {
+    return `Yesterday ${format(dt, 'h:mm a')}`; // e.g., Yesterday 11:00 AM
+  }
+  // For older messages, show date with time
+  return format(dt, 'MMM d, h:mm a'); // e.g., Oct 7, 11:00 AM
+};
 
 const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPicker, onReaction, currentUser }) => {
   const { ref, inView } = useInView({
@@ -36,7 +172,7 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
             const decryptedUserLevel = parseInt(encryptedUserLevel);
             console.log("this is encryptedUserLevel", encryptedUserLevel);
-            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 19) {
+            if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 1 && decryptedUserLevel !== 2 && decryptedUserLevel !== 19 && decryptedUserLevel !== 20) {
                 navigate('/gsd');
             }
           } catch (error) {
@@ -51,29 +187,9 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
 
   // Get the appropriate avatar URL based on whether it's own message or not
   const getAvatarUrl = (picture) => {
-    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
-    return `http://localhost/coc/gsd/${picture}`;
-  };
-  
-  // Format timestamp
-  const formatMessageTimestamp = (value) => {
-    if (!value) return '';
-    let dt;
-    if (typeof value === 'string') {
-      const parsed = parse(value, 'yyyy-MM-dd HH:mm:ss', new Date());
-      dt = isNaN(parsed.getTime()) ? new Date(value) : parsed;
-    } else {
-      dt = new Date(value);
+    if (!picture || picture === undefined || picture === null) {
+      return `${assetBasePath}/default-avatar.jpg`;
     }
-    if (isNaN(dt.getTime())) return '';
-
-    if (isToday(dt)) {
-      return format(dt, 'h a').replace(' ', '').toLowerCase(); // e.g., 8am
-    }
-    if (isYesterday(dt)) {
-      return 'yesterday';
-    }
-    return format(dt, 'MMM d, yyyy'); // e.g., Jul 8, 2025
   };
 
   const messageTime = formatMessageTimestamp(message.created_at ?? message.timestamp);
@@ -111,7 +227,9 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
             src={getAvatarUrl(message.senderPic)}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onError={(e) => { e.target.src = '/default-avatar.svg' }}
+            onError={(e) => { 
+              e.target.src = `${assetBasePath}/default-avatar.jpg`;
+            }}
           />
         </div>
       )}
@@ -178,6 +296,11 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
           )}
           <p className={`text-sm leading-relaxed ${isOwn ? 'text-white' : 'text-gray-800'}`}>
             {message.text}
+            {message.isFiltered && (
+              <span className={`ml-2 text-xs px-2 py-1 rounded-full ${isOwn ? 'bg-white/20 text-white/80' : 'bg-yellow-100 text-yellow-700'}`} title="This message was filtered for inappropriate content">
+                🛡️ Filtered
+              </span>
+            )}
           </p>
           <div className="flex items-center justify-end gap-2 mt-1">
             <span className={`text-[10px] ${isOwn ? 'text-white/70' : 'text-gray-400'}`}>
@@ -222,10 +345,9 @@ const MessageItem = memo(({ message, isOwn, onSelect, isSelected, showReactionPi
       {isOwn && (
         <div className="ml-2 flex-shrink-0">
           <img 
-            src={getAvatarUrl(currentUser.picture)}
+            src={`${assetBasePath}/default-avatar.jpg`}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-full" 
             alt="avatar"
-            onError={(e) => { e.target.src = '/default-avatar.svg' }}
           />
         </div>
       )}
@@ -237,7 +359,7 @@ const Chat = () => {
   // Import SecureStorage
   const [apiUrl] = useState(() => {
     const url = SecureStorage.getLocalItem("url");
-    return url || "http://localhost/coc/gsd/";
+    return url;
   });
   const [messages, setMessages] = useState([]);
   const [newMessage, setNewMessage] = useState('');
@@ -251,36 +373,28 @@ const Chat = () => {
   const [errorMessage, setErrorMessage] = useState('');
   const [currentUser] = useState({
     id: SecureStorage.getLocalItem('user_id'),
-    name: SecureStorage.getLocalItem('name'),
-    picture: SecureStorage.getLocalItem('profile_pic')
+    name: SecureStorage.getLocalItem('name')
   });
 
   const navigate = useNavigate();
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
-  const fileInputRef = useRef(null);
-  
-  // Remove these states related to voice recording
-  const [ws, setWs] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
-  const reconnectTimeoutRef = useRef(null);
-
-  const [showAttachMenu, setShowAttachMenu] = useState(false);
+  // Pusher-related states
+ 
+  const [connectionStatus, setConnectionStatus] = useState('disconnected');
+  const pusherRef = useRef(null);
+  const channelRef = useRef(null);
   const [messageToReply, setMessageToReply] = useState(null);
   const [showSearch, setShowSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMessages, setSelectedMessages] = useState([]);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [chatFilter, setChatFilter] = useState('all'); // all, unread, personal, groups
-  const [attachmentPreview, setAttachmentPreview] = useState(null);
   const [selectedMessageId, setSelectedMessageId] = useState(null);
   const [hasNewMessages, setHasNewMessages] = useState(false);
 
   const [viewMode, setViewMode] = useState('list');
   const [conversationSearch, setConversationSearch] = useState('');
-
-  const wsRef = useRef(null);
-  const wsUrlRef = useRef(null);
 
   // Set up responsive design
 
@@ -317,7 +431,7 @@ const Chat = () => {
       try {
         const encryptedUserLevel = SecureStorage.getLocalItem('user_level_id');
         const decryptedUserLevel = parseInt(encryptedUserLevel);
-        const allowed = [1, 2, 3, 5, 6, 15, 16, 17, 18, 19];
+        const allowed = [1, 2, 3, 5, 6, 15, 16, 17, 18, 19, 20];
         if (!allowed.includes(decryptedUserLevel)) {
           localStorage.clear();
           sessionStorage.clear();
@@ -332,9 +446,9 @@ const Chat = () => {
     checkAccess();
   }, [navigate]);
 
-  // Search filter for conversations
+  // Search filter for conversations - sorted by newest first (Messenger style)
   const filteredConversations = useMemo(() => {
-    return conversations.filter(chat => {
+    const filtered = conversations.filter(chat => {
       // First apply category filter
       if (chatFilter === 'unread' && chat.unread === 0) return false;
       if (chatFilter === 'groups' && !chat.isGroup) return false;
@@ -348,7 +462,65 @@ const Chat = () => {
         (chat.lastMessage && chat.lastMessage.toLowerCase().includes(searchTerm))
       );
     });
+    
+    // Sort by timestamp - newest messages on top (Messenger style)
+    return filtered.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeB - timeA; // Descending order (newest first)
+    });
   }, [conversations, chatFilter, conversationSearch]);
+
+  // Fetch unread counts for all conversations
+  const fetchUnreadCounts = useCallback(async () => {
+    try {
+      const response = await fetch(`${apiUrl}Admin.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'get_unread_count',
+          user_id: currentUser.id
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success' && Array.isArray(data.data)) {
+        return data.data.reduce((acc, item) => {
+          acc[item.sender_id] = parseInt(item.unread_count);
+          return acc;
+        }, {});
+      }
+      return {};
+    } catch (error) {
+      console.error('Error fetching unread counts:', error);
+      return {};
+    }
+  }, [apiUrl, currentUser.id]);
+
+  // Mark messages as read when opening a conversation
+  const markMessagesAsRead = useCallback(async (otherUserId) => {
+    try {
+      await fetch(`${apiUrl}Admin.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: 'mark_messages_read',
+          user_id: currentUser.id,
+          other_user_id: otherUserId
+        })
+      });
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+    }
+  }, [apiUrl, currentUser.id]);
 
   // Modify the memorizeFetchAllChats function to use get_message
   const memorizeFetchAllChats = useCallback(async () => {
@@ -372,6 +544,9 @@ const Chat = () => {
 
       const data = await response.json();
       if (data.status === 'success' && Array.isArray(data.data)) {
+        // Fetch unread counts
+        const unreadCounts = await fetchUnreadCounts();
+
         // Process the messages and update the state
         const formattedMessages = data.data.map(msg => ({
           id: msg.chat_id,
@@ -382,7 +557,8 @@ const Chat = () => {
           senderName: msg.sender_name,
           receiverName: msg.receiver_name,
           senderId: msg.sender_id,
-          receiverId: msg.receiver_id
+          receiverId: msg.receiver_id,
+          isRead: msg.is_read === 1 || msg.is_read === '1'
         }));
         
         // Only update messages if we have an active conversation
@@ -414,7 +590,7 @@ const Chat = () => {
               name: otherName,
               lastMessage: msg.message,
               timestamp: new Date(msg.created_at),
-              unread: 0
+              unread: unreadCounts[otherId] || 0
             };
           }
           
@@ -432,9 +608,9 @@ const Chat = () => {
         setConversations(Object.values(conversations));
       }
     } catch (error) {
-      console.error('Error fetching chat history:', error);
+      console.error('Error fetching messages:', error);
     }
-  }, [currentUser.id, activeConversation, apiUrl, messages.length]);
+  }, [apiUrl, currentUser.id, activeConversation, messages.length, fetchUnreadCounts]);
 
   useEffect(() => {
     if (activeConversation) {
@@ -447,10 +623,28 @@ const Chat = () => {
     memorizeFetchAllChats();
   }, [memorizeFetchAllChats]);
 
+  // Polling for new messages when viewing conversation list
+  useEffect(() => {
+    // Only set up polling when in list view
+    if (viewMode !== 'list') return;
+
+    // Initial fetch when entering list view
+    memorizeFetchAllChats();
+
+    // Set up polling interval for conversation list view
+    const pollInterval = setInterval(() => {
+      memorizeFetchAllChats();
+    }, 2000); // Poll every 2 seconds for better responsiveness
+
+    // Cleanup interval on unmount or when leaving list view
+    return () => {
+      clearInterval(pollInterval);
+    };
+  }, [viewMode, memorizeFetchAllChats]);
+
   // Helper function to get avatar URL
   const getAvatarUrl = (picture) => {
-    if (!picture || picture === undefined || picture === null) return '/default-avatar.svg';
-    return `${apiUrl}${picture}`;
+    return `${assetBasePath}/default-avatar.jpg`;
   };
 
   const renderChatHeader = () => {
@@ -472,10 +666,12 @@ const Chat = () => {
               <div className="flex items-center gap-3">
                 <div className="relative">
                   <img 
-                    src={activeConversation && getAvatarUrl(activeConversation.picture)}
+                    src={getAvatarUrl(activeConversation?.picture)}
                     className="w-11 h-11 rounded-full object-cover border-2 border-white shadow-sm" 
                     alt={activeConversation?.name || 'User'}
-                    onError={(e) => { e.target.src = '/default-avatar.svg' }}
+                    onError={(e) => { 
+                      e.target.src = `${assetBasePath}/default-avatar.jpg`;
+                    }}
                   />
                   <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 bg-green-500 rounded-full ring-2 ring-white flex items-center justify-center">
                     <div className="w-2 h-2 bg-white rounded-full"></div>
@@ -559,99 +755,13 @@ const Chat = () => {
         </motion.div>
       )}
       
-      {attachmentPreview && (
-        <motion.div 
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="mb-3 p-2 sm:p-3 bg-gray-50 rounded-xl flex items-center justify-between border border-gray-200"
-        >
-          <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-            {attachmentPreview.type.startsWith('image/') ? (
-              <img 
-                src={URL.createObjectURL(attachmentPreview)} 
-                alt="preview" 
-                className="h-12 w-12 sm:h-16 sm:w-16 object-cover rounded-lg flex-shrink-0"
-              />
-            ) : attachmentPreview.type.startsWith('video/') ? (
-              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center">
-                <FiVideo className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
-              </div>
-            ) : (
-              <div className="h-12 w-12 sm:h-16 sm:w-16 bg-primary/20 rounded-lg flex items-center justify-center">
-                <FiFile className="w-4 h-4 sm:w-6 sm:h-6 text-primary" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-gray-900 text-sm truncate">{attachmentPreview.name}</p>
-              <p className="text-xs text-gray-500">
-                {(attachmentPreview.size / 1024 / 1024).toFixed(2)} MB
-              </p>
-            </div>
-          </div>
-          <button 
-            onClick={() => setAttachmentPreview(null)}
-            className="p-1.5 hover:bg-gray-200 rounded-full transition-colors flex-shrink-0 ml-2"
-          >
-            <FiX className="w-4 h-4" />
-          </button>
-        </motion.div>
-      )}
-      
       <div className="flex items-center gap-2">
-        <div className="relative">
-          <button
-            onClick={() => setShowAttachMenu(!showAttachMenu)}
-            className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center rounded-full bg-primary/10 hover:bg-primary/20 transition-all text-primary"
-            aria-label="Attach file"
-          >
-            <FiPaperclip className="w-4 h-4 sm:w-5 sm:h-5" />
-          </button>
-          <AnimatePresence>
-            {showAttachMenu && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
-                animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
-                transition={{ duration: 0.15 }}
-                className="absolute bottom-full left-0 mb-2 bg-white rounded-xl shadow-xl border border-gray-100 p-2 sm:p-3 w-40 sm:w-48 z-10"
-              >
-                <div className="flex flex-col gap-1">
-                  <button 
-                    onClick={() => {
-                      fileInputRef.current?.click();
-                      setShowAttachMenu(false);
-                    }} 
-                    className="flex items-center gap-2 sm:gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
-                  >
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                      <FiImage className="w-3 h-3 sm:w-4 sm:h-4" />
-                    </div>
-                    <span className="text-xs sm:text-sm font-medium">Photo or Video</span>
-                  </button>
-                  <button 
-                    onClick={() => {
-                      // Handle document selection
-                      fileInputRef.current?.click();
-                      setShowAttachMenu(false);
-                    }}
-                    className="flex items-center gap-2 sm:gap-3 p-2 hover:bg-gray-50 rounded-lg transition-colors w-full text-left"
-                  >
-                    <div className="w-6 h-6 sm:w-8 sm:h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-                      <FiFile className="w-3 h-3 sm:w-4 sm:h-4" />
-                    </div>
-                    <span className="text-xs sm:text-sm font-medium">Document</span>
-                  </button>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
         <div className="flex-1 relative">
           <input
             type="text"
             value={newMessage}
             onChange={handleInputChange}
-            onKeyPress={(e) => e.key === 'Enter' && handleSend()}
+            onKeyPress={handleKeyPress}
             placeholder="Write a message..."
             className="w-full px-3 sm:px-4 py-2.5 sm:py-3 rounded-full bg-gray-100 focus:bg-white border border-gray-200 focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary/20 transition-all text-sm placeholder:text-gray-400"
           />
@@ -696,56 +806,135 @@ const Chat = () => {
         >
           <FiSend className="w-4 h-4 sm:w-5 sm:h-5" />
         </button>
-        
-        {/* Hidden file input */}
-        <input
-          type="file"
-          ref={fileInputRef}
-          className="hidden"
-          onChange={(e) => {
-            if (e.target.files?.[0]) {
-              const file = e.target.files[0];
-              // Check file size (max 10MB)
-              if (file.size > 10 * 1024 * 1024) {
-                setErrorMessage('File size exceeds 10MB limit');
-                return;
-              }
-              
-              // Check file type
-              const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'video/mp4', 'audio/mp3', 'application/pdf'];
-              if (!allowedTypes.includes(file.type)) {
-                setErrorMessage('Unsupported file type');
-                return;
-              }
-              
-    
-              setAttachmentPreview(file);
-            }
-          }}
-          accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
-        />
       </div>
     </div>
   );
 
   const handleSend = async () => {
-    if ((!newMessage.trim() && !attachmentPreview) || !activeConversation?.id || !currentUser?.id) return;
+    if (!newMessage.trim() || !activeConversation?.id || !currentUser?.id) return;
 
-    const messageText = newMessage.trim();
+    const originalMessage = newMessage.trim();
+    
+    // Advanced profanity detection with character substitution handling
+    const detectAdvancedProfanity = (text) => {
+      // Normalize text by replacing common character substitutions
+      let normalizedText = text.toLowerCase()
+        .replace(/[@4]/g, 'a')
+        .replace(/[3]/g, 'e')
+        .replace(/[1!|]/g, 'i')
+        .replace(/[0]/g, 'o')
+        .replace(/[5$]/g, 's')
+        .replace(/[7]/g, 't')
+        .replace(/[/\\]/g, 'v')
+        .replace(/[+]/g, 't')
+        .replace(/[#]/g, 'h')
+        .replace(/[&]/g, 'and')
+        .replace(/[%]/g, 'percent')
+        .replace(/[*]/g, '')
+        .replace(/[_-]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // Check both original and normalized text
+      const originalHasProfanity = Filter.check(text);
+      const normalizedHasProfanity = Filter.check(normalizedText);
+      
+      return originalHasProfanity || normalizedHasProfanity;
+    };
+
+    const cleanAdvancedProfanity = (text) => {
+      // First clean with standard filter
+      let cleanedText = Filter.clean(text);
+      
+      // If standard filter didn't catch it, check normalized version
+      let normalizedText = text.toLowerCase()
+        .replace(/[@4]/g, 'a')
+        .replace(/[3]/g, 'e')
+        .replace(/[1!|]/g, 'i')
+        .replace(/[0]/g, 'o')
+        .replace(/[5$]/g, 's')
+        .replace(/[7]/g, 't')
+        .replace(/[/\\]/g, 'v')
+        .replace(/[+]/g, 't')
+        .replace(/[#]/g, 'h')
+        .replace(/[&]/g, 'and')
+        .replace(/[%]/g, 'percent')
+        .replace(/[*]/g, '')
+        .replace(/[_-]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      // If normalized version has profanity, replace the suspicious parts
+      if (Filter.check(normalizedText) && cleanedText === text) {
+        // Replace common character substitution patterns
+        cleanedText = text
+          .replace(/p[@4]kyu/gi, '****')
+          .replace(/p[@4]k[y1!]u/gi, '****')
+          .replace(/g[@4]g[0o]/gi, '****')
+          .replace(/t[@4]ng[@4]/gi, '****')
+          .replace(/b[0o]b[0o]/gi, '****')
+          .replace(/ul[0o]l/gi, '****')
+          .replace(/put[@4]/gi, '****')
+          .replace(/[5$]h[3e]t/gi, '****')
+          .replace(/[5$]h[1!i]t/gi, '****')
+          .replace(/y[@4]w[@4]/gi, '****')
+          .replace(/bw[3e][5$][1!i]t/gi, '****')
+          .replace(/g[1!i][@4]t[@4]y/gi, '****')
+          .replace(/l[3e]ch[3e]/gi, '****')
+          .replace(/h[@4]y[0o]p/gi, '****')
+          .replace(/[@4]mput[@4]/gi, '****')
+          .replace(/t[@4]r[@4]nt[@4]d[0o]/gi, '****')
+          .replace(/buw[1!i][5$][1!i]t/gi, '****')
+          .replace(/p[3e][5$]t[3e]/gi, '****')
+          .replace(/k[1!i]ng[1!i]n[@4]/gi, '****')
+          .replace(/puch[@4]/gi, '****')
+          .replace(/p[@4]k[5$]h[3e]t/gi, '****')
+          .replace(/h[1!i]n[@4]yup[@4]k/gi, '****')
+          .replace(/hud[@4][5$]/gi, '****')
+          .replace(/d[3e]m[0o]ny[0o]/gi, '****')
+          .replace(/d[1!i][@4]bl[0o][5$]/gi, '****')
+          .replace(/b[@4][5$]t[@4]rd/gi, '****')
+          .replace(/b[1!i]tch/gi, '****')
+          .replace(/[@4][5$][5$]h[0o]l[3e]/gi, '****')
+          .replace(/m[0o]th[3e]rfuck[3e]r/gi, '****')
+          .replace(/wtf/gi, '***')
+          .replace(/[5$]tfu/gi, '****');
+      }
+      
+      return cleanedText;
+    };
+
+    // Check for profanity using advanced detection
+    const containsProfanity = detectAdvancedProfanity(originalMessage);
+    const messageText = containsProfanity ? cleanAdvancedProfanity(originalMessage) : originalMessage;
+    
+    // Debug logging
+    if (containsProfanity) {
+      console.log('Profanity detected:', {
+        original: originalMessage,
+        filtered: messageText,
+        containsProfanity
+      });
+    }
+    
+    // Show warning if message was filtered
+    if (containsProfanity) {
+      toast.warning('Your message contained inappropriate language and has been filtered.');
+    }
     setNewMessage('');
     
     // Create a unique message ID
     const tempMessageId = Date.now().toString();
     
     // Create message object
-    const messageData = {
-      type: 'chat_message',
-      sender_id: parseInt(currentUser.id),
-      receiver_id: parseInt(activeConversation.id),
-      message: messageText,
-      message_id: tempMessageId,
-      timestamp: new Date().toISOString()
-    };
+    // const messageData = {
+    //   type: 'chat_message',
+    //   sender_id: parseInt(currentUser.id),
+    //   receiver_id: parseInt(activeConversation.id),
+    //   message: messageText,
+    //   message_id: tempMessageId,
+    //   timestamp: new Date().toISOString()
+    // };
 
     // Optimistically insert the message into the current chat
     const optimisticMessage = {
@@ -756,7 +945,8 @@ const Chat = () => {
       isOwn: true,
       senderName: currentUser.name,
       senderId: parseInt(currentUser.id),
-      receiverId: parseInt(activeConversation.id)
+      receiverId: parseInt(activeConversation.id),
+      isFiltered: containsProfanity // Add flag to indicate if message was filtered
     };
     setMessages(prev => [...prev, optimisticMessage]);
 
@@ -777,19 +967,17 @@ const Chat = () => {
     });
 
     try {
-      // Send message via fetch
-      const formData = new URLSearchParams();
-      formData.append('operation', 'sendMessage');
-      formData.append('sender_id', currentUser.id);
-      formData.append('receiver_id', activeConversation.id);
-      formData.append('message', messageText);
-
-      const response = await fetch(`${apiUrl}Admin.php`, {
+      // Send message via pusher_chat.php
+      const response = await fetch(`${apiUrl}pusher_chat.php`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/json',
         },
-        body: formData
+        body: JSON.stringify({
+          sender_id: parseInt(currentUser.id),
+          receiver_id: parseInt(activeConversation.id),
+          message: messageText
+        })
       });
 
       if (!response.ok) {
@@ -799,22 +987,30 @@ const Chat = () => {
       // Try to read response to update optimistic message status / ID
       try {
         const resJson = await response.json();
-        const serverMsgId = resJson?.data?.message_id || resJson?.message_id || resJson?.data?.chat_id || resJson?.chat_id || null;
+        if (resJson.success) {
+          const serverMsgId = resJson.message_id;
+          setMessages(prev => prev.map(m => m.id === tempMessageId
+            ? { ...m, id: serverMsgId || m.id, status: 'sent' }
+            : m
+          ));
+        } else {
+          throw new Error(resJson.error || 'Failed to send message');
+        }
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        // Update message status to failed
         setMessages(prev => prev.map(m => m.id === tempMessageId
-          ? { ...m, id: serverMsgId || m.id, status: 'sent' }
+          ? { ...m, status: 'failed' }
           : m
         ));
-      } catch {}
-
-      // Try to send through WebSocket if available
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(messageData));
       }
+
+      // Message will be broadcasted via Pusher from the backend
 
       // Reset states
       setSelectedMessages([]);
       setMessageToReply(null);
-      setAttachmentPreview(null);
+    
       
       // Scroll to bottom after sending message
       setTimeout(() => {
@@ -846,7 +1042,6 @@ const Chat = () => {
       id: user.id,
       email: user.email,
       name: user.name,
-      picture: user.picture,
       lastMessage: '',
       timestamp: new Date(),
       unread: 0,
@@ -895,9 +1090,8 @@ const Chat = () => {
         const filteredResults = result.data.filter(user => user.users_id !== currentUser.id);
         const userEmails = filteredResults.map(user => ({
           email: user.users_email,
-          name: `${user.users_fname} ${user.users_mname} ${user.users_lname}`.trim(),
-          id: user.users_id,
-          picture: user.users_pic
+          name: user.full_name,
+          id: user.users_id
         }));
         setSearchResults(userEmails);
       } else {
@@ -950,236 +1144,212 @@ const Chat = () => {
     // searchEmails will be called automatically through the debounced effect
   };
 
-  const MAX_RECONNECT_ATTEMPTS = 10;
-  const RECONNECT_DELAY = 1000; // 1 second - faster reconnection
-  const [reconnectAttempts, setReconnectAttempts] = useState(0);
-  const [connectionStatus, setConnectionStatus] = useState('disconnected');
-  const connectWebSocket = useCallback(() => {
-    if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-      setConnectionStatus('failed');
-      console.error('Max reconnection attempts reached');
-      toast.error('Failed to connect to chat server. Please check if the server is running.');
+  // Initialize Pusher connection
+  const initializePusher = useCallback(() => {
+    try {
+      console.log('[Chat] Initializing Pusher connection...');
+      setConnectionStatus('connecting');
+      
+      // Initialize Pusher with proper configuration
+      const pusherInstance = new Pusher(PUSHER_CONFIG.key, {
+        cluster: PUSHER_CONFIG.cluster,
+        encrypted: PUSHER_CONFIG.encrypted,
+        forceTLS: PUSHER_CONFIG.forceTLS,
+        enabledTransports: ['ws', 'wss'],
+        disabledTransports: []
+      });
+      
+      pusherRef.current = pusherInstance;
+      
+      // Connection state events
+      pusherInstance.connection.bind('connected', () => {
+        console.log('[Chat] Pusher Connected successfully');
+        setConnectionStatus('connected');
+        // Don't show toast on every connection to avoid spam
+      });
+      
+      pusherInstance.connection.bind('connecting', () => {
+        console.log('[Chat] Pusher Connecting...');
+        setConnectionStatus('connecting');
+      });
+      
+      pusherInstance.connection.bind('disconnected', () => {
+        console.log('[Chat] Pusher Disconnected');
+        setConnectionStatus('disconnected');
+      });
+      
+      pusherInstance.connection.bind('unavailable', () => {
+        console.log('[Chat] Pusher Unavailable');
+        setConnectionStatus('error');
+      });
+      
+      pusherInstance.connection.bind('failed', () => {
+        console.log('[Chat] Pusher Connection Failed');
+        setConnectionStatus('error');
+        toast.error('Chat connection failed. Please refresh the page.');
+      });
+      
+      pusherInstance.connection.bind('error', (error) => {
+        console.error('[Chat] Pusher Connection Error:', error);
+        setConnectionStatus('error');
+        toast.error('Chat connection error. Please check your internet connection.');
+      });
+      
+      return pusherInstance;
+    } catch (error) {
+      console.error('[Chat] Error initializing Pusher:', error);
+      setConnectionStatus('error');
+      toast.error('Failed to initialize chat connection.');
+      return null;
+    }
+  }, []);
+
+  // Subscribe to chat channel for active conversation
+  const subscribeToChannel = useCallback((conversationId) => {
+    if (!pusherRef.current || !conversationId || connectionStatus !== 'connected') {
+      console.log('[Chat] Cannot subscribe - Pusher not ready or not connected');
       return;
     }
-
-    try {
-      // Derive WebSocket URL from settings or API base URL
-      if (!wsUrlRef.current) {
-        const overrideWs = SecureStorage.getLocalItem('ws_url');
-        if (overrideWs) {
-          wsUrlRef.current = overrideWs;
-        } else {
-          let base = SecureStorage.getLocalItem('url') || getApiBaseUrl?.() || API_BASE_URL || window.location.origin + '/';
-          try {
-            const u = new URL(base);
-            const isHttps = u.protocol === 'https:';
-            const wsProto = isHttps ? 'wss' : 'ws';
-            const isLocal = (u.hostname === 'localhost' || u.hostname === '127.0.0.1');
-            // Prefer standard reverse-proxy path in production, port-based on local
-            wsUrlRef.current = isLocal
-              ? `${wsProto}://${u.hostname}:8081`
-              : `${wsProto}://${u.hostname}/ws`;
-          } catch (e) {
-            // Fallbacks
-            const locIsHttps = window.location.protocol === 'https:';
-            const locWsProto = locIsHttps ? 'wss' : 'ws';
-            wsUrlRef.current = `${locWsProto}://${window.location.hostname}${window.location.hostname === 'localhost' ? ':8081' : '/ws'}`;
-          }
-        }
-      }
-      const wsUrl = wsUrlRef.current;
-      console.log('[Chat] Connecting WebSocket to:', wsUrl, '(Attempt', reconnectAttempts + 1, '/' + MAX_RECONNECT_ATTEMPTS + ')');
-
-      const socket = new WebSocket(wsUrl);
-      wsRef.current = socket;
-      setConnectionStatus('connecting');
-
-      socket.onopen = () => {
-        console.log('WebSocket Connected');
-        setIsConnected(true);
-        setConnectionStatus('connected');
-        setReconnectAttempts(0);
-        // Register this connection with the backend to bind user_id to socket
-        try {
-          if (currentUser?.id) {
-            const registerPayload = {
-              type: 'register',
-              user_id: parseInt(currentUser.id)
-            };
-            socket.send(JSON.stringify(registerPayload));
-            console.log('Sent register payload to WebSocket server', registerPayload);
-          }
-        } catch (e) {
-          console.error('Failed to send register payload:', e);
-        }
-      };
-
-      socket.onclose = (event) => {
-        console.log('WebSocket Disconnected', event.code, event.reason);
-        setIsConnected(false);
-        setConnectionStatus('disconnected');
-        wsRef.current = null;
-        
-        // Don't reconnect if closure was clean
-        if (event.wasClean) {
-          console.log('Clean disconnection');
-          return;
-        }
-
-        // Attempt to reconnect with constant delay for faster reconnection
-        const delay = RECONNECT_DELAY;
-        console.log(`Attempting to reconnect in ${delay/1000} seconds... (Attempt ${reconnectAttempts + 1}/${MAX_RECONNECT_ATTEMPTS})`);
-        setReconnectAttempts(prev => prev + 1);
-        reconnectTimeoutRef.current = setTimeout(() => {
-          // If production host but path '/ws' fails once, try port fallback
-          if (wsUrlRef.current && wsUrlRef.current.endsWith('/ws')) {
-            try {
-              const loc = new URL(window.location.origin);
-              const isHttps = loc.protocol === 'https:';
-              const wsProto = isHttps ? 'wss' : 'ws';
-              wsUrlRef.current = `${wsProto}://${loc.hostname}:8081`;
-            } catch {}
-          }
-          connectWebSocket();
-        }, delay);
-      };
-
-      socket.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          console.log('Received WebSocket message:', data);
-          
-          // Process the incoming message
-          if (data.message && (data.sender_id || data.receiver_id)) {
-            const messageId = data.message_id || Date.now().toString();
-
-            // Determine if this message belongs to the currently active conversation
-            const activeId = activeConversation ? parseInt(activeConversation.id) : null;
-            const belongsToActive = !!activeConversation && (
-              (data.sender_id === parseInt(currentUser.id) && data.receiver_id === activeId) ||
-              (data.receiver_id === parseInt(currentUser.id) && data.sender_id === activeId)
-            );
-
-            const newMessage = {
-              id: messageId,
-              text: data.message,
-              timestamp: new Date(data.timestamp || Date.now()),
-              status: 'received',
-              isOwn: data.sender_id === parseInt(currentUser.id),
-              senderPic: data.sender_pic,
-              senderName: data.sender_name || (data.sender_id === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
-              senderId: data.sender_id,
-              receiverId: data.receiver_id
-            };
-
-            if (belongsToActive) {
-              // Add the message to the open chat if not already present
-              setMessages(prev => {
-                if (prev.some(msg => msg.id === messageId)) return prev;
-
-                // If this is our own message, attempt to merge with an optimistic one
-                if (newMessage.isOwn) {
-                  const idx = prev.findIndex(m => (
-                    m.isOwn === true &&
-                    m.receiverId === newMessage.receiverId &&
-                    m.text === newMessage.text &&
-                    (m.status === 'sending' || m.status === 'sent')
-                  ));
-                  if (idx !== -1) {
-                    const copy = [...prev];
-                    copy[idx] = { ...newMessage, status: 'delivered' };
-                    return copy;
-                  }
-                }
-                return [...prev, newMessage];
-              });
-            } else {
-              // Not the active chat: flag new messages for the list
-              setHasNewMessages(true);
-            }
-
-            // Update conversations list (last message, timestamp, unread counter)
-            setConversations(prev => {
-              const otherId = data.sender_id === parseInt(currentUser.id) ? data.receiver_id : data.sender_id;
-              const otherName = data.sender_id === parseInt(currentUser.id) ? data.receiver_name : data.sender_name;
-              const ts = new Date(data.timestamp || Date.now());
-
-              const existing = Array.isArray(prev) ? prev.find(c => c.id === otherId) : undefined;
-              const unreadIncrement = belongsToActive ? 0 : 1;
-
-              const updated = {
-                id: otherId,
-                name: otherName || existing?.name,
-                lastMessage: data.message,
-                timestamp: ts,
-                unread: (existing?.unread || 0) + unreadIncrement
-              };
-
-              const rest = Array.isArray(prev) ? prev.filter(c => c.id !== otherId) : [];
-              return [updated, ...rest];
-            });
-          }
-        } catch (error) {
-          console.error('Error processing message:', error);
-        }
-      };
-
-      socket.onerror = (error) => {
-        console.error('WebSocket Error:', error);
-        setConnectionStatus('error');
-        // Hint user which URL is being used
-        toast.error(`Chat connection error. Retrying...`);
-      };
-
-      // Set up ping/pong to keep connection alive
-      const pingInterval = setInterval(() => {
-        if (socket.readyState === WebSocket.OPEN) {
-          socket.send(JSON.stringify({ type: 'ping' }));
-        }
-      }, 30000); // Send ping every 30 seconds
-
-      setWs(socket);
-
-      return () => {
-        clearInterval(pingInterval);
-        if (reconnectTimeoutRef.current) {
-          clearTimeout(reconnectTimeoutRef.current);
-        }
-        if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-          wsRef.current.close();
-        }
-      };
-    } catch (error) {
-      console.error('Error creating WebSocket:', error);
-      setConnectionStatus('error');
-      // Attempt to reconnect
-      const delay = RECONNECT_DELAY;
-      console.log(`Reconnecting after error in ${delay/1000} seconds...`);
-      setReconnectAttempts(prev => prev + 1);
-      reconnectTimeoutRef.current = setTimeout(() => {
-        connectWebSocket();
-      }, delay);
+    
+    // Generate channel name (consistent naming for both users)
+    const channelName = `chat-${[parseInt(currentUser.id), parseInt(conversationId)].sort((a, b) => a - b).join('-')}`;
+    console.log(`[Chat] Subscribing to channel: ${channelName}`);
+    
+    // Unsubscribe from previous channel if exists
+    if (channelRef.current) {
+      console.log(`[Chat] Unsubscribing from previous channel: ${channelRef.current.name}`);
+      pusherRef.current.unsubscribe(channelRef.current.name);
+      channelRef.current = null;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [reconnectAttempts, currentUser.id]);
+    
+    try {
+      // Subscribe to new channel
+      const channel = pusherRef.current.subscribe(channelName);
+      channelRef.current = channel;
+      
+      // Handle subscription success
+      channel.bind('pusher:subscription_succeeded', () => {
+        console.log(`[Chat] Successfully subscribed to channel: ${channelName}`);
+      });
+      
+      // Handle subscription error
+      channel.bind('pusher:subscription_error', (error) => {
+        console.error(`[Chat] Subscription error for channel ${channelName}:`, error);
+      });
+      
+      // Listen for new messages
+      channel.bind('new-message', (data) => {
+        console.log('[Chat] Received Pusher message:', data);
+        
+        const messageId = data.message_id || Date.now().toString();
+        const activeId = activeConversation ? parseInt(activeConversation.id) : null;
+        const belongsToActive = !!activeConversation && (
+          (parseInt(data.sender_id) === parseInt(currentUser.id) && parseInt(data.receiver_id) === activeId) ||
+          (parseInt(data.receiver_id) === parseInt(currentUser.id) && parseInt(data.sender_id) === activeId)
+        );
 
+        const newMessage = {
+          id: messageId,
+          text: data.message,
+          timestamp: new Date(data.timestamp || Date.now()),
+          status: 'received',
+          isOwn: parseInt(data.sender_id) === parseInt(currentUser.id),
+          senderName: data.sender_name || (parseInt(data.sender_id) === parseInt(currentUser.id) ? currentUser.name : activeConversation?.name),
+          senderId: parseInt(data.sender_id),
+          receiverId: parseInt(data.receiver_id)
+        };
+
+        if (belongsToActive) {
+          setMessages(prev => {
+            // Check for duplicate messages
+            if (prev.some(msg => msg.id === messageId)) {
+              console.log('[Chat] Duplicate message detected, ignoring');
+              return prev;
+            }
+            
+            // If this is our own message, attempt to merge with an optimistic one
+            if (newMessage.isOwn) {
+              const idx = prev.findIndex(m => (
+                m.isOwn === true &&
+                parseInt(m.receiverId) === parseInt(newMessage.receiverId) &&
+                m.text === newMessage.text &&
+                (m.status === 'sending' || m.status === 'sent')
+              ));
+              if (idx !== -1) {
+                console.log('[Chat] Merging with optimistic message');
+                const copy = [...prev];
+                copy[idx] = { ...newMessage, status: 'delivered' };
+                return copy;
+              }
+            }
+            
+            console.log('[Chat] Adding new message to conversation');
+            return [...prev, newMessage];
+          });
+          
+          // Scroll to bottom when new message arrives
+          setTimeout(() => {
+            if (messagesEndRef.current) {
+              messagesEndRef.current.scrollIntoView({ 
+                behavior: 'smooth',
+                block: 'end'
+              });
+            }
+          }, 100);
+        } else {
+          setHasNewMessages(true);
+        }
+
+        // Update conversations list
+        setConversations(prev => {
+          const otherId = parseInt(data.sender_id) === parseInt(currentUser.id) ? parseInt(data.receiver_id) : parseInt(data.sender_id);
+          const otherName = parseInt(data.sender_id) === parseInt(currentUser.id) ? data.receiver_name : data.sender_name;
+          const ts = new Date(data.timestamp || Date.now());
+
+          const existing = Array.isArray(prev) ? prev.find(c => parseInt(c.id) === otherId) : undefined;
+          const unreadIncrement = belongsToActive ? 0 : 1;
+
+          const updated = {
+            id: otherId,
+            name: otherName || existing?.name,
+            lastMessage: data.message,
+            timestamp: ts,
+            unread: (existing?.unread || 0) + unreadIncrement
+          };
+
+          const rest = Array.isArray(prev) ? prev.filter(c => parseInt(c.id) !== otherId) : [];
+          return [updated, ...rest];
+        });
+      });
+      
+    } catch (error) {
+      console.error('[Chat] Error subscribing to channel:', error);
+    }
+    
+  }, [currentUser.id, currentUser.name, activeConversation, connectionStatus]);
+
+  // Initialize Pusher on component mount
   useEffect(() => {
-    // Only connect once on mount
-    console.log('[Chat] Initializing WebSocket connection...');
-    const cleanup = connectWebSocket();
+    console.log('[Chat] Initializing Pusher connection...');
+    initializePusher();
     
     return () => {
-      console.log('[Chat] Cleaning up WebSocket connection...');
-      if (cleanup && typeof cleanup === 'function') cleanup();
-      if (reconnectTimeoutRef.current) {
-        clearTimeout(reconnectTimeoutRef.current);
+      console.log('[Chat] Cleaning up Pusher connection...');
+      if (channelRef.current && pusherRef.current) {
+        pusherRef.current.unsubscribe(channelRef.current.name);
       }
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.close(1000, 'Component unmounting');
+      if (pusherRef.current) {
+        pusherRef.current.disconnect();
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - only run once on mount
+  }, [initializePusher]);
+
+  // Subscribe to channel when active conversation changes
+  useEffect(() => {
+    if (activeConversation && pusherRef.current) {
+      subscribeToChannel(activeConversation.id);
+    }
+  }, [activeConversation, subscribeToChannel]);
 
   // Add connection status indicator in the UI
   useEffect(() => {
@@ -1197,11 +1367,27 @@ const Chat = () => {
     }
   }, [connectionStatus, activeConversation]);
 
+  // Handle key press in input
+  const handleKeyPress = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
   // Update the handler for when a conversation is clicked
-  const handleConversationClick = (conversation) => {
+  const handleConversationClick = async (conversation) => {
     setActiveConversation(conversation);
     setViewMode('conversation');
     setHasNewMessages(false); // Reset new messages indicator
+    
+    // Mark all messages from this user as read
+    await markMessagesAsRead(conversation.id);
+    
+    // Reset unread count for this conversation
+    setConversations(prev => prev.map(c => 
+      c.id === conversation.id ? { ...c, unread: 0 } : c
+    ));
   };
 
   // Add a handler for back button click
@@ -1211,7 +1397,14 @@ const Chat = () => {
     setViewMode('list');
     setActiveConversation(null);
     setMessages([]); // Clear current conversation messages
+    
+    // Immediately fetch latest conversations when returning to list
+    memorizeFetchAllChats();
   };
+
+
+
+
 
   // Render connection status indicator
   const renderConnectionStatus = () => {
@@ -1448,11 +1641,11 @@ const Chat = () => {
                         <div className="flex items-center space-x-3">
                           <div className="relative flex-shrink-0">
                             <img
-                              src={chat && getAvatarUrl(chat.picture)}
+                              src={getAvatarUrl(chat?.picture)}
                               className="w-10 h-10 sm:w-12 sm:h-12 rounded-full object-cover border-2 border-white shadow-sm"
                               alt={chat?.name || "User"}
-                              onError={(e) => {
-                                e.target.src = "/default-avatar.svg";
+                              onError={(e) => { 
+                                e.target.src = `${assetBasePath}/default-avatar.jpg`;
                               }}
                             />
                             {chat.online && (
@@ -1464,8 +1657,8 @@ const Chat = () => {
                               <h4 className="font-medium sm:font-semibold text-gray-900 truncate text-sm sm:text-base">
                                 {chat.name}
                               </h4>
-                              <span className="text-xs text-gray-500">
-                                {format(new Date(chat.timestamp), "HH:mm")}
+                              <span className="text-xs text-gray-500 flex-shrink-0">
+                                {formatMessageTimestamp(chat.timestamp)}
                               </span>
                             </div>
                             <div className="flex items-center justify-between mt-0.5">
@@ -1634,7 +1827,7 @@ const Chat = () => {
                         >
                           <div className="flex items-center gap-3">
                             <img 
-                              src={user.picture || '/default-avatar.svg'} 
+                              src={`${assetBasePath}/default-avatar.jpg`} 
                               className="w-12 h-12 rounded-full border border-gray-200" 
                               alt={user.name}
                             />
@@ -1865,11 +2058,22 @@ const Chat = () => {
         )}
       </AnimatePresence>
 
-      {/* Update WebSocket connection status display */}
-      {!isConnected && (
-        <div className="fixed bottom-4 right-4 z-50 bg-amber-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2">
-          <FiAlertCircle className="w-5 h-5" />
-          <p>Connection lost. Attempting to reconnect...</p>
+      {/* Pusher connection status display */}
+      {connectionStatus !== 'connected' && (
+        <div className={`fixed bottom-4 right-4 z-50 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 ${
+          connectionStatus === 'connecting' ? 'bg-blue-500' : 
+          connectionStatus === 'error' ? 'bg-red-500' : 'bg-amber-500'
+        }`}>
+          {connectionStatus === 'connecting' ? (
+            <FiRefreshCw className="w-5 h-5 animate-spin" />
+          ) : (
+            <FiAlertCircle className="w-5 h-5" />
+          )}
+          <p>
+            {connectionStatus === 'connecting' && 'Connecting To Server...'}
+            {connectionStatus === 'disconnected' && 'Chat disconnected. Reconnecting...'}
+            {connectionStatus === 'error' && 'Chat connection error. Please refresh.'}
+          </p>
         </div>
       )}
 

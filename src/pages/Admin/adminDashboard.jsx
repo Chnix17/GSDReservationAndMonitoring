@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../../components/core/Sidebar';
 import {
-    FaCar, FaUsers, FaBuilding, FaTools
+    FaCar, FaUsers, FaBuilding, FaTools, FaExclamationTriangle, FaWifi
 } from 'react-icons/fa';
 import { motion } from 'framer-motion';
 import axios from 'axios';
@@ -24,8 +24,8 @@ import {
     Filler
 } from 'chart.js';
 import ReservationChart from './core/ReservationChart';
-import SimpleAreaChart from './core/Status_Areachart';
-import RecentReservations from './core/RecentReservations';
+
+import ViewReservationRequest from './core/viewReservationRequest';
 
 import { SecureStorage } from '../../utils/encryption';
 
@@ -60,6 +60,9 @@ const Dashboard = () => {
             equipments: 0,
             users: 0
         });
+        const [isOnline, setIsOnline] = useState(true);
+        const [showOfflineAlert, setShowOfflineAlert] = useState(false);
+        const [retryCount, setRetryCount] = useState(0);
         const [setReservationStats] = useState({
             daily: [],
             weekly: [],
@@ -67,9 +70,6 @@ const Dashboard = () => {
         });
         
         const [setPersonnel] = useState([]);
-        const [ongoingReservations, setOngoingReservations] = useState([]);
-        const [completedReservations, setCompletedReservations] = useState([]);
-        const [recentReservationsPage, setRecentReservationsPage] = useState(1);
         const encryptedUrl = SecureStorage.getLocalItem("url");
 
         useEffect(() => {
@@ -117,14 +117,26 @@ const Dashboard = () => {
                     if (response.data.status === 'success') {
                         setTotals(response.data.totals);
                         setReservationStats(response.data.stats);
+                        // Reset offline state on successful connection
+                        if (!isOnline) {
+                            setIsOnline(true);
+                            setShowOfflineAlert(false);
+                            setRetryCount(0);
+                            toast.success('Connection restored!');
+                        }
                     }
                 } catch (error) {
                     console.error('Error fetching reservation stats:', error);
+                    // Check if it's a network error
+                    if (error.message === 'Network Error' || !error.response) {
+                        setIsOnline(false);
+                        setShowOfflineAlert(true);
+                    }
                 }
             };
 
             fetchReservationStats();
-        }, [setReservationStats, encryptedUrl]);
+        }, [setReservationStats, encryptedUrl, isOnline]);
 
         useEffect(() => {
             localStorage.setItem('darkMode', darkMode);
@@ -135,24 +147,6 @@ const Dashboard = () => {
             }
         }, [darkMode]);
 
-        const fetchReservations = useCallback(async () => {
-            try {
-                const response = await axios.post(`${encryptedUrl}/Admin.php`, {
-                    operation: 'fetchRecord'
-                });
-
-                if (response.data && response.data.status === 'success') {
-                    // Set all reservations without filtering by status
-                    setOngoingReservations(response.data.data);
-                    setCompletedReservations([]); // Clear completed reservations since we're not filtering anymore
-                } else {
-                    toast.error('Failed to fetch reservations');
-                }
-            } catch (error) {
-                console.error('Error fetching reservations:', error);
-                toast.error('Error fetching reservations');
-            }
-        }, [encryptedUrl]);
 
   
 
@@ -164,12 +158,26 @@ const Dashboard = () => {
                 );
                 if (response.data.status === 'success') {
                     setPersonnel(response.data.data);
+                    // Reset offline state on successful connection
+                    if (!isOnline) {
+                        setIsOnline(true);
+                        setShowOfflineAlert(false);
+                        setRetryCount(0);
+                        toast.success('Connection restored!');
+                    }
                 } else {
                 }
             } catch (error) {
-                toast.error("An error occurred while fetching personnel.");
+                console.error('Error fetching personnel:', error);
+                // Check if it's a network error
+                if (error.message === 'Network Error' || !error.response) {
+                    setIsOnline(false);
+                    setShowOfflineAlert(true);
+                } else {
+                    toast.error("An error occurred while fetching personnel.");
+                }
             }
-        }, [setPersonnel, encryptedUrl]);
+        }, [setPersonnel, encryptedUrl, isOnline]);
 
         const fetchTotals = useCallback(async () => {
             try {
@@ -179,14 +187,27 @@ const Dashboard = () => {
 
                 if (response.data.status === 'success') {
                     setTotals(response.data.data);
+                    // Reset offline state on successful connection
+                    if (!isOnline) {
+                        setIsOnline(true);
+                        setShowOfflineAlert(false);
+                        setRetryCount(0);
+                        toast.success('Connection restored!');
+                    }
                 } else {
                     toast.error('Error fetching dashboard statistics');
                 }
             } catch (error) {
                 console.error('Error fetching totals:', error);
-                toast.error('Error fetching dashboard statistics');
+                // Check if it's a network error
+                if (error.message === 'Network Error' || !error.response) {
+                    setIsOnline(false);
+                    setShowOfflineAlert(true);
+                } else {
+                    toast.error('Error fetching dashboard statistics');
+                }
             }
-        }, [encryptedUrl]); 
+        }, [encryptedUrl, isOnline]); 
 
 
 
@@ -194,15 +215,10 @@ const Dashboard = () => {
 
         useEffect(() => {
             if (!loading) {
-
-                fetchReservations();
-                
                 fetchPersonnel(); // Add this line
-      
                 fetchTotals();
-
             }
-        }, [loading, fetchReservations  ,  fetchPersonnel, encryptedUrl, fetchTotals]);
+        }, [loading, fetchPersonnel, encryptedUrl, fetchTotals]);
 
         // Handle back navigation behavior
         useEffect(() => {
@@ -218,6 +234,47 @@ const Dashboard = () => {
                 window.removeEventListener('popstate', handlePopState);
             };
         }, [navigate, user_level]);
+
+        // Network connectivity monitoring
+        useEffect(() => {
+            const handleOnline = () => {
+                setIsOnline(true);
+                setShowOfflineAlert(false);
+                setRetryCount(0);
+                toast.success('Connection restored!');
+                // Retry fetching data
+                fetchTotals();
+                fetchPersonnel();
+            };
+
+            const handleOffline = () => {
+                setIsOnline(false);
+                setShowOfflineAlert(true);
+                toast.error('Network connection lost!');
+            };
+
+            window.addEventListener('online', handleOnline);
+            window.addEventListener('offline', handleOffline);
+
+            return () => {
+                window.removeEventListener('online', handleOnline);
+                window.removeEventListener('offline', handleOffline);
+            };
+        }, [fetchTotals, fetchPersonnel]);
+
+        // Auto-retry mechanism when offline
+        useEffect(() => {
+            if (!isOnline && retryCount < 5) {
+                const retryTimer = setTimeout(() => {
+                    console.log(`Attempting to reconnect... (Attempt ${retryCount + 1}/5)`);
+                    setRetryCount(prev => prev + 1);
+                    fetchTotals();
+                    fetchPersonnel();
+                }, 10000); // Retry every 10 seconds
+
+                return () => clearTimeout(retryTimer);
+            }
+        }, [isOnline, retryCount, fetchTotals, fetchPersonnel]);
 
     
 
@@ -243,16 +300,6 @@ const Dashboard = () => {
             }
         };
 
-        useEffect(() => {
-            if (!loading) {
-                fetchReservations();
-           
-                fetchPersonnel();
-      
-                fetchTotals();
-
-            }
-        }, [loading, fetchReservations, encryptedUrl, fetchTotals, fetchPersonnel]);
 
 
 
@@ -300,6 +347,45 @@ const Dashboard = () => {
                 </div>
                 <div className="flex-1 overflow-auto">
                     <div className="h-full flex flex-col max-w-[1600px] mx-auto mt-20">
+                        {/* Network Connection Alert */}
+                        {showOfflineAlert && (
+                            <motion.div
+                                initial={{ opacity: 0, y: -20 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="mx-4 md:mx-6 lg:mx-8 mb-4 bg-red-500 text-white rounded-lg shadow-lg overflow-hidden"
+                            >
+                                <div className="p-4 flex items-center justify-between">
+                                    <div className="flex items-center space-x-3">
+                                        <FaExclamationTriangle className="text-2xl animate-pulse" />
+                                        <div>
+                                            <h3 className="font-bold text-lg">Network Connection Lost</h3>
+                                            <p className="text-sm opacity-90">
+                                                Unable to reach the server. Please check your internet connection.
+                                                {retryCount > 0 && retryCount < 5 && (
+                                                    <span className="ml-2">Retrying... ({retryCount}/5)</span>
+                                                )}
+                                                {retryCount >= 5 && (
+                                                    <span className="ml-2">Max retry attempts reached.</span>
+                                                )}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <FaWifi className="text-3xl opacity-50" />
+                                </div>
+                                <div className="bg-red-600 h-1">
+                                    <motion.div
+                                        className="bg-white h-full"
+                                        initial={{ width: "0%" }}
+                                        animate={{ width: "100%" }}
+                                        transition={{
+                                            duration: 10,
+                                            repeat: Infinity,
+                                            ease: "linear"
+                                        }}
+                                    />
+                                </div>
+                            </motion.div>
+                        )}
                         <div className="flex-1 py-6 space-y-6 px-4 md:px-6 lg:px-8">
                             {/* Stats Grid - Improved responsiveness */}
                             <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
@@ -308,55 +394,49 @@ const Dashboard = () => {
                                     value={totals.venues}
                                     icon={<FaBuilding className="text-xl md:text-3xl" />}
                                     color="bg-gradient-to-r from-lime-900 to-green-900"
+                                    onClick={() => navigate('/Admin/Venue')}
                                 />
                                 <StatCard
                                     title="Equipment"
                                     value={totals.equipments}
                                     icon={<FaTools className="text-xl md:text-3xl" />}
                                     color="bg-gradient-to-r from-lime-900 to-green-900"
+                                    onClick={() => navigate('/Admin/Equipment')}
                                 />
                                 <StatCard
                                     title="Vehicles"
                                     value={totals.vehicles}
                                     icon={<FaCar className="text-xl md:text-3xl" />}
                                     color="bg-gradient-to-r from-lime-900 to-green-900"
+                                    onClick={() => navigate('/Admin/VehicleEntry')}
                                 />
                                 <StatCard
                                     title="Users"
                                     value={totals.users}
                                     icon={<FaUsers className="text-xl md:text-3xl" />}
                                     color="bg-gradient-to-r from-lime-900 to-green-900"
+                                    onClick={() => navigate('/Admin/Faculty')}
                                 />
                             </div>
 
-                            {/* Charts Grid - Improved responsiveness */}
+                            {/* Reservation Trends Chart - Full width */}
                             <motion.div
                                 variants={containerVariants}
                                 initial="hidden"
                                 animate="visible"
-                                className="w-full grid grid-cols-1 lg:grid-cols-2 gap-4 md:gap-6"
+                                className="w-full"
                             >
-                                <div className="w-full">
-                                    <ReservationChart />
-                                </div>
-                                <div className="w-full">
-                                    <SimpleAreaChart />
-                                </div>
+                                <ReservationChart />
                             </motion.div>
 
-                            {/* Recent Reservations - Full width */}
+                            {/* Reservation Requests - Full width */}
                             <motion.div
                                 variants={containerVariants}
                                 initial="hidden"
                                 animate="visible"
                                 className="w-full mt-6"
                             >
-                                <RecentReservations 
-                                    reservations={[...ongoingReservations, ...completedReservations]}
-                                    currentPage={recentReservationsPage}
-                                    setCurrentPage={setRecentReservationsPage}
-                                    itemsPerPage={5}
-                                />
+                                <ViewReservationRequest />
                             </motion.div>
                         </div>
                     </div>
@@ -365,12 +445,13 @@ const Dashboard = () => {
         );
     };
 
-    // Enhanced StatCard component with better responsiveness
-    const StatCard = ({ title, value, icon, color }) => (
+    // Enhanced StatCard component with better responsiveness and navigation
+    const StatCard = ({ title, value, icon, color, onClick }) => (
         <motion.div
-            className={`${color} text-white rounded-xl p-3 md:p-6 shadow-sm hover:shadow-md transition-all duration-300`}
+            className={`${color} text-white rounded-xl p-3 md:p-6 shadow-sm hover:shadow-md transition-all duration-300 cursor-pointer`}
             whileHover={{ scale: 1.02, y: -2 }}
             whileTap={{ scale: 0.98 }}
+            onClick={onClick}
         >
             <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2 md:space-x-3">

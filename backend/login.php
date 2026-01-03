@@ -9,6 +9,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
   exit;
 }
 
+// Set maximum execution time to prevent timeouts
+set_time_limit(30); // 30 seconds max execution time
+
+// Function to send JSON response with proper HTTP status codes
+function sendJsonResponse($data, $httpStatusCode = 200) {
+    http_response_code($httpStatusCode);
+    echo json_encode($data);
+    exit;
+}
+
 class Login {
     private $conn;
     private $MAX_ATTEMPTS = 3;
@@ -153,8 +163,10 @@ class Login {
             // Check if account is blocked
             $blockStatus = $this->isAccountBlocked($json['username']);
             if ($blockStatus['blocked']) {
+                http_response_code(429); // Too Many Requests
                 return json_encode([
-                    'status' => 'error', 
+                    'status' => 'error',
+                    'code' => 'ACCOUNT_BLOCKED',
                     'message' => "Account is temporarily blocked. Please try again after {$blockStatus['minutes_remaining']} minutes."
                 ]);
             }
@@ -191,6 +203,7 @@ class Login {
                         16 => 'SBO PRESIDENT',
                         17 => 'CSG PRESIDENT',
                         18 => 'Department Head',
+                        20 => 'Principal',
                         
                     ];
 
@@ -231,7 +244,6 @@ class Login {
                             'profile_pic' => $user['users_pic'],
                             'created_at' => $user['users_created_at'],
                             'updated_at' => $user['users_updated_at'],
-                            'password' => $json['password'],
                             'email' => $user['users_email'],
                             'is_2FAactive' => $user['is_2FAactive'] ?? 0,
                             'first_login' => (bool)$user['first_login']
@@ -241,10 +253,29 @@ class Login {
             }
 
             $this->handleLoginAttempt($json['username'], false);
-            return json_encode(['status' => 'error', 'message' => 'Invalid credentials']);
+            http_response_code(401); // Unauthorized
+            return json_encode([
+                'status' => 'error',
+                'code' => 'INVALID_CREDENTIALS',
+                'message' => 'Invalid credentials'
+            ]);
             
         } catch (PDOException $e) {
-            return json_encode(['status' => 'error', 'message' => 'Database error']);
+            error_log('Login database error: ' . $e->getMessage());
+            http_response_code(500); // Internal Server Error
+            return json_encode([
+                'status' => 'error',
+                'code' => 'DATABASE_ERROR',
+                'message' => 'Database error. Please try again later.'
+            ]);
+        } catch (Exception $e) {
+            error_log('Login unexpected error: ' . $e->getMessage());
+            http_response_code(500);
+            return json_encode([
+                'status' => 'error',
+                'code' => 'SERVER_ERROR',
+                'message' => 'An unexpected error occurred. Please try again.'
+            ]);
         }
     }
 
@@ -478,7 +509,7 @@ public function fetch2FA($user_id) {
                 return [
                     "status" => "expired",
                     "message" => "2FA has expired",
-                    "requires_verification" => true,
+                    "requires_verification" => false,  // 2FA expired, so no verification required
                     "expires_at" => $result['expires_at']
                 ];
             }
@@ -488,7 +519,7 @@ public function fetch2FA($user_id) {
                 "id" => $result['id'],
                 "user_id" => $result['user_id'],
                 "expires_at" => $result['expires_at'],
-                "requires_verification" => false,
+                "requires_verification" => true,  // User has active 2FA, so verification IS required
                 "is_active" => true
             ];
         }
@@ -618,23 +649,34 @@ public function enable2FA($user_id, $duration_days) {
         
         // Check if user already has a 2FA record
         $checkStmt = $this->conn->prepare("
-            SELECT id FROM tbl_user_2fa 
+            SELECT id, expires_at FROM tbl_user_2fa 
             WHERE user_id = :user_id 
             LIMIT 1
         ");
         $checkStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
         $checkStmt->execute();
         
-        if ($checkStmt->fetch(PDO::FETCH_ASSOC)) {
-            // Update existing record
+        $existingRecord = $checkStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if ($existingRecord) {
+            // Update existing record - extend from current expiration or now, whichever is later
+            $currentExpiry = new DateTime($existingRecord['expires_at']);
+            $now = new DateTime();
+            
+            // If current expiry is in the future, extend from there; otherwise extend from now
+            $baseDate = ($currentExpiry > $now) ? $currentExpiry : $now;
+            $newExpiry = $baseDate->modify("+{$duration_days} days")->format('Y-m-d H:i:s');
+            
             $updateStmt = $this->conn->prepare("
                 UPDATE tbl_user_2fa 
                 SET expires_at = :expires_at
                 WHERE user_id = :user_id
             ");
-            $updateStmt->bindParam(':expires_at', $expires_at);
+            $updateStmt->bindParam(':expires_at', $newExpiry);
             $updateStmt->bindParam(':user_id', $user_id, PDO::PARAM_STR);
             $updateStmt->execute();
+            
+            $expires_at = $newExpiry;
         } else {
             // Insert new record
             $insertStmt = $this->conn->prepare("
@@ -713,6 +755,224 @@ public function disable2FA($user_id) {
     }
 }
 
+public function sendPasswordResetOTP($email) {
+    try {
+        // Check if email exists in tbl_users
+        $stmt = $this->conn->prepare("SELECT users_id, users_fname, users_lname FROM tbl_users WHERE users_email = :email");
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+        
+        if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            // Generate 6-digit OTP
+            $otp = sprintf('%06d', mt_rand(0, 999999));
+            
+            // Send email using GoDaddy SMTP (no database storage)
+            $emailSent = $this->sendOTPEmail($email, $otp, $row['users_fname'] . ' ' . $row['users_lname']);
+            
+            if ($emailSent) {
+                return [
+                    "status" => "success",
+                    "message" => "OTP sent to your email address",
+                    "otp" => $otp // For frontend storage only
+                ];
+            } else {
+                return [
+                    "status" => "error",
+                    "message" => "Failed to send email. Please try again."
+                ];
+            }
+        } else {
+            return [
+                "status" => "error",
+                "message" => "Email not found in our records"
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            "status" => "error",
+            "message" => "Error sending OTP: " . $e->getMessage()
+        ];
+    }
+}
+
+public function validateOTPKey($otp, $email) {
+    try {
+        // Since OTP is stored in frontend only, we just validate the email exists
+        // The actual OTP validation will be done in the frontend
+        $stmt = $this->conn->prepare("SELECT users_id FROM tbl_users WHERE users_email = :email");
+        $stmt->bindParam(':email', $email);
+        $stmt->execute();
+        
+        if ($stmt->fetch(PDO::FETCH_ASSOC)) {
+            return [
+                "status" => "success",
+                "message" => "Email validated successfully"
+            ];
+        } else {
+            return [
+                "status" => "error",
+                "message" => "Email not found in our records"
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            "status" => "error",
+            "message" => "Error validating email: " . $e->getMessage()
+        ];
+    }
+}
+
+public function sendLoginOTP($user_id) {
+    try {
+        // Get user email from tbl_users
+        $stmt = $this->conn->prepare("SELECT users_email, users_fname, users_lname FROM tbl_users WHERE users_id = :user_id");
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        
+        if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            // Generate 6-digit OTP
+            $otp = sprintf('%06d', mt_rand(0, 999999));
+            
+            // Set expiration time (3 minutes from now) - for reference only, not stored in database
+            date_default_timezone_set('Asia/Manila');
+            $expirationTime = (new DateTime())->modify('+3 minutes')->format('Y-m-d H:i:s');
+            
+            // No database storage - OTP will be stored in frontend state only
+            // Send email using GoDaddy SMTP
+            $emailSent = $this->sendLoginOTPEmail($row['users_email'], $otp, $row['users_fname'] . ' ' . $row['users_lname']);
+            
+            if ($emailSent) {
+                return [
+                    "status" => "success",
+                    "message" => "Login OTP sent to your email address",
+                    "requires_2fa" => true,
+                    "otp" => $otp // For frontend storage
+                ];
+            } else {
+                return [
+                    "status" => "error",
+                    "message" => "Failed to send login OTP email. Please try again."
+                ];
+            }
+        } else {
+            return [
+                "status" => "error",
+                "message" => "User not found"
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            "status" => "error",
+            "message" => "Error sending login OTP: " . $e->getMessage()
+        ];
+    }
+}
+
+public function validateLoginOTP($user_id, $otp) {
+    try {
+        date_default_timezone_set('Asia/Manila');
+        
+        // Check if login OTP exists and is not expired
+        $stmt = $this->conn->prepare("SELECT authenticate_otp, authenticate_otp_exp FROM user_authenticate WHERE user_id = :user_id");
+        $stmt->bindParam(':user_id', $user_id);
+        $stmt->execute();
+        
+        if ($row = $stmt->fetch(PDO::FETCH_ASSOC)) {
+            $currentTime = new DateTime();
+            $expirationTime = new DateTime($row['authenticate_otp_exp']);
+            
+            if ($currentTime > $expirationTime) {
+                // OTP expired, delete it
+                $deleteStmt = $this->conn->prepare("DELETE FROM user_authenticate WHERE user_id = ?");
+                $deleteStmt->execute([$user_id]);
+                
+                return [
+                    "status" => "error",
+                    "message" => "Login OTP has expired. Please login again."
+                ];
+            }
+            
+            if ($row['authenticate_otp'] === $otp) {
+                // OTP is valid, update authentication period (7 days from now)
+                $auth_until = (new DateTime())->modify('+7 days')->format('Y-m-d H:i:s');
+                $updateStmt = $this->conn->prepare("UPDATE user_authenticate SET user_authenticate_until = :auth_until WHERE user_id = :user_id");
+                $updateStmt->bindParam(':auth_until', $auth_until);
+                $updateStmt->bindParam(':user_id', $user_id);
+                $updateStmt->execute();
+                
+                return [
+                    "status" => "success",
+                    "message" => "Login OTP verified successfully",
+                    "authenticated_until" => $auth_until
+                ];
+            } else {
+                return [
+                    "status" => "error",
+                    "message" => "Invalid login OTP. Please try again."
+                ];
+            }
+        } else {
+            return [
+                "status" => "error",
+                "message" => "No login OTP found. Please login again."
+            ];
+        }
+    } catch (Exception $e) {
+        return [
+            "status" => "error",
+            "message" => "Error validating login OTP: " . $e->getMessage()
+        ];
+    }
+}
+
+private function sendOTPEmail($email, $otp, $userName) {
+    try {
+        // Include the GoDaddy SMTP function
+        require_once 'godaddysmtp.php';
+        
+        $subject = 'Password Reset OTP - GSD Reservation System';
+        $htmlBody = "
+            <h2>Password Reset Request</h2>
+            <p>Dear {$userName},</p>
+            <p>You have requested to reset your password for the GSD Reservation System.</p>
+            <p>Your One-Time Password (OTP) is: <strong style='font-size: 24px; color: #007bff;'>{$otp}</strong></p>
+            <p>This OTP will expire in 3 minutes.</p>
+            <p>If you did not request this password reset, please ignore this email.</p>
+            <br>
+            <p>Best regards,<br>GSD Administration Team</p>
+        ";
+        
+        return sendGoDaddyEmail($email, $userName, $subject, $htmlBody);
+    } catch (Exception $e) {
+        error_log("Email sending failed: " . $e->getMessage());
+        return false;
+    }
+}
+
+private function sendLoginOTPEmail($email, $otp, $userName) {
+    try {
+        // Include the GoDaddy SMTP function
+        require_once 'godaddysmtp.php';
+        
+        $subject = 'Login Verification OTP - GSD Reservation System';
+        $htmlBody = "
+            <h2>Login Verification</h2>
+            <p>Dear {$userName},</p>
+            <p>You are attempting to login to the GSD Reservation System.</p>
+            <p>Your One-Time Password (OTP) is: <strong style='font-size: 24px; color: #007bff;'>{$otp}</strong></p>
+            <p>This OTP will expire in 3 minutes.</p>
+            <p>If you did not attempt to login, please secure your account immediately.</p>
+            <br>
+            <p>Best regards,<br>GSD Administration Team</p>
+        ";
+        
+        return sendGoDaddyEmail($email, $userName, $subject, $htmlBody);
+    } catch (Exception $e) {
+        error_log("Login OTP email sending failed: " . $e->getMessage());
+        return false;
+    }
+}
+
 }
 
 // Handle the request
@@ -749,7 +1009,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
             
         case 'send_password_reset_otp':
-            $email = $input['email'] ?? '';
+            $email = $input['json']['email'] ?? '';
             if (empty($email)) {
                 echo json_encode(["status" => "error", "message" => "Email is required"]);
                 exit;
@@ -758,8 +1018,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode($result);
             break;
         case 'validate_otp':
-            $otp = $input['otp'] ?? '';
-            $email = $input['email'] ?? '';
+            $otp = $input['json']['otp'] ?? '';
+            $email = $input['json']['email'] ?? '';
             
             if (empty($otp) || empty($email)) {
                 echo json_encode(["status" => "error", "message" => "OTP and email are required"]);
@@ -769,8 +1029,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode($result);
             break;
         case 'sendLoginOTP':
-            $user_id = isset($input['json']['id']) ? $input['json']['id'] : '';  // Updated to get ID from json object
-            if ($user_id === '') {  // Changed condition to check for empty string
+            $user_id = $input['json']['id'] ?? $input['json']['user_id'] ?? '';  // Check both 'id' and 'user_id' fields
+            if (empty($user_id)) {  // Use empty() to check for null, empty string, or 0
                 echo json_encode(["status" => "error", "message" => "User ID is required"]);
                 exit;
             }

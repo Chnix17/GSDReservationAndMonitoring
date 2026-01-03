@@ -20,7 +20,7 @@ const RoleRedirect = ({ type }) => {
     
     if (role === 'Super Admin' || role === 'Admin') return `/Admin/${target}`;
     if (role === 'Personnel') return `/Personnel/${target}`;
-    if (role === 'Dean' || role === 'Secretary' || role === 'Department Head') return `/Department/${target}`;
+    if (role === 'Dean' || role === 'Secretary' || role === 'Department Head' || role === 'Principal') return `/Department/${target}`;
     if (role === 'Driver') return `/Driver/${target}`;
     // Faculty and other authenticated roles
     return `/Faculty/${target}`;

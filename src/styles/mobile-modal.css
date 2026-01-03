@@ -1,0 +1,271 @@
+/* Mobile Responsive Modal Styles for viewRequest.jsx */
+
+/* Modal responsive width and positioning */
+.reservation-detail-modal .ant-modal {
+  width: 95% !important;
+  max-width: 900px !important;
+  top: 10px !important;
+  margin: 0 auto !important;
+}
+
+/* Mobile header optimizations */
+.reservation-detail-modal .ant-modal-body > div:first-child {
+  padding: 12px 16px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-modal-body > div:first-child {
+    padding: 24px !important;
+  }
+}
+
+/* Mobile content padding */
+.reservation-detail-modal .ant-modal-body > div:nth-child(2) {
+  padding: 12px 16px !important;
+  gap: 16px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-modal-body > div:nth-child(2) {
+    padding: 24px !important;
+    gap: 24px !important;
+  }
+}
+
+/* Header layout - stack vertically on mobile */
+.reservation-detail-modal .ant-modal-body > div:first-child > div {
+  flex-direction: column !important;
+  gap: 12px !important;
+  align-items: flex-start !important;
+}
+
+/* Header title and icon sizing */
+.reservation-detail-modal h1 {
+  font-size: 16px !important;
+  line-height: 1.2 !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal h1 {
+    font-size: 20px !important;
+  }
+}
+
+/* Header text sizing */
+.reservation-detail-modal .ant-modal-body > div:first-child p {
+  font-size: 12px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-modal-body > div:first-child p {
+    font-size: 14px !important;
+  }
+}
+
+/* Icon sizing */
+.reservation-detail-modal .anticon {
+  font-size: 16px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .anticon {
+    font-size: 20px !important;
+  }
+}
+
+/* Table responsiveness */
+.reservation-detail-modal .ant-table-wrapper {
+  overflow-x: auto !important;
+}
+
+.reservation-detail-modal .ant-table {
+  min-width: 400px !important;
+}
+
+.reservation-detail-modal .ant-table-thead > tr > th,
+.reservation-detail-modal .ant-table-tbody > tr > td {
+  padding: 8px 12px !important;
+  font-size: 12px !important;
+  white-space: nowrap !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-table-thead > tr > th,
+  .reservation-detail-modal .ant-table-tbody > tr > td {
+    padding: 12px 16px !important;
+    font-size: 14px !important;
+    white-space: normal !important;
+  }
+}
+
+/* Section headers */
+.reservation-detail-modal h2,
+.reservation-detail-modal h3,
+.reservation-detail-modal h4 {
+  font-size: 14px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal h2 {
+    font-size: 18px !important;
+  }
+  
+  .reservation-detail-modal h3 {
+    font-size: 16px !important;
+  }
+  
+  .reservation-detail-modal h4 {
+    font-size: 15px !important;
+  }
+}
+
+/* Alert messages */
+.reservation-detail-modal .ant-alert {
+  font-size: 12px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-alert {
+    font-size: 14px !important;
+  }
+}
+
+/* Progress bars */
+.reservation-detail-modal .ant-progress-text {
+  font-size: 12px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-progress-text {
+    font-size: 14px !important;
+  }
+}
+
+/* Tags */
+.reservation-detail-modal .ant-tag {
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-tag {
+    font-size: 12px !important;
+    padding: 4px 8px !important;
+  }
+}
+
+/* Button responsiveness */
+.reservation-detail-modal .ant-btn {
+  font-size: 12px !important;
+  padding: 4px 12px !important;
+  height: auto !important;
+  min-height: 32px !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-btn {
+    font-size: 14px !important;
+    padding: 6px 16px !important;
+    min-height: 36px !important;
+  }
+}
+
+/* Footer button layout */
+.reservation-detail-modal .ant-modal-footer {
+  padding: 12px 16px !important;
+  text-align: center !important;
+}
+
+.reservation-detail-modal .ant-modal-footer .ant-btn {
+  margin: 4px !important;
+  width: calc(50% - 8px) !important;
+}
+
+@media (min-width: 640px) {
+  .reservation-detail-modal .ant-modal-footer {
+    padding: 16px 24px !important;
+    text-align: right !important;
+  }
+  
+  .reservation-detail-modal .ant-modal-footer .ant-btn {
+    width: auto !important;
+    margin: 0 0 0 8px !important;
+  }
+}
+
+/* Text wrapping and overflow */
+.reservation-detail-modal .ant-modal-body {
+  word-wrap: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Grid layout adjustments */
+.reservation-detail-modal .grid {
+  grid-template-columns: 1fr !important;
+  gap: 16px !important;
+}
+
+@media (min-width: 1024px) {
+  .reservation-detail-modal .grid.lg\\:grid-cols-2 {
+    grid-template-columns: repeat(2, 1fr) !important;
+  }
+}
+
+/* Flex item adjustments */
+.reservation-detail-modal .flex {
+  flex-wrap: wrap !important;
+}
+
+.reservation-detail-modal .flex-shrink-0 {
+  flex-shrink: 0 !important;
+}
+
+.reservation-detail-modal .truncate {
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+}
+
+/* Remove grey background from Final Approval Section */
+.reservation-detail-modal .bg-gray-50 {
+  background-color: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}
+
+/* Keep individual approval cards styled */
+.reservation-detail-modal .bg-white {
+  background-color: white !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 8px !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Specific mobile improvements for small screens */
+@media (max-width: 480px) {
+  .reservation-detail-modal .ant-modal {
+    width: 98% !important;
+    top: 5px !important;
+  }
+  
+  .reservation-detail-modal .ant-modal-body > div:first-child,
+  .reservation-detail-modal .ant-modal-body > div:nth-child(2) {
+    padding: 8px 12px !important;
+  }
+  
+  .reservation-detail-modal h1 {
+    font-size: 14px !important;
+  }
+  
+  .reservation-detail-modal .ant-table-thead > tr > th,
+  .reservation-detail-modal .ant-table-tbody > tr > td {
+    padding: 6px 8px !important;
+    font-size: 11px !important;
+  }
+  
+  .reservation-detail-modal .ant-btn {
+    font-size: 11px !important;
+    padding: 3px 8px !important;
+    min-height: 28px !important;
+  }
+}

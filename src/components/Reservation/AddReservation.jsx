@@ -9,11 +9,12 @@ import 'primereact/resources/themes/lara-light-indigo/theme.css';
 import 'primereact/resources/primereact.min.css';
 import 'primeicons/primeicons.css';
 import {  TeamOutlined, PlusOutlined,  CheckCircleOutlined } from '@ant-design/icons';
-import {  Form, Input, Card,  Radio, Result,  Modal, Empty, Spin, Pagination } from 'antd';
+import {  Form, Input, Card, Result,  Modal, Empty, Spin, Pagination, Drawer } from 'antd';
 import { format } from 'date-fns';
 import { BsTools,  } from 'react-icons/bs';
 import { MdInventory } from 'react-icons/md';
 import { SearchOutlined } from '@ant-design/icons';
+import { useMediaQuery } from 'react-responsive';
 
 import ReservationCalendar from './reservation_components/reservation_calendar';
 import { Button as AntButton } from 'antd';
@@ -40,6 +41,33 @@ const fadeInAnimation = {
   transition: { duration: 0.4, ease: "easeInOut" }
 };
 
+const parseLooseJson = (data) => {
+  if (data === null || data === undefined || data === 0 || data === '0') return [];
+  if (Array.isArray(data)) return data;
+  if (typeof data === 'object') return data;
+  if (typeof data === 'string') {
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
+const getLocationCategoryIdFromLocation = (loc) => (
+  loc?.locCateg_id ??
+  loc?.locCategId ??
+  loc?.locCategID ??
+  loc?.location_categoryId ??
+  loc?.location_locCateg_id ??
+  loc?.locationCategoryId ??
+  loc?.locationCategoryID ??
+  loc?.loc_category_id ??
+  null
+);
+
 
 
 const AddReservation = () => {
@@ -48,6 +76,12 @@ const AddReservation = () => {
 
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Responsive breakpoints
+  const isMobileDevice = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  // const isDesktop = useMediaQuery({ minWidth: 1024 });
+  // const isSmallScreen = useMediaQuery({ maxWidth: 1023 });
 
   const [loading, setLoading] = useState(false);
   const [selectedModels, setSelectedModels] = useState([]);
@@ -65,8 +99,12 @@ const AddReservation = () => {
   const [calendarData, setCalendarData] = useState({
     reservations: [],
     holidays: [],
-    equipmentAvailability: []
+    equipmentAvailability: [],
+    networkError: false
   });
+  
+  // Add state for immediate calendar locking
+  const [isCalendarLocked, setIsCalendarLocked] = useState(false);
 
   const [formData, setFormData] = useState({
     startDate: null,
@@ -83,23 +121,200 @@ const AddReservation = () => {
     driverType: 'default',
     driverName: '',
     tripTicketDriver: null,
-    ownDrivers: [],
-    mixedDrivers: [], // New field for mixed driver mode
-    forceOwnDrivers: false, // New field to force own drivers when insufficient
-    forceMixedDrivers: false, // New field to force mixed drivers when partially insufficient
+    driverShortage: false, // Flag to indicate driver shortage
     availableDrivers: 0, // Number of available drivers
     totalVehicles: 0, // Total number of vehicles
     additionalNote: '', // Add this line for additional note
+    workRequestLocationCategoryId: '',
+    workRequestLocationId: '',
+    workRequestSubject: '',
+    workRequestDescription: '',
+    workRequestEndDate: null,
+    workRequestImageFile: null,
   });
 
+  const [workRequestLocationCategories, setWorkRequestLocationCategories] = useState([]);
+  const [workRequestLocations, setWorkRequestLocations] = useState([]);
+  const [workRequestLoading, setWorkRequestLoading] = useState(false);
+
+  useEffect(() => {
+    if (resourceType !== 'work_request') return;
+
+    const fetchWorkRequestData = async () => {
+      setWorkRequestLoading(true);
+      try {
+        const [categoriesRes, locationsRes] = await Promise.all([
+          axios.post(
+            `${encryptedUrl}/Admin.php`,
+            { operation: 'getLocationCategory' },
+            { headers: { 'Content-Type': 'application/json' } }
+          ),
+          axios.post(
+            `${encryptedUrl}/Admin.php`,
+            { operation: 'getAllLocation' },
+            { headers: { 'Content-Type': 'application/json' } }
+          )
+        ]);
+
+        setWorkRequestLocationCategories(parseLooseJson(categoriesRes.data));
+        setWorkRequestLocations(parseLooseJson(locationsRes.data));
+      } catch (error) {
+        console.error('Error fetching work request data:', error);
+        toast.error('Failed to load work request data');
+      } finally {
+        setWorkRequestLoading(false);
+      }
+    };
+
+    fetchWorkRequestData();
+  }, [resourceType, encryptedUrl]);
+
+  const renderWorkRequestForm = () => {
+    const categoryId = formData.workRequestLocationCategoryId;
+    const filteredLocations = categoryId
+      ? workRequestLocations.filter((loc) => String(getLocationCategoryIdFromLocation(loc) ?? '') === String(categoryId))
+      : workRequestLocations;
+
+    return (
+      <div className="space-y-4">
+        <div className="bg-white border border-gray-200 rounded-xl p-4">
+          <div className="flex items-center gap-2 mb-4">
+            <BsTools className="text-green-700" />
+            <h3 className="text-lg font-semibold text-gray-900">Ticket Form</h3>
+          </div>
+
+          {workRequestLoading ? (
+            <div className="flex items-center justify-center py-10">
+              <Spin />
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location Category</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    value={formData.workRequestLocationCategoryId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        workRequestLocationCategoryId: value,
+                        workRequestLocationId: ''
+                      }));
+                    }}
+                  >
+                    <option value="">Open this select menu</option>
+                    {workRequestLocationCategories.map((c) => (
+                      <option
+                        key={String(c.locCateg_id ?? c.locCategId ?? c.locationCategoryId ?? '')}
+                        value={String(c.locCateg_id ?? c.locCategId ?? c.locationCategoryId ?? '')}
+                      >
+                        {c.locCateg_name ?? c.locationCategoryName ?? c.name ?? 'Unnamed'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Location</label>
+                  <select
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                    value={formData.workRequestLocationId}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setFormData((prev) => ({
+                        ...prev,
+                        workRequestLocationId: value
+                      }));
+                    }}
+                    disabled={!formData.workRequestLocationCategoryId}
+                  >
+                    <option value="">Open this select menu</option>
+                    {filteredLocations.map((l) => (
+                      <option
+                        key={String(l.location_id ?? l.locationId ?? l.id ?? '')}
+                        value={String(l.location_id ?? l.locationId ?? l.id ?? '')}
+                      >
+                        {l.location_name ?? l.locationName ?? l.name ?? 'Unnamed'}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Subject</label>
+                <Input
+                  value={formData.workRequestSubject}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, workRequestSubject: e.target.value }))}
+                  placeholder="Enter subject"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                <Input.TextArea
+                  value={formData.workRequestDescription}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, workRequestDescription: e.target.value }))}
+                  placeholder="Enter description (optional)"
+                  rows={4}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Attach Image (100KB - 1MB)</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0] || null;
+                    setFormData((prev) => ({ ...prev, workRequestImageFile: file }));
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Expected finish date</label>
+                <input
+                  type="date"
+                  className="w-full border border-gray-300 rounded-lg px-3 py-2"
+                  value={formData.workRequestEndDate ? format(new Date(formData.workRequestEndDate), 'yyyy-MM-dd') : ''}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    setFormData((prev) => ({
+                      ...prev,
+                      workRequestEndDate: value ? new Date(value) : null
+                    }));
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // State for per-venue participants
+  const [venueParticipants, setVenueParticipants] = useState({});
   
   const [availableDrivers, setAvailableDrivers] = useState([]);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictDetails, setConflictDetails] = useState(null);
 
-  const [isMobile, setIsMobile] = useState(window.innerWidth <= 375);
+  // Keep isMobile for backward compatibility with existing code
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 480);
 
   const [equipment, setEquipment] = useState([]);
   const [venues, setVenues] = useState([]);
   const [vehicles, setVehicles] = useState([]);
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false);
+
+  // Handle filter toggle for selected resources
+  const handleFilterToggle = () => {
+    setShowSelectedOnly(prev => !prev);
+  };
 
   // Clean up selectedVenueEquipment when equipment data changes
   useEffect(() => {
@@ -177,6 +392,7 @@ const AddReservation = () => {
 
   // Store request again data to apply after resources are loaded
   const [requestAgainDataPending, setRequestAgainDataPending] = useState(null);
+  const [pendingEquipmentData, setPendingEquipmentData] = useState(null);
 
   // Handle request again data from navigation state
   useEffect(() => {
@@ -189,6 +405,12 @@ const AddReservation = () => {
       // Set the resource type
       setResourceType(type);
       
+      // For equipment-only, set temporary dates so equipment can be fetched
+      const tempDates = type === 'equipment' ? {
+        startDate: new Date(),
+        endDate: new Date(Date.now() + 24 * 60 * 60 * 1000) // Tomorrow
+      } : {};
+
       // Pre-fill form data with title, description, and other fields
       setFormData(prev => ({
         ...prev,
@@ -197,6 +419,7 @@ const AddReservation = () => {
         participants: requestAgainData.participants || '',
         purpose: requestAgainData.purpose || '',
         destination: requestAgainData.destination || '',
+        ...tempDates
       }));
 
       // Store the request again data to apply after resources are loaded
@@ -228,22 +451,17 @@ const AddReservation = () => {
           console.log('Available venues:', venues.map(v => ({ ven_id: v.ven_id, name: v.ven_name })));
         }
         
-        // Set equipment for venue reservations
-        if (requestAgainData.equipment_id && requestAgainData.quantity && equipment.length > 0) {
-          const equipmentData = {};
-          requestAgainData.equipment_id.forEach((id, index) => {
-            equipmentData[id] = requestAgainData.quantity[index] || 1;
+        // Store equipment data for later matching (after dates are selected and equipment is fetched)
+        if (requestAgainData.equipment_id && requestAgainData.quantity) {
+          console.log('[Request Again - Venue] Storing equipment for later matching:', {
+            equipment_ids: requestAgainData.equipment_id,
+            quantities: requestAgainData.quantity
           });
-          // Update all equipment-related states for proper visibility
-          setSelectedVenueEquipment(equipmentData);
-          setEquipmentQuantities(equipmentData);
-          setLocalEquipmentQuantities(equipmentData);
-          // Also update formData for consistency
-          setFormData(prev => ({
-            ...prev,
-            selectedVenueEquipment: equipmentData
-          }));
-          console.log('Set venue equipment (after equipment loaded):', equipmentData);
+          setPendingEquipmentData({
+            equipment_ids: requestAgainData.equipment_id,
+            quantities: requestAgainData.quantity,
+            type: 'venue'
+          });
         }
       } else if (type === 'vehicle') {
         // Set vehicles if available
@@ -255,52 +473,51 @@ const AddReservation = () => {
           console.log('Set vehicles (after vehicles loaded):', normalizedVehicleIds);
         }
         
-        // Set equipment for vehicle reservations
-        if (requestAgainData.equipment_id && requestAgainData.quantity && equipment.length > 0) {
-          const equipmentData = {};
-          requestAgainData.equipment_id.forEach((id, index) => {
-            equipmentData[id] = requestAgainData.quantity[index] || 1;
+        // Store equipment data for later matching (after dates are selected and equipment is fetched)
+        if (requestAgainData.equipment_id && requestAgainData.quantity) {
+          console.log('[Request Again - Vehicle] Storing equipment for later matching:', {
+            equipment_ids: requestAgainData.equipment_id,
+            quantities: requestAgainData.quantity
           });
-          // Update all equipment-related states for proper visibility
-          setSelectedVenueEquipment(equipmentData);
-          setEquipmentQuantities(equipmentData);
-          setLocalEquipmentQuantities(equipmentData);
-          // Also update formData for consistency
-          setFormData(prev => ({
-            ...prev,
-            selectedVenueEquipment: equipmentData
-          }));
-          console.log('Set vehicle equipment (after equipment loaded):', equipmentData);
+          setPendingEquipmentData({
+            equipment_ids: requestAgainData.equipment_id,
+            quantities: requestAgainData.quantity,
+            type: 'vehicle'
+          });
         }
       } else if (type === 'equipment') {
-        // Set equipment only reservations
+        // Store equipment data for later matching (after dates are selected and equipment is fetched)
         if (requestAgainData.equipment_id && requestAgainData.quantity) {
-          const equipmentData = {};
-          requestAgainData.equipment_id.forEach((id, index) => {
-            equipmentData[id] = requestAgainData.quantity[index] || 1;
+          console.log('[Request Again - Equipment Only] Storing equipment data for later matching:', {
+            equipment_ids: requestAgainData.equipment_id,
+            quantities: requestAgainData.quantity
           });
-          // Update all equipment-related states for proper visibility
-          setEquipmentQuantities(equipmentData);
-          setSelectedVenueEquipment(equipmentData);
-          setLocalEquipmentQuantities(equipmentData);
-          // Also update formData for consistency
-          setFormData(prev => ({
-            ...prev,
-            selectedVenueEquipment: equipmentData
-          }));
-          console.log('Set equipment only (after equipment loaded):', equipmentData);
+          setPendingEquipmentData({
+            equipment_ids: requestAgainData.equipment_id,
+            quantities: requestAgainData.quantity,
+            type: 'equipment'
+          });
         }
       }
 
-      // Skip to date selection step if requested
+      // Skip to date selection step if requested - use setTimeout to ensure states are updated
       if (skipToDateSelection) {
-        setCurrentStep(2);
+        setTimeout(() => {
+          console.log('[Request Again] Navigating to calendar (no equipment)');
+          setCurrentStep(2);
+        }, 100);
+      } else {
+        // If not skipping (has equipment), go to resource selection step
+        setTimeout(() => {
+          console.log('[Request Again] Staying on resource selection (has equipment)');
+          setCurrentStep(1);
+        }, 100);
       }
 
       // Clear the pending data
       setRequestAgainDataPending(null);
     }
-  }, [requestAgainDataPending, venues, vehicles, equipment]);
+  }, [requestAgainDataPending, venues, vehicles, equipment, selectedVenueEquipment, equipmentQuantities, localEquipmentQuantities, formData]);
 
   // Debug venue matching for request again functionality
   useEffect(() => {
@@ -312,9 +529,73 @@ const AddReservation = () => {
     }
   }, [venues, formData.venues]);
 
+  // Match pending equipment data after equipment is fetched
+  useEffect(() => {
+    if (pendingEquipmentData && equipment.length > 0) {
+      console.log('[Equipment Matching] Starting to match pending equipment:', {
+        pending: pendingEquipmentData,
+        available_equipment_count: equipment.length
+      });
+
+      const equipmentData = {};
+      const matchedEquipment = [];
+      const notFoundEquipment = [];
+
+      pendingEquipmentData.equipment_ids.forEach((id, index) => {
+        const equipId = parseInt(id, 10);
+        const qty = parseInt(pendingEquipmentData.quantities[index], 10) || 1;
+
+        // Find equipment in fetched equipment list
+        const foundEquip = equipment.find(e => 
+          parseInt(e.equip_id, 10) === equipId || 
+          parseInt(e.equipment_id, 10) === equipId
+        );
+
+        if (foundEquip) {
+          equipmentData[equipId] = qty;
+          matchedEquipment.push({
+            id: equipId,
+            name: foundEquip.equip_name || foundEquip.equipment_name,
+            quantity: qty
+          });
+        } else {
+          notFoundEquipment.push({ id: equipId, quantity: qty });
+        }
+      });
+
+      console.log('[Equipment Matching] Results:', {
+        matched: matchedEquipment,
+        not_found: notFoundEquipment,
+        equipmentData
+      });
+
+      // Only set equipment if we found matches
+      if (Object.keys(equipmentData).length > 0) {
+        // Update all equipment-related states for proper visibility
+        setSelectedVenueEquipment(equipmentData);
+        setEquipmentQuantities(equipmentData);
+        setLocalEquipmentQuantities(equipmentData);
+        // Also update formData for consistency
+        setFormData(prev => ({
+          ...prev,
+          selectedVenueEquipment: equipmentData
+        }));
+        console.log('[Equipment Matching] Successfully set equipment states:', equipmentData);
+      }
+
+      // Show warning if some equipment not found
+      if (notFoundEquipment.length > 0) {
+        toast.warning(`Some equipment from the original reservation is no longer available (${notFoundEquipment.length} items)`);
+      }
+
+      // Clear pending data after matching
+      setPendingEquipmentData(null);
+    }
+  }, [pendingEquipmentData, equipment]);
+
   useEffect(() => {
     const handleResize = () => {
-      setIsMobile(window.innerWidth <= 375);
+      setIsMobile(window.innerWidth <= 480);
     };
 
     window.addEventListener('resize', handleResize);
@@ -339,7 +620,7 @@ const handleRemovePassenger = (passengerId) => {
           const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
           const decryptedUserLevel = parseInt(encryptedUserLevel);
           console.log("this is encryptedUserLevel", encryptedUserLevel);
-          if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6) {
+          if (decryptedUserLevel !== 3 && decryptedUserLevel !== 15 && decryptedUserLevel !== 16 && decryptedUserLevel !== 17 && decryptedUserLevel !== 18 && decryptedUserLevel !== 5 && decryptedUserLevel !== 6 && decryptedUserLevel !== 20) {
     
               navigate('/gsd');
           }
@@ -402,6 +683,14 @@ const handleNext = async () => {
     return;
   }
 
+  if (resourceType === 'work_request' && currentStep === 1) {
+    const success = await handleAddReservation();
+    if (success) {
+      setCurrentStep(5);
+    }
+    return;
+  }
+
   // Add console logging for selected resources
   if (currentStep === 1) {
     if (resourceType === 'venue') {
@@ -453,12 +742,24 @@ const validateCurrentStep = () => {
   switch (currentStep) {
     case 0:
       if (!resourceType) {
-        toast.error('Please select a resource type (Venue, Vehicle, or Equipment)');
+        toast.error('Please select a resource type (Venue, Vehicle, Equipment, or Work Request)');
         return false;
       }
       return true;
 
     case 1:
+      if (resourceType === 'work_request') {
+        const subject = String(formData.workRequestSubject || '').trim();
+        const locationCategoryId = formData.workRequestLocationCategoryId;
+        const locationId = formData.workRequestLocationId;
+        const endDate = formData.workRequestEndDate;
+
+        if (!locationCategoryId || !locationId || !subject || !endDate) {
+          toast.error('Please fill in all required work request fields');
+          return false;
+        }
+        return true;
+      }
       if (resourceType === 'venue' && (!formData.venues || formData.venues.length === 0)) {
         toast.error('Please select at least one venue');
         return false;
@@ -501,21 +802,79 @@ const validateCurrentStep = () => {
           toast.error('Please fill in all required venue reservation fields');
           return false;
         }
-        // Calculate total capacity of selected venues (normalize IDs to numbers)
+        // Whitespace validation for event title
+        if (formData.eventTitle.trim() === '') {
+          toast.error('Event title cannot contain only whitespace!');
+          return false;
+        }
+        // Whitespace validation for description
+        if (formData.description.trim() === '') {
+          toast.error('Description cannot contain only whitespace!');
+          return false;
+        }
+        // Whitespace validation for additional note (if provided)
+        if (formData.additionalNote && formData.additionalNote.trim() === '') {
+          toast.error('Additional note cannot contain only whitespace!');
+          return false;
+        }
+        
+        // Validate per-venue participants
         const selectedVenueIds = (formData.venues || [])
           .map(id => parseInt(id, 10))
           .filter(id => !isNaN(id));
-        const selectedVenueObjs = venues.filter(v => selectedVenueIds.includes(parseInt(v.ven_id, 10)));
-        const totalCapacity = selectedVenueObjs.reduce((sum, v) => sum + (parseInt(v.ven_occupancy) || 0), 0);
-        const participants = parseInt(formData.participants) || 0;
-        if (participants > 0 && totalCapacity > 0 && participants > totalCapacity) {
-          toast.error(`Number of participants (${participants}) exceeds total venue capacity (${totalCapacity})`);
+        
+        if (selectedVenueIds.length === 0) {
+          toast.error('Please select at least one venue');
           return false;
         }
+        
+        // Check each venue has participants entered
+        for (const venueId of selectedVenueIds) {
+          const venue = venues.find(v => parseInt(v.ven_id, 10) === venueId);
+          if (!venue) continue;
+          
+          const participantCount = venueParticipants[venueId];
+          const minCapacity = venue.ven_minimum || 1;
+          const maxCapacity = venue.ven_occupancy || 0;
+          
+          // Check if participants entered
+          if (!participantCount || participantCount === '' || parseInt(participantCount) <= 0) {
+            toast.error(`Please enter number of participants for ${venue.ven_name}`);
+            return false;
+          }
+          
+          // Check minimum capacity
+          if (parseInt(participantCount) < minCapacity) {
+            toast.error(`${venue.ven_name} requires minimum ${minCapacity} participant${minCapacity > 1 ? 's' : ''}`);
+            return false;
+          }
+          
+          // Check maximum capacity
+          if (maxCapacity > 0 && parseInt(participantCount) > maxCapacity) {
+            toast.error(`${venue.ven_name} allows maximum ${maxCapacity} participant${maxCapacity > 1 ? 's' : ''}`);
+            return false;
+          }
+        }
+        
         return true;
       } else if (resourceType === 'equipment') {
         if (!formData.eventTitle || !formData.description) {
           toast.error('Please fill in all required equipment reservation fields');
+          return false;
+        }
+        // Whitespace validation for title
+        if (formData.eventTitle.trim() === '') {
+          toast.error('Title cannot contain only whitespace!');
+          return false;
+        }
+        // Whitespace validation for description
+        if (formData.description.trim() === '') {
+          toast.error('Description cannot contain only whitespace!');
+          return false;
+        }
+        // Whitespace validation for additional note (if provided)
+        if (formData.additionalNote && formData.additionalNote.trim() === '') {
+          toast.error('Additional note cannot contain only whitespace!');
           return false;
         }
         return true;
@@ -524,15 +883,23 @@ const validateCurrentStep = () => {
           toast.error('Please enter a purpose');
           return false;
         }
+        // Enhanced whitespace validation for purpose
+        if (formData.purpose.trim() === '') {
+          toast.error('Purpose cannot contain only whitespace!');
+          return false;
+        }
         if (!formData.destination || !formData.destination.trim()) {
           toast.error('Please enter a destination');
           return false;
         }
-        
-        // Check if owner is required due to driver shortage
-        // Only require owner name if we're forcing own drivers and no driver names are provided
-        if (formData.forceOwnDrivers && !formData.ownDrivers?.some(d => d.name?.trim())) {
-          toast.error('Please enter driver names for all vehicles');
+        // Enhanced whitespace validation for destination
+        if (formData.destination.trim() === '') {
+          toast.error('Destination cannot contain only whitespace!');
+          return false;
+        }
+        // Whitespace validation for additional note (if provided)
+        if (formData.additionalNote && formData.additionalNote.trim() === '') {
+          toast.error('Additional note cannot contain only whitespace!');
           return false;
         }
         
@@ -553,6 +920,137 @@ const handleBack = () => {
     const newStep = currentStep - 1;
     setCurrentStep(newStep);
     
+    // If going back from review step (step 4) to step 3, refetch and validate equipment
+    if (currentStep === 4) {
+      // Refetch equipment to get latest availability
+      const refetchAndValidate = async () => {
+        try {
+          // Prepare the API payload with date range
+          if (!formData.startDate || !formData.endDate) {
+            // If no dates, just return without fetching
+            return;
+          }
+          
+          let start = formData.startDate;
+          let end = formData.endDate;
+          if (start && end && start > end) {
+            [start, end] = [end, start];
+          }
+          const startDateTime = start ? format(start, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+          const endDateTime = end ? format(end, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+          
+          const payload = {
+            operation: 'fetchEquipments',
+            startDateTime: startDateTime,
+            endDateTime: endDateTime
+          };
+
+          const response = await axios({
+            method: 'post',
+            url: `${encryptedUrl}reservation.php`,
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            data: payload
+          });
+
+          if (response.data.status === 'success') {
+            const equipmentData = response.data.data || [];
+            const transformedEquipment = equipmentData.map(item => ({
+              ...item,
+              available: item.available_quantity || 0,
+              equip_name: item.equip_name || item.equipment_name || 'Equipment Name Not Available',
+              equip_id: item.equip_id || item.equipment_id,
+              category_name: item.category_name || '',
+              equipments_category_id: item.equipments_category_id || item.equipment_category_id
+            }));
+            
+            // Force update equipment state - clear first then set to ensure re-render
+            setEquipment([]);
+            
+            // Use setTimeout to ensure state updates are processed
+            setTimeout(() => {
+              setEquipment(transformedEquipment);
+              
+              // Validate equipment quantities for equipment-only reservations
+              if (resourceType === 'equipment') {
+                const updatedQuantities = { ...equipmentQuantities };
+                let hasChanges = false;
+                let removedItems = [];
+
+                Object.entries(equipmentQuantities).forEach(([equipId, quantity]) => {
+                  const equip = transformedEquipment.find(e => 
+                    String(e.equip_id) === equipId || 
+                    String(e.equipment_id) === equipId
+                  );
+
+                  // If equipment doesn't exist or is unavailable
+                  if (!equip) {
+                    const itemName = `Equipment (ID: ${equipId})`;
+                    removedItems.push(`${itemName} - No longer available`);
+                    delete updatedQuantities[equipId];
+                    hasChanges = true;
+                  } 
+                  else if (quantity <= 0) {
+                    const itemName = equip.equip_name || equip.equipment_name || `Equipment (ID: ${equipId})`;
+                    removedItems.push(`${itemName} - Invalid quantity (${quantity})`);
+                    delete updatedQuantities[equipId];
+                    hasChanges = true;
+                  }
+                  // If quantity exceeds available, adjust it
+                  else if (quantity > (equip.available_quantity || 0)) {
+                    const itemName = equip.equip_name || equip.equipment_name || `Equipment (ID: ${equipId})`;
+                    removedItems.push(`${itemName} - Quantity reduced from ${quantity} to ${equip.available_quantity} (available)`);
+                    updatedQuantities[equipId] = equip.available_quantity || 0;
+                    hasChanges = true;
+                  }
+                });
+
+                // If there were changes, update the state and show toast
+                if (hasChanges) {
+                  if (removedItems.length > 0) {
+                    const message = (
+                      <div>
+                        <div>Some equipment was adjusted:</div>
+                        <ul className="mt-1 list-disc pl-4">
+                          {removedItems.map((item, idx) => (
+                            <li key={idx} className="text-sm">{item}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                    
+                    toast(message, {
+                      duration: 5000,
+                      icon: '⚠️',
+                      style: {
+                        maxWidth: '400px',
+                        padding: '12px 16px',
+                      },
+                    });
+                  }
+                  
+                  setEquipmentQuantities(updatedQuantities);
+                  setLocalEquipmentQuantities(updatedQuantities);
+                }
+              }
+              
+              // For venue/vehicle with equipment, the existing useEffect will handle validation
+            }, 0);
+            
+          } else {
+            console.error('Failed to fetch equipment:', response.data);
+            toast.error('Failed to verify equipment availability');
+          }
+        } catch (error) {
+          console.error('Error fetching equipment:', error);
+          toast.error('Failed to verify equipment availability');
+        }
+      };
+
+      refetchAndValidate();
+    }
+    
     // If going back to step 0 (select resource type), clear all form data
     if (newStep === 0) {
       // Reset all form-related state
@@ -571,9 +1069,7 @@ const handleBack = () => {
         driverType: 'default',
         driverName: '',
         tripTicketDriver: null,
-        ownDrivers: [],
-        mixedDrivers: [], // New field for mixed driver mode
-        forceOwnDrivers: false, // New field to force own drivers when insufficient
+        driverShortage: false
       });
       
       // Reset resource selection state
@@ -583,6 +1079,7 @@ const handleBack = () => {
       setSelectedVenueEquipment({});
       setEquipmentQuantities({});
       setLocalEquipmentQuantities({});
+      setVenueParticipants({}); // Reset per-venue participants
       
       // Reset modal states
       setShowEquipmentModal(false);
@@ -637,6 +1134,8 @@ const renderVenues = () => (
       });
     }}
     isMobile={isMobile}
+    showSelectedOnly={showSelectedOnly}
+    onFilterToggle={handleFilterToggle}
   />
 );
 
@@ -662,6 +1161,8 @@ const renderResources = () => (
       });
     }}
     isMobile={isMobile}
+    showSelectedOnly={showSelectedOnly}
+    onFilterToggle={handleFilterToggle}
   />
 );
 
@@ -697,6 +1198,8 @@ const renderBasicInformation = () => {
         vehicles={vehicles}
         setFormData={setFormData}
         venues={venues} // Pass venues here
+        venueParticipants={venueParticipants} // Pass per-venue participants
+        setVenueParticipants={setVenueParticipants} // Pass setter function
       />
     </>
   );
@@ -785,22 +1288,106 @@ const handleAddReservation = async () => {
     setLoading(true);
     const userId = SecureStorage.getLocalItem('user_id');
 
+    if (resourceType === 'work_request') {
+      const subject = String(formData.workRequestSubject || '').trim();
+      const description = String(formData.workRequestDescription || '').trim();
+      const locationCategoryId = formData.workRequestLocationCategoryId;
+      const locationId = formData.workRequestLocationId;
+      const endDate = formData.workRequestEndDate
+        ? format(new Date(formData.workRequestEndDate), 'yyyy-MM-dd')
+        : null;
+
+      if (!subject || !locationCategoryId || !locationId || !endDate) {
+        toast.error('Please fill in all required work request fields');
+        return false;
+      }
+
+      const payload = {
+        subject,
+        description,
+        clientId: userId,
+        userId: userId,
+        locationId,
+        locationCategoryId,
+        endDate,
+      };
+
+      const requestBody = new FormData();
+      requestBody.append('operation', 'addComplaint');
+      requestBody.append('json', JSON.stringify(payload));
+      if (formData.workRequestImageFile instanceof File) {
+        requestBody.append('image', formData.workRequestImageFile);
+      }
+
+      const response = await axios.post(
+        `${encryptedUrl}/faculty&staff.php`,
+        requestBody,
+        {
+          headers: {
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+
+      const result = response.data;
+      const numericResult = typeof result === 'string' && /^\d+$/.test(result)
+        ? parseInt(result, 10)
+        : (typeof result === 'number' ? result : null);
+
+      if (numericResult === 1) {
+        toast.success('Work request submitted successfully!');
+        setCurrentStep(5);
+        return true;
+      }
+      if (numericResult === 2) {
+        toast.error('Invalid image type. Please upload JPG, PNG, GIF, or WEBP.');
+        return false;
+      }
+      if (numericResult === 3) {
+        toast.error('Image upload failed. Please try again.');
+        return false;
+      }
+      if (numericResult === 4) {
+        toast.error('Image is too large. Maximum allowed is 1MB.');
+        return false;
+      }
+      if (numericResult === 5) {
+        toast.error('Expected finish date cannot be earlier than today.');
+        return false;
+      }
+
+      if (result?.status === 'success') {
+        toast.success('Work request submitted successfully!');
+        setCurrentStep(5);
+        return true;
+      }
+
+      throw new Error(result?.message || 'Failed to submit work request');
+    }
+
     // Common validation for dates
     if (!formData.startDate || !formData.endDate) {
       toast.error('Please select start and end dates');
       return false;
     }
 
-    // Skip client-side availability checks.
-    // Availability and time conflicts will be validated by insert_reservation.php on the backend.
-    // We proceed directly to submission and surface any backend message to the user.
-
-    // Resource type specific validation and submission
     if (resourceType === 'venue') {
       if (!formData.eventTitle || !formData.description || formData.venues.length === 0) {
         toast.error('Please fill in all required venue reservation fields');
         return false;
       }
+
+      console.log('[Venue Submission] Current state:', {
+        selectedVenueEquipment,
+        equipmentQuantities,
+        formData_selectedVenueEquipment: formData.selectedVenueEquipment
+      });
+
+      // Map venues with their participant counts
+      const venuesWithParticipants = formData.venues.map(venueId => ({
+        venue_id: venueId,
+        participants: parseInt(venueParticipants[venueId]) || 0
+      }));
 
       const venuePayload = {
         operation: 'venuereservation',
@@ -810,8 +1397,7 @@ const handleAddReservation = async () => {
           start_date: format(new Date(formData.startDate), 'yyyy-MM-dd HH:mm:ss'),
           end_date: format(new Date(formData.endDate), 'yyyy-MM-dd HH:mm:ss'),
           user_id: userId,
-          participants: formData.participants ? formData.participants.toString() : "0",
-          venues: formData.venues,
+          venues: venuesWithParticipants, // Now includes participants per venue
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
@@ -819,6 +1405,8 @@ const handleAddReservation = async () => {
           additional_note: formData.additionalNote || '',
         }
       };
+
+      console.log('[Venue Submission] Payload:', JSON.stringify(venuePayload, null, 2));
 
       // Proceed with venue reservation
       const response = await axios.post(
@@ -852,73 +1440,14 @@ const handleAddReservation = async () => {
         toast.error('Please add at least one passenger');
         return false;
       }
-      // If forceOwnDrivers is true, ensure driver type is 'own'
-      if (formData.forceOwnDrivers && formData.driverType !== 'own') {
-        toast.error('You must provide your own drivers for this reservation');
-        return false;
-      }
 
-      // If forceMixedDrivers is true, ensure driver type is 'mixed'
-      if (formData.forceMixedDrivers && formData.driverType !== 'mixed') {
-        toast.error('You must use mixed driver mode for this reservation');
-        return false;
-      }
+      console.log('[Vehicle Submission] Current state:', {
+        selectedVenueEquipment,
+        equipmentQuantities,
+        formData_selectedVenueEquipment: formData.selectedVenueEquipment
+      });
 
-      if (formData.driverType === 'own') {
-        // Validation: each selected vehicle must have a driver name
-        if (!formData.ownDrivers || formData.ownDrivers.length !== selectedModels.length || formData.ownDrivers.some(d => !d.name.trim())) {
-          toast.error('Please enter a driver name for each selected vehicle');
-          return false;
-        }
-      } else if (formData.driverType === 'mixed') {
-        // Validation: each vehicle must have proper driver configuration
-        if (!formData.mixedDrivers || formData.mixedDrivers.length !== selectedModels.length) {
-          toast.error('Please configure driver assignments for all vehicles');
-          return false;
-        }
-        
-        // Check that own drivers have names
-        const ownDriversWithoutNames = formData.mixedDrivers.filter(d => d.driverType === 'own' && !d.name.trim());
-        if (ownDriversWithoutNames.length > 0) {
-          toast.error('Please enter driver names for vehicles marked as "Own Driver"');
-          return false;
-        }
-        
-        // Additional validation for forced mixed drivers
-        if (formData.forceMixedDrivers) {
-          const availableDrivers = formData.availableDrivers || 0;
-          const defaultDrivers = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-          
-          if (defaultDrivers > availableDrivers) {
-            toast.error(`Cannot assign more than ${availableDrivers} default drivers. Please adjust your assignments.`);
-            return false;
-          }
-          
-          // Ensure at least one vehicle has a driver assigned
-          if (formData.mixedDrivers.length === 0) {
-            toast.error('Please configure driver assignments for all vehicles');
-            return false;
-          }
-        }
-      }
-
-      // Build drivers array for payload
-      let drivers = [];
-      if (formData.driverType === 'own') {
-        drivers = formData.ownDrivers.map(d => ({
-          vehicle_id: d.vehicle_id,
-          name: d.name.trim(),
-          driver_type: 'own'
-          // user_id: (optional, if you have it)
-        }));
-      } else if (formData.driverType === 'mixed') {
-        drivers = formData.mixedDrivers.map(d => ({
-          vehicle_id: d.vehicle_id,
-          name: d.driverType === 'own' ? d.name.trim() : null,
-          driver_type: d.driverType
-        }));
-      }
-
+      // Drivers will always be null - admin will assign during approval
       const vehiclePayload = {
         operation: 'vehicleReservation',
         form_data: {
@@ -929,7 +1458,7 @@ const handleAddReservation = async () => {
           user_id: userId,
           vehicles: selectedModels,
           passengers: formData.passengers.map(p => p.name.trim()),
-          ...(formData.driverType === 'own' || formData.driverType === 'mixed' ? { drivers } : {}),
+          drivers: null, // Always null - admin assigns during approval
           equipment: Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => ({
             equipment_id: equipId,
             quantity: parseInt(quantity)
@@ -938,7 +1467,7 @@ const handleAddReservation = async () => {
         }
       };
 
-      console.log('Vehicle Payload:', JSON.stringify(vehiclePayload, null, 2));
+      console.log('[Vehicle Submission] Payload:', JSON.stringify(vehiclePayload, null, 2));
 
       // Proceed with vehicle reservation
       const response = await axios.post(
@@ -1018,7 +1547,20 @@ const handleAddReservation = async () => {
     }
   } catch (error) {
     console.error('Submission error:', error);
-    toast.error(error.message || 'An error occurred while submitting the reservation');
+    if (error.message === 'Network Error' || error.name === 'TypeError') {
+      toast.error('Network connection lost. Please check your internet connection.');
+    } else {
+      // Check if error message contains conflict details (starts with "The following resources have conflicts:")
+      const errorMsg = error.message || 'An error occurred while submitting the reservation';
+      if (errorMsg.includes('The following resources have conflicts:')) {
+        // Parse and display in modal
+        setConflictDetails(errorMsg);
+        setShowConflictModal(true);
+      } else {
+        // Show regular toast for other errors
+        toast.error(errorMsg);
+      }
+    }
     return false;
   } finally {
     setLoading(false);
@@ -1044,13 +1586,16 @@ const resetForm = () => {
     driverType: 'default',
     driverName: '',
     tripTicketDriver: null,
-    ownDrivers: [],
-    mixedDrivers: [],
-    forceOwnDrivers: false,
-    forceMixedDrivers: false,
+    driverShortage: false,
     availableDrivers: 0,
     totalVehicles: 0,
     additionalNote: '', // Add this line for reset
+    workRequestLocationCategoryId: '',
+    workRequestLocationId: '',
+    workRequestSubject: '',
+    workRequestDescription: '',
+    workRequestEndDate: null,
+    workRequestImageFile: null,
   });
   
   // Reset resource selection state
@@ -1155,8 +1700,10 @@ const renderSuccessState = () => (
   >
     <Result
       status="success"
-      title="Reservation Successfully Created!"
-      subTitle="Your reservation has been submitted and is pending approval. You'll receive a notification once it's approved."
+      title={resourceType === 'work_request' ? 'Work Request Submitted!' : 'Reservation Successfully Created!'}
+      subTitle={resourceType === 'work_request'
+        ? "Your work request has been submitted. You'll receive updates as it is processed."
+        : "Your reservation has been submitted and is pending approval. You'll receive a notification once it's approved."}
       extra={[
        
         <AntButton 
@@ -1164,7 +1711,7 @@ const renderSuccessState = () => (
           onClick={resetForm}
           icon={<PlusOutlined />}
         >
-          Create Another Reservation
+          {resourceType === 'work_request' ? 'Create Another Work Request' : 'Create Another Reservation'}
         </AntButton>,
       ]}
     />
@@ -1206,6 +1753,10 @@ const renderStepContent = () => {
         );
       }
       
+      if (resourceType === 'work_request') {
+        return renderWorkRequestForm();
+      }
+
       if (resourceType === 'venue') {
         return renderVenues();
       } else if (resourceType === 'vehicle') {
@@ -1215,66 +1766,104 @@ const renderStepContent = () => {
       }
     },
     2: () => (
-      <div className="space-y-4">
-      
+      <div className="space-y-4 pb-20"> {/* Add bottom padding to prevent overlap with navigation */}
+        {/* Network Error Overlay - Show above calendar when locked */}
+        {isCalendarLocked && (
+          <div className="bg-red-50/95 dark:bg-red-900/30 border-2 border-red-500 rounded-lg p-8 mb-4">
+            <div className="text-center space-y-3 max-w-lg mx-auto">
+              <div className="text-5xl mb-2">🔒</div>
+              <div className="text-xl font-bold text-red-700 dark:text-red-300">
+                Network Connection Lost
+              </div>
+              <div className="text-base font-semibold text-red-700 dark:text-red-300 mb-2">
+                Unable to Load Calendar Data
+              </div>
+              <div className="text-sm text-red-600 dark:text-red-400 max-w-md leading-relaxed mx-auto">
+                The calendar is locked for security. Please check your internet connection and refresh the page to verify resource availability and prevent booking conflicts.
+              </div>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-4 px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-lg"
+              >
+                🔄 Refresh Page
+              </button>
+            </div>
+          </div>
+        )}
         
-        <ReservationCalendar
+        <div className={`${isCalendarLocked ? 'opacity-30 pointer-events-none' : ''}`}>
+          <ReservationCalendar
           onDateSelect={function(dateData, endDateParam) {
+            // Prevent date selection if calendar is locked
+            if (isCalendarLocked) {
+              toast.error('Cannot select dates. Network connection required to verify availability.', {
+                position: 'top-center',
+                icon: '🔒',
+                className: 'font-medium',
+                autoClose: 3000
+              });
+              return;
+            }
+            
             // Handle both object format and separate parameters for backward compatibility
             const startDate = dateData.startDate || dateData;
             const endDate = dateData.endDate || endDateParam;
-            const forceOwnDrivers = dateData.forceOwnDrivers || false;
-            const forceMixedDrivers = dateData.forceMixedDrivers || false;
+            const driverShortage = dateData.driverShortage || false;
             const availableDrivers = dateData.availableDrivers || 0;
             const totalVehicles = dateData.totalVehicles || 0;
-            
+
             console.log('Date selection received:', {
               dateData,
               startDate,
               endDate,
-              forceOwnDrivers,
-              forceMixedDrivers,
+              driverShortage,
               availableDrivers,
               totalVehicles,
-              startDateType: typeof startDate,
-              endDateType: typeof endDate,
-              startDateInstance: startDate instanceof Date,
-              endDateInstance: endDate instanceof Date
             });
-            
+
             setFormData((prev) => ({
               ...prev,
               startDate: startDate,
               endDate: endDate,
-              forceOwnDrivers: forceOwnDrivers,
-              forceMixedDrivers: forceMixedDrivers,
+              driverShortage: driverShortage,
               availableDrivers: availableDrivers,
               totalVehicles: totalVehicles,
-              // If forcing own drivers, set driver type to own
-              // If forcing mixed drivers, set driver type to mixed
-              driverType: forceOwnDrivers ? 'own' : forceMixedDrivers ? 'mixed' : prev.driverType,
             }));
             // Automatically advance to step 3 (details step) when date is selected successfully
             setCurrentStep(3);
             // Show success message
             toast.success('Date and time selected successfully! Please fill in the required details.');
           }}
-          selectedResource={{
-            type: resourceType,
-            id: resourceType === 'equipment' 
-              ? Object.entries(equipmentQuantities)
-                  .filter(([_, qty]) => qty > 0)
-                  .map(([id, qty]) => ({
-                    id: parseInt(id),
-                    quantity: qty
-                  }))
-              : resourceType === 'venue' 
-                ? formData.venues
-                : selectedModels
-          }}
+          selectedResource={(() => {
+            const resourceData = {
+              type: resourceType,
+              id: resourceType === 'equipment' 
+                ? Object.entries(equipmentQuantities)
+                    .filter(([_, qty]) => qty > 0)
+                    .map(([id, qty]) => ({
+                      id: parseInt(id),
+                      quantity: qty
+                    }))
+                : resourceType === 'venue' 
+                  ? formData.venues
+                  : selectedModels
+            };
+            
+            // Debug log
+            if (resourceType === 'vehicle') {
+              console.log('[AddReservation] Building selectedResource:', {
+                selectedModels,
+                vehiclesCount: vehicles?.length
+              });
+            }
+            
+            return resourceData;
+          })()}
+          vehicles={vehicles}
           initialData={calendarData} // Pass the fetched calendar data
           venueEventTypeById={Object.fromEntries((venues || []).map(v => [v.ven_id, v.event_type]))}
         />
+        </div>
       </div>
     ),
     3: () => renderBasicInformation({
@@ -1316,9 +1905,9 @@ const renderEquipmentSelection = () => {
       }
     });
     
-    // Update all relevant states with the cleaned quantities
-    setEquipmentQuantities(prev => ({ ...prev, ...newQuantities }));
-    setSelectedVenueEquipment(prev => ({ ...prev, ...newQuantities }));
+    // Update all relevant states with the cleaned quantities (replace entirely, don't merge)
+    setEquipmentQuantities(newQuantities);
+    setSelectedVenueEquipment(newQuantities);
     
     // Update form data with the cleaned quantities
     setFormData(prev => ({
@@ -1339,6 +1928,8 @@ const renderEquipmentSelection = () => {
       isMobile={isMobile}
       startDate={formData.startDate}
       endDate={formData.endDate}
+      showSelectedOnly={showSelectedOnly}
+      onFilterToggle={handleFilterToggle}
     />
   );
 };
@@ -1347,8 +1938,28 @@ const renderEquipmentSelection = () => {
 
 
 
-const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
-  const steps = [
+const StepIndicator = ({ currentStep, resourceType, isMobile, isTablet }) => {
+  const displayStep = resourceType === 'work_request'
+    ? (currentStep === 5 ? 2 : Math.min(currentStep, 2))
+    : currentStep;
+
+  const steps = resourceType === 'work_request' ? [
+    {
+      title: 'Select Type',
+      description: 'Choose request type',
+      icon: <i className="pi pi-tag" />
+    },
+    {
+      title: 'Ticket Form',
+      description: 'Fill required info',
+      icon: <i className="pi pi-wrench" />
+    },
+    {
+      title: 'Complete',
+      description: 'Submit request',
+      icon: <i className="pi pi-check-circle" />
+    }
+  ] : [
     { 
       title: 'Select Type',
       description: 'Choose resource type',
@@ -1361,11 +1972,11 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
         <i className="pi pi-building" /> :
         resourceType === 'vehicle' ? 
           <i className="pi pi-car" /> :
-          <i className="pi pi-tools" />
+          resourceType === 'work_request' ? <i className="pi pi-wrench" /> : <i className="pi pi-tools" />
     },
     { 
-      title: 'Schedule',
-      description: 'Pick dates & times',
+      title: 'Select Date',
+      description: 'Choose dates & times',
       icon: <i className="pi pi-calendar" />
     },
     { 
@@ -1379,14 +1990,14 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
       icon: <i className="pi pi-search" />
     },
     { 
-      title: 'Complete',
-      description: 'Confirmation',
+      title: 'Review',
+      description: 'Confirm reservation',
       icon: <i className="pi pi-check-circle" />
     }
   ];
 
-  const progressPercentage = (currentStep / (steps.length - 1)) * 100;
-  const circumference = 2 * Math.PI * (isMobile ? 40 : 45); // Smaller radius for mobile
+  const progressPercentage = (displayStep / (steps.length - 1)) * 100;
+  const circumference = 2 * Math.PI * (isMobile ? 40 : isTablet ? 42 : 45); // Responsive radius
   const offset = circumference - (progressPercentage / 100) * circumference;
 
   return (
@@ -1448,18 +2059,18 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
               ${isMobile ? 'text-xl' : 'text-2xl'}
               font-bold text-gray-800
             `}>
-              {currentStep + 1}/{steps.length}
+              {displayStep + 1}/{steps.length}
             </span>
             <span className={`
               ${isMobile ? 'text-xs' : 'text-sm'}
-              text-gray-500 font-medium
+              text-gray-500 mt-1
             `}>
               Step
             </span>
           </div>
 
           {/* Completion Animation */}
-          {currentStep === steps.length - 1 && (
+          {displayStep === steps.length - 1 && (
             <div className="absolute inset-0 flex items-center justify-center">
               <div className="absolute w-full h-full animate-ping rounded-full bg-green-500 opacity-20" />
             </div>
@@ -1481,15 +2092,15 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
               ${isMobile ? 'w-8 h-8' : 'w-10 h-10'}
               rounded-full bg-green-100 text-green-600
             `}>
-              {steps[currentStep].icon}
+              {steps[displayStep].icon}
             </span>
-            {steps[currentStep].title}
+            {steps[displayStep].title}
           </div>
           <p className={`
             ${isMobile ? 'text-sm' : 'text-base'}
             text-gray-500 mt-1
           `}>
-            {steps[currentStep].description}
+            {steps[displayStep].description}
           </p>
 
           {/* Mini Steps Indicator */}
@@ -1498,13 +2109,9 @@ const StepIndicator = ({ currentStep, resourceType, isMobile }) => {
               <div
                 key={index}
                 className={`
+                  ${isMobile ? 'w-2 h-2' : 'w-2.5 h-2.5'}
                   rounded-full transition-all duration-300
-                  ${index === currentStep
-                    ? 'w-6 h-2 bg-green-500'
-                    : index < currentStep
-                    ? 'w-2 h-2 bg-green-500'
-                    : 'w-2 h-2 bg-gray-200'
-                  }
+                  ${index <= displayStep ? 'bg-green-500' : 'bg-gray-200'}
                 `}
               />
             ))}
@@ -1582,7 +2189,11 @@ const fetchDrivers = useCallback(async (startDate, endDate) => {
   } catch (error) {
     console.error('Error fetching drivers:', error);
     setAvailableDrivers([]);
-    toast.error('Failed to fetch available drivers');
+    if (!error.response || error.message === 'Network Error' || error.name === 'TypeError') {
+      toast.error('Network connection lost. Unable to fetch drivers.');
+    } else {
+      toast.error('Failed to fetch available drivers');
+    }
   } finally {
 
   }
@@ -1603,7 +2214,8 @@ const PassengerModal = ({ visible, onHide }) => {
 
   useEffect(() => {
     if (visible) {
-      setLocalPassengers([]);
+      // Load existing passengers from formData when modal opens
+      setLocalPassengers(formData.passengers || []);
       setNewPassengerName('');
       setPassengerError('');
     }
@@ -1616,9 +2228,6 @@ const PassengerModal = ({ visible, onHide }) => {
     }
     if (
       localPassengers.some(
-        p => p.name.toLowerCase() === newPassengerName.trim().toLowerCase()
-      ) ||
-      formData.passengers.some(
         p => p.name.toLowerCase() === newPassengerName.trim().toLowerCase()
       )
     ) {
@@ -1642,10 +2251,10 @@ const PassengerModal = ({ visible, onHide }) => {
       setPassengerError('Add at least one passenger before confirming');
       return;
     }
-    // Add all local passengers to the main form state
+    // Update passengers in the main form state
     setFormData(prev => ({
       ...prev,
-      passengers: [...prev.passengers, ...localPassengers]
+      passengers: localPassengers
     }));
     onHide();
   };
@@ -1769,47 +2378,60 @@ const EquipmentSelectionModal = ({
   const [equipmentSearch, setEquipmentSearch] = useState('');
   const [localState, setLocalState] = useState({});
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = 12;
-  const isMobile = window.innerWidth <= 600;
   const [selectedCategory, setSelectedCategory] = useState('all');
+  
+  // Responsive breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  // const isDesktop = useMediaQuery({ minWidth: 1024 });
+  
+  // Dynamic items per page based on screen size
+  const itemsPerPage = isMobile ? 6 : isTablet ? 9 : 12;
 
   // Responsive modal width and height
   const modalStyle = {
-    width: isMobile ? '100vw' : '90vw',
-    maxWidth: isMobile ? '100vw' : '700px',
+    width: isTablet ? '85vw' : '90vw',
+    maxWidth: isTablet ? '600px' : '700px',
     padding: 0,
-    top: isMobile ? 0 : 24,
-    height: isMobile ? '100vh' : 'auto',
-    borderRadius: isMobile ? 0 : 16,
+    top: 24,
+    borderRadius: 0,
   };
 
-  // Sticky header/footer styles
+  // Responsive header styles
+  const headerStyle = {
+    background: 'linear-gradient(to right, #365314, #14532d)',
+    color: 'white',
+    padding: isMobile ? '16px 20px' : isTablet ? '18px 24px' : '20px 24px',
+    borderRadius: 0,
+    marginBottom: 0,
+  };
+
+  // Sticky header/footer styles for content
   const stickyHeaderStyle = {
     position: 'sticky',
     top: 0,
     zIndex: 2,
     background: '#fff',
     borderBottom: '1px solid #f0f0f0',
-    padding: isMobile ? '12px 12px 8px 12px' : '16px 24px',
+    padding: isMobile ? '12px 16px 8px 16px' : isTablet ? '14px 20px 10px 20px' : '16px 24px',
   };
+  
   const stickyFooterStyle = {
     position: 'sticky',
     bottom: 0,
     zIndex: 2,
     background: '#fafafa',
     borderTop: '1px solid #f0f0f0',
-    padding: isMobile ? '10px 12px' : '12px 24px',
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    gap: isMobile ? 8 : 16,
+    padding: 0, // Remove padding, will be handled inside
   };
 
   // Only the equipment list is scrollable
+  // Footer now includes pagination (~40px) + buttons (~56px mobile, ~48px tablet/desktop) + padding
   const scrollableListStyle = {
-    maxHeight: isMobile ? 'calc(100vh - 180px)' : '350px',
+    maxHeight: isMobile ? 'calc(100vh - 380px)' : isTablet ? 'calc(100vh - 420px)' : '320px',
     overflowY: 'auto',
-    padding: isMobile ? '10px 12px' : '16px 24px',
+    padding: isMobile ? '12px 16px' : isTablet ? '14px 20px' : '16px 24px',
+    paddingBottom: isMobile ? '160px' : isTablet ? '140px' : '120px', // Extra padding so last item is fully visible
     background: '#fff',
     scrollbarWidth: 'thin',
     scrollbarColor: '#b5e0b5 #f0f0f0',
@@ -1984,41 +2606,44 @@ const EquipmentSelectionModal = ({
         className={`
           transition-all duration-200 border-0 shadow-md hover:shadow-lg
           ${currentQuantity > 0 ? 'ring-2 ring-green-500 bg-green-50' : 'hover:bg-gray-50'}
-          flex h-full p-4 rounded-xl mb-2 cursor-pointer
+          ${isMobile ? 'p-3' : isTablet ? 'p-3.5' : 'p-4'} rounded-xl mb-2 cursor-pointer
         `}
         style={{ boxShadow: isSelected ? '0 4px 16px #b5e0b5aa' : undefined, borderRadius: 16, border: '1px solid #e0e0e0' }}
         onClick={onClick}
       >
-        <div className="flex flex-row items-center gap-3 w-full">
-          <div className="flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50 w-16 h-16 flex-shrink-0">
-            <BsTools className="text-green-500 text-3xl" />
+        <div className={`flex ${(isMobile || isTablet) ? 'flex-col items-center justify-center' : 'flex-row items-center'} gap-3 w-full`}>
+          {/* Icon */}
+          <div className={`flex items-center justify-center rounded-lg bg-gradient-to-br from-green-100 to-green-50 ${(isMobile || isTablet) ? 'w-14 h-14' : 'w-16 h-16'} flex-shrink-0`}>
+            <BsTools className={`text-green-500 ${(isMobile || isTablet) ? 'text-2xl' : 'text-3xl'}`} />
           </div>
-          <div className="flex-1 min-w-0 flex flex-col justify-between h-full">
-            <div>
-              <div className="flex items-start justify-between gap-2 mb-1">
-                <h3 className="font-medium text-gray-800 truncate text-base">
-                  {item.equip_name || 'Equipment Name Not Available'}
-                </h3>
+          
+          {/* Content */}
+          <div className={`flex flex-col ${(isMobile || isTablet) ? 'items-center text-center w-full' : 'flex-1 items-start'} gap-2`}>
+            {/* Equipment Name */}
+            <h3 className={`font-medium text-gray-800 ${(isMobile || isTablet) ? 'text-sm' : 'text-base'}`}>
+              {item.equip_name || 'Equipment Name Not Available'}
+            </h3>
+            
+            {/* Equipment Details */}
+            <div className={`flex ${(isMobile || isTablet) ? 'flex-col items-center' : 'flex-row flex-wrap'} gap-${(isMobile || isTablet) ? '1' : '3'}`}>
+              <div className="flex items-center gap-1 text-gray-600">
+                <MdInventory className="text-green-500 text-base" />
+                <span className={`${(isMobile || isTablet) ? 'text-xs' : 'text-sm'}`}>
+                  QTY: {availableQuantity}
+                </span>
               </div>
-              <div className="flex flex-wrap gap-3">
+              {item.category_name && (
                 <div className="flex items-center gap-1 text-gray-600">
-                  <MdInventory className="text-green-500 text-base" />
-                  <span className="text-sm">
-                    Available: {availableQuantity}
+                  <span className={`${(isMobile || isTablet) ? 'text-xs' : 'text-sm'}`}>
+                    Category: {item.category_name}
                   </span>
                 </div>
-                {item.category_name && (
-                  <div className="flex items-center gap-1 text-gray-600">
-                    <span className="text-sm">
-                      Category: {item.category_name}
-                    </span>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
+            
             {/* Quantity Controls */}
             {isAvailable && (
-              <div className="flex items-center justify-center gap-2 mt-auto pt-2">
+              <div className="flex items-center justify-center gap-3 mt-2">
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -2027,13 +2652,13 @@ const EquipmentSelectionModal = ({
                   }}
                   disabled={currentQuantity === 0}
                   className={`
-                    w-8 h-8 rounded-full flex items-center justify-center text-base font-bold
+                    ${isMobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center text-base font-bold
                     ${currentQuantity > 0 
                       ? 'bg-green-500 text-white hover:bg-green-600' 
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                     transition-colors
                   `}
-                  style={{ fontSize: isMobile ? 18 : 16 }}
+                  style={{ fontSize: isMobile ? 20 : 16 }}
                 >
                   -
                 </button>
@@ -2046,8 +2671,8 @@ const EquipmentSelectionModal = ({
                   onFocus={(e) => e.stopPropagation()}
                   onClick={(e) => e.stopPropagation()}
                   placeholder="0"
-                  className="w-16 h-8 text-center border border-gray-300 rounded text-base font-medium
-                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  className={`${isMobile ? 'w-20 h-10' : 'w-16 h-8'} text-center border border-gray-300 rounded text-base font-medium
+                    focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-transparent`}
                   style={{ background: '#f8fff8', fontSize: isMobile ? 18 : 16 }}
                 />
                 <button
@@ -2058,13 +2683,13 @@ const EquipmentSelectionModal = ({
                   }}
                   disabled={currentQuantity >= availableQuantity}
                   className={`
-                    w-8 h-8 rounded-full flex items-center justify-center text-base font-bold
+                    ${isMobile ? 'w-10 h-10' : 'w-8 h-8'} rounded-full flex items-center justify-center text-base font-bold
                     ${currentQuantity < availableQuantity 
                       ? 'bg-green-500 text-white hover:bg-green-600' 
                       : 'bg-gray-200 text-gray-400 cursor-not-allowed'}
                     transition-colors
                   `}
-                  style={{ fontSize: isMobile ? 18 : 16 }}
+                  style={{ fontSize: isMobile ? 20 : 16 }}
                 >
                   +
                 </button>
@@ -2109,24 +2734,17 @@ const EquipmentSelectionModal = ({
     setCurrentPage(1); // Reset to first page when searching
   };
   
-  return (
-    <Modal
-      title={
-        <div className="flex items-center gap-2">
-          <BsTools />
-          <span>Select Equipment</span>
-        </div>
-      }
-      open={showEquipmentModal}
-      onCancel={handleCancel}
-      footer={null}
-      style={modalStyle}
-      bodyStyle={{ padding: 0, height: isMobile ? '100vh' : undefined, overflow: 'hidden' }}
-      zIndex={1000}
-      destroyOnClose
-      maskClosable
-      className={isMobile ? 'equipment-modal-mobile' : ''}
-    >
+  // Create header content
+  const headerContent = (
+    <div className="flex items-center gap-2">
+      <BsTools className={`${isMobile ? 'text-xl' : 'text-lg'}`} />
+      <span className={`${isMobile ? 'text-lg' : 'text-base'} font-semibold`}>Select Equipment</span>
+    </div>
+  );
+
+  // Create main content
+  const mainContent = (
+    <>
       {/* Custom scrollbar style */}
       <style>{customScrollbar}</style>
       {/* Sticky Header */}
@@ -2145,26 +2763,26 @@ const EquipmentSelectionModal = ({
             </p>
           </div>
         </div>
-        <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-row gap-4'} justify-between items-center mt-4`}>
-          <div className="flex-1 flex gap-2 items-center">
+        <div className={`flex ${isMobile ? 'flex-col gap-3' : isTablet ? 'flex-col gap-2' : 'flex-row gap-4'} justify-between items-center mt-4`}>
+          <div className={`${isMobile ? 'w-full' : 'flex-1'} flex ${isMobile ? 'flex-col gap-2' : 'gap-2'} items-center`}>
             <select
               value={selectedCategory}
               onChange={e => setSelectedCategory(e.target.value)}
-              className="border border-gray-300 rounded px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white"
-              style={{ minWidth: 120 }}
+              className={`border border-gray-300 rounded px-3 py-2 ${isMobile ? 'text-base w-full' : 'text-sm'} focus:ring-2 focus:ring-green-500 focus:border-green-500 bg-white`}
+              style={{ minWidth: isMobile ? 'auto' : 120 }}
             >
-              <option value="all">All</option>
+              <option value="all">All Categories</option>
               {equipmentCategories.map(cat => (
                 <option key={cat} value={cat}>{cat}</option>
               ))}
             </select>
             <Input.Search
-              placeholder="Search equipment by name..."
+              placeholder={isMobile ? "Search equipment..." : "Search equipment by name..."}
               prefix={<SearchOutlined className="text-gray-400" />}
               onChange={(e) => handleSearch(e.target.value)}
               value={equipmentSearch}
-              className="w-full max-w-md"
-              size="large"
+              className={`${isMobile ? 'w-full' : 'w-full max-w-md'}`}
+              size={isMobile ? "large" : "large"}
               style={{ borderRadius: 8 }}
             />
           </div>
@@ -2216,383 +2834,136 @@ const EquipmentSelectionModal = ({
             />
           </div>
         )}
-        {/* Pagination */}
+      </div>
+      {/* Sticky Footer with Pagination */}
+      <div style={stickyFooterStyle}>
+        {/* Pagination - Always visible in footer */}
         {filteredEquipment.length > 0 && (
-          <div className="flex justify-center mt-4">
+          <div className={`flex justify-center py-2 px-4 bg-white border-b border-gray-200`}>
             <Pagination
               current={currentPage}
               total={totalItems}
               pageSize={itemsPerPage}
               onChange={handlePageChange}
-              size="default"
+              size="small"
               showSizeChanger={false}
-              showQuickJumper={true}
+              showQuickJumper={false}
+              simple={isMobile || isTablet}
+              showTotal={(total, range) => 
+                (isMobile || isTablet) ? null : `${range[0]}-${range[1]} of ${total}`
+              }
             />
           </div>
         )}
-      </div>
-      {/* Sticky Footer */}
-      <div style={stickyFooterStyle}>
-        
-        <div className="flex gap-2">
-          <AntButton key="cancel" onClick={handleCancel} className={isMobile ? 'text-base px-4 py-2' : ''}>
+        {/* Action Buttons */}
+        <div className={`flex ${isMobile ? 'flex-col' : 'flex-row'} gap-2 ${isMobile ? 'w-full' : ''} ${isMobile ? 'p-3' : isTablet ? 'p-4' : 'p-4'}`}>
+          <AntButton 
+            key="cancel" 
+            onClick={handleCancel} 
+            className={isMobile ? 'w-full text-base py-3' : ''}
+            size={isMobile ? 'large' : 'middle'}
+          >
             Cancel
           </AntButton>
           <AntButton
             key="confirm"
             type="primary"
             onClick={handleConfirm}
-            className={`bg-green-500 hover:bg-green-600 border-green-500 ${isMobile ? 'text-base px-4 py-2' : ''}`}
+            className={`bg-green-500 hover:bg-green-600 border-green-500 ${isMobile ? 'w-full text-base py-3' : ''}`}
+            size={isMobile ? 'large' : 'middle'}
           >
             Confirm Selection
           </AntButton>
         </div>
       </div>
+    </>
+  );
+
+  // Conditional rendering based on screen size
+  if (isMobile) {
+    return (
+      <Drawer
+        title={headerContent}
+        placement="bottom"
+        onClose={handleCancel}
+        open={showEquipmentModal}
+        height="95%"
+        bodyStyle={{ padding: 0, overflow: 'hidden' }}
+        headerStyle={headerStyle}
+        destroyOnClose
+        maskClosable
+        zIndex={1000}
+      >
+        {mainContent}
+      </Drawer>
+    );
+  }
+
+  return (
+    <Modal
+      title={headerContent}
+      open={showEquipmentModal}
+      onCancel={handleCancel}
+      footer={null}
+      style={modalStyle}
+      bodyStyle={{ padding: 0, overflow: 'hidden' }}
+      zIndex={1000}
+      destroyOnClose
+      maskClosable
+    >
+      {mainContent}
     </Modal>
   );
 };
 
-// Add this with other function declarations
+// Simplified driver notice - no selection, drivers always null
 const renderDriverDropdown = (selectedModels, vehicles, setFormData) => {
-  console.log('renderDriverDropdown: selectedModels', selectedModels);
-  // Add null checks and default values
   const safeSelectedModels = selectedModels || [];
-  const safeVehicles = vehicles || [];
   
-  // Debug logging
-  console.log('renderDriverDropdown called with:', {
-    selectedModels: safeSelectedModels,
-    vehiclesCount: safeVehicles.length,
-    formData: {
-      driverType: formData.driverType,
-      forceOwnDrivers: formData.forceOwnDrivers,
-      forceMixedDrivers: formData.forceMixedDrivers,
-      availableDrivers: formData.availableDrivers,
-      totalVehicles: formData.totalVehicles,
-      mixedDrivers: formData.mixedDrivers
-    }
-  });
-
-  // Check if we need to force own drivers or mixed drivers due to insufficient drivers
-  const shouldForceOwnDrivers = formData.forceOwnDrivers;
-  const shouldForceMixedDrivers = formData.forceMixedDrivers;
-  
-  // Don't render driver dropdown if no vehicles selected and not forcing drivers
-  if (safeSelectedModels.length === 0 && !shouldForceOwnDrivers && !shouldForceMixedDrivers) {
+  // Don't render if no vehicles selected
+  if (safeSelectedModels.length === 0) {
     return null;
   }
 
+  // Show driver shortage notice if applicable
+  const hasDriverShortage = formData.driverShortage;
+  const availableDrivers = formData.availableDrivers || 0;
+  const totalVehicles = formData.totalVehicles || safeSelectedModels.length;
+
   return (
     <Form.Item
-      label={<span className="text-sm">Driver Information <span className="text-red-500">*</span></span>}
-      required
+     
     >
       <div className="space-y-3">
-        {shouldForceOwnDrivers && (
+        {/* Driver assignment notice */}
+        <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <div className="flex items-center gap-2 mb-2">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4 text-blue-600">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+            </svg>
+            <span className="text-xs font-medium text-blue-800">Driver Assignment</span>
+          </div>
+          <p className="text-xs text-blue-700">
+            Drivers will be assigned by admin during the approval process.
+          </p>
+        </div>
+
+        {/* Driver shortage warning if applicable */}
+        {hasDriverShortage && (
           <div className="p-3 bg-amber-50 border border-amber-200 rounded-lg">
             <div className="flex items-center gap-2 mb-2">
               <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4 text-amber-600">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126Z" />
               </svg>
-              <span className="text-xs font-medium text-amber-800">No Drivers Available</span>
+              <span className="text-xs font-medium text-amber-800">Driver Shortage Notice</span>
             </div>
             <p className="text-xs text-amber-700">
-              You must provide your own drivers for this reservation due to no available drivers.
-            </p>
-          </div>
-        )}
-
-        {shouldForceMixedDrivers && (
-          <div className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <div className="flex items-center gap-2 mb-2">
-              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="h-4 w-4 text-blue-600">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H6A2.25 2.25 0 004 6v2.25A2.25 2.25 0 006 10.5zm9 0h2.25a2.25 2.25 0 002.25-2.25V6a2.25 2.25 0 00-2.25-2.25H15A2.25 2.25 0 0013.5 6v2.25A2.25 2.25 0 0015 10.5z" />
-              </svg>
-              <span className="text-xs font-medium text-blue-800">Partial Driver Availability</span>
-            </div>
-            <p className="text-xs text-blue-700">
-              Some drivers are available. You can use default drivers for some vehicles and provide your own drivers for the rest.
-            </p>
-          </div>
-        )}
-
-        <Radio.Group
-          value={formData.driverType}
-          onChange={(e) => {
-            setFormData(prev => ({
-              ...prev,
-              driverType: e.target.value,
-              ownDrivers: e.target.value === 'own' ? safeSelectedModels.map(vehicle_id => {
-                // Try to preserve existing names if switching back and forth
-                const existing = prev.ownDrivers?.find(d => d.vehicle_id === vehicle_id);
-                return { vehicle_id, name: existing ? existing.name : '' };
-              }) : [],
-              mixedDrivers: e.target.value === 'mixed' ? safeSelectedModels.map(vehicle_id => {
-                // Try to preserve existing mixed driver settings
-                const existing = prev.mixedDrivers?.find(d => d.vehicle_id === vehicle_id);
-                return { 
-                  vehicle_id, 
-                  driverType: existing ? existing.driverType : 'default',
-                  name: existing ? existing.name : '' 
-                };
-              }) : [],
-            }));
-          }}
-          className="mb-4"
-          disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}
-        >
-          <Radio value="default" disabled={shouldForceOwnDrivers || shouldForceMixedDrivers}>Default Driver</Radio>
-          <Radio value="own">Own Driver</Radio>
-          <Radio value="mixed" disabled={safeSelectedModels.length <= 1}>Mixed (Default + Own)</Radio>
-        </Radio.Group>
-
-        {formData.driverType === 'own' && (
-          <div className="space-y-2">
-            {safeSelectedModels.length === 0 && (
-              <div className="text-xs text-gray-500">
-                {shouldForceOwnDrivers ? 
-                  "You must provide your own drivers for this reservation." : 
-                  
-                  "Select vehicles first to enter driver names."
-                }
-              </div>
-            )}
-            {safeSelectedModels.length > 0 ? safeSelectedModels.map((vehicle_id, idx) => {
-              // Find vehicle info
-              const vehicle = safeVehicles.find(v => v.vehicle_id === vehicle_id);
-              const driverObj = formData.ownDrivers?.find(d => d.vehicle_id === vehicle_id) || { name: '' };
-              return (
-                <div key={vehicle_id} className="flex flex-col md:flex-row md:items-center gap-2">
-                  <span className="text-sm text-gray-700 md:min-w-[220px] mb-1 md:mb-0">
-                    {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
-                  </span>
-                  <Input
-                    placeholder="Enter driver name"
-                    value={driverObj.name}
-                    onChange={e => {
-                      const newName = e.target.value;
-                      setFormData(prev => ({
-                        ...prev,
-                        ownDrivers: prev.ownDrivers.map(d =>
-                          d.vehicle_id === vehicle_id ? { ...d, name: newName } : d
-                        ),
-                      }));
-                    }}
-                    className="rounded w-full"
-                    size={isMobile ? 'middle' : 'large'}
-                    required
-                  />
-                </div>
-              );
-            }) : shouldForceOwnDrivers && (
-              <div className="space-y-2">
-                <div className="text-sm text-gray-700">You must provide your own drivers for this reservation.</div>
-                <Input
-                  placeholder="Enter driver name"
-                  value={formData.ownDrivers?.[0]?.name || ''}
-                  onChange={e => {
-                    const newName = e.target.value;
-                    setFormData(prev => ({
-                      ...prev,
-                      ownDrivers: [{ vehicle_id: 'forced', name: newName }]
-                    }));
-                  }}
-                  className="rounded"
-                  size={isMobile ? 'middle' : 'large'}
-                  required
-                />
-              </div>
-            )}
-          </div>
-        )}
-
-        {formData.driverType === 'mixed' && (
-          <div className="space-y-2">
-            {safeSelectedModels.length === 0 && (
-              <div className="text-xs text-gray-500">
-                {shouldForceMixedDrivers ? 
-                  "Some drivers are available but not enough for all vehicles." : 
-                  "Select vehicles first to configure driver assignments."
-                }
-              </div>
-            )}
-           
-            
-            {/* Show current assignment summary */}
-            {formData.driverType === 'mixed' && formData.mixedDrivers.length > 0 && (
-              <div
-                className={
-                  [
-                    'p-2 bg-gray-50 border border-gray-200 rounded-lg',
-                    (() => {
-                      const defaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-                      const availableDrivers = formData.availableDrivers || 0;
-                      return defaultCount > availableDrivers ? 'border-red-400 bg-red-50' : '';
-                    })()
-                  ].join(' ')
-                }
-              >
-                <p className="text-xs text-gray-700">
-                 
-                  {(() => {
-                    const defaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-                    const ownCount = formData.mixedDrivers.filter(d => d.driverType === 'own').length;
-                    const availableDrivers = formData.availableDrivers || 0;
-                    const remainingDefault = Math.max(0, availableDrivers - defaultCount);
-                    let summary = `${defaultCount} default driver(s), ${ownCount} own driver(s)`;
-                    if (shouldForceMixedDrivers && availableDrivers > 0) {
-                      summary += ` (${remainingDefault} default driver(s) remaining)`;
-                    }
-                    if (defaultCount > availableDrivers) {
-                      summary += ' — Too many default drivers! Reduce to match available.';
-                    }
-                    return summary;
-                  })()}
-                </p>
-              </div>
-            )}
-            {safeSelectedModels.length > 0 ? safeSelectedModels.map((vehicle_id, idx) => {
-              // Find vehicle info
-              const vehicle = safeVehicles.find(v => v.vehicle_id === vehicle_id);
-              const mixedDriverObj = formData.mixedDrivers?.find(d => d.vehicle_id === vehicle_id) || { 
-                driverType: 'default', 
-                name: '' 
-              };
-              // Calculate current default driver count
-              const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-              const availableDrivers = formData.availableDrivers || 0;
-              // If forceMixedDrivers and default slots are full, auto-select 'own' for this vehicle
-              let effectiveDriverType = mixedDriverObj.driverType;
-              if (shouldForceMixedDrivers && mixedDriverObj.driverType === 'default' && currentDefaultCount > availableDrivers) {
-                effectiveDriverType = 'own';
-                // Update formData to reflect this change
-                setTimeout(() => {
-                  setFormData(prev => ({
-                    ...prev,
-                    mixedDrivers: prev.mixedDrivers.map(d =>
-                      d.vehicle_id === vehicle_id ? { ...d, driverType: 'own' } : d
-                    ),
-                  }));
-                }, 0);
+              {availableDrivers > 0 
+                ? `Only ${availableDrivers} driver(s) available for ${totalVehicles} vehicle(s). Admin will coordinate driver assignment.`
+                : `No drivers available for the selected time. Admin will coordinate driver assignment.`
               }
-              return (
-                <div key={vehicle_id} className={`border rounded-lg p-3 space-y-2 ${
-                  effectiveDriverType === 'default' ? 'border-green-200 bg-green-50' : 'border-orange-200 bg-orange-50'
-                }`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-700">
-                        {vehicle ? `${vehicle.vehicle_make_name} ${vehicle.vehicle_model_name} (${vehicle.vehicle_license})` : `Vehicle #${idx + 1}`}
-                      </span>
-                      {effectiveDriverType === 'default' && (
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                          Default Driver
-                        </span>
-                      )}
-                      {effectiveDriverType === 'own' && (
-                        <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
-                          Own Driver
-                        </span>
-                      )}
-                    </div>
-                    <Radio.Group
-                      value={effectiveDriverType}
-                      onChange={(e) => {
-                        const newDriverType = e.target.value;
-                        // If trying to assign default driver, check if we have enough available
-                        if (newDriverType === 'default' && shouldForceMixedDrivers) {
-                          const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-                          const availableDrivers = formData.availableDrivers || 0;
-                          if (currentDefaultCount >= availableDrivers && mixedDriverObj.driverType !== 'default') {
-                            toast.error(`Cannot assign more than ${availableDrivers} default drivers.`);
-                            return;
-                          }
-                        }
-                        // If trying to assign own driver, always allow
-                        setFormData(prev => ({
-                          ...prev,
-                          mixedDrivers: prev.mixedDrivers.map(d =>
-                            d.vehicle_id === vehicle_id ? { ...d, driverType: newDriverType } : d
-                          ),
-                        }));
-                      }}
-                      size="small"
-                    >
-                      <Radio 
-                        value="default" 
-                        disabled={shouldForceMixedDrivers && (() => {
-                          const currentDefaultCount = formData.mixedDrivers.filter(d => d.driverType === 'default').length;
-                          const availableDrivers = formData.availableDrivers || 0;
-                          // Only disable if the limit is reached and this vehicle is not currently default
-                          return currentDefaultCount >= availableDrivers && mixedDriverObj.driverType !== 'default';
-                        })()}
-                      >
-                        Default Driver
-                      </Radio>
-                      <Radio value="own">Own Driver</Radio>
-                    </Radio.Group>
-                  </div>
-                  {effectiveDriverType === 'own' && (
-                    <Input
-                      placeholder="Enter driver name"
-                      value={mixedDriverObj.name}
-                      onChange={e => {
-                        const newName = e.target.value;
-                        setFormData(prev => ({
-                          ...prev,
-                          mixedDrivers: prev.mixedDrivers.map(d =>
-                            d.vehicle_id === vehicle_id ? { ...d, name: newName } : d
-                          ),
-                        }));
-                      }}
-                      className="rounded"
-                      size={isMobile ? 'middle' : 'large'}
-                      required
-                    />
-                  )}
-                </div>
-              );
-            }) : shouldForceMixedDrivers && (
-              <div className="space-y-2">
-                <div className="text-sm text-gray-700">Some drivers are available but not enough for all vehicles.</div>
-                <div className="border rounded-lg p-3 space-y-2 border-orange-200 bg-orange-50">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium text-gray-700">Vehicle (Forced Assignment)</span>
-                      <span className="px-2 py-1 text-xs bg-orange-100 text-orange-800 rounded-full">
-                        Own Driver
-                      </span>
-                    </div>
-                    <Radio.Group
-                      value="own"
-                      size="small"
-                      disabled
-                    >
-                      <Radio value="own">Own Driver</Radio>
-                    </Radio.Group>
-                  </div>
-                  <Input
-                    placeholder="Enter driver name"
-                    value={formData.mixedDrivers?.[0]?.name || ''}
-                    onChange={e => {
-                      const newName = e.target.value;
-                      setFormData(prev => ({
-                        ...prev,
-                        mixedDrivers: [{ vehicle_id: 'forced', driverType: 'own', name: newName }]
-                      }));
-                    }}
-                    className="rounded"
-                    size={isMobile ? 'middle' : 'large'}
-                    required
-                  />
-                </div>
-              </div>
-            )}
+            </p>
           </div>
-        )}
-
-        {formData.driverType === 'default' && !shouldForceOwnDrivers && (
-          <div className="p-3 bg-gray-50 rounded-lg text-gray-600 text-sm">Default driver will be assigned by admin.</div>
         )}
       </div>
     </Form.Item>
@@ -2618,7 +2989,11 @@ const fetchVenues = useCallback(async () => {
     }
   } catch (error) {
     console.error('Error fetching venues:', error);
-    toast.error('Failed to fetch venues');
+    if (!error.response || error.message === 'Network Error' || error.name === 'TypeError') {
+      toast.error('Network connection lost. Unable to fetch venues.');
+    } else {
+      toast.error('Failed to fetch venues');
+    }
   }
 }, [encryptedUrl]);
 
@@ -2639,47 +3014,36 @@ const fetchVehicles = useCallback(async () => {
     }
   } catch (error) {
     console.error('Error fetching vehicles:', error);
-    toast.error('Failed to fetch vehicles');
+    if (!error.response || error.message === 'Network Error' || error.name === 'TypeError') {
+      toast.error('Network connection lost. Unable to fetch vehicles.');
+    } else {
+      toast.error('Failed to fetch vehicles');
+    }
   }
 }, [encryptedUrl]);
 
 const fetchEquipment = useCallback(async (startDate, endDate) => {
   try {
-    // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getLocalItem('user_level');
-    const userDepartment = SecureStorage.getLocalItem('Department Name');
-    const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
-    
-    // Prepare the API payload based on user role
-    let payload;
-    if (isCOODepartmentHead) {
-      // For COO Department Head, use simplified call without date range
-      payload = {
-        operation: 'fetchEquipments'
-      };
-    } else {
-      // For other users, use date range
-      let start = startDate;
-      let end = endDate;
-      if (start && end && start > end) {
-        // Swap to ensure start is before end
-        [start, end] = [end, start];
-      }
-      const startDateTime = start ? format(start, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
-      const endDateTime = end ? format(end, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
-      
-      payload = {
-        operation: 'fetchEquipments',
-        startDateTime: startDateTime,
-        endDateTime: endDateTime
-      };
+    // Prepare the API payload with date range
+    let start = startDate;
+    let end = endDate;
+    if (start && end && start > end) {
+      // Swap to ensure start is before end
+      [start, end] = [end, start];
     }
+    const startDateTime = start ? format(start, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+    const endDateTime = end ? format(end, 'yyyy-MM-dd HH:mm:ss') : format(new Date(), 'yyyy-MM-dd HH:mm:ss');
+    
+    const payload = {
+      operation: 'fetchEquipments',
+      startDateTime: startDateTime,
+      endDateTime: endDateTime
+    };
     console.log('Equipment payload:', payload);
     
     const response = await axios({
       method: 'post',
-      url: `${encryptedUrl}/reservation.php`,
+      url: `${encryptedUrl}reservation.php`,
       headers: {
         'Content-Type': 'application/json'
       },
@@ -2708,7 +3072,11 @@ const fetchEquipment = useCallback(async (startDate, endDate) => {
     }
   } catch (error) {
     console.error('Error fetching equipment:', error);
-    toast.error('Failed to fetch equipment');
+    if (!error.response || error.message === 'Network Error' || error.name === 'TypeError') {
+      toast.error('Network connection lost. Unable to fetch equipment.');
+    } else {
+      toast.error('Failed to fetch equipment');
+    }
   }
 }, [encryptedUrl]);
 
@@ -2717,86 +3085,32 @@ useEffect(() => {
   fetchVenues();
   fetchVehicles();
   
-  // Get user level and department for COO Department Head check
-  const userLevel = SecureStorage.getLocalItem('user_level');
-  const userDepartment = SecureStorage.getLocalItem('Department Name');
-  const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-  
-  if (isCOODepartmentHead) {
-    // For COO Department Head, fetch equipment without dates
-    fetchEquipment();
-  } else if (formData.startDate && formData.endDate) {
-    // For other users, only fetch equipment if we have dates
+  // Fetch equipment if we have dates
+  if (formData.startDate && formData.endDate) {
     fetchEquipment(formData.startDate, formData.endDate);
   }
 }, [fetchVenues, fetchVehicles, fetchEquipment, formData.startDate, formData.endDate]);
 
 // Add separate useEffect to fetch equipment when dates change
 useEffect(() => {
-  if (resourceType === 'equipment') {
-    // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getLocalItem('user_level');
-    const userDepartment = SecureStorage.getLocalItem('Department Name');
-    const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    if (isCOODepartmentHead) {
-      // For COO Department Head, fetch equipment without dates
-      fetchEquipment();
-    } else if (formData.startDate && formData.endDate) {
-      // For other users, only fetch if dates are available
-      fetchEquipment(formData.startDate, formData.endDate);
-    }
+  if (resourceType === 'equipment' && formData.startDate && formData.endDate) {
+    // Fetch equipment with date range
+    fetchEquipment(formData.startDate, formData.endDate);
   }
 }, [formData.startDate, formData.endDate, resourceType, fetchEquipment]);
 
-// Add useEffect to handle forceOwnDrivers and forceMixedDrivers flags
-useEffect(() => {
-  if (formData.forceOwnDrivers && selectedModels.length > 0) {
-    // Automatically populate own drivers when forceOwnDrivers is true
-    setFormData(prev => ({
-      ...prev,
-      driverType: 'own',
-      ownDrivers: selectedModels.map(vehicle_id => {
-        // Try to preserve existing names if switching back and forth
-        const existing = prev.ownDrivers?.find(d => d.vehicle_id === vehicle_id);
-        return { vehicle_id, name: existing ? existing.name : '' };
-      })
-    }));
-  } else if (formData.forceMixedDrivers && selectedModels.length > 0) {
-    // Set up mixed drivers when forceMixedDrivers is true, but don't auto-assign
-    // Let users choose which vehicles get default vs own drivers
-    setFormData(prev => ({
-      ...prev,
-      driverType: 'mixed',
-      mixedDrivers: selectedModels.map((vehicle_id) => {
-        // Try to preserve existing mixed driver settings
-        const existing = prev.mixedDrivers?.find(d => d.vehicle_id === vehicle_id);
-        
-        // If we have existing settings, use them
-        if (existing) {
-          return existing;
-        }
-        
-        // Otherwise, start with default (user can change)
-        return { 
-          vehicle_id, 
-          driverType: 'default',
-          name: '' // Will be filled in if user chooses 'own'
-        };
-      })
-    }));
-    
-    // Show a toast message to inform the user about manual assignment
-    const availableDrivers = formData.availableDrivers || 0;
-    const totalVehicles = selectedModels.length;
-    if (availableDrivers > 0 && availableDrivers < totalVehicles) {
-      toast.success(`Mixed driver mode enabled. You can assign up to ${availableDrivers} default driver(s) and provide your own drivers for the rest.`);
-    }
-  }
-}, [formData.forceOwnDrivers, formData.forceMixedDrivers, selectedModels, formData.availableDrivers]);
+// Driver logic simplified - no need for complex driver handling
 
 // Add useEffect to handle calendar data fetching
 useEffect(() => {
   if (currentStep === 2) { // Calendar step
+    // Reset network error state and unlock calendar when entering calendar step
+    setIsCalendarLocked(false);
+    setCalendarData(prev => ({
+      ...prev,
+      networkError: false
+    }));
+    
     const fetchCalendarData = async () => {
       try {
         // Fetch holidays
@@ -2812,10 +3126,17 @@ useEffect(() => {
             name: holiday.holiday_name,
             date: holiday.holiday_date
           }));
-          setCalendarData(prev => ({ ...prev, holidays: formattedHolidays }));
+          setCalendarData(prev => ({ 
+            ...prev, 
+            holidays: formattedHolidays,
+            networkError: false // Clear network error on successful data fetch
+          }));
+          // Unlock calendar on successful data fetch
+          setIsCalendarLocked(false);
         }
 
         // Fetch reservations based on resource type
+        // For venues and vehicles, the calendar component handles its own data fetching
         if (resourceType === 'equipment') {
           const equipmentResponse = await axios.post(
             `${encryptedUrl}/reservation.php`,
@@ -2834,13 +3155,34 @@ useEffect(() => {
           if (equipmentResponse.data.status === 'success') {
             setCalendarData(prev => ({
               ...prev,
-              equipmentAvailability: equipmentResponse.data.data
+              equipmentAvailability: equipmentResponse.data.data,
+              networkError: false // Clear network error on successful data fetch
             }));
+            // Unlock calendar on successful data fetch
+            setIsCalendarLocked(false);
           }
         } 
       } catch (error) {
         console.error('Error fetching calendar data:', error);
-        toast.error('Failed to fetch calendar data');
+        if (!error.response || error.message === 'Network Error' || error.name === 'TypeError') {
+          toast.error('Network connection lost. Unable to load calendar data.');
+          // Immediately lock the calendar
+          setIsCalendarLocked(true);
+          // Set network error state in calendar data
+          setCalendarData(prev => ({
+            ...prev,
+            networkError: true
+          }));
+        } else {
+          toast.error('Failed to fetch calendar data');
+          // Immediately lock the calendar for other API failures too
+          setIsCalendarLocked(true);
+          // Set network error state for other API failures too
+          setCalendarData(prev => ({
+            ...prev,
+            networkError: true
+          }));
+        }
       }
     };
 
@@ -2851,22 +3193,11 @@ useEffect(() => {
 // Add useEffect to fetch equipment when modal opens
 useEffect(() => {
   if (showEquipmentModal && (!equipment || equipment.length === 0)) {
-    // Get user level and department for COO Department Head check
-    const userLevel = SecureStorage.getLocalItem('user_level');
-    const userDepartment = SecureStorage.getLocalItem('Department Name');
-    const isCOODepartmentHead = userLevel === 'Department Head' && userDepartment === 'COO';
-    // const isSecretaryGSD = userLevel === 'Secretary' && userDepartment === 'GSD';
-    
-    if (isCOODepartmentHead ) {
-      // For COO Department Head, fetch equipment without dates
-      fetchEquipment();
-    } else {
-      // For other users, use dates if available, otherwise use current date
-      const now = new Date();
-      const start = formData.startDate || now;
-      const end = formData.endDate || now;
-      fetchEquipment(start, end);
-    }
+    // Use dates if available, otherwise use current date
+    const now = new Date();
+    const start = formData.startDate || now;
+    const end = formData.endDate || now;
+    fetchEquipment(start, end);
   }
 }, [showEquipmentModal, fetchEquipment, equipment, formData.startDate, formData.endDate]);
 
@@ -2879,44 +3210,45 @@ useEffect(() => {
 }, [resourceType]);
 
 return (
-  <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+  <main className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 safe-area-top">
   
     
-    <section className={`w-full transition-all duration-300 ${isMobile ? 'px-2 py-3 pb-24' : 'p-6'}`}>
-      <article className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-6xl'}`}>
+    <section className={`w-full transition-all duration-300 ${isMobileDevice ? 'px-2 py-3 pb-24' : isTablet ? 'px-4 py-4 pb-20' : 'p-6'}`}>
+      <article className={`mx-auto ${isMobileDevice ? 'max-w-full' : isTablet ? 'max-w-5xl' : 'max-w-6xl'}`}>
         {/* Header */}
-        <header className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
+        <header className={`bg-white rounded-xl shadow-sm ${isMobileDevice ? 'p-3 mb-2' : isTablet ? 'p-4 mb-4' : 'p-4 mb-6'} border border-gray-100`}>
           <Button
             onClick={() => navigate(-1)}
             className="p-button-text flex items-center gap-2 hover:bg-green-50 transition-colors"
             icon={<i className="pi pi-arrow-left text-green-500" />}
           >
-            <span className="font-medium text-green-600">Back Dashboard</span>
+            <span className={`font-medium text-green-600 ${isMobileDevice ? 'text-sm' : ''}`}>Back Dashboard</span>
           </Button>
-          <h1 className={`font-bold text-gray-900 ${isMobile ? 'text-xl mt-2' : 'text-3xl'}`}>
+          <h1 className={`font-bold text-gray-900 ${isMobileDevice ? 'text-xl mt-2' : isTablet ? 'text-2xl mt-2' : 'text-3xl'}`}>
             Create Reservation
           </h1>
-          <p className="text-gray-600 text-sm">
+          <p className={`text-gray-600 ${isMobileDevice ? 'text-xs' : 'text-sm'}`}>
             Complete the steps below to make your reservation
           </p>
         </header>
 
         {/* Step Indicator */}
-        <section className={`bg-white rounded-xl shadow-sm p-4 border border-gray-100 ${isMobile ? 'mb-2' : 'mb-6'}`}>
+        <section className={`bg-white rounded-xl shadow-sm ${isMobileDevice ? 'p-3 mb-2' : isTablet ? 'p-4 mb-4' : 'p-4 mb-6'} border border-gray-100 mobile-steps`}>
           <StepIndicator 
             currentStep={currentStep} 
             resourceType={resourceType} 
-            isMobile={isMobile}
+            isMobile={isMobileDevice}
+            isTablet={isTablet}
           />
         </section>
 
         {/* Main Content */}
-        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible${isMobile && currentStep !== 5 ? ' pb-32' : ' pb-8'}`}>
+        <section className={`bg-white rounded-xl shadow-sm border border-gray-100 overflow-visible${isMobileDevice && currentStep !== 5 ? ' pb-32' : isTablet && currentStep !== 5 ? ' pb-24' : ' pb-8'} reservation-step`}>
           {/* Step Header */}
-          <header className={`px-3 py-2 md:px-4 md:py-3 lg:px-6 lg:py-4 bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100`}>
-            <h2 className={`font-semibold text-white ${isMobile ? 'text-lg' : 'text-xl md:text-2xl'}`}>
+          <header className={`${isMobileDevice ? 'px-3 py-2' : isTablet ? 'px-4 py-3' : 'px-6 py-4'} bg-gradient-to-r from-lime-900 to-green-900 border-b border-gray-100`}>
+            <h2 className={`font-semibold text-white ${isMobileDevice ? 'text-base' : isTablet ? 'text-lg' : 'text-xl'}`}>
               {currentStep === 0 && "Select Resource Type"}
-              {currentStep === 1 && `Select ${resourceType === 'venue' ? 'Venue' : resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`}
+              {currentStep === 1 && (resourceType === 'work_request' ? 'Ticket Form' : `Select ${resourceType === 'venue' ? 'Venue' : resourceType === 'vehicle' ? 'Vehicle' : 'Equipment'}`)}
               {currentStep === 2 && "Choose Date & Time"}
               {currentStep === 3 && "Enter Details"}
               {currentStep === 4 && "Review Reservation"}
@@ -2925,23 +3257,23 @@ return (
           </header>
 
           {/* Step Content */}
-          <article className={isMobile ? 'p-2' : 'p-4 md:p-6'}>
-            <div className={`mx-auto ${isMobile ? 'max-w-full' : 'max-w-2xl md:max-w-3xl lg:max-w-4xl'}`}>
+          <article className={`${isMobileDevice ? 'p-2' : isTablet ? 'p-4' : 'p-6'} form-compact`}>
+            <div className={`mx-auto ${isMobileDevice ? 'max-w-full' : isTablet ? 'max-w-3xl' : 'max-w-4xl'}`}>
               {renderStepContent()}
             </div>
           </article>
 
           {/* Step Navigation - Desktop & Tablet */}
-          {currentStep !== 5 && !isMobile && (
-            <footer className="sticky bottom-0 left-0 right-0 px-4 md:px-6 py-3 md:py-4 bg-gray-50 border-t border-gray-100 z-30">
-              <nav className="flex flex-col md:flex-row justify-between items-center gap-2 md:gap-0">
-                <div className="flex gap-2 w-full md:w-auto">
+          {currentStep !== 5 && !isMobileDevice && (
+            <footer className={`sticky bottom-0 left-0 right-0 ${isTablet ? 'px-4 py-3' : 'px-6 py-4'} bg-gray-50 border-t border-gray-100 z-30`}>
+              <nav className={`flex ${isTablet ? 'flex-col gap-2' : 'flex-row'} justify-between items-center reservation-actions`}>
+                <div className={`flex gap-2 ${isTablet ? 'w-full' : 'w-auto'}`}>
                   <AntButton
                     type="default"
                     icon={<i className="pi pi-arrow-left" />}
                     onClick={handleBack}
-                    size="large"
-                    className="p-button-outlined w-full md:w-auto"
+                    size={isTablet ? "middle" : "large"}
+                    className={`p-button-outlined ${isTablet ? 'flex-1' : ''}`}
                     disabled={currentStep === 0}
                   >
                     Previous
@@ -2951,10 +3283,10 @@ return (
                       type="default"
                       icon={<i className="pi pi-refresh" />}
                       onClick={resetForm}
-                      size="large"
-                      className="p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50 w-full md:w-auto"
+                      size={isTablet ? "middle" : "large"}
+                      className={`p-button-outlined border-orange-500 text-orange-600 hover:bg-orange-50 ${isTablet ? 'flex-1' : ''}`}
                     >
-                      Reset Form
+                      {isTablet ? 'Reset' : 'Reset Form'}
                     </AntButton>
                   )}
                 </div>
@@ -2963,8 +3295,8 @@ return (
                     type="primary"
                     icon={loading ? <Spin className="mr-2" /> : <CheckCircleOutlined />}
                     onClick={handleAddReservation}
-                    size="large"
-                    className="p-button-success bg-green-500 hover:bg-green-600 border-green-500 w-full md:w-auto"
+                    size={isTablet ? "middle" : "large"}
+                    className={`p-button-success bg-green-500 hover:bg-green-600 border-green-500 ${isTablet ? 'w-full' : ''}`}
                     disabled={loading}
                   >
                     {loading ? 'Submitting...' : 'Submit'}
@@ -2974,10 +3306,11 @@ return (
                     type="primary"
                     icon={<i className="pi pi-arrow-right" />}
                     onClick={handleNext}
-                    size="large"
-                    className="p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white w-full md:w-auto"
+                    size={isTablet ? "middle" : "large"}
+                    className={`p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white ${isTablet ? 'w-full' : ''}`}
+                    disabled={currentStep === 2 && isCalendarLocked} // Disable Next button when calendar is locked
                   >
-                    Next
+                    {resourceType === 'work_request' && currentStep === 1 ? 'Submit' : 'Next'}
                   </AntButton>
                 )}
               </nav>
@@ -3002,9 +3335,9 @@ return (
     />
 
     {/* Fixed Mobile Navigation */}
-    {currentStep !== 5 && isMobile && (
-      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 p-2 flex flex-col gap-2" style={{minHeight:'70px'}}>
-        <nav className="flex flex-col gap-2 w-full">
+    {currentStep !== 5 && isMobileDevice && (
+      <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 shadow-lg z-50 p-2 flex flex-col gap-2 safe-area-bottom" style={{minHeight:'70px'}}>
+        <nav className="flex flex-col gap-2 w-full reservation-actions">
           <div className="flex gap-2 w-full">
             <AntButton
               type="default"
@@ -3047,11 +3380,16 @@ return (
               size="middle"
               className="w-full p-button-primary bg-gradient-to-r from-lime-600 to-green-600 hover:from-lime-700 hover:to-green-700 border-lime-600 text-white"
             >
-              Next
+              {resourceType === 'work_request' && currentStep === 1 ? 'Submit' : 'Next'}
             </AntButton>
           )}
         </nav>
       </div>
+    )}
+
+    {/* Spacer to prevent overlap when mobile footer is visible */}
+    {currentStep !== 5 && isMobileDevice && (
+      <div className="mobile-footer-spacer" />
     )}
 
     {/* Modals */}
@@ -3070,6 +3408,62 @@ return (
       fetchEquipment={fetchEquipment}
       formData={formData}
     />
+
+    {/* Conflict Details Modal */}
+    <Modal
+      title={
+        <div className="flex items-center gap-2 text-red-600">
+          <i className="pi pi-exclamation-triangle text-2xl" />
+          <span className="text-lg font-semibold">Reservation Conflicts Detected</span>
+        </div>
+      }
+      open={showConflictModal}
+      onCancel={() => {
+        setShowConflictModal(false);
+        setConflictDetails(null);
+      }}
+      footer={[
+        <AntButton
+          key="close"
+          type="primary"
+          onClick={() => {
+            setShowConflictModal(false);
+            setConflictDetails(null);
+          }}
+          className="bg-blue-500 hover:bg-blue-600"
+        >
+          Close
+        </AntButton>
+      ]}
+      width={isMobileDevice ? '95%' : isTablet ? 600 : 700}
+      centered
+    >
+      <div className="conflict-modal-content py-4">
+        {conflictDetails && (
+          <div className="space-y-4">
+            <p className="text-gray-700 mb-4">
+              Your reservation cannot be processed because the following resources have conflicts with existing reservations:
+            </p>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <pre className="whitespace-pre-wrap font-sans text-sm text-gray-800 leading-relaxed">
+                {conflictDetails.replace('The following resources have conflicts:\n\n', '')}
+              </pre>
+            </div>
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
+              <p className="text-sm text-blue-800">
+                <strong>💡 What to do next:</strong>
+              </p>
+              <ul className="list-disc list-inside text-sm text-blue-700 mt-2 space-y-1">
+                <li>Try selecting different dates or times</li>
+                <li>Choose alternative resources that are available</li>
+                <li>Contact the reservation holders to coordinate</li>
+                <li>Reduce the quantity of equipment requested</li>
+              </ul>
+            </div>
+          </div>
+        )}
+      </div>
+    </Modal>
   </main>
 );
 };

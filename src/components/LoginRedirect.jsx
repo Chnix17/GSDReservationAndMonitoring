@@ -20,7 +20,7 @@ const LoginRedirect = () => {
     if (resolvedUserRole === 'Personnel') {
       return <Navigate to="/Personnel/Dashboard" replace />;
     }
-    if (resolvedUserRole === 'Dean' || resolvedUserRole === 'Secretary' || resolvedUserRole === 'Department Head') {
+    if (resolvedUserRole === 'Dean' || resolvedUserRole === 'Secretary' || resolvedUserRole === 'Department Head' || resolvedUserRole === 'Principal') {
       return <Navigate to="/Department/Dashboard" replace />;
     }
     if (resolvedUserRole === 'Faculty/Staff' || resolvedUserRole === 'School Head' || resolvedUserRole === 'SBO PRESIDENT' || resolvedUserRole === 'CSG PRESIDENT') {

@@ -51,8 +51,8 @@ const ReviewSection = ({
   });
 
   // Get the correct equipment data based on resource type
-  const selectedEquipment = formData.resourceType === 'equipment' 
-    ? equipmentQuantities 
+  const selectedEquipment = formData.resourceType === 'equipment'
+    ? equipmentQuantities
     : selectedVenueEquipment;
 
   console.log('Selected Equipment Data:', {
@@ -95,7 +95,21 @@ const ReviewSection = ({
             <div key={venue.ven_id} className="flex items-center justify-between p-4 bg-lightcream rounded-xl border border-primary/10">
               <div className="flex-1">
                 <Text strong className="text-lg block">{venue.ven_name}</Text>
-                <Text type="secondary" className="text-sm">{venue.ven_description}</Text>
+                <div className="flex items-center gap-3 mt-1.5">
+                  {venue.venue_building_name && (
+                    <span className="text-xs text-gray-600">
+                      📍 {venue.venue_building_name}
+                    </span>
+                  )}
+                  {venue.ven_occupancy && (
+                    <span className="text-xs text-gray-600">
+                      👥 Capacity: {venue.ven_occupancy}
+                    </span>
+                  )}
+                </div>
+                {venue.ven_description && (
+                  <Text type="secondary" className="text-sm mt-1 block">{venue.ven_description}</Text>
+                )}
               </div>
             </div>
           ))}
@@ -152,6 +166,12 @@ const ReviewSection = ({
                     {vehicle.vehicle_make_name} {vehicle.vehicle_model_name}
                   </Text>
                   <Text type="secondary" className="text-sm">{vehicle.vehicle_description}</Text>
+                  {vehicle.vehicle_license && (
+                    <div className="mt-1">
+                      <Text type="secondary" className="text-xs">License: </Text>
+                      <Tag color="blue" className="text-xs">{vehicle.vehicle_license}</Tag>
+                    </div>
+                  )}
                   <div className="mt-1">
                     <Text type="secondary" className="text-xs">Driver Type: </Text>
                     <Text strong className="text-primary-dark text-xs">{driverType}</Text>
@@ -160,12 +180,11 @@ const ReviewSection = ({
                     }
                   </div>
                 </div>
-                <Tag className="bg-primary text-white border-none">{vehicle.vehicle_license}</Tag>
               </div>
             );
           })}
         </div>
-        
+
         <div className="flex items-center gap-2 mb-4 mt-6">
           <TeamOutlined className="text-primary" />
           <Text strong className="text-lg">Passengers ({formData.passengers.length})</Text>
@@ -225,8 +244,8 @@ const ReviewSection = ({
   };
 
   return (
-    <motion.div {...fadeInAnimation} className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8">
-      <div className="flex justify-between items-center mb-6">
+    <motion.div {...fadeInAnimation} className="max-w-7xl mx-auto px-4 md:px-6 lg:px-8 review-grid">
+      <div className="flex justify-between items-center mb-6 review-actions">
         <div>
           <Title level={4} className="m-0">Review</Title>
           <Text type="secondary" className="text-sm">Review and confirm your reservation details</Text>

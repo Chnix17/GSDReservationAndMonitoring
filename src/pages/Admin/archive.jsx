@@ -14,6 +14,14 @@ const Archive = () => {
   const [vehicles, setVehicles] = useState([]);
   const [venues, setVenues] = useState([]);
   const [equipment, setEquipment] = useState([]);
+  const [equipmentUnits, setEquipmentUnits] = useState([]);
+  const [vehicleMakes, setVehicleMakes] = useState([]);
+  const [vehicleCategories, setVehicleCategories] = useState([]);
+  const [vehicleModels, setVehicleModels] = useState([]);
+  const [equipmentCategories, setEquipmentCategories] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [holidays, setHolidays] = useState([]);
+  const [buildings, setBuildings] = useState([]);
 
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -43,7 +51,8 @@ const Archive = () => {
       'Admin': 'admin',
       'Driver': 'driver',
       'Personnel': 'personel',
-      'User': 'user'
+      'User': 'user',
+      'Principal': 'principal'
     };
     return typeMapping[userType] || userType.toLowerCase();
   };
@@ -79,7 +88,13 @@ const Archive = () => {
       }
     } catch (error) {
       console.error('Error fetching users:', error);
-      toast.error("An error occurred while fetching users.");
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("An error occurred while fetching users.");
+      }
     } finally {
       setLoading(false);
     }
@@ -96,7 +111,14 @@ const Archive = () => {
         setVehicles(response.data.data);
       }
     } catch (error) {
-      toast.error("Error fetching vehicles");
+      console.error('Error fetching vehicles:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching vehicles");
+      }
     } finally {
       setLoading(false);
     }
@@ -113,7 +135,14 @@ const Archive = () => {
         setVenues(response.data.data);
       }
     } catch (error) {
-      toast.error("Error fetching venues");
+      console.error('Error fetching venues:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching venues");
+      }
     } finally {
       setLoading(false);
     }
@@ -131,7 +160,207 @@ const Archive = () => {
         setEquipment(response.data.data);
       }
     } catch (error) {
-      toast.error("Error fetching equipment");
+      console.error('Error fetching equipment:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching equipment");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchEquipmentUnits = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveEquipmentUnits" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        console.log('Equipment Units Details:', response.data.data);
+        setEquipmentUnits(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching equipment units:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching equipment units");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchVehicleMakes = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveVehicleMake" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setVehicleMakes(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching vehicle makes:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching vehicle makes");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchVehicleCategories = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveVehicleCategory" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setVehicleCategories(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching vehicle categories:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching vehicle categories");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchVehicleModels = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveVehicleModel" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setVehicleModels(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching vehicle models:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching vehicle models");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchEquipmentCategories = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveEquipmentCategory" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setEquipmentCategories(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching equipment categories:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching equipment categories");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchDepartments = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveDepartment" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setDepartments(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching departments:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching departments");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchHolidays = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveHoliday" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setHolidays(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching holidays:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching holidays");
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [encryptedUrl]);
+
+  const fetchBuildings = useCallback(async () => {
+    setLoading(true);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`,
+        { operation: "fetchInactiveBuilding" },
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      if (response.data.status === 'success') {
+        setBuildings(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching buildings:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Please check your internet connection and try again.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        toast.error("Error fetching buildings");
+      }
     } finally {
       setLoading(false);
     }
@@ -158,10 +387,34 @@ const Archive = () => {
       case 3:
         fetchEquipment();
         break;
+      case 4:
+        fetchEquipmentUnits();
+        break;
+      case 5:
+        fetchVehicleMakes();
+        break;
+      case 6:
+        fetchVehicleCategories();
+        break;
+      case 7:
+        fetchVehicleModels();
+        break;
+      case 8:
+        fetchEquipmentCategories();
+        break;
+      case 9:
+        fetchDepartments();
+        break;
+      case 10:
+        fetchHolidays();
+        break;
+      case 11:
+        fetchBuildings();
+        break;
       default:
         break;
     }
-  }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment]);
+  }, [value, fetchUsers, fetchVehicles, fetchVenues, fetchEquipment, fetchEquipmentUnits, fetchVehicleMakes, fetchVehicleCategories, fetchVehicleModels, fetchEquipmentCategories, fetchDepartments, fetchHolidays, fetchBuildings]);
 
   const handleRestoreUsers = async (record) => {
     let userIds;
@@ -187,15 +440,21 @@ const Archive = () => {
       });
 
       if (response.data.status === 'success') {
-        message.success(`${userIds.length} users restored successfully`);
+        message.success(`${userIds.length} users activated successfully`);
         setSelectedRowKeys([]);
         fetchUsers();
       } else {
-        message.error(`Failed to restore users`);
+        message.error(`Failed to activate users`);
       }
     } catch (error) {
       console.error('Error restoring users:', error);
-      message.error(`An error occurred while restoring users`);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Cannot activate users. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        message.error(`An error occurred while activating users`);
+      }
     }
   };
 
@@ -223,15 +482,21 @@ const Archive = () => {
       });
 
       if (response.data.status === 'success') {
-        message.success(`${resourceIds.length} vehicles restored successfully`);
+        message.success(`${resourceIds.length} vehicles activated successfully`);
         setSelectedRowKeys([]);
         fetchVehicles();
       } else {
-        message.error(`Failed to restore vehicles`);
+        message.error(`Failed to activate vehicles`);
       }
     } catch (error) {
       console.error('Error restoring vehicles:', error);
-      message.error(`An error occurred while restoring vehicles`);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Cannot activate vehicles. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        message.error(`An error occurred while activating vehicles`);
+      }
     }
   };
 
@@ -259,29 +524,28 @@ const Archive = () => {
       });
 
       if (response.data.status === 'success') {
-        message.success(`${resourceIds.length} venues restored successfully`);
+        message.success(`${resourceIds.length} venues activated successfully`);
         setSelectedRowKeys([]);
         fetchVenues();
       } else {
-        message.error(`Failed to restore venues`);
+        message.error(`Failed to activate venues`);
       }
     } catch (error) {
       console.error('Error restoring venues:', error);
-      message.error(`An error occurred while restoring venues`);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Cannot activate venues. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        message.error(`An error occurred while activating venues`);
+      }
     }
   };
 
   const handleRestoreEquipment = async (record) => {
     let resourceIds;
     if (record) {
-      if (record.unit_id) {
-        resourceIds = [record.unit_id];
-      } else if (record.equip_id) {
-        resourceIds = [record.equip_id];
-      } else {
-        message.error('No valid equipment ID found.');
-        return;
-      }
+      resourceIds = [record.equip_id];
     } else {
       resourceIds = selectedRowKeys;
     }
@@ -298,17 +562,108 @@ const Archive = () => {
         headers: { 'Content-Type': 'application/json' }
       });
       if (response.data.status === 'success') {
-        message.success(`${resourceIds.length} equipment items restored successfully`);
+        message.success(`${resourceIds.length} equipment activated successfully`);
         setSelectedRowKeys([]);
         fetchEquipment();
       } else {
-        message.error(`Failed to restore equipment`);
+        message.error(`Failed to activate equipment`);
       }
     } catch (error) {
       console.error('Error restoring equipment:', error);
-      message.error(`An error occurred while restoring equipment`);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Cannot activate equipment. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        message.error(`An error occurred while activating equipment`);
+      }
     }
   };
+
+  const handleRestoreEquipmentUnits = async (record) => {
+    let resourceIds;
+    if (record) {
+      resourceIds = [record.unit_id];
+    } else {
+      resourceIds = selectedRowKeys;
+    }
+    const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
+    const payload = {
+      operation: "reactivateResource",
+      resourceType: "equipment",
+      resourceId: resourceIds,
+      is_serialize: true,
+      userid: userId
+    };
+    console.log('Restore Equipment Units Payload:', payload);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.data.status === 'success') {
+        message.success(`${resourceIds.length} equipment unit(s) activated successfully`);
+        setSelectedRowKeys([]);
+        fetchEquipmentUnits();
+      } else {
+        message.error(`Failed to activate equipment units`);
+      }
+    } catch (error) {
+      console.error('Error restoring equipment units:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Cannot activate equipment units. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        message.error(`An error occurred while activating equipment units`);
+      }
+    }
+  };
+
+  const handleRestoreCatalogItem = async (itemType, record, idField, fetchFunction) => {
+    let itemIds;
+    if (record) {
+      itemIds = [record[idField]];
+    } else {
+      itemIds = selectedRowKeys;
+    }
+    const userId = SecureStorage.getSessionItem("user_id") || SecureStorage.getLocalItem("user_id") || null;
+    const payload = {
+      operation: "unarchiveCatalogItem",
+      itemType: itemType,
+      itemId: itemIds,
+      userid: userId
+    };
+    console.log('Restore Catalog Item Payload:', payload);
+    try {
+      const response = await axios.post(`${encryptedUrl}/Admin.php`, payload, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      if (response.data.status === 'success') {
+        message.success(response.data.message || `${itemIds.length} item(s) activated successfully`);
+        setSelectedRowKeys([]);
+        fetchFunction();
+      } else {
+        message.error(response.data.message || `Failed to activate items`);
+      }
+    } catch (error) {
+      console.error('Error restoring catalog item:', error);
+      if (!error.response && (error.code === 'ERR_NETWORK' || error.message.includes('Network Error') || error.message.includes('Failed to fetch'))) {
+        toast.error('Network connection lost. Cannot activate items. Please check your internet connection.');
+      } else if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
+        toast.error('Request timeout. Please check your connection and try again.');
+      } else {
+        message.error(`An error occurred while activating items`);
+      }
+    }
+  };
+
+  const handleRestoreVehicleMakes = (record) => handleRestoreCatalogItem('vehicle_make', record, 'vehicle_make_id', fetchVehicleMakes);
+  const handleRestoreVehicleCategories = (record) => handleRestoreCatalogItem('vehicle_category', record, 'vehicle_category_id', fetchVehicleCategories);
+  const handleRestoreVehicleModels = (record) => handleRestoreCatalogItem('vehicle_model', record, 'vehicle_model_id', fetchVehicleModels);
+  const handleRestoreEquipmentCategories = (record) => handleRestoreCatalogItem('equipment_category', record, 'equipments_category_id', fetchEquipmentCategories);
+  const handleRestoreDepartments = (record) => handleRestoreCatalogItem('department', record, 'departments_id', fetchDepartments);
+  const handleRestoreHolidays = (record) => handleRestoreCatalogItem('holiday', record, 'holiday_id', fetchHolidays);
+  const handleRestoreBuildings = (record) => handleRestoreCatalogItem('building', record, 'venue_building_id', fetchBuildings);
 
 
 
@@ -347,6 +702,30 @@ const Archive = () => {
       case 3:
         fetchEquipment();
         break;
+      case 4:
+        fetchEquipmentUnits();
+        break;
+      case 5:
+        fetchVehicleMakes();
+        break;
+      case 6:
+        fetchVehicleCategories();
+        break;
+      case 7:
+        fetchVehicleModels();
+        break;
+      case 8:
+        fetchEquipmentCategories();
+        break;
+      case 9:
+        fetchDepartments();
+        break;
+      case 10:
+        fetchHolidays();
+        break;
+      case 11:
+        fetchBuildings();
+        break;
       default:
         break;
     }
@@ -356,7 +735,7 @@ const Archive = () => {
 
   const userColumns = [
     { 
-      title: 'School ID', 
+      title: 'School ID/Employee ID', 
       dataIndex: 'users_school_id', 
       key: 'school_id',
       sorter: (a, b) => a.users_school_id.localeCompare(b.users_school_id),
@@ -418,7 +797,7 @@ const Archive = () => {
       render: (_, record) => (
         <Space size="small">
           <Popconfirm
-            title="Restore this user?"
+            title="Activate this user?"
             description="This will move the user back to active status."
             onConfirm={() => handleRestoreUsers(record)}
             okText="Yes"
@@ -426,8 +805,8 @@ const Archive = () => {
             placement="left"
           >
             <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
-              <span className="hidden sm:inline">Restore</span>
-              <span className="sm:hidden">R</span>
+              <span className="hidden sm:inline">Activate</span>
+              <span className="sm:hidden">A</span>
             </Button>
           </Popconfirm>
          
@@ -484,7 +863,7 @@ const Archive = () => {
       render: (_, record) => (
         <Space size="small">
           <Popconfirm
-            title="Restore this vehicle?"
+            title="Activate this vehicle?"
             description="This will move the vehicle back to active status."
             onConfirm={() => handleRestoreVehicles(record)}
             okText="Yes"
@@ -492,8 +871,8 @@ const Archive = () => {
             placement="left"
           >
             <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
-              <span className="hidden sm:inline">Restore</span>
-              <span className="sm:hidden">R</span>
+              <span className="hidden sm:inline">Activate</span>
+              <span className="sm:hidden">A</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -522,7 +901,7 @@ const Archive = () => {
       render: (_, record) => (
         <Space size="small">
           <Popconfirm
-            title="Restore this venue?"
+            title="Activate this venue?"
             description="This will move the venue back to active status."
             onConfirm={() => handleRestoreVenues(record)}
             okText="Yes"
@@ -530,8 +909,8 @@ const Archive = () => {
             placement="left"
           >
             <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
-              <span className="hidden sm:inline">Restore</span>
-              <span className="sm:hidden">R</span>
+              <span className="hidden sm:inline">Activate</span>
+              <span className="sm:hidden">A</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -547,11 +926,18 @@ const Archive = () => {
       sorter: (a, b) => a.equip_name.localeCompare(b.equip_name),
     },
     {
-      title: 'Serial Number',
-      dataIndex: 'serial_number',
-      key: 'serial_number',
-      render: (text) => text || 'Not Applicable',
+      title: 'Type',
+      dataIndex: 'equip_type',
+      key: 'equip_type',
+      render: (text) => text || 'Not specified',
       responsive: ['md'],
+    },
+    {
+      title: 'Total Units',
+      dataIndex: 'total_units',
+      key: 'total_units',
+      render: (text) => text || '0',
+      responsive: ['lg'],
     },
     {
       title: 'Action',
@@ -559,7 +945,7 @@ const Archive = () => {
       render: (_, record) => (
         <Space size="small">
           <Popconfirm
-            title="Restore this equipment?"
+            title="Activate this equipment?"
             description="This will move the equipment back to active status."
             onConfirm={() => handleRestoreEquipment(record)}
             okText="Yes"
@@ -567,8 +953,8 @@ const Archive = () => {
             placement="left"
           >
             <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
-              <span className="hidden sm:inline">Restore</span>
-              <span className="sm:hidden">R</span>
+              <span className="hidden sm:inline">Activate</span>
+              <span className="sm:hidden">A</span>
             </Button>
           </Popconfirm>
         </Space>
@@ -582,7 +968,7 @@ const Archive = () => {
     <Empty
       image={Empty.PRESENTED_IMAGE_SIMPLE}
       description={
-        <p className="text-gray-500">No archived items found</p>
+        <p className="text-gray-500">No deactive data found</p>
       }
     />
   );
@@ -598,7 +984,15 @@ const Archive = () => {
     { key: 0, label: 'Users', icon: <UserOutlined /> },
     { key: 1, label: 'Vehicles', icon: <CarOutlined /> },
     { key: 2, label: 'Venues', icon: <HomeOutlined /> },
-    { key: 3, label: 'Equipment', icon: <ToolOutlined /> }
+    { key: 3, label: 'Equipment', icon: <ToolOutlined /> },
+    { key: 4, label: 'Equipment Units', icon: <ToolOutlined /> },
+    { key: 5, label: 'Vehicle Makes', icon: <CarOutlined /> },
+    { key: 6, label: 'Vehicle Categories', icon: <CarOutlined /> },
+    { key: 7, label: 'Vehicle Models', icon: <CarOutlined /> },
+    { key: 8, label: 'Equipment Categories', icon: <ToolOutlined /> },
+    { key: 9, label: 'Departments', icon: <HomeOutlined /> },
+    { key: 10, label: 'Holidays', icon: <HomeOutlined /> },
+    { key: 11, label: 'Buildings', icon: <HomeOutlined /> }
   ];
 
   const rowSelection = {
@@ -625,6 +1019,30 @@ const Archive = () => {
         case 3:
           handleRestoreEquipment();
           break;
+        case 4:
+          handleRestoreEquipmentUnits();
+          break;
+        case 5:
+          handleRestoreVehicleMakes();
+          break;
+        case 6:
+          handleRestoreVehicleCategories();
+          break;
+        case 7:
+          handleRestoreVehicleModels();
+          break;
+        case 8:
+          handleRestoreEquipmentCategories();
+          break;
+        case 9:
+          handleRestoreDepartments();
+          break;
+        case 10:
+          handleRestoreHolidays();
+          break;
+        case 11:
+          handleRestoreBuildings();
+          break;
         default:
           break;
       }
@@ -638,7 +1056,7 @@ const Archive = () => {
           onClick={handleRestore}
           className="bg-green-900 hover:bg-lime-900"
         >
-          Restore Selected ({selectedRowKeys.length})
+          Activate Selected ({selectedRowKeys.length})
         </Button>
       </div>
     );
@@ -649,7 +1067,15 @@ const Archive = () => {
       value === 0 ? users :
       value === 1 ? vehicles :
       value === 2 ? venues :
-      value === 3 ? equipment : []
+      value === 3 ? equipment :
+      value === 4 ? equipmentUnits :
+      value === 5 ? vehicleMakes :
+      value === 6 ? vehicleCategories :
+      value === 7 ? vehicleModels :
+      value === 8 ? equipmentCategories :
+      value === 9 ? departments :
+      value === 10 ? holidays :
+      value === 11 ? buildings : []
     );
     
     const startIndex = (currentPage - 1) * pageSize;
@@ -657,12 +1083,187 @@ const Archive = () => {
     return filteredData.slice(startIndex, endIndex);
   };
 
+  const equipmentUnitsColumns = [
+    { 
+      title: 'Equipment Name', 
+      dataIndex: 'equip_name', 
+      key: 'name',
+      sorter: (a, b) => a.equip_name.localeCompare(b.equip_name),
+    },
+    {
+      title: 'Serial Number',
+      dataIndex: 'serial_number',
+      key: 'serial_number',
+      render: (text) => text || 'N/A',
+      responsive: ['md'],
+    },
+    {
+      title: 'Type',
+      dataIndex: 'equip_type',
+      key: 'equip_type',
+      render: (text) => text || 'Not specified',
+      responsive: ['lg'],
+    },
+    {
+      title: 'Action',
+      key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm
+            title="Activate this equipment unit?"
+            description="This will move the equipment unit back to active status."
+            onConfirm={() => handleRestoreEquipmentUnits(record)}
+            okText="Yes"
+            cancelText="No"
+            placement="left"
+          >
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+              <span className="sm:hidden">A</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Vehicle Makes Columns
+  const vehicleMakesColumns = [
+    { title: 'Make Name', dataIndex: 'vehicle_make_name', key: 'name', sorter: (a, b) => a.vehicle_make_name.localeCompare(b.vehicle_make_name) },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this vehicle make?" onConfirm={() => handleRestoreVehicleMakes(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Vehicle Categories Columns
+  const vehicleCategoriesColumns = [
+    { title: 'Category Name', dataIndex: 'vehicle_category_name', key: 'name', sorter: (a, b) => a.vehicle_category_name.localeCompare(b.vehicle_category_name) },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this vehicle category?" onConfirm={() => handleRestoreVehicleCategories(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Vehicle Models Columns
+  const vehicleModelsColumns = [
+    { title: 'Model Name', dataIndex: 'vehicle_model_name', key: 'name', sorter: (a, b) => a.vehicle_model_name.localeCompare(b.vehicle_model_name) },
+    { title: 'Make', dataIndex: 'vehicle_make_name', key: 'make', responsive: ['md'] },
+    { title: 'Category', dataIndex: 'vehicle_category_name', key: 'category', responsive: ['md'] },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this vehicle model?" onConfirm={() => handleRestoreVehicleModels(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Equipment Categories Columns
+  const equipmentCategoriesColumns = [
+    { title: 'Category Name', dataIndex: 'equipments_category_name', key: 'name', sorter: (a, b) => a.equipments_category_name.localeCompare(b.equipments_category_name) },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this equipment category?" onConfirm={() => handleRestoreEquipmentCategories(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Departments Columns
+  const departmentsColumns = [
+    { title: 'Department Name', dataIndex: 'departments_name', key: 'name', sorter: (a, b) => a.departments_name.localeCompare(b.departments_name) },
+    { title: 'Type', dataIndex: 'department_type', key: 'type', render: (text) => <Tag color="blue">{text}</Tag>, responsive: ['md'] },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this department?" onConfirm={() => handleRestoreDepartments(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Holidays Columns
+  const holidaysColumns = [
+    { title: 'Holiday Name', dataIndex: 'holiday_name', key: 'name', sorter: (a, b) => a.holiday_name.localeCompare(b.holiday_name) },
+    { title: 'Date', dataIndex: 'holiday_date', key: 'date', responsive: ['md'] },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this holiday?" onConfirm={() => handleRestoreHolidays(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
+  // Buildings Columns
+  const buildingsColumns = [
+    { title: 'Building Name', dataIndex: 'venue_building_name', key: 'name', sorter: (a, b) => a.venue_building_name.localeCompare(b.venue_building_name) },
+    {
+      title: 'Action', key: 'action',
+      render: (_, record) => (
+        <Space size="small">
+          <Popconfirm title="Activate this building?" onConfirm={() => handleRestoreBuildings(record)} okText="Yes" cancelText="No" placement="left">
+            <Button type="primary" icon={<UndoOutlined />} className="bg-green-900 hover:bg-lime-900" size="small">
+              <span className="hidden sm:inline">Activate</span>
+            </Button>
+          </Popconfirm>
+        </Space>
+      ),
+    }
+  ];
+
   const getCurrentColumns = () => {
     switch (value) {
       case 0: return userColumns;
       case 1: return vehicleColumns;
       case 2: return venueColumns;
       case 3: return equipmentColumns;
+      case 4: return equipmentUnitsColumns;
+      case 5: return vehicleMakesColumns;
+      case 6: return vehicleCategoriesColumns;
+      case 7: return vehicleModelsColumns;
+      case 8: return equipmentCategoriesColumns;
+      case 9: return departmentsColumns;
+      case 10: return holidaysColumns;
+      case 11: return buildingsColumns;
       default: return [];
     }
   };
@@ -673,6 +1274,14 @@ const Archive = () => {
       case 1: return 'vehicle_id';
       case 2: return 'ven_id';
       case 3: return 'equip_id';
+      case 4: return 'unit_id';
+      case 5: return 'vehicle_make_id';
+      case 6: return 'vehicle_category_id';
+      case 7: return 'vehicle_model_id';
+      case 8: return 'equipments_category_id';
+      case 9: return 'departments_id';
+      case 10: return 'holiday_id';
+      case 11: return 'venue_building_id';
       default: return 'id';
     }
   };
@@ -682,7 +1291,15 @@ const Archive = () => {
       value === 0 ? users :
       value === 1 ? vehicles :
       value === 2 ? venues :
-      value === 3 ? equipment : []
+      value === 3 ? equipment :
+      value === 4 ? equipmentUnits :
+      value === 5 ? vehicleMakes :
+      value === 6 ? vehicleCategories :
+      value === 7 ? vehicleModels :
+      value === 8 ? equipmentCategories :
+      value === 9 ? departments :
+      value === 10 ? holidays :
+      value === 11 ? buildings : []
     ).length;
   };
 
@@ -703,8 +1320,8 @@ const Archive = () => {
             className="mb-4 sm:mb-8"
           >
             <div className="mb-2 sm:mb-4 mt-10">
-              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
-                Archive   
+              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-15">
+                Deactivate Data   
               </h2>
             </div>
           </motion.div>
@@ -774,7 +1391,7 @@ const Archive = () => {
                       scroll={{ x: 'max-content' }}
                       bordered
                       size="middle"
-                      className="archive-table"
+                      className="deactive-data-table"
                       locale={{ emptyText: renderEmptyState() }}
                     />
                     

@@ -4,9 +4,14 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { SecureStorage } from '../../utils/encryption';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { useMediaQuery } from 'react-responsive';
 
-const ProfileAdminModal = ({ isOpen, onClose }) => {
-  // NOTE: 2FA features are temporarily commented out below
+const ProfileAdminModal = ({ isOpen, onClose, onProfileUpdate }) => {
+  // Responsive breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  // const isDesktop = useMediaQuery({ minWidth: 1024 });
+  
   // Get base URL from SecureStorage
   const baseUrl = SecureStorage.getLocalItem("url");
   
@@ -21,7 +26,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     users_school_id: '',
     users_contact_number: '',
     departments_name: '',
-    user_level_name: ''
+    user_level_name: '',
+    users_user_level_id: '',
+    license_number: ''
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isAdmin, setIsAdmin] = useState(false);
@@ -32,6 +39,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
   const [titles, setTitles] = useState([]);
   // Add a state for user levels
   const [userLevels, setUserLevels] = useState([]);
+  const [driverRestrictions, setDriverRestrictions] = useState([]);
 
   // Add a state for loading 2FA status
   const [is2FALoading, setIs2FALoading] = useState(false);
@@ -71,6 +79,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           
           // Set the user data state
           setUserData(userData);
+          setDriverRestrictions(responseData.driver_restrictions || []);
           console.log('User state updated with fetched data');
         } else {
           console.error('User data array is empty or not an array', responseData.data);
@@ -80,6 +89,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error("Error fetching user data:", error);
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to load profile data.');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +121,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       }
     } catch (error) {
       console.error("Error fetching departments:", error);
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to load departments.');
+      }
     }
   }, [baseUrl]);
 
@@ -131,6 +146,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         setTitles([]);
       }
     } catch (error) {
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to load titles.');
+      }
       setTitles([]);
     }
   }, [baseUrl]);
@@ -154,16 +172,19 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         setUserLevels([]);
       }
     } catch (error) {
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to load user levels.');
+      }
       setUserLevels([]);
     }
   }, [baseUrl]);
 
-  /*
   // Function to fetch 2FA status
   const fetch2FAStatus = useCallback(async () => {
     try {
       setIs2FALoading(true);
       const userId = SecureStorage.getLocalItem('user_id') || '42';
+      
       const response = await fetch(`${baseUrl}/login.php`, {
         method: 'POST',
         headers: {
@@ -171,28 +192,37 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         },
         body: JSON.stringify({
           operation: "fetch2FA",
-          json: { user_id: userId }
+          json: {
+            user_id: userId
+          }
         })
       });
+      
       const responseData = await response.json();
+      console.log('2FA Status Response:', responseData);
+      
       if (responseData && responseData.status === 'success') {
         setTwoFactorData(responseData);
         setTwoFactorEnabled(responseData.is_active);
+      } else {
+        console.error('Failed to fetch 2FA status', responseData);
       }
     } catch (error) {
       console.error("Error fetching 2FA status:", error);
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to load 2FA status.');
+      }
     } finally {
       setIs2FALoading(false);
     }
   }, [baseUrl]);
-  */
 
   // Fetch user data, departments, and 2FA status when modal opens
   useEffect(() => {
     if (isOpen) {
       fetchUserData();
       fetchDepartments();
-      // fetch2FAStatus(); // TEMP disabled
+      fetch2FAStatus();
       fetchTitles();
       fetchUserLevels();
       // Check if user is admin
@@ -200,7 +230,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
       setIsAdmin(userLevelId === 1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, fetchUserData, fetchDepartments, fetchTitles, fetchUserLevels]);
+  }, [isOpen, fetchUserData, fetchDepartments, fetch2FAStatus, fetchTitles, fetchUserLevels]);
 
   const [isEditing, setIsEditing] = useState(false);
   const [editedData, setEditedData] = useState({...userData});
@@ -232,17 +262,7 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     hasNumber: false,
     hasSpecial: false
   });
-  const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
-  const [verificationCode, setVerificationCode] = useState('');
-  const [verificationError, setVerificationError] = useState('');
-
-  // State for loading indicators
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [isSendingVerification, setIsSendingVerification] = useState(false);
-
-  // State for storing OTP locally
-  const [storedOtp, setStoredOtp] = useState(null);
-  const [otpExpiration, setOtpExpiration] = useState(null);
+  // Removed email verification states - no longer needed
 
   // Handle modal close with ESC key
   useEffect(() => {
@@ -304,12 +324,20 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           alert('Profile updated successfully!');
           // Refresh user data
           fetchUserData();
+          // Call the callback to refresh user details in Sidebar
+          if (onProfileUpdate) {
+            onProfileUpdate();
+          }
         } else {
           alert('Failed to update profile: ' + (responseData.message || 'Unknown error'));
         }
       } catch (error) {
         console.error("Error updating profile:", error);
-        alert('An error occurred while updating your profile. Please try again.');
+        if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+          toast.error('Network connection lost. Unable to update profile.');
+        } else {
+          alert('An error occurred while updating your profile. Please try again.');
+        }
       }
     } else {
       // Start editing - make a copy of the current userData
@@ -435,36 +463,238 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
         }
       } catch (error) {
         console.error("Error updating password:", error);
-        alert('An error occurred while updating your password. Please try again.');
+        if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+          toast.error('Network connection lost. Unable to update password.');
+        } else {
+          alert('An error occurred while updating your password. Please try again.');
+        }
       } finally {
         setIsSubmittingPassword(false);
       }
     }
   };
 
-  /*
   const handleToggle2FA = async () => {
-    // TEMP disabled
+    if (twoFactorEnabled) {
+      // Handle disabling 2FA
+      try {
+        setIsDisabling2FA(true);
+        const userId = SecureStorage.getLocalItem('user_id');
+        
+        const response = await fetch(`${baseUrl}/login.php`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            operation: "disable2FA",
+            json: {
+              user_id: userId
+            }
+          })
+        });
+        
+        const responseData = await response.json();
+        if (responseData && responseData.status === 'success') {
+          setTwoFactorEnabled(false);
+          setTwoFactorData({
+            is_active: false,
+            expires_at: '',
+            requires_verification: false
+          });
+          toast.success('Two-factor authentication disabled successfully!', {
+            position: "bottom-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        } else {
+          toast.error('Failed to disable two-factor authentication.', {
+            position: "bottom-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        }
+      } catch (error) {
+        console.error("Error disabling 2FA:", error);
+        if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+          toast.error('Network connection lost. Unable to disable 2FA.');
+        } else {
+          toast.error('An error occurred while disabling two-factor authentication.', {
+            position: "bottom-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+          });
+        }
+      } finally {
+        setIsDisabling2FA(false);
+      }
+    } else {
+      // Handle enabling 2FA directly
+      setShowTwoFactorSetup(!showTwoFactorSetup);
+    }
   };
-  */
 
-  /*
-  const handleVerifyCode = async () => {
-    // TEMP disabled
+  // Function to enable 2FA directly without email verification
+  const handleEnable2FA = async () => {
+    try {
+      setIs2FALoading(true);
+      const userId = SecureStorage.getLocalItem('user_id');
+      
+      const response = await fetch(`${baseUrl}/login.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: "enable2FA",
+          json: {
+            user_id: userId,
+            duration_days: twoFactorDuration
+          }
+        })
+      });
+      
+      const responseData = await response.json();
+      
+      if (responseData && responseData.status === 'success') {
+        toast.success('Two-factor authentication enabled successfully!', {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        
+        setTwoFactorEnabled(true);
+        setTwoFactorData({
+          is_active: true,
+          expires_at: responseData.expires_at,
+          requires_verification: false
+        });
+        setShowTwoFactorSetup(false);
+        
+        // Refresh 2FA status
+        fetch2FAStatus();
+      } else {
+        toast.error('Failed to enable two-factor authentication: ' + (responseData.message || 'Unknown error'), {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error enabling 2FA:", error);
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to enable 2FA.');
+      } else {
+        toast.error('An error occurred while enabling two-factor authentication.', {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+    } finally {
+      setIs2FALoading(false);
+    }
   };
-  */
 
-  /*
-  const sendEmailVerification = async () => {
-    // TEMP disabled
+  // Function to extend 2FA duration
+  const handleExtend2FA = async () => {
+    try {
+      setIs2FALoading(true);
+      const userId = SecureStorage.getLocalItem('user_id');
+      
+      const response = await fetch(`${baseUrl}/login.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          operation: "enable2FA",
+          json: {
+            user_id: userId,
+            duration_days: twoFactorDuration
+          }
+        })
+      });
+      
+      const responseData = await response.json();
+      
+      if (responseData && responseData.status === 'success') {
+        toast.success(`Two-factor authentication extended by ${twoFactorDuration} ${twoFactorDuration === 1 ? 'day' : 'days'}!`, {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+        
+        setTwoFactorData({
+          ...twoFactorData,
+          expires_at: responseData.expires_at
+        });
+        setShowTwoFactorSetup(false);
+        
+        // Refresh 2FA status
+        fetch2FAStatus();
+      } else {
+        toast.error('Failed to extend two-factor authentication: ' + (responseData.message || 'Unknown error'), {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+    } catch (error) {
+      console.error("Error extending 2FA:", error);
+      if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+        toast.error('Network connection lost. Unable to extend 2FA.');
+      } else {
+        toast.error('An error occurred while extending two-factor authentication.', {
+          position: "bottom-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: true,
+        });
+      }
+    } finally {
+      setIs2FALoading(false);
+    }
   };
-  */
 
-  /*
-  const handle2FAVerification = () => {
-    // TEMP disabled
+  // Calculate days remaining for 2FA
+  const calculateDaysRemaining = () => {
+    if (!twoFactorData.expires_at) return 0;
+    
+    const now = new Date();
+    const expiryDate = new Date(twoFactorData.expires_at);
+    const diffTime = expiryDate - now;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return Math.max(0, diffDays);
   };
-  */
+
 
   // Render a restricted field with appropriate styling
   const renderRestrictedField = (label, icon, value, fieldName, isSelectField = false) => {
@@ -473,12 +703,16 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
     
     return (
       <div>
-        <label className="flex items-center space-x-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
-          {icon}
+        <label className={`flex items-center space-x-2 font-medium text-gray-500 dark:text-gray-400 mb-2 ${
+          isMobile ? 'text-xs' : 'text-sm'
+        }`}>
+          {React.cloneElement(icon, { size: isMobile ? 12 : 14 })}
           <span>{label}</span>
           {isRestrictedField && isEditing && (
-            <div className="ml-2 text-gray-400 dark:text-gray-500 flex items-center text-xs">
-              <FaInfoCircle size={12} className="mr-1" />
+            <div className={`ml-2 text-gray-400 dark:text-gray-500 flex items-center ${
+              isMobile ? 'text-[10px]' : 'text-xs'
+            }`}>
+              <FaInfoCircle size={isMobile ? 10 : 12} className="mr-1" />
               <span>Admin only</span>
             </div>
           )}
@@ -489,7 +723,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
             name={fieldName}
             value={editedData[fieldName] || editedData.users_department_id || ''}
             onChange={handleInputChange}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+            className={`w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+              isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'
+            }`}
           >
             <option value="">Select Department</option>
             {departments.map(dept => (
@@ -503,7 +739,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
             name="user_level_id"
             value={editedData.user_level_id || ''}
             onChange={handleInputChange}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+            className={`w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+              isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'
+            }`}
           >
             <option value="">Select Role</option>
             {userLevels.map(level => (
@@ -516,10 +754,14 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
             name={fieldName}
             value={editedData[fieldName] || ''}
             onChange={handleInputChange}
-            className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+            className={`w-full border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+              isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'
+            }`}
           />
         ) : (
-          <p className={`${isRoleField ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-800 dark:text-white'} ${isRestrictedField && isEditing ? 'bg-gray-100 dark:bg-gray-700' : 'bg-white/70 dark:bg-gray-800/70'} px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 ${isRestrictedField && isEditing ? 'cursor-not-allowed' : ''}`}>
+          <p className={`${isRoleField ? 'text-green-600 dark:text-green-400 font-medium' : 'text-gray-800 dark:text-white'} ${isRestrictedField && isEditing ? 'bg-gray-100 dark:bg-gray-700' : 'bg-white/70 dark:bg-gray-800/70'} rounded-lg border border-gray-200 dark:border-gray-700 ${isRestrictedField && isEditing ? 'cursor-not-allowed' : ''} ${
+            isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'
+          }`}>
             {value || (isRoleField ? 'Administrator' : '')}
           </p>
         )}
@@ -538,40 +780,54 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 20, scale: 0.95 }}
           transition={{ duration: 0.3, ease: "easeOut" }}
-          className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-4xl max-h-[95vh] overflow-hidden flex flex-col"
+          className={`bg-white dark:bg-gray-900 shadow-2xl w-full overflow-hidden flex flex-col ${
+            isMobile ? 'max-w-full max-h-full rounded-none' : isTablet ? 'max-w-3xl max-h-[95vh] rounded-2xl' : 'max-w-4xl max-h-[95vh] rounded-2xl'
+          }`}
         >
           {/* Header */}
-          <div className="relative px-6 sm:px-8 py-6 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-br from-green-500 via-green-600 to-green-700 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800">
+          <div className={`relative border-b border-gray-200 dark:border-gray-700 bg-gradient-to-br from-green-500 via-green-600 to-green-700 dark:from-gray-800 dark:via-gray-700 dark:to-gray-800 ${
+            isMobile ? 'px-4 py-4' : 'px-6 sm:px-8 py-6'
+          }`}>
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
-                <div className="bg-white/20 backdrop-blur-sm p-3 rounded-xl">
-                  <FaUser className="text-white" size={24} />
+                <div className={`bg-white/20 backdrop-blur-sm rounded-xl ${
+                  isMobile ? 'p-2' : 'p-3'
+                }`}>
+                  <FaUser className="text-white" size={isMobile ? 20 : 24} />
                 </div>
                 <div>
-                  <h2 className="text-xl sm:text-2xl font-bold text-white">My Profile</h2>
-                  <p className="text-green-100 text-sm hidden sm:block">Manage your account settings</p>
+                  <h2 className={`font-bold text-white ${
+                    isMobile ? 'text-lg' : 'text-xl sm:text-2xl'
+                  }`}>My Profile</h2>
+                  {!isMobile && <p className="text-green-100 text-sm">Manage your account settings</p>}
                 </div>
               </div>
               <button 
                 onClick={onClose}
-                className="text-white/80 hover:text-white bg-white/10 hover:bg-white/20 p-2 rounded-xl transition-all duration-200"
+                className={`text-white/80 hover:text-white bg-white/10 hover:bg-white/20 rounded-xl transition-all duration-200 ${
+                  isMobile ? 'p-1.5' : 'p-2'
+                }`}
               >
-                <FaTimes size={20} />
+                <FaTimes size={isMobile ? 18 : 20} />
               </button>
             </div>
           </div>
           
           {/* Tabs */}
-          <div className="flex border-b border-gray-200 dark:border-gray-700 px-4 sm:px-8 bg-gray-50 dark:bg-gray-800/50">
+          <div className={`flex border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 ${
+            isMobile ? 'px-2' : 'px-4 sm:px-8'
+          }`}>
             <button
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-4 text-sm font-medium flex items-center justify-center sm:justify-start space-x-2 transition-all relative ${
+              className={`flex-1 sm:flex-none font-medium flex items-center justify-center sm:justify-start space-x-2 transition-all relative ${
+                isMobile ? 'px-3 py-3 text-xs' : 'px-4 sm:px-6 py-4 text-sm'
+              } ${
                 activeTab === 'profile' 
                   ? 'text-green-600 dark:text-green-400 bg-white dark:bg-gray-800 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-white/50 dark:hover:bg-gray-800/50'
               }`}
               onClick={() => setActiveTab('profile')}
             >
-              <FaIdCard size={16} />
+              <FaIdCard size={isMobile ? 14 : 16} />
               <span className="hidden sm:inline">Profile</span>
               <span className="sm:hidden">Info</span>
               {activeTab === 'profile' && (
@@ -583,14 +839,16 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
               )}
             </button>
             <button
-              className={`flex-1 sm:flex-none px-4 sm:px-6 py-4 text-sm font-medium flex items-center justify-center sm:justify-start space-x-2 transition-all relative ${
+              className={`flex-1 sm:flex-none font-medium flex items-center justify-center sm:justify-start space-x-2 transition-all relative ${
+                isMobile ? 'px-3 py-3 text-xs' : 'px-4 sm:px-6 py-4 text-sm'
+              } ${
                 activeTab === 'security' 
                   ? 'text-green-600 dark:text-green-400 bg-white dark:bg-gray-800 shadow-sm'
                   : 'text-gray-600 dark:text-gray-400 hover:text-green-600 dark:hover:text-green-400 hover:bg-white/50 dark:hover:bg-gray-800/50'
               }`}
               onClick={() => setActiveTab('security')}
             >
-              <FaLock size={16} />
+              <FaLock size={isMobile ? 14 : 16} />
               <span>Security</span>
               {activeTab === 'security' && (
                 <motion.div 
@@ -603,7 +861,9 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
           </div>
           
           {/* Content */}
-          <div className="p-4 sm:p-6 lg:p-8 flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900">
+          <div className={`flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-900 ${
+            isMobile ? 'p-3' : isTablet ? 'p-4' : 'p-4 sm:p-6 lg:p-8'
+          }`}>
             {/* Profile Tab */}
             {activeTab === 'profile' && (
               <motion.div 
@@ -612,11 +872,17 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                 transition={{ duration: 0.3 }}
                 className="space-y-6"
               >
-                <div className="flex justify-between items-center">
-                  <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Personal Information</h3>
+                <div className={`flex items-center ${
+                  isMobile ? 'flex-col space-y-2' : 'justify-between'
+                }`}>
+                  <h3 className={`font-semibold text-gray-800 dark:text-white ${
+                    isMobile ? 'text-base' : 'text-lg'
+                  }`}>Personal Information</h3>
                   <button 
                     onClick={handleEditToggle} 
-                    className={`flex items-center space-x-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                    className={`flex items-center space-x-2 rounded-lg font-medium transition-all ${
+                      isMobile ? 'px-3 py-1.5 text-xs w-full justify-center' : 'px-4 py-2 text-sm'
+                    } ${
                       isEditing 
                         ? 'bg-green-100 dark:bg-green-800/30 text-green-600 dark:text-green-400 hover:bg-green-200 dark:hover:bg-green-800/50' 
                         : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -624,13 +890,13 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                   >
                     {isEditing ? (
                       <>
-                        <FaCheck size={14} />
-                        <span>Save Changes</span>
+                        <FaCheck size={isMobile ? 12 : 14} />
+                        <span>{isMobile ? 'Save' : 'Save Changes'}</span>
                       </>
                     ) : (
                       <>
-                        <FaEdit size={14} />
-                        <span>Edit Profile</span>
+                        <FaEdit size={isMobile ? 12 : 14} />
+                        <span>{isMobile ? 'Edit' : 'Edit Profile'}</span>
                       </>
                     )}
                   </button>
@@ -643,9 +909,11 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                 ) : (
                   <div className="w-full">
                     {/* Profile Details */}
-                    <div className="space-y-4">
-                      <div className="bg-gray-50 dark:bg-gray-700/40 p-6 rounded-xl shadow-sm">
-                        <div className="space-y-4">
+                    <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
+                      <div className={`bg-gray-50 dark:bg-gray-700/40 rounded-xl shadow-sm ${
+                        isMobile ? 'p-4' : 'p-6'
+                      }`}>
+                        <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
                           {/* Full Name Fields - split into first, middle, last when editing */}
                           <div>
                             <label className="flex items-center space-x-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
@@ -655,14 +923,25 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                             {isEditing ? (
                               <div className="space-y-2">
                                 <div>
-                                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Title</label>
+                                  <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 flex items-center">
+                                    <span>Title</span>
+                                    {!isAdmin && (
+                                      <div className="ml-2 text-gray-400 dark:text-gray-500 flex items-center text-[10px]">
+                                        <FaInfoCircle size={10} className="mr-1" />
+                                        <span>Admin only</span>
+                                      </div>
+                                    )}
+                                  </label>
                                   <select
                                     name="title_abbreviation"
                                     value={editedData.title_abbreviation || ''}
                                     onChange={handleInputChange}
-                                    className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
+                                    disabled={!isAdmin}
+                                    className={`w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                                      !isAdmin ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed' : 'bg-white dark:bg-gray-800'
+                                    }`}
                                   >
-                                    <option value="">Select Title</option>
+                                    <option value="">None</option>
                                     {titles.map((title) => (
                                       <option key={title.id} value={title.abbreviation}>{title.abbreviation}</option>
                                     ))}
@@ -771,6 +1050,54 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                           
                           {/* User Level - Always display only */}
                           {renderRestrictedField('User Role', <FaIdCard size={14} />, userData.user_level_name, 'user_level_name')}
+                          {(userData.users_user_level_id === 19 || (userData.user_level_name && userData.user_level_name.toLowerCase() === 'driver')) && (
+                            <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
+                              <div className={`bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 ${isMobile ? 'p-4' : 'p-6'}`}>
+                                <div className={isMobile ? 'space-y-3' : 'space-y-4'}>
+                                  <h4>Driver info</h4>
+                                  <div>
+                                    <label className="flex items-center space-x-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                      <FaIdCard size={14} />
+                                      <span>License Number</span>
+                                    </label>
+                                    <p className="text-gray-800 dark:text-white bg-gray-50 dark:bg-gray-700/40 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                                      {userData.license_number || 'N/A'}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <label className="flex items-center space-x-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                                      <FaShieldAlt size={14} />
+                                      <span>Restriction Codes</span>
+                                    </label>
+                                    {driverRestrictions && driverRestrictions.length > 0 ? (
+                                      <div className="space-y-3">
+                                        {driverRestrictions.map((restriction) => (
+                                          <div key={restriction.driver_restriction_id} className="rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700/40 px-4 py-3">
+                                            <div className="flex items-center justify-between">
+                                              <span className="text-sm font-semibold text-gray-800 dark:text-white">
+                                                {restriction.restriction_code}
+                                              </span>
+                                              <span className="text-xs text-gray-500 dark:text-gray-400">
+                                                {restriction.vehicle_category}
+                                              </span>
+                                            </div>
+                                            <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                                              {restriction.restriction_desc}
+                                            </p>
+                                            
+                                          </div>
+                                        ))}
+                                      </div>
+                                    ) : (
+                                      <p className="text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/40 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-600">
+                                        No restriction codes assigned.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -785,59 +1112,86 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.3 }}
-                className="space-y-6"
+                className={isMobile ? 'space-y-4' : 'space-y-6'}
               >
-                {/* Two-Factor Authentication Section - TEMPORARILY DISABLED */}
-                {false && (
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 p-6 rounded-xl shadow-sm">
-                  <div className="flex justify-between items-center mb-4">
-                    <div className="flex items-center space-x-3">
-                      <div className="bg-green-100 dark:bg-green-800/30 p-2 rounded-lg">
-                        <FaShieldAlt className="text-green-600 dark:text-green-400" size={18} />
+                {/* Two-Factor Authentication Section */}
+                <div className={`bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 rounded-xl shadow-sm ${
+                  isMobile ? 'p-4' : 'p-6'
+                }`}>
+                  <div className={`flex items-center mb-4 ${
+                    isMobile ? 'flex-col space-y-2' : 'justify-between'
+                  }`}>
+                    <div className={`flex items-center ${
+                      isMobile ? 'space-x-2 w-full' : 'space-x-3'
+                    }`}>
+                      <div className={`bg-green-100 dark:bg-green-800/30 rounded-lg ${
+                        isMobile ? 'p-1.5' : 'p-2'
+                      }`}>
+                        <FaShieldAlt className="text-green-600 dark:text-green-400" size={isMobile ? 16 : 18} />
                       </div>
-                      <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Two-Factor Authentication</h3>
+                      <h3 className={`font-semibold text-gray-800 dark:text-white ${
+                        isMobile ? 'text-base' : 'text-lg'
+                      }`}>Two-Factor Authentication</h3>
                       {is2FALoading && (
-                        <div className="ml-2 animate-spin h-4 w-4 border-2 border-green-500 border-t-transparent rounded-full"></div>
+                        <div className={`animate-spin border-2 border-green-500 border-t-transparent rounded-full ${
+                          isMobile ? 'ml-1 h-3 w-3' : 'ml-2 h-4 w-4'
+                        }`}></div>
                       )}
                     </div>
-                    <button 
-                      onClick={() => setShowTwoFactorSetup(!showTwoFactorSetup)}
-                      className="p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
-                      aria-label={showTwoFactorSetup ? "Collapse 2FA setup" : "Expand 2FA setup"}
-                    >
-                      <FaChevronDown 
-                        className={`text-gray-600 dark:text-gray-300 transform transition-transform ${showTwoFactorSetup ? 'rotate-180' : ''}`} 
-                        size={16} 
-                      />
-                    </button>
+                    {!twoFactorEnabled && (
+                      <button 
+                        onClick={() => setShowTwoFactorSetup(!showTwoFactorSetup)}
+                        className={`rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors ${
+                          isMobile ? 'p-1.5 w-full mt-2' : 'p-2'
+                        }`}
+                        aria-label={showTwoFactorSetup ? "Collapse 2FA setup" : "Expand 2FA setup"}
+                      >
+                        <FaChevronDown 
+                          className={`text-gray-600 dark:text-gray-300 transform transition-transform ${showTwoFactorSetup ? 'rotate-180' : ''} ${
+                            isMobile ? 'mx-auto' : ''
+                          }`} 
+                          size={isMobile ? 14 : 16} 
+                        />
+                      </button>
+                    )}
                   </div>
                   
-                  <p className="text-sm text-gray-600 dark:text-gray-300 mb-3">
+                  <p className={`text-gray-600 dark:text-gray-300 mb-3 ${
+                    isMobile ? 'text-xs' : 'text-sm'
+                  }`}>
                     {twoFactorEnabled 
                       ? "Two-factor authentication is currently enabled for your account. This adds an extra layer of security." 
                       : "Add an extra layer of security to your account by enabling two-factor authentication."}
                   </p>
                   
                   {twoFactorEnabled && (
-                    <div className="space-y-3 mb-4">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2 bg-green-100 dark:bg-green-800/30 text-green-600 dark:text-green-400 px-3 py-1.5 rounded-full text-sm font-medium">
-                          <FaToggleOn size={20} />
+                    <div className={isMobile ? 'space-y-2 mb-3' : 'space-y-3 mb-4'}>
+                      <div className={`flex items-center ${
+                        isMobile ? 'flex-col space-y-2' : 'justify-between'
+                      }`}>
+                        <div className={`flex items-center space-x-2 bg-green-100 dark:bg-green-800/30 text-green-600 dark:text-green-400 px-3 py-1.5 rounded-full font-medium ${
+                          isMobile ? 'text-xs w-full justify-center' : 'text-sm'
+                        }`}>
+                          <FaToggleOn size={isMobile ? 16 : 20} />
                           <span>Enabled</span>
                         </div>
                         <button 
                           onClick={handleToggle2FA}
                           disabled={isDisabling2FA}
-                          className={`text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 text-sm font-medium flex items-center space-x-1 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-800/30 transition-colors ${isDisabling2FA ? 'opacity-70 cursor-not-allowed' : ''}`}
+                          className={`text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 font-medium flex items-center space-x-1 bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-800/30 transition-colors ${
+                            isMobile ? 'text-xs w-full justify-center' : 'text-sm'
+                          } ${isDisabling2FA ? 'opacity-70 cursor-not-allowed' : ''}`}
                         >
                           {isDisabling2FA ? (
                             <>
-                              <div className="animate-spin h-4 w-4 border-2 border-red-500 border-t-transparent rounded-full mr-1"></div>
+                              <div className={`animate-spin border-2 border-red-500 border-t-transparent rounded-full mr-1 ${
+                                isMobile ? 'h-3 w-3' : 'h-4 w-4'
+                              }`}></div>
                               <span>Disabling...</span>
                             </>
                           ) : (
                             <>
-                              <FaTimes size={14} />
+                              <FaTimes size={isMobile ? 12 : 14} />
                               <span>Disable 2FA</span>
                             </>
                           )}
@@ -845,177 +1199,195 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                       </div>
                       
                       {twoFactorData.expires_at && (
-                        <div className="flex items-center space-x-2 text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
-                          <FaClock className="text-gray-500 dark:text-gray-400" />
-                          <span>
-                            Expires on: <span className="font-medium">{new Date(twoFactorData.expires_at).toLocaleString()}</span>
-                          </span>
+                        <div className={isMobile ? 'space-y-1.5' : 'space-y-2'}>
+                          <div className={`flex items-center space-x-2 text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg ${
+                            isMobile ? 'text-xs flex-col items-start space-y-1' : 'text-sm'
+                          }`}>
+                            <div className="flex items-center space-x-2">
+                              <FaClock className="text-gray-500 dark:text-gray-400" size={isMobile ? 12 : 14} />
+                              <span className="font-medium">Expires on:</span>
+                            </div>
+                            <span className={isMobile ? 'ml-5 text-[10px]' : ''}>
+                              {new Date(twoFactorData.expires_at).toLocaleString()}
+                            </span>
+                          </div>
+                          <div className={`bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg ${
+                            isMobile ? 'space-y-2' : 'flex items-center justify-between'
+                          }`}>
+                            <div className="flex items-center space-x-2">
+                              <FaClock className="text-blue-500 dark:text-blue-400" size={isMobile ? 14 : 16} />
+                              <span className={`text-blue-700 dark:text-blue-300 ${
+                                isMobile ? 'text-xs' : 'text-sm'
+                              }`}>
+                                <span className={`font-bold ${
+                                  isMobile ? 'text-base' : 'text-lg'
+                                }`}>{calculateDaysRemaining()}</span> {calculateDaysRemaining() === 1 ? 'day' : 'days'} remaining
+                              </span>
+                            </div>
+                            <button 
+                              onClick={() => setShowTwoFactorSetup(!showTwoFactorSetup)}
+                              className={`text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 font-medium bg-blue-100 dark:bg-blue-800/30 px-3 py-1.5 rounded-full hover:bg-blue-200 dark:hover:bg-blue-800/50 transition-colors flex items-center space-x-1 ${
+                                isMobile ? 'text-xs w-full justify-center' : 'text-sm'
+                              }`}
+                            >
+                              <span>+ Add Days</span>
+                            </button>
+                          </div>
                         </div>
                       )}
                     </div>
                   )}
                   
-                  {showTwoFactorSetup && !twoFactorEnabled && (
+                  {showTwoFactorSetup && (
                     <motion.div 
                       initial={{ opacity: 0, height: 0 }}
                       animate={{ opacity: 1, height: 'auto' }}
                       exit={{ opacity: 0, height: 0 }}
-                      className="mt-4 p-5 border border-green-200 dark:border-green-800/50 rounded-xl bg-white dark:bg-gray-800 shadow-sm"
+                      className={`border border-green-200 dark:border-green-800/50 rounded-xl bg-white dark:bg-gray-800 shadow-sm ${
+                        isMobile ? 'mt-3 p-3' : 'mt-4 p-5'
+                      }`}
                     >
-                      <h4 className="font-medium text-gray-800 dark:text-white mb-3">Set up Two-Factor Authentication</h4>
+                      <h4 className={`font-medium text-gray-800 dark:text-white mb-3 ${
+                        isMobile ? 'text-sm' : 'text-base'
+                      }`}>
+                        {twoFactorEnabled ? 'Extend Two-Factor Authentication' : 'Set up Two-Factor Authentication'}
+                      </h4>
                       
-                      <div className="mb-6 bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg border border-blue-100 dark:border-blue-800/30">
-                        <h5 className="font-medium text-blue-800 dark:text-blue-400 mb-2">What is Two-Factor Authentication?</h5>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 mb-2">
-                          Two-Factor Authentication (2FA) adds an extra layer of security to your account by requiring:
-                        </p>
-                        <ol className="list-decimal ml-5 text-sm text-gray-700 dark:text-gray-300 space-y-1">
-                          <li><span className="font-medium">Something you know</span> - your password</li>
-                          <li><span className="font-medium">Something you have</span> - a temporary verification code from your authenticator app</li>
-                        </ol>
-                        <p className="text-sm text-gray-700 dark:text-gray-300 mt-2">
-                          This means that even if someone gets your password, they still can't access your account without your personal device.
-                        </p>
-                      </div>
+                      {!twoFactorEnabled && (
+                        <div className={`bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-100 dark:border-blue-800/30 ${
+                          isMobile ? 'mb-4 p-3' : 'mb-6 p-4'
+                        }`}>
+                          <h5 className={`font-medium text-blue-800 dark:text-blue-400 mb-2 ${
+                            isMobile ? 'text-xs' : 'text-sm'
+                          }`}>What is Two-Factor Authentication?</h5>
+                          <p className={`text-gray-700 dark:text-gray-300 mb-2 ${
+                            isMobile ? 'text-[10px]' : 'text-sm'
+                          }`}>
+                            Two-Factor Authentication (2FA) adds an extra layer of security to your account by requiring:
+                          </p>
+                          <ol className={`list-decimal ml-5 text-gray-700 dark:text-gray-300 space-y-1 ${
+                            isMobile ? 'text-[10px]' : 'text-sm'
+                          }`}>
+                            <li><span className="font-medium">Something you know</span> - your password</li>
+                            <li><span className="font-medium">Something you have</span> - a temporary verification code from your authenticator app</li>
+                          </ol>
+                          <p className={`text-gray-700 dark:text-gray-300 mt-2 ${
+                            isMobile ? 'text-[10px]' : 'text-sm'
+                          }`}>
+                            This means that even if someone gets your password, they still can't access your account without your personal device.
+                          </p>
+                        </div>
+                      )}
                       
-                      <div className="mb-5">
-                        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                          2FA Session Duration
+                      <div className={isMobile ? 'mb-4' : 'mb-5'}>
+                        <label className={`block font-medium text-gray-700 dark:text-gray-300 mb-2 ${
+                          isMobile ? 'text-xs' : 'text-sm'
+                        }`}>
+                          {twoFactorEnabled ? 'Add Days to 2FA Session' : '2FA Session Duration'}
                         </label>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
-                          Choose how long you'll be able to use the application before being asked for a new 2FA code.
+                        <p className={`text-gray-500 dark:text-gray-400 mb-3 ${
+                          isMobile ? 'text-[10px]' : 'text-xs'
+                        }`}>
+                          {twoFactorEnabled 
+                            ? `Add additional days to your current 2FA session. Current expiry: ${new Date(twoFactorData.expires_at).toLocaleDateString()}`
+                            : 'Choose how long you\'ll be able to use the application before being asked for a new 2FA code.'
+                          }
                         </p>
-                        <div className="grid grid-cols-4 gap-2">
+                        <div className={`grid grid-cols-4 ${
+                          isMobile ? 'gap-1.5' : 'gap-2'
+                        }`}>
                           {[1, 3, 5, 7].map((days) => (
                             <button
                               key={days}
                               type="button"
                               onClick={() => setTwoFactorDuration(days)}
-                              className={`py-2 px-2 rounded-lg text-sm font-medium border ${
+                              className={`rounded-lg font-medium border transition-colors flex flex-col items-center justify-center ${
+                                isMobile ? 'py-1.5 px-1 text-xs' : 'py-2 px-2 text-sm'
+                              } ${
                                 twoFactorDuration === days
                                   ? 'bg-green-100 border-green-500 text-green-700 dark:bg-green-800/30 dark:border-green-600 dark:text-green-400'
                                   : 'bg-white border-gray-300 text-gray-700 hover:bg-gray-50 dark:bg-gray-800 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-gray-700'
-                              } transition-colors flex flex-col items-center justify-center`}
+                              }`}
                             >
-                              <span className="font-bold">{days}</span>
-                              <span className="text-xs">{days === 1 ? 'Day' : 'Days'}</span>
+                              <span className={`font-bold ${
+                                isMobile ? 'text-sm' : 'text-base'
+                              }`}>{twoFactorEnabled ? '+' : ''}{days}</span>
+                              <span className={isMobile ? 'text-[10px]' : 'text-xs'}>{days === 1 ? 'Day' : 'Days'}</span>
                             </button>
                           ))}
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">
-                          Your 2FA session will expire after <span className="font-medium text-green-600 dark:text-green-400">{twoFactorDuration} {twoFactorDuration === 1 ? 'day' : 'days'}</span>, requiring re-verification for enhanced security.
+                        <p className={`text-gray-500 dark:text-gray-400 mt-2 ${
+                          isMobile ? 'text-[10px]' : 'text-xs'
+                        }`}>
+                          {twoFactorEnabled 
+                            ? `Add ${twoFactorDuration} ${twoFactorDuration === 1 ? 'day' : 'days'} to your current 2FA session.`
+                            : `Your 2FA session will expire after ${twoFactorDuration} ${twoFactorDuration === 1 ? 'day' : 'days'}, requiring re-verification for enhanced security.`
+                          }
                         </p>
                       </div>
                       
-                      {isVerifyingEmail ? (
-                        <div className="mb-5 border border-blue-200 dark:border-blue-800 p-4 rounded-lg bg-blue-50 dark:bg-blue-900/20">
-                          <h5 className="font-medium text-blue-800 dark:text-blue-400 mb-3 flex items-center space-x-2">
-                            <FaShieldAlt className="text-blue-600 dark:text-blue-400" />
-                            <span>Email Verification</span>
-                          </h5>
-                          <p className="text-sm text-gray-700 dark:text-gray-300 mb-3">
-                            A verification code has been sent to your email. Please enter it below to continue.
-                          </p>
-                          <div className="mb-3">
-                            <div className="flex items-center space-x-2">
-                              <input
-                                type="text"
-                                value={verificationCode}
-                                onChange={(e) => setVerificationCode(e.target.value)}
-                                placeholder="Enter verification code"
-                                className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
-                              />
-                            </div>
-                            <div className="flex items-center mt-2 text-xs text-blue-600 dark:text-blue-400">
-                              <FaInfoCircle className="mr-1" />
-                              <span>This code will enable 2FA for {twoFactorDuration} {twoFactorDuration === 1 ? 'day' : 'days'}.</span>
-                            </div>
-                            {verificationError && (
-                              <p className="text-red-500 text-sm mt-2 bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-100 dark:border-red-800/50 flex items-center">
-                                <FaTimes className="mr-2 text-red-500" />
-                                {verificationError}
-                              </p>
-                            )}
-                          </div>
-                          <div className="flex space-x-3">
-                            <button
-                              onClick={handleVerifyCode}
-                              disabled={isVerifying || !verificationCode}
-                              className={`flex-1 px-4 py-2 ${isVerifying || !verificationCode ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg font-medium transition-all flex items-center justify-center`}
-                            >
-                              {isVerifying ? (
-                                <>
-                                  <div className="w-4 h-4 mr-2 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                                  Verifying...
-                                </>
-                              ) : (
-                                <>
-                                  <FaCheck className="mr-2" /> Verify Code
-                                </>
-                              )}
-                            </button>
-                            <button
-                              onClick={sendEmailVerification}
-                              disabled={isSendingVerification}
-                              className={`px-4 py-2 ${isSendingVerification ? 'bg-gray-300 dark:bg-gray-600' : 'bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600'} text-gray-700 dark:text-gray-300 rounded-lg font-medium transition-all flex items-center`}
-                            >
-                              {isSendingVerification ? (
-                                <>
-                                  <div className="w-4 h-4 mr-2 border-2 border-gray-600 dark:border-gray-300 border-t-transparent rounded-full animate-spin"></div>
-                                  Sending...
-                                </>
-                              ) : (
-                                <>
-                                  <FaEnvelope className="mr-2" /> Resend Code
-                                </>
-                              )}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <button
-                          onClick={handle2FAVerification}
-                          disabled={isSendingVerification}
-                          className={`w-full px-6 py-3 mb-4 ${isSendingVerification ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white rounded-lg font-medium transition-all flex items-center justify-center`}
-                        >
-                          {isSendingVerification ? (
-                            <>
-                              <div className="w-5 h-5 mr-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                              Sending Verification...
-                            </>
-                          ) : (
-                            <>
-                              <FaShieldAlt className="mr-2" /> Enable Two-Factor Authentication
-                            </>
-                          )}
-                        </button>
-                      )}
+                      <button
+                        onClick={twoFactorEnabled ? handleExtend2FA : handleEnable2FA}
+                        disabled={is2FALoading}
+                        className={`w-full rounded-lg font-medium transition-all flex items-center justify-center ${
+                          isMobile ? 'px-4 py-2 text-sm mb-3' : 'px-6 py-3 mb-4'
+                        } ${is2FALoading ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white`}
+                      >
+                        {is2FALoading ? (
+                          <>
+                            <div className={`border-2 border-white border-t-transparent rounded-full animate-spin ${
+                              isMobile ? 'w-4 h-4 mr-2' : 'w-5 h-5 mr-3'
+                            }`}></div>
+                            {twoFactorEnabled ? 'Extending...' : 'Enabling...'}
+                          </>
+                        ) : (
+                          <>
+                            <FaShieldAlt className="mr-2" size={isMobile ? 14 : 16} /> 
+                            {twoFactorEnabled ? `Add ${twoFactorDuration} ${twoFactorDuration === 1 ? 'Day' : 'Days'}` : isMobile ? 'Enable 2FA' : 'Enable Two-Factor Authentication'}
+                          </>
+                        )}
+                      </button>
                       
-                      <div className="mt-4 text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
-                        <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Important:</p>
-                        <ul className="list-disc ml-4 space-y-1">
-                          <li>Store backup codes in a secure location in case you lose access to your device.</li>
-                          <li>If you change or lose your device, you'll need to reconfigure 2FA.</li>
-                          <li>Without access to your 2FA device or backup codes, account recovery may be difficult.</li>
-                        </ul>
-                      </div>
+                      {!twoFactorEnabled && (
+                        <div className={`text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg ${
+                          isMobile ? 'mt-3 text-[10px]' : 'mt-4 text-xs'
+                        }`}>
+                          <p className="font-medium text-gray-700 dark:text-gray-300 mb-1">Important:</p>
+                          <ul className={`list-disc space-y-1 ${
+                            isMobile ? 'ml-3' : 'ml-4'
+                          }`}>
+                            <li>Store backup codes in a secure location in case you lose access to your device.</li>
+                            <li>If you change or lose your device, you'll need to reconfigure 2FA.</li>
+                            <li>Without access to your 2FA device or backup codes, account recovery may be difficult.</li>
+                          </ul>
+                        </div>
+                      )}
                     </motion.div>
                   )}
                 </div>
-                )}
                 
                 {/* Change Password Section */}
-                <div className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 p-6 rounded-xl shadow-sm">
-                  <div className="flex items-center space-x-3 mb-5">
-                    <div className="bg-green-100 dark:bg-green-800/30 p-2 rounded-lg">
-                      <FaLock className="text-green-600 dark:text-green-400" size={18} />
+                <div className={`bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-700/40 dark:to-gray-800/40 rounded-xl shadow-sm ${
+                  isMobile ? 'p-4' : 'p-6'
+                }`}>
+                  <div className={`flex items-center mb-5 ${
+                    isMobile ? 'space-x-2' : 'space-x-3'
+                  }`}>
+                    <div className={`bg-green-100 dark:bg-green-800/30 rounded-lg ${
+                      isMobile ? 'p-1.5' : 'p-2'
+                    }`}>
+                      <FaLock className="text-green-600 dark:text-green-400" size={isMobile ? 16 : 18} />
                     </div>
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-white">Change Password</h3>
+                    <h3 className={`font-semibold text-gray-800 dark:text-white ${
+                      isMobile ? 'text-base' : 'text-lg'
+                    }`}>Change Password</h3>
                   </div>
                   
-                  <form onSubmit={handlePasswordSubmit} className="space-y-4">
+                  <form onSubmit={handlePasswordSubmit} className={isMobile ? 'space-y-3' : 'space-y-4'}>
                     <div>
-                      <label className="flex items-center space-x-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
+                      <label className={`flex items-center space-x-2 font-medium text-gray-500 dark:text-gray-400 mb-2 ${
+                        isMobile ? 'text-xs' : 'text-sm'
+                      }`}>
                         <span>Current Password</span>
                       </label>
                       <div className="relative">
@@ -1024,23 +1396,27 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                           name="currentPassword"
                           value={passwordData.currentPassword}
                           onChange={handlePasswordChange}
-                          className={`w-full px-4 py-3 border ${
+                          className={`w-full border rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:border-transparent transition-all pr-10 ${
+                            isMobile ? 'px-3 py-2 text-sm' : 'px-4 py-3'
+                          } ${
                             passwordErrors.currentPassword 
                               ? 'border-red-300 dark:border-red-700 focus:ring-red-500' 
                               : 'border-gray-300 dark:border-gray-600 focus:ring-green-500'
-                          } rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:border-transparent transition-all pr-10`}
+                          }`}
                         />
                         <button 
                           type="button"
                           onClick={() => togglePasswordVisibility('currentPassword')}
                           className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
                         >
-                          {passwordVisibility.currentPassword ? <FaEyeSlash size={18} /> : <FaEye size={18} />}
+                          {passwordVisibility.currentPassword ? <FaEyeSlash size={isMobile ? 16 : 18} /> : <FaEye size={isMobile ? 16 : 18} />}
                         </button>
                       </div>
                       {passwordErrors.currentPassword && (
-                        <p className="text-red-500 text-sm mt-2 flex items-center space-x-1">
-                          <FaTimes size={12} />
+                        <p className={`text-red-500 mt-2 flex items-center space-x-1 ${
+                          isMobile ? 'text-xs' : 'text-sm'
+                        }`}>
+                          <FaTimes size={isMobile ? 10 : 12} />
                           <span>{passwordErrors.currentPassword}</span>
                         </p>
                       )}
@@ -1158,11 +1534,13 @@ const ProfileAdminModal = ({ isOpen, onClose }) => {
                     <button
                       type="submit"
                       disabled={isSubmittingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword}
-                      className={`mt-5 w-full px-6 py-3 bg-gradient-to-r ${
+                      className={`w-full bg-gradient-to-r rounded-lg font-medium transition-all shadow-sm hover:shadow flex items-center justify-center ${
+                        isMobile ? 'mt-4 px-4 py-2 text-sm' : 'mt-5 px-6 py-3 text-sm'
+                      } ${
                         isSubmittingPassword || !passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword
                           ? 'from-gray-400 to-gray-500 cursor-not-allowed'
                           : 'from-green-500 to-green-600 hover:from-green-600 hover:to-green-700'
-                      } text-white rounded-lg text-sm font-medium transition-all shadow-sm hover:shadow flex items-center justify-center`}
+                      } text-white`}
                     >
                       {isSubmittingPassword ? 'Updating...' : 'Update Password'}
                     </button>

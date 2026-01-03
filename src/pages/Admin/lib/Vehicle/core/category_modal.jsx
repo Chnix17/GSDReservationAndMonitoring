@@ -14,13 +14,20 @@ const CategoryModal = ({ open, onCancel, onSuccess }) => {
             const values = await form.validateFields();
             const sanitizedName = sanitizeInput(values.categoryName);
             
-            if (!sanitizedName.trim()) {
-                toast.error("Please enter a category name.");
+            // Additional validation for whitespace
+            if (!sanitizedName || !sanitizedName.trim()) {
+                toast.error("Category name cannot be empty or contain only spaces.", {
+                    description: "Please enter a valid category name.",
+                    duration: 4000
+                });
                 return;
             }
 
             if (!validateInput(sanitizedName)) {
-                toast.error("Input contains invalid characters.");
+                toast.error("Input contains invalid characters.", {
+                    description: "Please use only letters, numbers, and basic punctuation.",
+                    duration: 4000
+                });
                 return;
             }
 
@@ -28,11 +35,11 @@ const CategoryModal = ({ open, onCancel, onSuccess }) => {
             const encryptedUrl = SecureStorage.getLocalItem("url");
             const userId = SecureStorage.getSessionItem('user_id') || SecureStorage.getLocalItem('user_id') || null;
 
-            console.log('Submitting category data:', sanitizedName);
+            console.log('Submitting category data:', sanitizedName.trim());
 
             const requestData = {
                 operation: 'saveCategoryData',
-                vehicle_category_name: sanitizedName,
+                vehicle_category_name: sanitizedName.trim(),
                 userid: userId
             };
 
@@ -46,16 +53,44 @@ const CategoryModal = ({ open, onCancel, onSuccess }) => {
 
             if (response.data.status === 'success') {
                 console.log('Category added successfully, refreshing categories...');
-                toast.success('Vehicle category added successfully!');
+                toast.success(`Vehicle category "${sanitizedName.trim()}" added successfully!`, {
+                    description: "The category has been added to the system.",
+                    duration: 4000
+                });
                 form.resetFields();
                 onSuccess();
             } else {
                 console.error('Failed to add category:', response.data.message);
-                toast.error(response.data.message || 'Failed to add vehicle category.');
+                toast.error(response.data.message || 'Failed to add vehicle category.', {
+                    description: "Please check the category name and try again.",
+                    duration: 5000
+                });
             }
         } catch (error) {
             console.error('Error adding category:', error);
-            toast.error('Error adding vehicle category.');
+            
+            // Handle different types of errors with specific messages
+            if (error.errorFields && error.errorFields.length > 0) {
+                toast.error("Please fix the form errors before submitting.", {
+                    description: "Check the highlighted fields for validation errors.",
+                    duration: 4000
+                });
+            } else if (error.response?.status === 409) {
+                toast.error("Vehicle category already exists!", {
+                    description: "Please use a different category name.",
+                    duration: 5000
+                });
+            } else if (error.response?.status >= 500) {
+                toast.error("Server error occurred", {
+                    description: "Please try again later or contact support.",
+                    duration: 5000
+                });
+            } else {
+                toast.error(error.response?.data?.message || error.message || "An unexpected error occurred", {
+                    description: "Please try again or contact support if the problem persists.",
+                    duration: 5000
+                });
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -93,6 +128,14 @@ const CategoryModal = ({ open, onCancel, onSuccess }) => {
                         {
                             required: true,
                             message: 'Please enter category name'
+                        },
+                        { 
+                            validator: (_, value) => {
+                                if (!value || !value.trim()) {
+                                    return Promise.reject(new Error('Category name cannot be empty or contain only spaces'));
+                                }
+                                return Promise.resolve();
+                            }
                         }
                     ]}
                 >

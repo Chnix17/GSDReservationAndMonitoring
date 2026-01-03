@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Modal, Tag, Tabs, Spin, Collapse, Button } from 'antd';
+import { Modal, Tag, Tabs, Spin, Collapse, Button, Drawer } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -7,9 +7,11 @@ import {
     CarOutlined,
     ToolOutlined,
     DownOutlined,
-    RightOutlined
+    RightOutlined,
+    CloseOutlined
 } from '@ant-design/icons';
-import { DriversTicket } from './trip_ticket';
+import { useMediaQuery } from 'react-responsive';
+import DriversTicket from './trip_ticket';
 
 const formatDateRange = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -44,26 +46,52 @@ const ReservationDetails = ({
     showAvailability = false,
     checkResourceAvailability = () => true
 }) => {
+    // Responsive breakpoints
+    const isMobile = useMediaQuery({ maxWidth: 767 });
+    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+    // const isDesktop = useMediaQuery({ minWidth: 1024 });
+    // const isSmallScreen = useMediaQuery({ maxWidth: 1023 });
+
     // Trip Ticket export state
     const [isExporting, setIsExporting] = useState(false);
+    const [showTripTicketPreview, setShowTripTicketPreview] = useState(false);
     const ticketInitialData = useMemo(() => {
         const details = reservationDetails || {};
         // Map destination (from title) and purpose (from description)
         const destination = details.reservation_title || details.title || details.destination || details.reservation_destination || '';
         const purpose = details.reservation_description || details.description || details.purpose || details.reservation_purpose || '';
 
-        // Drivers: join names
-        const driverName = Array.isArray(details.drivers)
-            ? details.drivers.map(d => d.driver_name || d.name).filter(Boolean).join(', ')
-            : '';
-
-        // Vehicles: prefer change_vehicle_license if provided, else license
-        const plateNo = Array.isArray(details.vehicles)
-            ? details.vehicles
-                .map(v => (v.change_vehicle_license && String(v.change_vehicle_license).trim() !== '') ? v.change_vehicle_license : v.license)
-                .filter(Boolean)
-                .join(', ')
-            : '';
+        // Align drivers with their assigned vehicles using reservation_vehicle_id
+        let driverName = '';
+        let plateNo = '';
+        
+        if (Array.isArray(details.vehicles) && details.vehicles.length > 0) {
+            const alignedPairs = details.vehicles.map(vehicle => {
+                // Find the driver assigned to this vehicle
+                const assignedDriver = Array.isArray(details.drivers) 
+                    ? details.drivers.find(d => String(d.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id))
+                    : null;
+                
+                // Get driver name
+                const driverNameForVehicle = assignedDriver 
+                    ? (assignedDriver.driver_name || assignedDriver.name || 'N/A')
+                    : 'N/A';
+                
+                // Get vehicle plate number (prefer change_vehicle_license if provided)
+                const vehiclePlate = (vehicle.change_vehicle_license && String(vehicle.change_vehicle_license).trim() !== '') 
+                    ? vehicle.change_vehicle_license 
+                    : (vehicle.license || 'N/A');
+                
+                return {
+                    driver: driverNameForVehicle,
+                    plate: vehiclePlate
+                };
+            });
+            
+            // Join aligned pairs
+            driverName = alignedPairs.map(pair => pair.driver).join(', ');
+            plateNo = alignedPairs.map(pair => pair.plate).join(', ');
+        }
 
         // Passengers: join names
         const authorizedPassenger = Array.isArray(details.passengers)
@@ -72,11 +100,11 @@ const ReservationDetails = ({
 
         return {
             date: '',
-            driverName,
-            plateNo,
-            authorizedPassenger,
-            destination,
-            purpose,
+            driverName: driverName || 'N/A',
+            plateNo: plateNo || 'N/A',
+            authorizedPassenger: authorizedPassenger || 'N/A',
+            destination: destination || 'N/A',
+            purpose: purpose || 'N/A',
         };
     }, [reservationDetails]);
 
@@ -113,6 +141,9 @@ const ReservationDetails = ({
         ? reservationDetails.status_history
         : (Array.isArray(reservationDetails.statusHistory) ? reservationDetails.statusHistory : []);
     const isReservedActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reserved' && Number(s.reservation_active) === 1);
+    const isOnGoing = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'on going' && Number(s.reservation_active) === 1);
+    const isCompleted = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'completed' && Number(s.reservation_active) === 1);
+    const canShowTripTicket = isReservedActive || isOnGoing || isCompleted;
     const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
     const hasRescheduleProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
     const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
@@ -127,61 +158,78 @@ const ReservationDetails = ({
         : reservationDetails.reservation_end_date;
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
-    return (
-        <Modal
-            title={null}
-            visible={visible}
-            onCancel={onClose}
-            width={800}
-            footer={[
-                <button key="close" onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
-                    Close
-                </button>
-            ]}
-            className="reservation-detail-modal"
-            bodyStyle={{ padding: '0' }}
-            maskClosable={false}
-            zIndex={1000}
-        >
-            <div className="p-0">
+    // Responsive modal/drawer content
+    const modalContent = (
+        <div className={`${isMobile ? 'h-full' : ''}`}>
+            <div className={`${isMobile ? 'p-0 h-full flex flex-col' : 'p-0'}`}>
                 {/* Header Section */}
-                <div className="bg-gradient-to-r from-green-700 to-lime-500 p-6 rounded-t-lg">
-                    <div className="flex justify-between items-center">
+                <div className={`bg-gradient-to-r from-green-700 to-lime-500 ${isMobile ? 'p-3 relative' : 'p-4'} ${isMobile ? 'rounded-none' : 'rounded-t-lg'}`}>
+                    {/* Close button for mobile */}
+                    {isMobile && (
+                        <button 
+                            onClick={onClose}
+                            className="absolute top-2 right-2 p-1.5 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+                        >
+                            <CloseOutlined className="text-white text-sm" />
+                        </button>
+                    )}
+                    
+                    <div className={`${isMobile ? 'flex items-center justify-between pr-8' : 'flex justify-between items-center'}`}>
                         <div>
-                            <div className="flex items-center gap-2">
-                          
-                              
-                            </div>
-                           
-                        </div>
-                        <div className="text-white text-right">
-                            <p className="text-white opacity-90 text-sm">Created on</p>
-                            <p className="font-semibold">{new Date(reservationDetails.reservation_created_at).toLocaleString()}</p>
-                            {isReservedActive && (reservationDetails.vehicles?.length || 0) > 0 && (
-                                <div className="mt-3">
-                                    <Button 
-                                        onClick={() => setIsExporting(true)}
-                                        loading={isExporting}
-                                    >
-                                        {isExporting ? 'Preparing Ticket...' : 'Download Trip Ticket'}
-                                    </Button>
-                                </div>
+                            <h2 className={`text-white font-bold ${isMobile ? 'text-base' : 'text-lg'}`}>
+                                Reservation Details
+                            </h2>
+                            {isMobile && (
+                                <p className="text-white/80 text-xs mt-0.5">
+                                    {new Date(reservationDetails.reservation_created_at).toLocaleDateString()}
+                                </p>
                             )}
                         </div>
+                        
+                        {!isMobile && (
+                            <div className="text-white text-right">
+                                <p className="text-white opacity-90 text-sm">Created on</p>
+                                <p className="font-semibold">{new Date(reservationDetails.reservation_created_at).toLocaleString()}</p>
+                                {canShowTripTicket && (reservationDetails.vehicles?.length || 0) > 0 && (
+                                    <div className="mt-3">
+                                        <Button 
+                                            onClick={() => setShowTripTicketPreview(true)}
+                                            loading={isExporting}
+                                        >
+                                            {isExporting ? 'Preparing Ticket...' : 'Generate Trip Ticket'}
+                                        </Button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
+                    
+                    {/* Trip Ticket button for mobile - moved to bottom of header */}
+                    {isMobile && canShowTripTicket && (reservationDetails.vehicles?.length || 0) > 0 && (
+                        <div className="mt-2 flex justify-center">
+                            <Button 
+                                onClick={() => setShowTripTicketPreview(true)}
+                                loading={isExporting}
+                                size="small"
+                                className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                            >
+                                {isExporting ? 'Preparing...' : 'Trip Ticket'}
+                            </Button>
+                        </div>
+                    )}
                 </div>
 
                 {/* Main Content */}
-                <div className="p-6">
-                    <Tabs defaultActiveKey="1" type="card">
+                <div className={`${isMobile ? 'p-4 flex-1 overflow-auto' : 'p-6'}`}>
+                    <Tabs defaultActiveKey="1" type="card" size={isMobile ? 'small' : 'default'}>
                         <Tabs.TabPane tab="Reservation Details" key="1">
                             <div className="space-y-6">
                                 {/* Basic Details Section */}
-                                <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm mb-6">
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                <div className={`bg-white ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-blue-200 shadow-sm mb-6`}>
+                                    <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-1 gap-5' : 'grid-cols-2 gap-6'}`}>
                                         {/* Requester Information */}
                                         <div className="space-y-4">
-                                            <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                                            <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 flex items-center gap-2`}>
                                                 <UserOutlined className="text-blue-500" />
                                                 Requester Details
                                             </h3>
@@ -203,7 +251,7 @@ const ReservationDetails = ({
 
                                         {/* Schedule and Details */}
                                         <div className="space-y-4">
-                                            <h3 className="text-lg font-medium text-gray-800 flex items-center gap-2">
+                                            <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 flex items-center gap-2`}>
                                                 <CalendarOutlined className="text-orange-500" />
                                                 Schedule & Details
                                             </h3>
@@ -223,6 +271,13 @@ const ReservationDetails = ({
                                                         endDateStr
                                                     )}</p>
                                                 </div>
+                                                {/* Show decline reason if available */}
+                                                {reservationDetails.decline_reason && (
+                                                    <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                                                        <p className="text-sm text-red-700 font-medium mb-1">❌ Decline Reason</p>
+                                                        <p className="text-sm text-red-900">{reservationDetails.decline_reason}</p>
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
@@ -230,9 +285,9 @@ const ReservationDetails = ({
 
                                 {/* Reschedule Proposed Section */}
                                 {showReschedulePendingCard && (
-                                    <div className="bg-yellow-50 p-6 rounded-lg border border-yellow-200 shadow-sm mb-6">
-                                        <h3 className="text-lg font-medium text-gray-800 mb-4">Proposed Reschedule Pending Confirmation</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className={`bg-yellow-50 ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-yellow-200 shadow-sm mb-6`}>
+                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 mb-4`}>Proposed Reschedule Pending Confirmation</h3>
+                                        <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-1 gap-5' : 'grid-cols-2 gap-6'}`}>
                                             <div>
                                                 <p className="text-sm text-gray-500">Original Date & Time</p>
                                                 <p className="font-medium">{formatDateRange(
@@ -283,9 +338,9 @@ const ReservationDetails = ({
 
                                 {/* Reschedule Confirmed Section */}
                                 {rescheduleConfirmedStatus && (
-                                    <div className="bg-green-50 p-6 rounded-lg border border-green-200 shadow-sm mb-6">
-                                        <h3 className="text-lg font-medium text-gray-800 mb-4">Reschedule Confirmed</h3>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <div className={`bg-green-50 ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-green-200 shadow-sm mb-6`}>
+                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 mb-4`}>Reschedule Confirmed</h3>
+                                        <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-1 gap-5' : 'grid-cols-2 gap-6'}`}>
                                             <div>
                                                 <p className="text-sm text-gray-500">Original Date & Time</p>
                                                 <p className="font-medium">{formatDateRange(
@@ -335,8 +390,8 @@ const ReservationDetails = ({
                                 )}
 
                                 {/* Resources Section */}
-                                <div className="bg-white p-6 rounded-lg border border-blue-200 shadow-sm">
-                                    <h3 className="text-lg font-medium mb-4 text-gray-800">Requested Resources</h3>
+                                <div className={`bg-white ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-blue-200 shadow-sm`}>
+                                    <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium mb-4 text-gray-800`}>Requested Resources</h3>
                                     <div className="space-y-6">
                                         {/* Venues */}
                                         {reservationDetails.venues?.length > 0 && (
@@ -351,20 +406,30 @@ const ReservationDetails = ({
                                                         const displayName = changedCandidate
                                                             ? ((venue.change_venue_name && venue.change_venue_name.trim()) || `ID ${venue.change_venue_id}`)
                                                             : venue.venue_name;
+                                                        const displayBuildingName = changedCandidate
+                                                            ? (venue.change_venue_building_name || 'Location not specified')
+                                                            : (venue.venue_building_name || 'Location not specified');
                                                         const availabilityVenueId = changedCandidate ? (venue.change_venue_id || venue.venue_id) : venue.venue_id;
                                                         return (
-                                                            <div key={venue.reservation_venue_id || venue.venue_id} className="p-3 border rounded-lg flex items-start justify-between">
-                                                                <div className="flex items-start gap-2 min-w-0">
-                                                                    <BuildOutlined className="mt-0.5 text-purple-500" />
-                                                                    <div className="min-w-0">
-                                                                        <p className="font-medium text-gray-800 break-words">{displayName}</p>
+                                                            <div key={venue.reservation_venue_id || venue.venue_id} className={`${isMobile ? 'p-2' : 'p-3'} border rounded-lg`}>
+                                                                <div className="flex items-start justify-between mb-2">
+                                                                    <div className="flex items-start gap-2 min-w-0">
+                                                                        <BuildOutlined className="mt-0.5 text-purple-500" />
+                                                                        <div className="min-w-0">
+                                                                            <p className={`font-medium text-gray-800 break-words ${isMobile ? 'text-sm' : ''}`}>{displayName}</p>
+                                                                            <p className={`text-xs text-gray-500 mt-0.5`}>📍 {displayBuildingName}</p>
+                                                                        </div>
                                                                     </div>
+                                                                    {showAvailability && (
+                                                                        <Tag className="shrink-0" color={checkResourceAvailability('venue', availabilityVenueId, reservationDetails.availabilityData) ? 'green' : 'red'}>
+                                                                            {checkResourceAvailability('venue', availabilityVenueId, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
+                                                                        </Tag>
+                                                                    )}
                                                                 </div>
-                                                                {showAvailability && (
-                                                                    <Tag className="shrink-0" color={checkResourceAvailability('venue', availabilityVenueId, reservationDetails.availabilityData) ? 'green' : 'red'}>
-                                                                        {checkResourceAvailability('venue', availabilityVenueId, reservationDetails.availabilityData) ? 'Available' : 'Not Available'}
-                                                                    </Tag>
-                                                                )}
+                                                                <div className="flex items-center gap-2 text-xs text-gray-600 ml-6">
+                                                                    <UserOutlined className="text-gray-500" />
+                                                                    <span>Participants: <span className="font-medium text-gray-800">{venue.participants || 'Not specified'}</span></span>
+                                                                </div>
                                                             </div>
                                                         );
                                                     })}
@@ -375,8 +440,8 @@ const ReservationDetails = ({
                                         {/* Vehicles */}
                                         {reservationDetails.vehicles?.length > 0 && (
                                             <div>
-                                                <h4 className="text-base font-medium mb-2 text-gray-800">Vehicles</h4>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <h4 className={`${isMobile ? 'text-sm' : 'text-base'} font-medium mb-2 text-gray-800`}>Vehicles</h4>
+                                                <div className={`grid ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-1 sm:grid-cols-2 gap-3'}`}>
                                                     {reservationDetails.vehicles.map((vehicle) => {
                                                         // const changedCandidate = hasActiveReschedule && (
                                                         //     (vehicle.change_vehicle_model && vehicle.change_vehicle_model.trim() !== '') ||
@@ -402,15 +467,15 @@ const ReservationDetails = ({
                                                             ? vehicle.change_vehicle_license
                                                             : vehicle.license || 'N/A';
                                                         return (
-                                                            <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className="bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-xl p-4 hover:shadow-md transition-shadow duration-200">
-                                                                <div className="flex items-start justify-between mb-3">
+                                                            <div key={vehicle.reservation_vehicle_id || vehicle.vehicle_id} className={`bg-gradient-to-r from-slate-50 to-gray-50 border border-gray-200 rounded-xl ${isMobile ? 'p-3' : 'p-4'} hover:shadow-md transition-shadow duration-200`}>
+                                                                <div className={`flex items-start justify-between ${isMobile ? 'mb-2' : 'mb-3'}`}>
                                                                     <div className="flex items-center gap-3">
-                                                                        <div className="bg-blue-100 p-2 rounded-lg">
-                                                                            <CarOutlined className="text-blue-600 text-lg" />
+                                                                        <div className={`bg-blue-100 ${isMobile ? 'p-1.5' : 'p-2'} rounded-lg`}>
+                                                                            <CarOutlined className={`text-blue-600 ${isMobile ? 'text-base' : 'text-lg'}`} />
                                                                         </div>
                                                                         <div>
-                                                                            <h5 className="font-semibold text-gray-900 text-lg">{displayModel}</h5>
-                                                                            <p className="text-gray-600 text-sm">{displayMake} • {displayYear}</p>
+                                                                            <h5 className={`font-semibold text-gray-900 ${isMobile ? 'text-base' : 'text-lg'}`}>{displayModel}</h5>
+                                                                            <p className={`text-gray-600 ${isMobile ? 'text-xs' : 'text-sm'}`}>{displayMake} • {displayYear}</p>
                                                                         </div>
                                                                     </div>
                                                                     {showAvailability && (
@@ -424,31 +489,31 @@ const ReservationDetails = ({
                                                                     )}
                                                                 </div>
                                                                 
-                                                                <div className="mb-3 space-y-2">
-                                                                    <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+                                                                <div className={`${isMobile ? 'mb-2' : 'mb-3'} space-y-2`}>
+                                                                    <div className={`flex ${isMobile ? 'flex-col gap-1' : 'flex-col sm:flex-row sm:items-center gap-2 sm:gap-4'}`}>
                                                                         <div className="flex items-center gap-2">
-                                                                            <span className="text-sm text-gray-500">License Plate:</span>
-                                                                            <span className="font-mono font-semibold text-gray-800">{displayLicense}</span>
+                                                                            <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500`}>License Plate:</span>
+                                                                            <span className={`font-mono font-semibold text-gray-800 ${isMobile ? 'text-xs' : ''}`}>{displayLicense}</span>
                                                                         </div>
-                                                                        <span className="hidden sm:inline text-sm text-gray-500">•</span>
+                                                                        <span className={`${isMobile ? 'hidden' : 'hidden sm:inline'} text-sm text-gray-500`}>•</span>
                                                                         <div className="flex items-center gap-2">
-                                                                            <span className="text-sm text-gray-500">Category:</span>
-                                                                            <span className="text-sm text-gray-800 font-medium break-words">{displayCategory}</span>
+                                                                            <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500`}>Category:</span>
+                                                                            <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-800 font-medium break-words`}>{displayCategory}</span>
                                                                         </div>
                                                                     </div>
                                                                 </div>
                                                                 
                                                                 {assignedDriver && (
-                                                                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                                                    <div className={`flex items-center gap-2 ${isMobile ? 'pt-1.5' : 'pt-2'} border-t border-gray-200`}>
                                                                         <UserOutlined className="text-gray-400" />
-                                                                        <span className="text-sm text-gray-600">Driver: </span>
-                                                                        <span className="text-sm font-medium text-gray-800">{assignedDriver.driver_name}</span>
+                                                                        <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600`}>Driver: </span>
+                                                                        <span className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium text-gray-800`}>{assignedDriver.driver_name}</span>
                                                                     </div>
                                                                 )}
                                                                 {!assignedDriver && (
-                                                                    <div className="flex items-center gap-2 pt-2 border-t border-gray-200">
+                                                                    <div className={`flex items-center gap-2 ${isMobile ? 'pt-1.5' : 'pt-2'} border-t border-gray-200`}>
                                                                         <UserOutlined className="text-gray-300" />
-                                                                        <span className="text-sm text-gray-400 italic">No driver assigned</span>
+                                                                        <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-400 italic`}>No driver assigned</span>
                                                                     </div>
                                                                 )}
                                                             </div>
@@ -461,17 +526,44 @@ const ReservationDetails = ({
                                         {/* Equipment */}
                                         {reservationDetails.equipment?.length > 0 && (
                                             <div>
-                                                <h4 className="text-base font-medium mb-2 text-gray-800">Equipment</h4>
-                                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                                <h4 className={`${isMobile ? 'text-sm' : 'text-base'} font-medium mb-2 text-gray-800`}>Equipment</h4>
+                                                <div className={`grid ${isMobile ? 'grid-cols-1 gap-2' : 'grid-cols-1 sm:grid-cols-2 gap-3'}`}>
                                                     {reservationDetails.equipment.map((item) => (
-                                                        <div key={item.reservation_equipment_id || item.equipment_id || item.name} className="p-3 border rounded-lg flex items-start justify-between">
-                                                            <div className="flex items-start gap-2 min-w-0">
-                                                                <ToolOutlined className="mt-0.5 text-orange-500" />
-                                                                <div className="min-w-0">
-                                                                    <p className="font-medium text-gray-800 break-words">{item.name}</p>
+                                                        <div key={item.reservation_equipment_id || item.equipment_id || item.name} className={`${isMobile ? 'p-3' : 'p-4'} border rounded-lg bg-gradient-to-r from-orange-50 to-amber-50`}>
+                                                            <div className="flex items-start justify-between mb-2">
+                                                                <div className="flex items-start gap-2 min-w-0">
+                                                                    <ToolOutlined className="mt-0.5 text-orange-500" />
+                                                                    <div className="min-w-0">
+                                                                        <p className={`font-medium text-gray-800 break-words ${isMobile ? 'text-sm' : ''}`}>{item.name}</p>
+                                                                    </div>
                                                                 </div>
+                                                                <Tag color="orange" className="shrink-0" size={isMobile ? 'small' : 'default'}>Qty: {item.quantity}</Tag>
                                                             </div>
-                                                            <Tag color="orange" className="shrink-0">Qty: {item.quantity}</Tag>
+                                                            {/* Display units if available */}
+                                                            {item.units && item.units.length > 0 && (
+                                                                <div className="mt-2 ml-6 space-y-1">
+                                                                    <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-600 font-medium mb-1`}>Assigned Units:</p>
+                                                                    {item.units.map((unit) => {
+                                                                        const activeStatus = Number(unit.active);
+                                                                        const statusText = activeStatus === 1 ? 'In Use' : activeStatus === 0 ? 'Not In Use' : 'Returned';
+                                                                        const statusColor = activeStatus === 1 ? 'orange' : activeStatus === 0 ? 'default' : 'green';
+                                                                        
+                                                                        return (
+                                                                            <div key={unit.reservation_unit_id || unit.unit_id} className="flex items-center gap-2">
+                                                                                <span className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-700 font-mono`}>
+                                                                                    {unit.unit_serial_number}
+                                                                                </span>
+                                                                                <Tag 
+                                                                                    size="small" 
+                                                                                    color={statusColor}
+                                                                                >
+                                                                                    {statusText}
+                                                                                </Tag>
+                                                                            </div>
+                                                                        );
+                                                                    })}
+                                                                </div>
+                                                            )}
                                                         </div>
                                                     ))}
                                                 </div>
@@ -482,14 +574,14 @@ const ReservationDetails = ({
 
                                 {/* Trip Passengers Section */}
                                 {reservationDetails.passengers && reservationDetails.passengers.length > 0 && (
-                                    <div className="mt-6">
-                                        <h3 className="text-lg font-medium mb-4 text-gray-800">Trip Passengers</h3>
-                                        <div className="bg-white p-4 rounded-lg border border-purple-200 shadow-sm">
+                                    <div className={`${isMobile ? 'mt-4' : 'mt-6'}`}>
+                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium mb-4 text-gray-800`}>Trip Passengers</h3>
+                                        <div className={`bg-white ${isMobile ? 'p-3' : 'p-4'} rounded-lg border border-purple-200 shadow-sm`}>
                                             <ul className="divide-y divide-purple-100">
                                                 {reservationDetails.passengers.map((passenger, index) => (
-                                                    <li key={index} className="py-3 flex items-center gap-3">
-                                                        <UserOutlined className="text-purple-400 text-lg" />
-                                                        <span className="text-gray-700">{passenger.name}</span>
+                                                    <li key={index} className={`${isMobile ? 'py-2' : 'py-3'} flex items-center gap-3`}>
+                                                        <UserOutlined className={`text-purple-400 ${isMobile ? 'text-base' : 'text-lg'}`} />
+                                                        <span className={`text-gray-700 ${isMobile ? 'text-sm' : ''}`}>{passenger.name}</span>
                                                     </li>
                                                 ))}
                                             </ul>
@@ -501,39 +593,27 @@ const ReservationDetails = ({
                             </div>
                         </Tabs.TabPane>
                         <Tabs.TabPane tab="Status History" key="2">
-                            <div className="mt-6">
+                            <div className={`${isMobile ? 'mt-4' : 'mt-6'}`}>
                                 {/* Status History Section - Non-collapsable */}
                                 {reservationDetails.status_history && reservationDetails.status_history.length > 0 ? (
-                                    <div className="bg-white p-4 rounded-lg border border-green-200 shadow-sm mb-6">
-                                        <h3 className="text-lg font-medium mb-4 text-gray-800">Status History</h3>
+                                    <div className={`bg-white ${isMobile ? 'p-3' : 'p-4'} rounded-lg border border-green-200 shadow-sm mb-6`}>
+                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium mb-4 text-gray-800`}>Status History</h3>
                                         <div className="space-y-3 sm:space-y-4">
                                             {reservationDetails.status_history
-                                                .sort((a, b) => new Date(b.reservation_updated_at) - new Date(a.reservation_updated_at))
+                                                
                                                 .map((status, index) => {
-                                                    const rawStatus = (status.reservation_active ?? status.is_approved ?? 0);
-                                                    const statusVal = Number(rawStatus);
-                                                    const dotClass = statusVal === 1 ? 'bg-green-500' : (statusVal === -1 ? 'bg-red-500' : 'bg-yellow-500');
-                                                    const lineClass = statusVal === 1 ? 'bg-green-300' : (statusVal === -1 ? 'bg-red-300' : 'bg-yellow-300');
-                                                 
                                                     return (
                                                         <div key={status.reservation_status_id} className="flex items-start">
-                                                            <div className="flex flex-col items-center mr-4">
-                                                                <div className={`w-3 h-3 rounded-full ${dotClass}`}></div>
-                                                                {index !== reservationDetails.status_history.length - 1 && (
-                                                                    <div className={`w-0.5 flex-1 ${lineClass}`}></div>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex-1 mb-4">
-                                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 mb-1">
+                                                            <div className={`flex-1 ${isMobile ? 'mb-3' : 'mb-4'}`}>
+                                                                <div className={`flex ${isMobile ? 'flex-col gap-1' : 'flex-col sm:flex-row sm:items-center sm:justify-between gap-1'} mb-1`}>
                                                                     <div className="flex items-center gap-2 min-w-0 flex-wrap">
-                                                                        <span className="font-medium text-gray-800 break-words">{status.status_name}</span>
-                                                                       
+                                                                        <span className={`font-medium text-gray-800 break-words ${isMobile ? 'text-sm' : ''}`}>{status.status_name}</span>
                                                                     </div>
-                                                                    <span className="text-xs sm:text-sm text-gray-500 w-full sm:w-auto sm:text-right sm:whitespace-nowrap">
+                                                                    <span className={`${isMobile ? 'text-xs' : 'text-xs sm:text-sm'} text-gray-500 w-full sm:w-auto sm:text-right sm:whitespace-nowrap`}>
                                                                         {new Date(status.reservation_updated_at).toLocaleString()}
                                                                     </span>
                                                                 </div>
-                                                                <div className="text-xs sm:text-sm text-gray-600">
+                                                                <div className={`${isMobile ? 'text-xs' : 'text-xs sm:text-sm'} text-gray-600`}>
                                                                     Updated by: {status.updated_by_name || '—'}
                                                                 </div>
                                                             </div>
@@ -615,9 +695,81 @@ const ReservationDetails = ({
                     </Tabs>
                 </div>
             </div>
+        </div>
+    );
+
+    return (
+        <>
+            {isMobile ? (
+                <Drawer
+                    title={null}
+                    placement="bottom"
+                    height="95%"
+                    visible={visible}
+                    onClose={onClose}
+                    className="reservation-detail-drawer"
+                    bodyStyle={{ padding: 0 }}
+                    headerStyle={{ display: 'none' }}
+                    closable={true}
+                    closeIcon={<CloseOutlined className="text-white" />}
+                    maskClosable={false}
+                >
+                    {modalContent}
+                </Drawer>
+            ) : (
+                <Modal
+                    title={null}
+                    visible={visible}
+                    onCancel={onClose}
+                    width={isTablet ? 700 : 800}
+                    footer={[
+                        <button key="close" onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
+                            Close
+                        </button>
+                    ]}
+                    className="reservation-detail-modal"
+                    bodyStyle={{ padding: '0' }}
+                    maskClosable={false}
+                    zIndex={1000}
+                >
+                    {modalContent}
+                </Modal>
+            )}
+            {/* Trip Ticket Preview Modal */}
+            <Modal
+                title="Trip Ticket Preview"
+                visible={showTripTicketPreview}
+                onCancel={() => setShowTripTicketPreview(false)}
+                width="90%"
+                style={{ maxWidth: '1200px' }}
+                
+                className="trip-ticket-preview-modal"
+                bodyStyle={{ padding: '0', maxHeight: '80vh', overflow: 'auto' }}
+                maskClosable={false}
+                zIndex={1001}
+            >
+                <div className="p-4">
+                    <DriversTicket
+                        initialData={ticketInitialData}
+                        autoExport={false}
+                        onDownloadRequest={() => {
+                            setShowTripTicketPreview(false);
+                            setIsExporting(true);
+                        }}
+                    />
+                </div>
+            </Modal>
+
             {/* Hidden DriversTicket component for direct export */}
             {isExporting && (
-                <div style={{ position: 'absolute', left: '-9999px' }}>
+                <div style={{ 
+                    position: 'fixed', 
+                    top: '-9999px', 
+                    left: '0px',
+                    zIndex: -1,
+                    visibility: 'visible',
+                    opacity: 1
+                }}>
                     <DriversTicket
                         initialData={ticketInitialData}
                         autoExport
@@ -625,7 +777,7 @@ const ReservationDetails = ({
                     />
                 </div>
             )}
-        </Modal>
+        </>
     );
 };
 

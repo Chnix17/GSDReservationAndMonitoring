@@ -6,12 +6,36 @@ import {
   FaChartBar, FaArchive, FaTimes,
   FaComments, FaBell, 
   FaAngleRight, FaAngleLeft, FaCalendarAlt, FaCheck,
-  FaCar, FaListAlt, FaBuilding, FaUsers, FaPlus, FaHistory
+  FaCar, FaListAlt, FaBuilding, FaUsers, FaPlus, FaHistory, FaSort, 
 } from 'react-icons/fa';
 import { motion, AnimatePresence } from 'framer-motion';  
 import { Popover, Transition } from '@headlessui/react';
+import { useMediaQuery } from 'react-responsive';
 import { SecureStorage } from '../../utils/encryption';
 import ProfileAdminModal from './profile_admin';
+import { getApiBaseUrl } from '../../utils/apiConfig';
+import axios from 'axios';
+import './Sidebar.css';
+
+// Helper functions to get service worker path/scope based on baseName (homepage in package.json)
+const getServiceWorkerBase = () => {
+    // CRA sets PUBLIC_URL from package.json "homepage"
+    const publicUrl = (process.env.PUBLIC_URL || '').trim();
+    if (!publicUrl || publicUrl === '.') return '';
+    // ensure it starts with '/' and has no trailing '/'
+    const withLeading = publicUrl.startsWith('/') ? publicUrl : `/${publicUrl}`;
+    return withLeading.replace(/\/$/, '');
+};
+
+const getServiceWorkerPath = () => {
+    const base = getServiceWorkerBase();
+    return `${base}/sw.js` || '/sw.js';
+};
+
+const getServiceWorkerScope = () => {
+    const base = getServiceWorkerBase();
+    return `${base}/` || '/';
+};
 
 const SidebarContext = createContext();
 
@@ -22,6 +46,12 @@ const Sidebar = () => {
   const [isDesktopSidebarOpen, setIsDesktopSidebarOpen] = useState(true);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
+  // Responsive breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  const isDesktop = useMediaQuery({ minWidth: 1024 });
+  // const isSmallScreen = useMediaQuery({ maxWidth: 1023 });
+
   const [notifications, setNotifications] = useState([]);
   const [showProfileModal, setShowProfileModal] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState({
@@ -31,13 +61,61 @@ const Sidebar = () => {
   });
   const [isSubscribing, setIsSubscribing] = useState(false);
   const [isRepairing, setIsRepairing] = useState(false);
+  const [isUnsubscribing, setIsUnsubscribing] = useState(false);
   const [needRepair, setNeedRepair] = useState(false);
   const [repairReason, setRepairReason] = useState('');
-
+  const [userDetails, setUserDetails] = useState(null);
 
   const name = SecureStorage.getLocalItem('name') || 'Admin User';
   const userLevelName = SecureStorage.getLocalItem('user_level') || SecureStorage.getLocalItem('user_level');
-  const departmentName = SecureStorage.getLocalItem('Department Name') || SecureStorage.getLocalItem('Department Name');
+  // const departmentName = SecureStorage.getLocalItem('Department Name') || SecureStorage.getLocalItem('Department Name');
+  
+  // Compute correct base path for public assets (works under /gsd-reservation or other subpaths)
+  const assetBasePath = (() => {
+    try {
+      const apiBase = getApiBaseUrl();
+      const url = new URL(apiBase);
+      // For localhost development, we need to use the project path
+      // For production deployment, we need to account for subdirectory paths
+      if (url.hostname === 'localhost') {
+        return '/gsd-reservation-main';
+      }
+      return url.pathname.replace(/\/backend\/.*$/, '');
+    } catch (e) {
+      return '';
+    }
+  })();
+
+  // Fetch user details using fetchUsersById
+  const fetchUserDetails = useCallback(async () => {
+    try {
+      const baseUrl = SecureStorage.getLocalItem('url');
+      const userId = SecureStorage.getLocalItem('user_id');
+      
+      if (!baseUrl || !userId) return;
+
+      const response = await axios.post(
+        `${baseUrl}Admin.php`,
+        { 
+          operation: 'fetchUsersById',
+          id: userId 
+        },
+        { 
+          headers: { 'Content-Type': 'application/json' } 
+        }
+      );
+
+      if (response.data.status === 'success' && response.data.data.length > 0) {
+        setUserDetails(response.data.data[0]);
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUserDetails();
+  }, [fetchUserDetails]);
 
   useEffect(() => {
     setActiveItem(location.pathname);
@@ -50,6 +128,20 @@ const Sidebar = () => {
     handleResize();
     return () => window.removeEventListener('resize', handleResize);
   }, [location]);
+
+  // Auto-close mobile sidebar when switching to desktop
+  useEffect(() => {
+    if (isDesktop && isMobileSidebarOpen) {
+      setIsMobileSidebarOpen(false);
+    }
+  }, [isDesktop, isMobileSidebarOpen]);
+
+  // Close mobile sidebar when clicking on navigation items
+  const handleMobileNavClick = useCallback(() => {
+    if (isMobile || isTablet) {
+      setIsMobileSidebarOpen(false);
+    }
+  }, [isMobile, isTablet]);
 
   const toggleDesktopSidebar = () => {
     const newState = !isDesktopSidebarOpen;
@@ -243,14 +335,16 @@ const Sidebar = () => {
         })
       });
       const result = await response.json();
-      if (result.status === 'success' && result.data && Object.keys(result.data).length > 0) {
-        // Subscription exists (enabled regardless of is_active)
-        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: Notification.permission }));
+      // Check if Notification API is available
+      const notificationPermission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
+      if (result.status === 'success' && result.device_match) {
+        // Device-specific subscription exists
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: true, permission: notificationPermission }));
         setNeedRepair(!!result.need_resubscribe);
         setRepairReason(result.reason || '');
       } else {
-        // No subscription data, allow enabling
-        setSubscriptionStatus(prev => ({ ...prev, subscribed: false, permission: Notification.permission }));
+        // No device-specific subscription, show subscribe button
+        setSubscriptionStatus(prev => ({ ...prev, subscribed: false, permission: notificationPermission }));
         setNeedRepair(false);
         setRepairReason('');
       }
@@ -265,7 +359,8 @@ const Sidebar = () => {
   // In useEffect, call fetchPushSubscriptionStatus on mount
   useEffect(() => {
     const supported = 'serviceWorker' in navigator && 'PushManager' in window;
-    const permission = Notification.permission;
+    // Check if Notification API is available (not available in iOS Safari)
+    const permission = typeof Notification !== 'undefined' ? Notification.permission : 'default';
     setSubscriptionStatus(prev => ({ ...prev, supported, permission }));
     fetchPushSubscriptionStatus();
   }, [fetchPushSubscriptionStatus]);
@@ -279,6 +374,12 @@ const Sidebar = () => {
 
     setIsSubscribing(true);
     try {
+      // Check if Notification API is available
+      if (typeof Notification === 'undefined') {
+        alert('Push notifications are not supported on this device (iOS Safari does not support Web Push).');
+        return;
+      }
+      
       // Request permission
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
@@ -286,20 +387,67 @@ const Sidebar = () => {
         return;
       }
 
-      // Register service worker
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
-
-      // Check for existing subscription and unsubscribe if it exists
-      const existingSubscription = await registration.pushManager.getSubscription();
-      if (existingSubscription) {
-        console.log('Found existing subscription, unsubscribing first...');
-        await existingSubscription.unsubscribe();
-        console.log('Successfully unsubscribed from old subscription');
+      // Unregister all existing service workers first
+      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+      console.log('Found existing registrations:', existingRegistrations.length);
+      for (const reg of existingRegistrations) {
+        console.log('Unregistering:', reg.scope);
+        await reg.unregister();
       }
+      console.log('All existing service workers unregistered');
+
+      // Wait a bit for cleanup
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Register fresh service worker
+      console.log('Registering new service worker at:', getServiceWorkerPath());
+      const registration = await navigator.serviceWorker.register(getServiceWorkerPath(), { 
+        scope: getServiceWorkerScope(),
+        updateViaCache: 'none'
+      });
+      console.log('Service worker registered:', registration);
+      console.log('Registration state - installing:', !!registration.installing, 'waiting:', !!registration.waiting, 'active:', !!registration.active);
+      
+      // Force skip waiting if there's a waiting worker
+      if (registration.waiting) {
+        console.log('Sending SKIP_WAITING message to waiting worker');
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      
+      if (registration.installing) {
+        console.log('Service worker is installing, waiting for activation...');
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Service worker activation timeout')), 15000);
+          
+          registration.installing.addEventListener('statechange', function handler(e) {
+            console.log('Service worker state changed to:', e.target.state);
+            if (e.target.state === 'activated') {
+              clearTimeout(timeout);
+              e.target.removeEventListener('statechange', handler);
+              resolve();
+            } else if (e.target.state === 'redundant') {
+              clearTimeout(timeout);
+              e.target.removeEventListener('statechange', handler);
+              reject(new Error('Service worker became redundant'));
+            }
+          });
+        });
+      }
+      
+      // Wait for service worker to be ready
+      const readyRegistration = await navigator.serviceWorker.ready;
+      console.log('Service worker ready:', readyRegistration);
+      console.log('Active worker:', readyRegistration.active);
+      
+      // Double check it's active
+      if (!readyRegistration.active) {
+        throw new Error('Service worker failed to activate');
+      }
+      console.log('Service worker is now active and ready');
 
       // Subscribe to push manager with new VAPID key
-      const subscription = await registration.pushManager.subscribe({
+      console.log('Subscribing to push manager...');
+      const subscription = await readyRegistration.pushManager.subscribe({
         userVisibleOnly: true,
         applicationServerKey: urlBase64ToUint8Array('BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8')
       });
@@ -355,33 +503,90 @@ const Sidebar = () => {
     }
     setIsRepairing(true);
     try {
-      const registration = await navigator.serviceWorker.register('/sw.js');
-      await navigator.serviceWorker.ready;
+      // Unregister all existing service workers
+      const existingRegistrations = await navigator.serviceWorker.getRegistrations();
+      console.log('[Repair] Found existing registrations:', existingRegistrations.length);
+      for (const reg of existingRegistrations) {
+        console.log('[Repair] Unregistering:', reg.scope);
+        await reg.unregister();
+      }
+      console.log('[Repair] All existing service workers unregistered');
 
-      // Use existing subscription if present; otherwise subscribe
-      let subscription = await registration.pushManager.getSubscription();
-      if (!subscription) {
-        const permission = Notification.permission === 'granted'
-          ? 'granted'
-          : await Notification.requestPermission();
-        if (permission !== 'granted') {
-          throw new Error('Notification permission not granted');
-        }
-        subscription = await registration.pushManager.subscribe({
-          userVisibleOnly: true,
-          applicationServerKey: urlBase64ToUint8Array('BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8')
+      // Wait for cleanup
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Register fresh service worker
+      console.log('[Repair] Registering new service worker');
+      const registration = await navigator.serviceWorker.register(getServiceWorkerPath(), { 
+        scope: getServiceWorkerScope(),
+        updateViaCache: 'none'
+      });
+      console.log('[Repair] Service worker registered:', registration);
+      
+      // Force skip waiting
+      if (registration.waiting) {
+        console.log('[Repair] Sending SKIP_WAITING message');
+        registration.waiting.postMessage({ type: 'SKIP_WAITING' });
+      }
+      
+      // Wait for installation if needed
+      if (registration.installing) {
+        console.log('[Repair] Waiting for service worker to activate...');
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => reject(new Error('Activation timeout')), 15000);
+          registration.installing.addEventListener('statechange', function handler(e) {
+            console.log('[Repair] State changed to:', e.target.state);
+            if (e.target.state === 'activated') {
+              clearTimeout(timeout);
+              e.target.removeEventListener('statechange', handler);
+              resolve();
+            } else if (e.target.state === 'redundant') {
+              clearTimeout(timeout);
+              e.target.removeEventListener('statechange', handler);
+              reject(new Error('Service worker became redundant'));
+            }
+          });
         });
       }
+      
+      const readyRegistration = await navigator.serviceWorker.ready;
+      console.log('[Repair] Service worker ready and active');
+      
+      if (!readyRegistration.active) {
+        throw new Error('Service worker failed to activate');
+      }
+
+      // Check if Notification API is available
+      if (typeof Notification === 'undefined') {
+        throw new Error('Push notifications are not supported on this device (iOS Safari does not support Web Push)');
+      }
+      
+      // Check permission
+      const permission = Notification.permission === 'granted'
+        ? 'granted'
+        : await Notification.requestPermission();
+      if (permission !== 'granted') {
+        throw new Error('Notification permission not granted');
+      }
+      
+      // Subscribe to push manager
+      console.log('[Repair] Subscribing to push manager...');
+      const subscription = await readyRegistration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array('BL7W2qb8X8DQSMu3S8gozbbawaad68DCNE0wLc2_R7D3zg6FFL4vZI5oBP9AJwf-2UiE3iw4rM-gab_-NdDgrm8')
+      });
+      console.log('[Repair] Subscription obtained:', subscription.endpoint.substring(0, 50) + '...');
 
       const userId = SecureStorage.getLocalItem('user_id');
       const baseUrl = SecureStorage.getLocalItem('url');
       const deviceInfo = detectDeviceInfo();
 
+      console.log('[Repair] Sending subscription to server...');
       const res = await fetch(`${baseUrl}/server/save-push-subscription.php`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          operation: 'repair',
+          operation: 'save',
           user_id: userId,
           subscription: {
             endpoint: subscription.endpoint,
@@ -402,6 +607,77 @@ const Sidebar = () => {
       alert('Failed to repair notifications: ' + err.message);
     } finally {
       setIsRepairing(false);
+    }
+  };
+
+  // Unsubscribe from push notifications on this device
+  const unsubscribeFromNotifications = async () => {
+    if (!subscriptionStatus.subscribed) {
+      return;
+    }
+
+    const confirmed = window.confirm(
+      'Are you sure you want to unsubscribe from push notifications on this device? You can always subscribe again later.'
+    );
+
+    if (!confirmed) {
+      return;
+    }
+
+    setIsUnsubscribing(true);
+    try {
+      const userId = SecureStorage.getLocalItem('user_id');
+      const baseUrl = SecureStorage.getLocalItem('url');
+      const deviceInfo = detectDeviceInfo();
+
+      console.log('[Unsubscribe] Starting unsubscribe process...');
+      console.log('[Unsubscribe] Device info:', deviceInfo);
+
+      // Unsubscribe from push manager first
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.getSubscription();
+        
+        if (subscription) {
+          console.log('[Unsubscribe] Unsubscribing from push manager...');
+          await subscription.unsubscribe();
+          console.log('[Unsubscribe] Successfully unsubscribed from push manager');
+        } else {
+          console.log('[Unsubscribe] No active push subscription found');
+        }
+      } catch (err) {
+        console.warn('[Unsubscribe] Error unsubscribing from push manager:', err);
+        // Continue anyway to remove from database
+      }
+
+      // Remove subscription from server database
+      console.log('[Unsubscribe] Removing subscription from server...');
+      const response = await fetch(`${baseUrl}/server/save-push-subscription.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'deleteDevice',
+          user_id: userId,
+          device_info: deviceInfo
+        })
+      });
+
+      const result = await response.json();
+      console.log('[Unsubscribe] Server response:', result);
+
+      if (result.status === 'success') {
+        await fetchPushSubscriptionStatus();
+        alert('Successfully unsubscribed from push notifications on this device.');
+      } else {
+        throw new Error(result.message || 'Failed to unsubscribe');
+      }
+    } catch (error) {
+      console.error('[Unsubscribe] Error:', error);
+      alert('Failed to unsubscribe: ' + error.message);
+    } finally {
+      setIsUnsubscribing(false);
     }
   };
 
@@ -448,58 +724,59 @@ const Sidebar = () => {
               leaveTo="opacity-0 translate-y-1"
             >
               <Popover.Panel
-                className="
-                  fixed left-1/2 top-20 z-50 w-[95vw] max-w-xs -translate-x-1/2
-                  sm:absolute sm:right-0 sm:top-auto sm:mt-2 sm:w-80 sm:max-w-xs sm:left-auto sm:translate-x-0 sm:z-10
+                className={`
+                  ${isMobile || isTablet 
+                    ? 'fixed left-1/2 top-20 z-50 w-[90vw] max-w-[340px] -translate-x-1/2' 
+                    : 'absolute right-0 mt-2 w-96 z-10'}
                   origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5
-                "
+                `}
               >
-                <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex justify-between items-center">
-                  <h3 className="font-medium">Notifications</h3>
+                <div className={`${isMobile ? 'p-2' : 'p-3'} border-b border-gray-100 dark:border-gray-700 flex justify-between items-center`}>
+                  <h3 className={`font-medium ${isMobile ? 'text-sm' : 'text-base'}`}>Notifications</h3>
                   {unreadCount > 0 && (
                     <button 
                       onClick={() => {
                         markNotificationsAsRead();
                       }}
-                      className="text-xs text-green-600 dark:text-green-400 hover:underline"
+                      className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-green-600 dark:text-green-400 hover:underline`}
                     >
                       Mark all as read
                     </button>
                   )}
                 </div>
-                <div className="max-h-80 overflow-y-auto">
+                <div className={`${isMobile ? 'max-h-60' : 'max-h-80'} overflow-y-auto`}>
                   {notifications.length === 0 ? (
-                    <div className="p-3 text-center text-gray-500 dark:text-gray-400">
+                    <div className={`${isMobile ? 'p-2 text-xs' : 'p-3 text-sm'} text-center text-gray-500 dark:text-gray-400`}>
                       No notifications
                     </div>
                   ) : (
                     notifications.map((notification) => (
                       <div 
                         key={notification.notification_reservation_id}
-                        className={`p-3 border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                        className={`${isMobile ? 'p-2' : 'p-3'} border-b border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
                           notification.is_read === 0 ? 'bg-green-50 dark:bg-green-900/20' : ''
                         }`}
                       >
-                        <p className="text-sm font-medium">{notification.notification_message}</p>
-                        <p className="text-xs text-gray-400 mt-1">
+                        <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-medium`}>{notification.notification_message}</p>
+                        <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-gray-400 mt-1`}>
                           {new Date(notification.notification_created_at || notification.notification_create).toLocaleString()}
                         </p>
                       </div>
                     ))
                   )}
                 </div>
-                <div className="p-2 text-center border-t border-gray-100 dark:border-gray-700">
-                  <Link to="/Notification" className="text-xs text-green-600 dark:text-green-400 hover:underline">
+                <div className={`${isMobile ? 'p-1.5' : 'p-2'} text-center border-t border-gray-100 dark:border-gray-700`}>
+                  <Link to="/Notification" className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-green-600 dark:text-green-400 hover:underline`}>
                     View all notifications
                   </Link>
                 </div>
                 
                 {/* Subscription Section */}
-                <div className="p-3 bg-gray-50 dark:bg-gray-700 border-t border-gray-100 dark:border-gray-600">
-                  <div className="flex items-center justify-between">
+                <div className={`${isMobile ? 'p-2' : 'p-3'} bg-gray-50 dark:bg-gray-700 border-t border-gray-100 dark:border-gray-600`}>
+                  <div className={`flex ${isMobile || isTablet ? 'flex-col gap-2' : 'items-center justify-between'}`}>
                     <div className="flex-1">
-                      <p className="text-xs font-medium text-gray-700 dark:text-gray-300">Push Notifications</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                      <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} font-medium text-gray-700 dark:text-gray-300`}>Push Notifications</p>
+                      <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-gray-500 dark:text-gray-400`}>
                         {subscriptionStatus.subscribed 
                           ? 'Enabled' 
                           : subscriptionStatus.permission === 'denied' 
@@ -511,51 +788,62 @@ const Sidebar = () => {
                       <button
                         onClick={subscribeToNotifications}
                         disabled={isSubscribing}
-                        className="px-3 py-1 text-xs bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                        className={`${isMobile || isTablet ? 'w-full px-3 py-1.5 text-xs' : 'px-3 py-1 text-xs'} bg-green-600 text-white rounded-md hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
                       >
-                        {isSubscribing ? 'Enabling...' : 'Enable'}
+                        {isSubscribing ? 'Subscribing...' : 'Subscribe'}
                       </button>
                     )}
                     {subscriptionStatus.subscribed && (
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center text-xs text-green-600 dark:text-green-400">
-                          <FaCheck className="w-3 h-3 mr-1" />
-                          Enabled
+                      <div className={`flex ${isMobile || isTablet ? 'flex-col w-full' : 'items-center'} gap-2`}>
+                        {!needRepair && (
+                          <div className={`flex items-center ${isMobile ? 'text-[10px]' : 'text-xs'} text-green-600 dark:text-green-400`}>
+                            <FaCheck className="w-3 h-3 mr-1" />
+                            Enabled
+                          </div>
+                        )}
+                        <div className={`flex ${isMobile || isTablet ? 'flex-col w-full' : 'items-center'} gap-2`}>
+                          <button
+                            onClick={needRepair ? repairNotifications : subscribeToNotifications}
+                            disabled={isRepairing || isSubscribing || isUnsubscribing}
+                            className={`${needRepair ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'} ${isMobile || isTablet ? 'w-full px-3 py-1.5 text-xs' : 'px-3 py-1 text-xs'} rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
+                          >
+                            {isRepairing ? 'Repairing...' : isSubscribing ? 'Subscribing...' : needRepair ? 'Repair' : 'Refresh'}
+                          </button>
+                          <button
+                            onClick={unsubscribeFromNotifications}
+                            disabled={isRepairing || isSubscribing || isUnsubscribing}
+                            className={`${isMobile || isTablet ? 'w-full px-3 py-1.5 text-xs' : 'px-3 py-1 text-xs'} bg-red-500 hover:bg-red-600 text-white rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
+                          >
+                            {isUnsubscribing ? 'Unsubscribing...' : 'Unsubscribe'}
+                          </button>
                         </div>
-                        <button
-                          onClick={repairNotifications}
-                          disabled={isRepairing}
-                          className={`${needRepair ? 'bg-amber-500 hover:bg-amber-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-200 border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700'} px-3 py-1 text-xs rounded-md disabled:opacity-50 disabled:cursor-not-allowed transition-colors`}
-                        >
-                          {isRepairing ? 'Repairing...' : 'Repair'}
-                        </button>
                       </div>
                     )}
                   </div>
                   {/* Notes */}
                   {subscriptionStatus.subscribed && needRepair && (
-                    <p className="mt-2 text-[10px] text-yellow-600 dark:text-yellow-400">
+                    <p className={`mt-2 ${isMobile ? 'text-[9px]' : 'text-[10px]'} text-yellow-600 dark:text-yellow-400`}>
                       {repairReason ? `Needs repair (${repairReason.replace(/_/g,' ')})` : 'Needs repair'} — click Repair to refresh your subscription.
                     </p>
                   )}
                   {subscriptionStatus.subscribed && !needRepair && (
-                    <p className="mt-2 text-[10px] text-blue-600 dark:text-blue-300">
+                    <p className={`mt-2 ${isMobile ? 'text-[9px]' : 'text-[10px]'} text-blue-600 dark:text-blue-300`}>
                       Not receiving notifications? Ensure site notifications are allowed, keep your browser running, or try logging out/in.
                     </p>
                   )}
                   {!subscriptionStatus.supported && (
-                    <p className="text-xs text-red-500 mt-1">
+                    <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-red-500 mt-1`}>
                       Not supported in this browser
                     </p>
                   )}
                   {subscriptionStatus.permission === 'denied' && (
-                    <p className="text-xs text-yellow-500 mt-1">
+                    <p className={`${isMobile ? 'text-[10px]' : 'text-xs'} text-yellow-500 mt-1`}>
                       Please enable notifications in browser settings
                     </p>
                   )}
                   {/* Recommendation/Reminder for enabling push notifications */}
                   {(!subscriptionStatus.subscribed && subscriptionStatus.supported && subscriptionStatus.permission !== 'denied') && (
-                    <div className="mt-2 text-xs text-blue-600 dark:text-blue-300">
+                    <div className={`mt-2 ${isMobile ? 'text-[10px]' : 'text-xs'} text-blue-600 dark:text-blue-300`}>
                       For real-time updates, enabling push notifications is recommended.
                     </div>
                   )}
@@ -573,7 +861,7 @@ const Sidebar = () => {
     const r = (userLevelName || '').trim().toUpperCase();
     if (r === 'ADMIN' || r === 'ADMINISTRATOR') return 'admin';
     if (['SBO ADVISER', 'CSG PRESIDENT', 'SBO PRESIDENT'].includes(r)) return 'user';
-    if (['DEAN', 'SECRETARY', 'DEPARTMENT HEAD'].includes(r)) return 'department';
+    if (['DEAN', 'SECRETARY', 'DEPARTMENT HEAD', 'PRINCIPAL'].includes(r)) return 'department';
     if (r === 'PERSONNEL') return 'personnel';
     if (r === 'DRIVER') return 'driver';
     return 'user';
@@ -592,12 +880,10 @@ const Sidebar = () => {
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Department/Dashboard' },
       { type: 'link', icon: FaComments, text: 'Chat', link: '/Department/Chat' },
       { type: 'section', text: 'Reservation Management' },
-      { type: 'link', icon: FaCar, text: 'Make Reservation', link: '/Department/addReservation' },
+      { type: 'link', icon: FaCar, text: 'Make Request', link: '/Department/addReservation' },
       { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/Department/MyReservations' },
-      { type: 'link', icon: FaFileAlt, text: 'View Approvals', link: '/Department/ViewApproval' },
-      ...(((departmentName || '').trim().toUpperCase() === 'REGISTRAR' && (userLevelName || '').trim().toUpperCase() === 'DEPARTMENT HEAD')
-        ? [{ type: 'section', text: 'Venue Management' }, { type: 'link', icon: FaCalendarAlt, text: 'Venue Schedule', link: '/Department/VenueSchedule' }]
-        : []),
+      { type: 'link', icon: FaFileAlt, text: 'My Ticket Request', link: '/Department/MyTicketRequest' }
+      
     ],
     personnel: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Personnel/Dashboard' },
@@ -615,7 +901,7 @@ const Sidebar = () => {
     <>
       {menus[roleKey].map((item, idx) => {
         if (item.type === 'section') {
-          return <SectionLabel key={`sec-${idx}`} text={item.text} />;
+          return <SectionLabel key={`sec-${idx}`} text={item.text} isExpanded={isExpanded} />;
         }
         if (item.type === 'dropdown') {
           return (
@@ -638,6 +924,7 @@ const Sidebar = () => {
             link={item.link}
             active={activeItem === item.link}
             isExpanded={isExpanded}
+            onMobileClick={handleMobileNavClick}
           />
         );
       })}
@@ -652,7 +939,7 @@ const Sidebar = () => {
           <div className="flex items-center space-x-6">
             {/* Welcome Message */}
             <div className="hidden lg:block">
-              <p className="text-green-600 dark:text-green-400 font-medium">Welcome! <span className="font-bold">{name}</span></p>
+              <p className="text-green-600 dark:text-green-400 font-medium">Welcome! <span className="font-bold">{userDetails ? `${userDetails.title_abbreviation ? userDetails.title_abbreviation + ' ' : ''}${userDetails.users_fname} ${userDetails.users_mname ? userDetails.users_mname + ' ' : ''}${userDetails.users_lname}${userDetails.users_suffix ? ' ' + userDetails.users_suffix : ''}` : name}</span></p>
             </div>
             
             {/* Notifications */}
@@ -678,7 +965,7 @@ const Sidebar = () => {
                   >
                     <Popover.Panel className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700">
-                        <p className="font-medium text-sm">{name}</p>
+                        <p className="font-medium text-sm">{userDetails ? `${userDetails.title_abbreviation ? userDetails.title_abbreviation + ' ' : ''}${userDetails.users_fname} ${userDetails.users_mname ? userDetails.users_mname + ' ' : ''}${userDetails.users_lname}${userDetails.users_suffix ? ' ' + userDetails.users_suffix : ''}` : name}</p>
                       </div>
                       <div className="p-2">
                         <button 
@@ -712,7 +999,7 @@ const Sidebar = () => {
               <FaBars size={20} />
             </button>
                           <div className="flex items-center">
-              <img src="/phinma.png" alt="Logo" className="w-8 h-8" />
+              <img src={`${assetBasePath}/phinma.png`} alt="Logo" className="w-8 h-8" />
               <span className="ml-2 font-bold text-black dark:text-white">GSD Portal</span>
             </div>
           </div>
@@ -741,7 +1028,7 @@ const Sidebar = () => {
                   >
                     <Popover.Panel className="absolute right-0 z-10 mt-2 w-48 origin-top-right rounded-lg bg-white dark:bg-gray-800 shadow-lg ring-1 ring-black ring-opacity-5">
                       <div className="p-3 border-b border-gray-100 dark:border-gray-700">
-                        <p className="font-medium text-sm">{name}</p>
+                        <p className="font-medium text-sm">{userDetails ? `${userDetails.title_abbreviation ? userDetails.title_abbreviation + ' ' : ''}${userDetails.users_fname} ${userDetails.users_mname ? userDetails.users_mname + ' ' : ''}${userDetails.users_lname}${userDetails.users_suffix ? ' ' + userDetails.users_suffix : ''}` : name}</p>
                        
                       </div>
                       <div className="p-2">
@@ -799,7 +1086,7 @@ const Sidebar = () => {
               {isDesktopSidebarOpen ? (
                 <>
                   <div className="flex items-center space-x-2">
-                    <img src="/phinma.png" alt="Logo" className="w-8 h-8" />
+                    <img src={`${assetBasePath}/phinma.png`} alt="Logo" className="w-8 h-8" />
                     <span className="font-bold text-black dark:text-white">GSD Portal</span>
                   </div>
                   <button onClick={toggleDesktopSidebar} className="text-[#0b2a0b] dark:text-[#202521] p-1 rounded-full hover:bg-[#538c4c] dark:hover:bg-[#83b383]">
@@ -816,7 +1103,7 @@ const Sidebar = () => {
            
             
             {/* Navigation */}
-            <nav className={`flex-grow overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`}>
+            <nav className={`sidebar-nav flex-1 overflow-y-auto ${isDesktopSidebarOpen ? 'px-3' : 'px-2'} py-1 space-y-1`} style={{ maxHeight: 'calc(100vh - 120px)' }}>
               {/* Dynamic: non-admin roles */}
               {roleKey !== 'admin' && renderMenu(isDesktopSidebarOpen)}
               {/* Admin: keep existing static menu */}
@@ -846,7 +1133,7 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
-              {isDesktopSidebarOpen && <SectionLabel text="Resource Management" />}
+              <SectionLabel text="Resource Management" isExpanded={isDesktopSidebarOpen} />
 
               {/* Master File Dropdown (Desktop) */}
               <SidebarDropdown
@@ -862,13 +1149,14 @@ const Sidebar = () => {
                   { text: 'Equipment', link: '/Admin/Equipment', icon: FaListAlt },
                   { text: 'User', link: '/Admin/Faculty', icon: FaUsers },
                   { text: 'Holiday', link: '/Admin/Holiday', icon: FaPlus },
-                  { section: 'Sub-Vehicle ' },
+                  { text: 'Venue Location', link: '/Admin/VenueBuilding', icon: FaBuilding },
+                  { section: '___________________________ ' },
                   { text: 'Vehicle Make', link: '/Admin/vehiclemake', icon: FaCar },
                   { text: 'Vehicle Category', link: '/Admin/vehiclecategory', icon: FaListAlt },
                   { text: 'Vehicle Model', link: '/Admin/vehiclemodel', icon: FaCar },
-                  { section: 'Sub-Equipment ' },
+                  { section: '___________________________ ' },
                   { text: 'Equipment Category', link: '/Admin/equipmentCategory', icon: FaFolder },
-                  { section: 'Sub-Department ' },
+                  { section: '___________________________ ' },
                   { text: 'Department', link: '/Admin/departments', icon: FaBuilding },
                 ]}
               />
@@ -885,14 +1173,14 @@ const Sidebar = () => {
               {/* Restore Archive nav item (Desktop) */}
               <MiniSidebarItem 
                 icon={FaArchive} 
-                text="Archive" 
+                text="Deactive Data" 
                 link="/Admin/archive" 
                 active={activeItem === '/Admin/archive'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
             
-              {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
+              <SectionLabel text="Manage Reservation" isExpanded={isDesktopSidebarOpen} />
 
               <MiniSidebarItem 
                 icon={FaUserCircle} 
@@ -902,11 +1190,28 @@ const Sidebar = () => {
                 isExpanded={isDesktopSidebarOpen}
               />
 
+              {/* Approval Sequence */}
+              <MiniSidebarItem 
+                icon={FaSort} 
+                text="Approval Sequence" 
+                link="/Admin/assignApproval" 
+                active={activeItem === '/Admin/assignApproval'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
               <MiniSidebarItem 
                 icon={FaFolder} 
                 text="View Requests" 
                 link="/Admin/ViewRequest" 
                 active={activeItem === '/Admin/ViewRequest'}
+                isExpanded={isDesktopSidebarOpen}
+              />
+
+              <MiniSidebarItem 
+                icon={FaListAlt} 
+                text="All Job Orders" 
+                link="/Admin/AllJobOrders" 
+                active={activeItem === '/Admin/AllJobOrders'}
                 isExpanded={isDesktopSidebarOpen}
               />
 
@@ -935,6 +1240,17 @@ const Sidebar = () => {
                 active={activeItem === '/Admin/AuditLog'}
                 isExpanded={isDesktopSidebarOpen}
               />
+
+              {/* Venue Schedule for GSD Admin */}
+              {/* {((departmentName || '').trim().toUpperCase() === 'GSD' && (userLevelName || '').trim().toUpperCase() === 'ADMIN') && (
+                <MiniSidebarItem 
+                  icon={FaCalendarAlt} 
+                  text="Venue Batch Upload" 
+                  link="/Admin/VenueSchedule" 
+                  active={activeItem === '/Admin/VenueSchedule'}
+                  isExpanded={isDesktopSidebarOpen}
+                />
+              )} */}
               </>
               )}
             </nav>
@@ -944,13 +1260,13 @@ const Sidebar = () => {
           </div>
 
           {/* Mobile Sidebar */}
-          <div className={`fixed lg:hidden h-screen top-0 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 shadow-lg z-40 w-72 transition-transform duration-300 flex flex-col ${
+          <div className={`mobile-sidebar sidebar-transition fixed lg:hidden h-screen top-0 bg-white dark:bg-gray-900 text-gray-700 dark:text-gray-200 shadow-lg z-40 ${isMobile || isTablet ? 'w-1/2' : 'w-72'} transition-transform duration-300 flex flex-col ${
             isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full'
           }`}>
             {/* Close button */}
             <div className="flex items-center justify-between p-4 border-b border-green-100 dark:border-green-800">
               <div className="flex items-center space-x-2">
-                <img src="/phinma.png" alt="Logo" className="w-8 h-8" />
+                <img src={`${assetBasePath}/phinma.png`} alt="Logo" className="w-8 h-8" />
                 <span className="font-bold text-green-600 dark:text-green-400">GSD Portal</span>
               </div>
               <button onClick={toggleMobileSidebar} className="text-gray-500 hover:text-gray-700 dark:text-gray-400 p-1 rounded-full hover:bg-red-50 dark:hover:bg-red-900/20">
@@ -961,7 +1277,7 @@ const Sidebar = () => {
             
 
             {/* Navigation - Same as desktop but separate instance */}
-            <nav className="flex-grow overflow-y-auto px-3 py-1 space-y-1">
+            <nav className={`sidebar-nav mobile-nav flex-1 overflow-y-auto px-3 py-1 space-y-1 ${isMobile ? 'pb-16' : 'pb-8'}`} style={{ maxHeight: 'calc(100vh - 100px)', paddingBottom: isMobile ? '4rem' : '2rem' }}>
             {/* Dynamic: non-admin roles */}
               {roleKey !== 'admin' && renderMenu(true)}
               {/* Admin: keep existing static menu */}
@@ -972,7 +1288,7 @@ const Sidebar = () => {
                 text="Dashboard" 
                 link="/Admin/Dashboard" 
                 active={activeItem === '/Admin' || activeItem === '/Admin/' || activeItem === '/Admin/Dashboard'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -980,7 +1296,7 @@ const Sidebar = () => {
                 text="Calendar" 
                 link="/Admin/LandCalendar" 
                 active={activeItem === '/Admin/LandCalendar'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
               
               <MiniSidebarItem 
@@ -988,23 +1304,23 @@ const Sidebar = () => {
                 text="Chat" 
                 link="/Admin/Chat" 
                 active={activeItem === '/Admin/Chat'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
-              {isDesktopSidebarOpen && <SectionLabel text="Resource Management" />}
+              <SectionLabel text="Resource Management" isExpanded={true} />
 
               {/* Master File Dropdown (Mobile) */}
               <SidebarDropdown
                 icon={FaFileAlt}
                 text="Master File"
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
                 active={[
                   '/Admin/Venue', '/Admin/VehicleEntry', '/Admin/Equipment', '/Admin/Faculty', '/Admin/Holiday', '/Admin/vehiclemake', '/Admin/vehiclecategory', '/Admin/vehiclemodel', '/Admin/equipmentCategory', '/Admin/departments'
                 ].includes(activeItem)}
                 items={[
-                  { text: 'Venues', link: '/Admin/Venue', icon: FaBuilding },
-                  { text: 'Vehicles', link: '/Admin/VehicleEntry', icon: FaCar },
-                  { text: 'Equipments', link: '/Admin/Equipment', icon: FaListAlt },
+                  { text: 'Venue', link: '/Admin/Venue', icon: FaBuilding },
+                  { text: 'Vehicle', link: '/Admin/VehicleEntry', icon: FaCar },
+                  { text: 'Equipment', link: '/Admin/Equipment', icon: FaListAlt },
                   { text: 'Users', link: '/Admin/Faculty', icon: FaUsers },
                   { text: 'Holidays', link: '/Admin/Holiday', icon: FaPlus },
                   { section: 'Sub-Vehicle ' },
@@ -1024,28 +1340,37 @@ const Sidebar = () => {
                 text="Checklist" 
                 link="/Admin/Checklist" 
                 active={activeItem === '/Admin/Checklist'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               {/* Restore Archive nav item (Mobile) */}
               <MiniSidebarItem 
                 icon={FaArchive} 
-                text="Archive" 
+                text="Deactive Data" 
                 link="/Admin/archive" 
                 active={activeItem === '/Admin/archive'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
              
 
-              {isDesktopSidebarOpen && <SectionLabel text="Manage Reservation" />}
+              <SectionLabel text="Manage Reservation" isExpanded={true} />
 
               <MiniSidebarItem 
                 icon={FaUserCircle} 
                 text="Assign Personnel" 
                 link="/Admin/AssignPersonnel" 
                 active={activeItem === '/Admin/AssignPersonnel'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
+              />
+
+              {/* Approval Sequence */}
+              <MiniSidebarItem 
+                icon={FaSort} 
+                text="Approval Sequence" 
+                link="/Admin/assignApproval" 
+                active={activeItem === '/Admin/assignApproval'}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -1053,7 +1378,15 @@ const Sidebar = () => {
                 text="View Requests" 
                 link="/Admin/ViewRequest" 
                 active={activeItem === '/Admin/ViewRequest'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
+              />
+
+              <MiniSidebarItem 
+                icon={FaListAlt} 
+                text="All Job Orders" 
+                link="/Admin/AllJobOrders" 
+                active={activeItem === '/Admin/AllJobOrders'}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -1061,7 +1394,7 @@ const Sidebar = () => {
                 text="Defect Reports" 
                 link="/Admin/Reports" 
                 active={activeItem === '/Admin/Reports'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -1069,7 +1402,7 @@ const Sidebar = () => {
                 text="Records" 
                 link="/Admin/record" 
                 active={activeItem === '/Admin/record'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
 
               <MiniSidebarItem 
@@ -1077,8 +1410,19 @@ const Sidebar = () => {
                 text="Audit Trail" 
                 link="/Admin/AuditLog" 
                 active={activeItem === '/Admin/AuditLog'}
-                isExpanded={isDesktopSidebarOpen}
+                isExpanded={true}
               />
+
+              {/* Venue Schedule for GSD Admin */}
+              {/* {((departmentName || '').trim().toUpperCase() === 'GSD' && (userLevelName || '').trim().toUpperCase() === 'ADMIN') && (
+                <MiniSidebarItem 
+                  icon={FaCalendarAlt} 
+                  text="Venue Schedule" 
+                  link="/Admin/VenueSchedule" 
+                  active={activeItem === '/Admin/VenueSchedule'}
+                  isExpanded={true}
+                />
+              )} */}
               </>
               )}
             </nav>
@@ -1100,7 +1444,8 @@ const Sidebar = () => {
         {/* Profile Modal */}
         <ProfileAdminModal 
           isOpen={showProfileModal} 
-          onClose={() => setShowProfileModal(false)} 
+          onClose={() => setShowProfileModal(false)}
+          onProfileUpdate={fetchUserDetails}
         />
 
         {/* Toggle Button - Always visible when sidebar is closed */}
@@ -1118,22 +1463,32 @@ const Sidebar = () => {
 };
 
 // Section Label Component - Clean and minimal
-const SectionLabel = ({ text }) => (
-  <div className="pt-3 pb-1">
-    <p className="px-2 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
-      {text}
-    </p>
-  </div>
-);
+const SectionLabel = ({ text, isExpanded = true }) => {
+  if (!isExpanded) return null;
+  
+  return (
+    <div className="pt-3 pb-1">
+      <p className="px-2 text-xs font-medium uppercase tracking-wider text-gray-400 dark:text-gray-500">
+        {text}
+      </p>
+    </div>
+  );
+};
 
-const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge }) => {
-
+const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded, badge, onMobileClick }) => {
+  // Responsive hooks for better mobile experience
+  const isMobile = useMediaQuery({ maxWidth: 767 });
   
   const handleClick = (e) => {
     e.preventDefault();
     
+    // Close mobile sidebar if on mobile/tablet
+    if (onMobileClick) {
+      onMobileClick();
+    }
+    
     // Always use the direct link path for nested routes
-    const baseUrl = window.location.origin + '/reservation';
+    const baseUrl = window.location.origin + '/gsd/grms';
     const fullUrl = baseUrl + link;
     window.location.assign(fullUrl);
   };
@@ -1141,7 +1496,7 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
   return (
     <button 
       onClick={handleClick}
-      className={`w-full flex items-center ${isExpanded ? 'justify-between p-2.5' : 'justify-center p-2'} rounded-lg transition-all ${
+      className={`mobile-nav-item w-full flex items-center ${isExpanded ? 'justify-between' : 'justify-center'} ${isMobile ? 'p-3' : isExpanded ? 'p-2.5' : 'p-2'} rounded-lg transition-all ${
         active 
           ? 'bg-[#145414] text-white font-medium' 
           : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
@@ -1167,10 +1522,14 @@ const MiniSidebarItem = React.memo(({ icon: Icon, text, link, active, isExpanded
 });
 
 // Add SidebarDropdown component at the end of the file
-const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
+const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items, onMobileClick }) => {
   const [open, setOpen] = useState(false);
   const location = useLocation();
   const activeItem = location.pathname;
+  
+  // Responsive hooks for dropdown behavior
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  // const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
   
   useEffect(() => {
     if (active) setOpen(true);
@@ -1209,7 +1568,7 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            className={`overflow-hidden ${isExpanded ? 'pl-8' : ''}`}
+            className={`dropdown-content overflow-hidden ${isExpanded ? 'pl-8' : ''}`}
           >
             {items.map((item, idx) => {
               if (item.section) {
@@ -1227,12 +1586,17 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
                 <button
                   key={item.link}
                   onClick={() => {
+                    // Close mobile sidebar if on mobile/tablet
+                    if (onMobileClick) {
+                      onMobileClick();
+                    }
+                    
                     // Always use the direct link path for nested routes
-                    const baseUrl = window.location.origin + '/reservation';
+                    const baseUrl = window.location.origin + '/gsd/grms';
                     const fullUrl = baseUrl + item.link;
                     window.location.assign(fullUrl);
                   }}
-                  className={`w-full flex items-center gap-2 py-2 px-2 rounded-lg text-sm transition-all ${
+                  className={`mobile-dropdown-item w-full flex items-center gap-2 ${isMobile ? 'py-3 px-3' : 'py-2 px-2'} rounded-lg text-sm transition-all ${
                     isItemActive
                       ? 'bg-[#145414] text-white font-medium'
                       : 'text-black hover:bg-[#d4f4dc] hover:text-[#145414]'
@@ -1249,6 +1613,7 @@ const SidebarDropdown = ({ icon: Icon, text, isExpanded, active, items }) => {
     </div>
   );
 };
+
 
 
 export default Sidebar;

@@ -1,21 +1,40 @@
-// Service Worker for Push Notifications
+// Service Worker for Push Notifications - Version 2.4
+const SW_VERSION = '2.4';
 console.log('🚀 Service Worker loaded at:', new Date().toISOString());
+console.log('🚀 Service Worker version:', SW_VERSION);
 console.log('🚀 Service Worker scope:', self.registration ? self.registration.scope : 'No registration');
+console.log('⚠️ IMPORTANT: Department Approval and Final Approval notifications should show "View Request" button only');
 
-// Install event
+// Install event - immediately activate
 self.addEventListener('install', function(event) {
     console.log('🔧 Service Worker installing at:', new Date().toISOString());
     console.log('🔧 SW Install event:', event);
-    self.skipWaiting();
+    // Skip waiting immediately to activate right away
+    event.waitUntil(self.skipWaiting().then(() => {
+        console.log('🔧 Service Worker skipped waiting, will activate immediately');
+    }));
 });
 
-// Activate event
+// Activate event - take control immediately
 self.addEventListener('activate', function(event) {
     console.log('⚙️ Service Worker activating at:', new Date().toISOString());
     console.log('⚙️ SW Activate event:', event);
-    event.waitUntil(self.clients.claim().then(() => {
-        console.log('⚙️ Service Worker now controls all clients');
-    }));
+    // Claim all clients immediately
+    event.waitUntil(
+        self.clients.claim().then(() => {
+            console.log('⚙️ Service Worker now controls all clients');
+            return self.clients.matchAll();
+        }).then(clients => {
+            console.log('⚙️ Active clients count:', clients.length);
+            // Notify all clients that service worker is active
+            clients.forEach(client => {
+                client.postMessage({
+                    type: 'SW_ACTIVATED',
+                    timestamp: Date.now()
+                });
+            });
+        })
+    );
 });
 
 // Push event handler
@@ -40,8 +59,8 @@ self.addEventListener('push', function(event) {
     let notificationData = {
         title: 'New Notification',
         body: 'You have a new notification',
-        icon: '/gsd-reservation/public/images/assets/phinma.png',
-        badge: '/gsd-reservation/public/images/assets/phinma.png',
+        icon: '/phinma.png',
+        badge: '/phinma.png',
         requireInteraction: true,
         data: {
             url: '/',
@@ -75,6 +94,8 @@ self.addEventListener('push', function(event) {
             
             if (data) {
                 console.log('[Service Worker] Push data received:', data);
+                console.log('[Service Worker] data.data structure:', data.data);
+                console.log('[Service Worker] data.data.type:', data.data?.type);
                 
                 notificationData.title = data.title || notificationData.title;
                 notificationData.body = data.body || notificationData.body;
@@ -84,32 +105,12 @@ self.addEventListener('push', function(event) {
                 }
             }
             
-            // Add action buttons for reservation notifications
-            if (data.data && (data.data.type === 'reservation_confirmation' || 
-                             data.data.type === 'new_reservation' || 
-                             data.data.type === 'reservation_pending' ||
-                             data.data.type === 'reservation_approved' ||
-                             data.data.type === 'reservation_declined')) {
-                
-                let viewButtonTitle = 'View Request';
-                let actionUrl = '/reservation/Admin/viewRequest';
-                
-                // Customize button title and URL based on notification type
-                if (data.data.type === 'new_reservation') {
-                    viewButtonTitle = 'View Request';
-                    actionUrl = data.data.action_url || '/reservation/Admin/viewRequest';
-                } else if (data.data.type === 'reservation_pending') {
-                    viewButtonTitle = 'View Approval';
-                    actionUrl = '/reservation/Dean/viewApproval';
-                } else if (data.data.type === 'reservation_approved' || data.data.type === 'reservation_declined') {
-                    viewButtonTitle = 'View Details';
-                    actionUrl = '/reservation/User/dashboard';
-                }
-                
+            // Add action buttons for chat notifications
+            if (data.data && data.data.type === 'chat_message') {
                 notificationData.actions = [
                     {
                         action: 'view',
-                        title: viewButtonTitle,
+                        title: 'View Chat',
                         icon: '/gsd-reservation/public/images/assets/phinma.png'
                     },
                     {
@@ -118,6 +119,87 @@ self.addEventListener('push', function(event) {
                         icon: '/gsd-reservation/public/images/assets/phinma.png'
                     }
                 ];
+                
+                // Set URL for chat viewing
+                notificationData.data.url = data.data.url || 'gsd/grms/Admin/Chat';
+                notificationData.requireInteraction = false; // Allow auto-close for chat
+            }
+            // Add action buttons for reservation notifications
+            else if (data.data && (data.data.type === 'reservation_confirmation' || 
+                             data.data.type === 'reservation_created' ||
+                             data.data.type === 'new_reservation' || 
+                             data.data.type === 'reservation_pending' ||
+                             data.data.type === 'reservation_approved' ||
+                             data.data.type === 'reservation_declined' ||
+                             data.data.type === 'reservation_final_approval' ||
+                             data.data.type === 'department_approval')) {
+                
+                console.log('[Service Worker] Processing reservation notification, type:', data.data.type);
+                console.log('[Service Worker] Is final approval?', data.data.type === 'reservation_final_approval');
+                console.log('[Service Worker] Is department approval?', data.data.type === 'department_approval');
+                
+                let viewButtonTitle = 'View Request';
+                let actionUrl = '/gsd/grms/Faculty/MyReservations';
+                
+                // Customize button title and URL based on notification type
+                if (data.data.type === 'reservation_created' || data.data.type === 'reservation_confirmation') {
+                    console.log('[Service Worker] Match: reservation_created or confirmation');
+                    viewButtonTitle = 'View Request';
+                    actionUrl = '/gsd/grms/Admin/viewRequest';
+                } else if (data.data.type === 'new_reservation') {
+                    console.log('[Service Worker] Match: new_reservation');
+                    viewButtonTitle = 'View Request';
+                    actionUrl = '/gsd/grms/Admin/viewRequest';
+                } else if (data.data.type === 'reservation_final_approval') {
+                    console.log('[Service Worker] ⚠️⚠️⚠️ MATCHED FINAL APPROVAL ⚠️⚠️⚠️');
+                    viewButtonTitle = 'View Request';
+                    actionUrl = data.data.url || '/gsd/grms/Admin/viewRequest';
+                    console.log('[Service Worker] Final approval button title:', viewButtonTitle);
+                    console.log('[Service Worker] Final approval URL:', actionUrl);
+                } else if (data.data.type === 'reservation_pending') {
+                    console.log('[Service Worker] Match: reservation_pending');
+                    viewButtonTitle = 'View Approval';
+                    actionUrl = '/gsd/grms/Department/viewApproval';
+                } else if (data.data.type === 'reservation_approved' || data.data.type === 'reservation_declined') {
+                    console.log('[Service Worker] Match: approved or declined');
+                    viewButtonTitle = 'View Details';
+                    actionUrl = '/gsd/grms/Faculty/MyReservations';
+                } else if (data.data.type === 'department_approval') {
+                    console.log('[Service Worker] Match: department_approval');
+                    viewButtonTitle = 'View Request';
+                    actionUrl = data.data.action_url || '/gsd/grms/Department/ViewApproval';
+                }
+                
+                // For reservation creation, new reservation, final approval, and department approval, show only "View Request" button
+                if (data.data.type === 'reservation_created' || 
+                    data.data.type === 'reservation_confirmation' || 
+                    data.data.type === 'new_reservation' ||
+                    data.data.type === 'reservation_final_approval' ||
+                    data.data.type === 'department_approval') {
+                    console.log('[Service Worker] Using single button (View Request only) for type:', data.data.type);
+                    notificationData.actions = [
+                        {
+                            action: 'view',
+                            title: viewButtonTitle,
+                            icon: '/phinma.png'
+                        }
+                    ];
+                } else {
+                    console.log('[Service Worker] Using dual buttons (View + Close) for type:', data.data.type);
+                    // For other notifications, show both View and Close buttons
+                    notificationData.actions = [
+                        {
+                            action: 'view',
+                            title: viewButtonTitle,
+                            icon: '/phinma.png'
+                        },
+                        {
+                            action: 'dismiss',
+                            title: 'Close',
+                            icon: '/phinma.png'
+                        }
+                    ];
+                }
                 
                 // Set URL for reservation viewing
                 notificationData.data.url = actionUrl;
@@ -133,6 +215,8 @@ self.addEventListener('push', function(event) {
     console.log('[Service Worker] About to show notification:', notificationData);
     console.log('[Service Worker] Notification title:', notificationData.title);
     console.log('[Service Worker] Notification body:', notificationData.body);
+    console.log('[Service Worker] Notification actions:', notificationData.actions);
+    console.log('[Service Worker] Notification data.type:', notificationData.data?.type);
 
     // Notify all clients to refresh data
     const refreshPromise = clients.matchAll({
@@ -153,7 +237,36 @@ self.addEventListener('push', function(event) {
         });
     });
 
-    // Show the notification
+    // Create unique tag to prevent duplicates
+    let notificationTag = 'default';
+    let autoCloseTimeout = 60000; // Default 60 seconds
+    
+    if (notificationData.data) {
+        if (notificationData.data.type === 'chat_message') {
+            // Chat messages auto-close after 10 seconds
+            notificationTag = `chat_message_${notificationData.data.sender_id}_${Date.now()}`;
+            autoCloseTimeout = 10000; // 10 seconds for chat messages
+        } else if (notificationData.data.type === 'reservation_created' || notificationData.data.type === 'reservation_confirmation') {
+            // Use reservation_id as tag to prevent duplicate success notifications
+            notificationTag = `reservation_created_${notificationData.data.reservation_id || Date.now()}`;
+        } else if (notificationData.data.type === 'new_reservation') {
+            // Use reservation_id as tag for admin notifications
+            notificationTag = `new_reservation_${notificationData.data.reservation_id || Date.now()}`;
+        } else if (notificationData.data.type === 'reservation_final_approval') {
+            // Use reservation_id as tag for final approval notifications
+            notificationTag = `final_approval_${notificationData.data.reservation_id || Date.now()}`;
+        } else if (notificationData.data.reservation_id) {
+            // Use reservation_id + type for other reservation notifications
+            notificationTag = `${notificationData.data.type}_${notificationData.data.reservation_id}`;
+        } else {
+            // Fallback to timestamp-based tag
+            notificationTag = `${notificationData.data.type || 'notification'}_${Date.now()}`;
+        }
+    }
+
+    console.log('[Service Worker] Using notification tag:', notificationTag);
+
+    // Show the notification with unique tag
     console.log('[Service Worker] Calling showNotification...');
     const notificationPromise = self.registration.showNotification(
         notificationData.title,
@@ -163,22 +276,21 @@ self.addEventListener('push', function(event) {
             badge: notificationData.badge,
             requireInteraction: notificationData.requireInteraction,
             actions: notificationData.actions || [],
-            data: notificationData.data
+            data: notificationData.data,
+            tag: notificationTag // This prevents duplicate notifications with same tag
         }
     ).then(() => {
-        console.log('[Service Worker] Notification shown successfully');
-        // Auto-close notification after 60 seconds (increased from 20)
+        console.log('[Service Worker] Notification shown successfully with tag:', notificationTag);
+        console.log('[Service Worker] Auto-close timeout set to:', autoCloseTimeout / 1000, 'seconds');
+        // Auto-close notification based on type
         setTimeout(() => {
-            self.registration.getNotifications().then(notifications => {
+            self.registration.getNotifications({ tag: notificationTag }).then(notifications => {
                 notifications.forEach(notification => {
-                    if (notification.data && 
-                        notification.data.timestamp === notificationData.data.timestamp) {
-                        console.log('[Service Worker] Auto-closing notification after 60 seconds');
-                        notification.close();
-                    }
+                    console.log('[Service Worker] Auto-closing notification after', autoCloseTimeout / 1000, 'seconds');
+                    notification.close();
                 });
             });
-        }, 60000); // 60 seconds
+        }, autoCloseTimeout);
     });
 
     console.log('[Service Worker] About to waitUntil with promises');
@@ -250,8 +362,8 @@ self.addEventListener('message', function(event) {
         const title = data.title || 'Test Push Notification';
         const options = {
             body: data.body || 'This is a test push notification',
-            icon: data.icon || '/gsd-reservation/public/images/assets/phinma.png',
-            badge: data.badge || '/gsd-reservation/public/images/assets/phinma.png',
+            icon: data.icon || '/phinma.png',
+            badge: data.badge || '/phinma.png',
             data: data.data || { url: '/', timestamp: Date.now() }
         };
         event.waitUntil(self.registration.showNotification(title, options));

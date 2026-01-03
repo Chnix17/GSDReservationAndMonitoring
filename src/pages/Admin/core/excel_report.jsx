@@ -40,10 +40,11 @@ export function generateReservationReport(data, monthStr) {
   if (!flatData.length) return false;
 
   // Helper to count occurrences, calculate hours, and sum issues
-  function countOccurrencesAndHours(items, keyFn, startDateFn, endDateFn, issueCountFn) {
+  function countOccurrencesAndHours(items, keyFn, startDateFn, endDateFn, issueCountFn, locationFn = null) {
     const counts = {};
     const hours = {};
     const issues = {};
+    const locations = {};
     
     items.forEach((item) => {
       const key = keyFn(item);
@@ -71,14 +72,28 @@ export function generateReservationReport(data, monthStr) {
       if (!issues[key]) issues[key] = 0;
       const issueCount = issueCountFn(item);
       issues[key] += issueCount || 0;
+      
+      // Store location if provided
+      if (locationFn && !locations[key]) {
+        locations[key] = locationFn(item);
+      }
     });
     
-    return Object.entries(counts).map(([name, count]) => ({ 
-      name, 
-      "No. Of Uses": count, 
-      "No. Hours": Math.round(hours[name] * 100) / 100, // Round to 2 decimal places
-      total_issues: issues[name] || 0
-    }));
+    return Object.entries(counts).map(([name, count]) => {
+      const result = { 
+        name, 
+        "No. Of Uses": count, 
+        "No. Hours": Math.round(hours[name] * 100) / 100, // Round to 2 decimal places
+        total_issues: issues[name] || 0
+      };
+      
+      // Add location if it exists
+      if (locationFn && locations[name]) {
+        result.location = locations[name];
+      }
+      
+      return result;
+    });
   }
 
   // Helper to count occurrences, calculate hours, and sum issues for equipment (including unit issues)
@@ -147,9 +162,10 @@ export function generateReservationReport(data, monthStr) {
   data.forEach((item) => {
     if (Array.isArray(item.venues)) {
       item.venues.forEach((v) => {
-        const venueName = `${v.venue_name}${v.venue_location ? ` (${v.venue_location})` : ""}`;
+        const venueName = v.venue_name || '';
         allVenues.push({
           name: venueName,
+          location: v.venue_location || '',
           startDate: item.reservation_start_date,
           endDate: item.reservation_end_date,
           issue_counts: v.issue_counts || { total_issues: 0 }
@@ -185,7 +201,8 @@ export function generateReservationReport(data, monthStr) {
     (v) => v.name, 
     (v) => v.startDate, 
     (v) => v.endDate,
-    (v) => v.issue_counts.total_issues
+    (v) => v.issue_counts.total_issues,
+    (v) => v.location || '' // Add location extractor
   );
   const vehicleCounts = countOccurrencesAndHours(
     allVehicles, 
@@ -228,8 +245,16 @@ export function generateReservationReport(data, monthStr) {
   }
   XLSX.utils.book_append_sheet(wb, wsReservations, "Reservations");
 
-  // Venues summary sheet with hours and total issues
-  const wsVenues = XLSX.utils.json_to_sheet(venueCounts.length ? venueCounts : [{ name: "No data", "No. Of Uses": 0, "No. Hours": 0, total_issues: 0 }]);
+  // Venues summary sheet with hours, total issues, and location
+  const wsVenues = XLSX.utils.json_to_sheet(venueCounts.length ? venueCounts : [{ name: "No data", location: "", "No. Of Uses": 0, "No. Hours": 0, total_issues: 0 }]);
+  // Set column widths for venues sheet
+  wsVenues["!cols"] = [
+    { wch: 30 }, // name
+    { wch: 25 }, // location
+    { wch: 15 }, // No. Of Uses
+    { wch: 15 }, // No. Hours
+    { wch: 15 }  // total_issues
+  ];
   XLSX.utils.book_append_sheet(wb, wsVenues, "Venues");
 
   // Vehicles summary sheet with hours and total issues
@@ -253,11 +278,23 @@ export function generateReservationReport(data, monthStr) {
         Requester: requester,
         Department: department,
         Status: h.status_name || "",
-        "Updated At": formatDateTime(h.reservation_updated_at)
+        "Updated At": formatDateTime(h.reservation_updated_at),
+        _sortDate: h.reservation_updated_at // Keep raw date for sorting
       });
     });
   });
-  const wsStatus = XLSX.utils.json_to_sheet(statusRows.length ? statusRows : [{ Reservation: "No data", Requester: "", Department: "", Status: "", "Updated At": "" }]);
+  
+  // Sort statusRows by date in descending order (newest to oldest)
+  statusRows.sort((a, b) => {
+    const dateA = new Date(a._sortDate);
+    const dateB = new Date(b._sortDate);
+    return dateB - dateA; // Descending: newest first
+  });
+  
+  // Remove the _sortDate field before creating the sheet
+  const statusRowsForSheet = statusRows.map(({ _sortDate, ...rest }) => rest);
+  
+  const wsStatus = XLSX.utils.json_to_sheet(statusRowsForSheet.length ? statusRowsForSheet : [{ Reservation: "No data", Requester: "", Department: "", Status: "", "Updated At": "" }]);
   // Set friendly column widths and apply styles so the sheet is readable without resizing
   wsStatus["!cols"] = [
     { wch: 40 }, // Reservation
@@ -266,12 +303,12 @@ export function generateReservationReport(data, monthStr) {
     { wch: 18 }, // Status
     { wch: 28 }  // Updated At
   ];
-  const statusHeaderKeys = Object.keys(statusRows[0] || { Reservation: "", Requester: "", Department: "", Status: "", "Updated At": "" });
+  const statusHeaderKeys = Object.keys(statusRowsForSheet[0] || { Reservation: "", Requester: "", Department: "", Status: "", "Updated At": "" });
   statusHeaderKeys.forEach((key, idx) => {
     const cellRef = XLSX.utils.encode_cell({ r: 0, c: idx });
     if (wsStatus[cellRef]) wsStatus[cellRef].s = headerCellStyle;
   });
-  for (let r = 1; r <= statusRows.length; r++) {
+  for (let r = 1; r <= statusRowsForSheet.length; r++) {
     for (let c = 0; c < statusHeaderKeys.length; c++) {
       const cellRef = XLSX.utils.encode_cell({ r, c });
       if (wsStatus[cellRef]) wsStatus[cellRef].s = contentCellStyle;

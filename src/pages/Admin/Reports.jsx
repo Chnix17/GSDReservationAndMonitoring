@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import {Table, Tag, Button, Tabs, Input, Tooltip,  Dropdown, Modal, Descriptions, Divider, Row, Col, Skeleton, Typography, Badge, Popconfirm, Space} from 'antd';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import {Table, Tag, Button, Tabs, Input, Tooltip, Dropdown, Modal, Descriptions, Divider, Row, Col, Skeleton, Typography, Badge, Popconfirm, Space, Card, Drawer, Empty, Pagination} from 'antd';
 import { motion } from 'framer-motion';
+import { useMediaQuery } from 'react-responsive';
 import {
   // CarOutlined,
   // HomeOutlined,
@@ -13,12 +14,15 @@ import {
   BarChartOutlined,
   FilterOutlined
 } from '@ant-design/icons';
-import axios from 'axios';
 import { toast } from 'sonner';
 import Sidebar from '../../components/core/Sidebar';
 import {SecureStorage} from '../../utils/encryption';
 
 const Reports = () => {
+  // Responsive breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  
   const [maintenanceResources, setMaintenanceResources] = useState([]);
   const [maintenanceResourcesWithStatus, setMaintenanceResourcesWithStatus] = useState([]);
   // const [totalCounts, setTotalCounts] = useState({
@@ -34,36 +38,83 @@ const Reports = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedResource, setSelectedResource] = useState(null);
   const [isDoneContext, setIsDoneContext] = useState(false); // track if modal opened from Done tab
+  const [pageSize, setPageSize] = useState(10);
+  const [currentPage, setCurrentPage] = useState(1);
 
   const baseUrl = SecureStorage.getLocalItem("url");
 
-
+  // Update page size based on screen size
+  useEffect(() => {
+    if (isMobile) {
+      setPageSize(5);
+    } else if (isTablet) {
+      setPageSize(8);
+    } else {
+      setPageSize(10);
+    }
+  }, [isMobile, isTablet]);
 
   const fetchMaintenanceResources = useCallback(async () => {
     try {
-      const response = await axios.post(`${baseUrl}/Assigned&Records.php`, {
-        operation: 'displayedMaintenanceResources'
+      const response = await fetch(`${baseUrl}/Assigned&Records.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'displayedMaintenanceResources'
+        }),
       });
 
-      if (response.data.status === 'success') {
-        setMaintenanceResources(response.data.data);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        setMaintenanceResources(data.data);
+      } else {
+        toast.error('Failed to fetch maintenance resources');
       }
     } catch (error) {
-      toast.error('Error fetching maintenance resources');
+      console.error('Error fetching maintenance resources:', error);
+      if (!navigator.onLine || error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        toast.error('Network connection lost. Cannot reach the server.');
+      } else {
+        toast.error('Error fetching maintenance resources');
+      }
     }
   }, [baseUrl]);
 
   const fetchMaintenanceResourcesWithStatus = useCallback(async () => {
     try {
-      const response = await axios.post(`${baseUrl}/Assigned&Records.php`, {
-        operation: 'displayedMaintenanceResourcesDone'
+      const response = await fetch(`${baseUrl}/Assigned&Records.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: 'displayedMaintenanceResourcesDone'
+        }),
       });
 
-      if (response.data.status === 'success') {
-        setMaintenanceResourcesWithStatus(response.data.data);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        setMaintenanceResourcesWithStatus(data.data);
+      } else {
+        toast.error('Failed to fetch maintenance resources with status');
       }
     } catch (error) {
-      toast.error('Error fetching maintenance resources with status');
+      console.error('Error fetching maintenance resources with status:', error);
+      if (!navigator.onLine || error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        toast.error('Network connection lost. Cannot reach the server.');
+      } else {
+        toast.error('Error fetching maintenance resources with status');
+      }
     }
   }, [baseUrl]);
 
@@ -79,21 +130,48 @@ const Reports = () => {
 
   const handleUpdateResourceStatus = async (isFixed) => {
     if (!selectedResource) return;
+    
+    // Automatically generate admin remarks based on action
+    const adminRemarks = isFixed ? 'Set to Available' : 'Set to Unavailable';
+    
     try {
-      await axios.post(`${baseUrl}/Assigned&Records.php`, {
-        operation: "updateResourceStatusAndCondition",
-        type: selectedResource.resource_type,
-        resourceId: selectedResource.resource_id, // or the correct field for your resource
-        recordId: selectedResource.record_id || selectedResource.maintenance_id,
-        user_personnel_id: SecureStorage.getLocalItem("user_id"),
-        isFixed: isFixed
+      const response = await fetch(`${baseUrl}/Assigned&Records.php`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          operation: "updateResourceStatusAndCondition",
+          type: selectedResource.resource_type,
+          resourceId: selectedResource.resource_id, // or the correct field for your resource
+          recordId: selectedResource.record_id || selectedResource.maintenance_id,
+          user_personnel_id: SecureStorage.getLocalItem("user_id"),
+          isFixed: isFixed,
+          admin_remarks: adminRemarks
+        }),
       });
-      toast.success(isFixed ? "Resource marked as available for use." : "Resource marked as unavailable.");
-      setIsModalOpen(false);
-      fetchMaintenanceResources();
-      fetchMaintenanceResourcesWithStatus();
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      if (data.status === 'success') {
+        toast.success(isFixed ? "Resource marked as available for use." : "Resource marked as unavailable.");
+        setIsModalOpen(false);
+        fetchMaintenanceResources();
+        fetchMaintenanceResourcesWithStatus();
+      } else {
+        // Show error message from backend (including next request validation)
+        toast.error(data.message || "Failed to update resource status.");
+      }
     } catch (error) {
-      toast.error("Failed to update resource status.");
+      console.error('Error updating resource status:', error);
+      if (!navigator.onLine || error.message === 'Failed to fetch' || error.name === 'TypeError') {
+        toast.error('Network connection lost. Cannot reach the server.');
+      } else {
+        toast.error("Failed to update resource status.");
+      }
     }
   };
 
@@ -188,6 +266,12 @@ const Reports = () => {
             {status || 'Unset'}
           </Tag>
         )
+      },
+      {
+        title: 'Reported By',
+        dataIndex: 'reported_by_name',
+        key: 'reported_by_name',
+        render: (val) => val || '—'
       },
       {
         title: 'Reported At',
@@ -296,18 +380,6 @@ const Reports = () => {
       )
     },
     {
-      title: 'Reported By',
-      dataIndex: 'requester_name',
-      key: 'requester_name',
-      render: (val) => val || '—'
-    },
-    {
-      title: 'Reported At',
-      dataIndex: 'created_at',
-      key: 'created_at',
-      render: (date) => date || '—'
-    },
-    {
       title: 'Action',
       key: 'action',
       render: (_, record) => (
@@ -329,9 +401,87 @@ const Reports = () => {
     setSearchTerm('');
   };
 
-  const filteredMaintenanceResources = maintenanceResources.filter(resource =>
-    resource.resource_name && resource.resource_name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Mobile card rendering functions
+  const renderMobileCards = (data, tabKey) => {
+    const paginatedData = data.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    
+    if (!paginatedData || paginatedData.length === 0) {
+      return (
+        <div className="text-center py-12">
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description={
+              <span className="text-gray-500">
+                No resources found
+              </span>
+            }
+          />
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3 p-3">
+        {paginatedData.map((resource) => (
+          <Card
+            key={`${resource.resource_type}-${resource.record_id || resource.maintenance_id}`}
+            className="bg-white border border-gray-200 rounded-lg shadow-sm"
+            size="small"
+          >
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Tag color={
+                    resource.resource_type === 'venue' ? 'blue' :
+                    resource.resource_type === 'vehicle' ? 'green' :
+                    'purple'
+                  }>
+                    {resource.resource_type?.charAt(0).toUpperCase() + resource.resource_type?.slice(1)}
+                  </Tag>
+                  <span className="font-medium text-sm truncate max-w-[120px]">
+                    {resource.resource_name}
+                  </span>
+                </div>
+                <Tag color={
+                  resource.condition_name?.toLowerCase().includes('completed') || resource.condition_name?.toLowerCase().includes('good')
+                    ? 'green'
+                    : resource.condition_name?.toLowerCase().includes('pending') || resource.condition_name?.toLowerCase().includes('inspection')
+                      ? 'orange'
+                      : resource.condition_name?.toLowerCase() === 'damaged'
+                        ? 'red'
+                        : 'default'
+                }>
+                  {resource.condition_name || 'Unset'}
+                </Tag>
+              </div>
+              <div className="text-xs text-gray-600">
+                <div>Reported by: {resource.reported_by_name || '—'}</div>
+                <div>Reported at: {resource.created_at ? new Date(resource.created_at).toLocaleString() : '—'}</div>
+              </div>
+              {(tabKey === 'unset' && !isBulkEquipment(resource)) || tabKey === 'done' || tabKey === 'bulk' ? (
+                <div className="flex justify-end">
+                  <Button
+                    size="small"
+                    type={tabKey === 'done' ? 'default' : 'primary'}
+                    onClick={() => handleScheduleMaintenance(resource, tabKey === 'done' ? 'done' : 'unset')}
+                    icon={<ExclamationCircleOutlined />}
+                  >
+                    View Details
+                  </Button>
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        ))}
+      </div>
+    );
+  };
+
+  const filteredMaintenanceResources = useMemo(() => {
+    return maintenanceResources.filter(resource =>
+      resource.resource_name && resource.resource_name.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [maintenanceResources, searchTerm]);
 
   useEffect(() => {
     fetchMaintenanceResources();
@@ -347,22 +497,20 @@ const Reports = () => {
 
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
-      {/* Fixed Sidebar */}
-      <div className="flex-none">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
       
-      {/* Scrollable Content Area */}
-      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
-        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
-          <motion.div
+      <div className={`flex-grow overflow-y-auto`}>
+        <div className={`${isMobile ? 'px-4 py-4 mt-5' : isTablet ? 'px-6 py-6 mt-10' : 'px-8 py-6 mt-10 max-w-7xl mx-auto'} min-h-screen`}>
+          <motion.div 
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-4 sm:mb-8"
+            className={`${isMobile ? 'mb-3' : 'mb-4'}`}
           >
             <div className="mb-2 sm:mb-4 mt-10">
-              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
+              <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Resource Reports
               </h2>
             </div>
@@ -409,46 +557,52 @@ const Reports = () => {
           </Row> */}
 
           {/* Search and Filters */}
-          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-row items-center gap-2 w-full">
+          <div className={`bg-[#fafff4] ${isMobile ? 'p-3' : 'p-4'} rounded-lg shadow-sm ${isMobile ? 'mb-4' : 'mb-5'}`}>
+            <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex flex-row items-center gap-2'} w-full`}>
               <div className="flex-grow">
                 <Input
-                  placeholder="Search resources by name"
+                  placeholder={isMobile ? "Search..." : "Search resources by name"}
                   allowClear
                   prefix={<SearchOutlined />}
-                  size="large"
+                  size={isMobile ? "middle" : "large"}
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="w-full"
                 />
               </div>
-              <Dropdown
-                menu={{
-                  items: [
-                    { key: 'week', label: 'Last Week' },
-                    { key: 'month', label: 'Last Month' },
-                    { key: 'year', label: 'Last Year' }
-                  ],
-                  onClick: ({ key }) => setTimeRange(key),
-                  selectedKeys: [timeRange]
-                }}
-                trigger={["click"]}
-                placement="bottomRight"
-              >
-                <Button
-                  icon={<FilterOutlined />}
-                  size="large"
-                  style={{ background: 'white', border: '1px solid #d9d9d9', borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}
-                />
-              </Dropdown>
-              <div>
+              <div className={`flex ${isMobile ? 'flex-col gap-2' : isTablet ? 'flex-wrap gap-2' : 'gap-2'}`}>
+                <Dropdown
+                  menu={{
+                    items: [
+                      { key: 'week', label: 'Last Week' },
+                      { key: 'month', label: 'Last Month' },
+                      { key: 'year', label: 'Last Year' }
+                    ],
+                    onClick: ({ key }) => setTimeRange(key),
+                    selectedKeys: [timeRange]
+                  }}
+                  trigger={["click"]}
+                  placement="bottomRight"
+                >
+                  <Button
+                    icon={<FilterOutlined />}
+                    size={isMobile ? "middle" : "large"}
+                    className={isMobile ? 'w-full' : ''}
+                    style={!isMobile ? { background: 'white', border: '1px solid #d9d9d9', borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center', marginLeft: 4 } : {}}
+                  >
+                    {isMobile && 'Filter'}
+                  </Button>
+                </Dropdown>
                 <Tooltip title="Refresh data">
                   <Button
                     icon={<ReloadOutlined />}
                     onClick={handleRefresh}
-                    size="large"
-                    style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                  />
+                    size={isMobile ? "middle" : "large"}
+                    className={isMobile ? 'w-full' : ''}
+                    style={!isMobile ? { borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' } : {}}
+                  >
+                    {isMobile && 'Refresh'}
+                  </Button>
                 </Tooltip>
               </div>
             </div>
@@ -476,25 +630,35 @@ const Reports = () => {
                     </span>
                   ),
                   children: (
-                    <div className="overflow-x-auto pr-8">
-                      <Table
-                        loading={false}
-                        pagination={{ 
-                          pageSize: 10,
-                          showSizeChanger: true,
-                          showTotal: (total) => `Total ${total} items`,
-                          responsive: true
-                        }}
-                        columns={getColumnsForTab('unset')}
-                        dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset')
-                          .filter(resource => !isBulkEquipment(resource))
-                          .map(resource => ({
-                            key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
-                            ...resource
-                          }))}
-                        className="maintenance-table"
-                        scroll={{ x: 'max-content' }}
-                      />
+                    <div>
+                      {isMobile ? (
+                        renderMobileCards(
+                          filterResourcesByStatus(filteredMaintenanceResources, 'unset')
+                            .filter(resource => !isBulkEquipment(resource))
+                            .map(resource => ({
+                              key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                              ...resource
+                            })),
+                          'unset'
+                        )
+                      ) : (
+                        <div className="overflow-x-auto pr-8">
+                          <Table
+                            loading={false}
+                            pagination={false}
+                            columns={getColumnsForTab('unset')}
+                            dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset')
+                              .filter(resource => !isBulkEquipment(resource))
+                              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                              .map(resource => ({
+                                key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                                ...resource
+                              }))}
+                            className="maintenance-table"
+                            scroll={{ x: 'max-content' }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ),
                 },
@@ -508,23 +672,32 @@ const Reports = () => {
                     </span>
                   ),
                   children: (
-                    <div className="overflow-x-auto">
-                      <Table
-                        loading={false}
-                        pagination={{ 
-                          pageSize: 10,
-                          showSizeChanger: true,
-                          showTotal: (total) => `Total ${total} items`,
-                          responsive: true
-                        }}
-                        columns={getColumnsForTab('done')}
-                        dataSource={maintenanceResourcesWithStatus.map(resource => ({
-                          key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
-                          ...resource
-                        }))}
-                        className="maintenance-table"
-                        scroll={{ x: 'max-content' }}
-                      />
+                    <div>
+                      {isMobile ? (
+                        renderMobileCards(
+                          maintenanceResourcesWithStatus.map(resource => ({
+                            key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                            ...resource
+                          })),
+                          'done'
+                        )
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table
+                            loading={false}
+                            pagination={false}
+                            columns={getColumnsForTab('done')}
+                            dataSource={maintenanceResourcesWithStatus
+                              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                              .map(resource => ({
+                                key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                                ...resource
+                              }))}
+                            className="maintenance-table"
+                            scroll={{ x: 'max-content' }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ),
                 },
@@ -538,72 +711,103 @@ const Reports = () => {
                     </span>
                   ),
                   children: (
-                    <div className="overflow-x-auto">
-                      <Table
-                        loading={false}
-                        pagination={{ 
-                          pageSize: 10,
-                          showSizeChanger: true,
-                          showTotal: (total) => `Total ${total} items`,
-                          responsive: true
-                        }}
-                        columns={getBulkColumns()}
-                        dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset')
-                          .filter(isBulkEquipment)
-                          .map(resource => ({
-                            key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
-                            ...resource
-                          }))}
-                        className="maintenance-table"
-                        scroll={{ x: 'max-content' }}
-                      />
+                    <div>
+                      {isMobile ? (
+                        renderMobileCards(
+                          filterResourcesByStatus(filteredMaintenanceResources, 'unset')
+                            .filter(isBulkEquipment)
+                            .map(resource => ({
+                              key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                              ...resource
+                            })),
+                          'bulk'
+                        )
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table
+                            loading={false}
+                            pagination={false}
+                            columns={getBulkColumns()}
+                            dataSource={filterResourcesByStatus(filteredMaintenanceResources, 'unset')
+                              .filter(isBulkEquipment)
+                              .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                              .map(resource => ({
+                                key: `${resource.resource_type}-${resource.record_id || resource.maintenance_id}`,
+                                ...resource
+                              }))}
+                            className="maintenance-table"
+                            scroll={{ x: 'max-content' }}
+                          />
+                        </div>
+                      )}
                     </div>
                   ),
                 }
               ]}
             />
-            {/* Enhanced View Details Modal */}
-            <Modal
-              title={
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className="w-9 h-9 rounded-full flex items-center justify-center bg-green-100">
-                      <Badge color="green" />
+            
+            {/* Pagination */}
+            <div className={`${isMobile ? 'p-3' : 'p-4'} border-t border-gray-200 dark:border-gray-700`}>
+              <Pagination
+                current={currentPage}
+                pageSize={pageSize}
+                total={filteredMaintenanceResources ? filteredMaintenanceResources.length : 0}
+                onChange={(page, size) => {
+                  setCurrentPage(page);
+                  setPageSize(size);
+                }}
+                showSizeChanger={!isMobile}
+                showTotal={!isMobile ? (total, range) =>
+                  `${range[0]}-${range[1]} of ${total} items` : false
+                }
+                size={isMobile ? "small" : "default"}
+                className={`flex ${isMobile ? 'justify-center' : 'justify-end'}`}
+                simple={isMobile}
+              />
+            </div>
+            
+            {/* Enhanced View Details Modal/Drawer */}
+            {isMobile ? (
+              <Drawer
+                title={
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center bg-green-100">
+                        <Badge color="green" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[15px] font-semibold text-gray-900">
+                          {selectedResource ? selectedResource.resource_name : 'Resource Details'}
+                        </span>
+                        {selectedResource?.resource_type && (
+                          <span className="text-xs text-gray-500">{selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1)}</span>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col">
-                      <span className="text-[15px] font-semibold text-gray-900">
-                        {selectedResource ? selectedResource.resource_name : 'Resource Details'}
-                      </span>
-                      {selectedResource?.resource_type && (
-                        <span className="text-xs text-gray-500">{selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1)}</span>
-                      )}
-                    </div>
+                    {selectedResource?.condition_name && (
+                      <Tag color={selectedResource.condition_name?.toLowerCase().includes('available') ? 'green' : 'red'} className="text-xs">
+                        {selectedResource.condition_name}
+                      </Tag>
+                    )}
                   </div>
-                  {selectedResource?.condition_name && (
-                    <Tag color={selectedResource.condition_name?.toLowerCase().includes('available') ? 'green' : 'red'} className="text-xs">
-                      {selectedResource.condition_name}
-                    </Tag>
-                  )}
-                </div>
-              }
-              open={isModalOpen}
-              onCancel={() => setIsModalOpen(false)}
-              className="custom-modal"
-              width={720}
-              footer={
-                selectedResource && (isBulkEquipment(selectedResource) || isCompletedOrGood(selectedResource) || isDoneContext)
-                  ? null
-                  : (
-                    <div className="w-full flex items-center justify-between">
-                      <span className="text-xs text-gray-500">Update availability status</span>
-                      <Space>
+                }
+                placement="bottom"
+                height="90%"
+                open={isModalOpen}
+                onClose={() => setIsModalOpen(false)}
+                footer={
+                  selectedResource && (isBulkEquipment(selectedResource) || isCompletedOrGood(selectedResource) || isDoneContext)
+                    ? null
+                    : (
+                      <div className="flex flex-col gap-2 p-4">
+                        <span className="text-xs text-gray-500 text-center mb-2">Update availability status</span>
                         <Popconfirm
                           title="Mark resource as Unavailable?"
                           okText="Yes"
                           cancelText="No"
                           onConfirm={() => handleUpdateResourceStatus(false)}
                         >
-                          <Button key="unavailable" danger>
+                          <Button key="unavailable" danger block size="large">
                             Set to Unavailable
                           </Button>
                         </Popconfirm>
@@ -613,21 +817,19 @@ const Reports = () => {
                           cancelText="No"
                           onConfirm={() => handleUpdateResourceStatus(true)}
                         >
-                          <Button key="available" type="primary" className="bg-green-600 border-green-600 hover:bg-green-700">
+                          <Button key="available" type="primary" className="bg-green-600 border-green-600 hover:bg-green-700" block size="large">
                             Available for Use
                           </Button>
                         </Popconfirm>
-                      </Space>
-                    </div>
-                  )
-              }
-            >
-              {!selectedResource ? (
-                <Skeleton active paragraph={{ rows: 4 }} />
-              ) : (
-                <div>
-                  <Row gutter={[16, 16]}>
-                    <Col xs={24} md={14}>
+                      </div>
+                    )
+                }
+              >
+                <div style={{ paddingBottom: '120px' }}>
+                  {!selectedResource ? (
+                    <Skeleton active paragraph={{ rows: 4 }} />
+                  ) : (
+                    <div>
                       <Descriptions
                         column={1}
                         size="small"
@@ -654,8 +856,13 @@ const Reports = () => {
                           </Descriptions.Item>
                         )}
                         {selectedResource.requester_name && (
-                          <Descriptions.Item label="Responsible">
-                            <Typography.Text className="text-green-600">{selectedResource.requester_name}</Typography.Text>
+                          <Descriptions.Item label="Requester">
+                            <Typography.Text className="text-blue-600">{selectedResource.requester_name}</Typography.Text>
+                          </Descriptions.Item>
+                        )}
+                        {selectedResource.reported_by_name && (
+                          <Descriptions.Item label="Reported By">
+                            <Typography.Text className="text-green-600">{selectedResource.reported_by_name}</Typography.Text>
                           </Descriptions.Item>
                         )}
                         {selectedResource.created_at && (
@@ -664,10 +871,9 @@ const Reports = () => {
                           </Descriptions.Item>
                         )}
                       </Descriptions>
-                    </Col>
-                    <Col xs={24} md={10}>
+
                       {(selectedResource.reservation_title || selectedResource.reservation_description) ? (
-                        <div className="bg-white rounded-lg border border-gray-100 p-3">
+                        <div className="mt-4 bg-white rounded-lg border border-gray-100 p-3">
                           <Divider className="my-2" />
                           {selectedResource.reservation_title && (
                             <div className="mb-1">
@@ -681,35 +887,208 @@ const Reports = () => {
                           )}
                         </div>
                       ) : (
-                        <div className="bg-gray-50 rounded-lg p-4 text-center border border-dashed border-gray-200">
+                        <div className="mt-4 bg-gray-50 rounded-lg p-4 text-center border border-dashed border-gray-200">
                           <Typography.Text type="secondary" className="text-xs">No reservation details</Typography.Text>
                         </div>
                       )}
-                    </Col>
-                  </Row>
 
-                  {selectedResource.remarks && (
-                    <div className="mt-4 bg-white rounded-lg border border-gray-100 p-3">
-                      <Typography.Text className="text-gray-700 font-medium text-sm">Remarks</Typography.Text>
-                      <Divider className="my-2" />
-                      <Typography.Paragraph className="!mb-0 text-xs text-gray-600">
-                        {selectedResource.remarks}
-                      </Typography.Paragraph>
-                    </div>
-                  )}
+                      {selectedResource.remarks && (
+                        <div className="mt-4 bg-white rounded-lg border border-gray-100 p-3">
+                          <Typography.Text className="text-gray-700 font-medium text-sm">Remarks</Typography.Text>
+                          <Divider className="my-2" />
+                          <Typography.Paragraph className="!mb-0 text-xs text-gray-600">
+                            {selectedResource.remarks}
+                          </Typography.Paragraph>
+                        </div>
+                      )}
 
-                  {!isBulkEquipment(selectedResource) && !isCompletedOrGood(selectedResource) && !isDoneContext && (
-                    <div className="mt-4 bg-gray-50 rounded-lg border border-gray-200 p-3">
-                      <Typography.Text className="text-gray-700 font-medium text-sm">Action</Typography.Text>
-                      <Divider className="my-2" />
-                      <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
-                        Choose the appropriate status for this resource using the buttons below.
-                      </Typography.Paragraph>
+                      {selectedResource.admin_remarks && isDoneContext && (
+                        <div className="mt-4 bg-green-50 rounded-lg border border-green-200 p-3">
+                          <Typography.Text className="text-green-700 font-medium text-sm">Admin Remarks</Typography.Text>
+                          <Divider className="my-2" />
+                          <Typography.Paragraph className="!mb-0 text-xs text-green-700">
+                            {selectedResource.admin_remarks}
+                          </Typography.Paragraph>
+                        </div>
+                      )}
+
+                      {!isBulkEquipment(selectedResource) && !isCompletedOrGood(selectedResource) && !isDoneContext && (
+                        <div className="mt-4 bg-gray-50 rounded-lg border border-gray-200 p-3">
+                          <Typography.Text className="text-gray-700 font-medium text-sm">Action</Typography.Text>
+                          <Divider className="my-2" />
+                          <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
+                            Choose the appropriate status for this resource using the buttons below.
+                          </Typography.Paragraph>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </Modal>
+              </Drawer>
+            ) : (
+              <Modal
+                title={
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center bg-green-100">
+                        <Badge color="green" />
+                      </div>
+                      <div className="flex flex-col">
+                        <span className="text-[15px] font-semibold text-gray-900">
+                          {selectedResource ? selectedResource.resource_name : 'Resource Details'}
+                        </span>
+                        {selectedResource?.resource_type && (
+                          <span className="text-xs text-gray-500">{selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1)}</span>
+                        )}
+                      </div>
+                    </div>
+                    {selectedResource?.condition_name && (
+                      <Tag color={selectedResource.condition_name?.toLowerCase().includes('available') ? 'green' : 'red'} className="text-xs">
+                        {selectedResource.condition_name}
+                      </Tag>
+                    )}
+                  </div>
+                }
+                open={isModalOpen}
+                onCancel={() => setIsModalOpen(false)}
+                className="custom-modal"
+                width={isTablet ? 700 : 800}
+                footer={
+                  selectedResource && (isBulkEquipment(selectedResource) || isCompletedOrGood(selectedResource) || isDoneContext)
+                    ? null
+                    : (
+                      <div className="w-full flex items-center justify-between">
+                        <span className="text-xs text-gray-500">Update availability status</span>
+                        <Space>
+                          <Popconfirm
+                            title="Mark resource as Unavailable?"
+                            okText="Yes"
+                            cancelText="No"
+                            onConfirm={() => handleUpdateResourceStatus(false)}
+                          >
+                            <Button key="unavailable" danger>
+                              Set to Unavailable
+                            </Button>
+                          </Popconfirm>
+                          <Popconfirm
+                            title="Mark resource as Available for use?"
+                            okText="Yes"
+                            cancelText="No"
+                            onConfirm={() => handleUpdateResourceStatus(true)}
+                          >
+                            <Button key="available" type="primary" className="bg-green-600 border-green-600 hover:bg-green-700">
+                              Available for Use
+                            </Button>
+                          </Popconfirm>
+                        </Space>
+                      </div>
+                    )
+                }
+              >
+                {!selectedResource ? (
+                  <Skeleton active paragraph={{ rows: 4 }} />
+                ) : (
+                  <div>
+                    <Row gutter={[16, 16]}>
+                      <Col xs={24} md={14}>
+                        <Descriptions
+                          column={1}
+                          size="small"
+                          colon
+                          bordered
+                          labelStyle={{ width: 140, color: '#6b7280' }}
+                        >
+                          <Descriptions.Item label="Resource Name">
+                            <Typography.Text strong>{selectedResource.resource_name || '-'}</Typography.Text>
+                          </Descriptions.Item>
+                          <Descriptions.Item label="Type">
+                            <Tag color="green" className="text-xs">
+                              {selectedResource.resource_type?.charAt(0).toUpperCase() + selectedResource.resource_type?.slice(1) || '-'}
+                            </Tag>
+                          </Descriptions.Item>
+                          <Descriptions.Item label="Status">
+                            <Typography.Text>{selectedResource.condition_name || 'Unset'}</Typography.Text>
+                          </Descriptions.Item>
+                          {isBulkEquipment(selectedResource) && (
+                            <Descriptions.Item label="Quantity Issue">
+                              <Typography.Text strong>
+                                {selectedResource.quantity ?? '—'}
+                              </Typography.Text>
+                            </Descriptions.Item>
+                          )}
+                          {selectedResource.requester_name && (
+                            <Descriptions.Item label="Requester">
+                              <Typography.Text className="text-blue-600">{selectedResource.requester_name}</Typography.Text>
+                            </Descriptions.Item>
+                          )}
+                          {selectedResource.reported_by_name && (
+                            <Descriptions.Item label="Reported By">
+                              <Typography.Text className="text-green-600">{selectedResource.reported_by_name}</Typography.Text>
+                            </Descriptions.Item>
+                          )}
+                          {selectedResource.created_at && (
+                            <Descriptions.Item label="Reported At">
+                              <Typography.Text>{selectedResource.created_at}</Typography.Text>
+                            </Descriptions.Item>
+                          )}
+                        </Descriptions>
+                      </Col>
+                      <Col xs={24} md={10}>
+                        {(selectedResource.reservation_title || selectedResource.reservation_description) ? (
+                          <div className="bg-white rounded-lg border border-gray-100 p-3">
+                            <Divider className="my-2" />
+                            {selectedResource.reservation_title && (
+                              <div className="mb-1">
+                                <Typography.Text strong>{selectedResource.reservation_title}</Typography.Text>
+                              </div>
+                            )}
+                            {selectedResource.reservation_description && (
+                              <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
+                                {selectedResource.reservation_description}
+                              </Typography.Paragraph>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50 rounded-lg p-4 text-center border border-dashed border-gray-200">
+                            <Typography.Text type="secondary" className="text-xs">No reservation details</Typography.Text>
+                          </div>
+                        )}
+                      </Col>
+                    </Row>
+
+                    {selectedResource.remarks && (
+                      <div className="mt-4 bg-white rounded-lg border border-gray-100 p-3">
+                        <Typography.Text className="text-gray-700 font-medium text-sm">Remarks</Typography.Text>
+                        <Divider className="my-2" />
+                        <Typography.Paragraph className="!mb-0 text-xs text-gray-600">
+                          {selectedResource.remarks}
+                        </Typography.Paragraph>
+                      </div>
+                    )}
+
+                    {selectedResource.admin_remarks && isDoneContext && (
+                      <div className="mt-4 bg-green-50 rounded-lg border border-green-200 p-3">
+                        <Typography.Text className="text-green-700 font-medium text-sm">Admin Remarks</Typography.Text>
+                        <Divider className="my-2" />
+                        <Typography.Paragraph className="!mb-0 text-xs text-green-700">
+                          {selectedResource.admin_remarks}
+                        </Typography.Paragraph>
+                      </div>
+                    )}
+
+                    {!isBulkEquipment(selectedResource) && !isCompletedOrGood(selectedResource) && !isDoneContext && (
+                      <div className="mt-4 bg-gray-50 rounded-lg border border-gray-200 p-3">
+                        <Typography.Text className="text-gray-700 font-medium text-sm">Action</Typography.Text>
+                        <Divider className="my-2" />
+                        <Typography.Paragraph type="secondary" className="!mb-0 text-xs">
+                          Choose the appropriate status for this resource using the buttons below.
+                        </Typography.Paragraph>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </Modal>
+            )}
           </div>
         </div>
       </div>

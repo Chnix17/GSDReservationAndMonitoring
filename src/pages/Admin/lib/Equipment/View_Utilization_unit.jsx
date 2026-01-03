@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
+import { Modal, Drawer, Statistic, Spin, Tabs, Typography, Space, Tag } from 'antd';
 import { ToolOutlined, ClockCircleOutlined, CheckCircleOutlined, DatabaseOutlined } from '@ant-design/icons';
+import { useMediaQuery } from 'react-responsive';
 import { SecureStorage } from '../../../../utils/encryption';
 import axios from 'axios';
 import {
@@ -32,6 +33,11 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
     const [equipmentDetails, setEquipmentDetails] = useState(null);
     const [reservationHistory, setReservationHistory] = useState([]); // NEW
     const encryptedUrl = SecureStorage.getLocalItem("url");
+
+    // Responsive breakpoints
+    const isMobile = useMediaQuery({ maxWidth: 767 });
+    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+    const isDesktop = useMediaQuery({ minWidth: 1024 });
 
     const COLORS = ['#548e54', '#83b383'];
 
@@ -269,28 +275,36 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
     // Render reservation history table
     const renderReservationHistory = () => {
         if (!reservationHistory || reservationHistory.length === 0) {
-            return <div className="p-4 text-center text-gray-500">No reservation history found.</div>;
+            return <div className={`${isMobile ? 'p-2' : 'p-4'} text-center text-gray-500`}>No reservation history found.</div>;
         }
         return (
-            <div className="overflow-x-auto p-2">
+            <div className={`overflow-x-auto ${isMobile ? 'p-1' : 'p-2'}`}>
                 <table className="min-w-full border border-gray-200 rounded-lg">
                     <thead className="bg-green-100">
                         <tr>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Serial Number</th>
+                            {!isMobile && (
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Serial Number</th>
+                            )}
                             <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Equipment Name</th>
                             <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Requester</th>
                             <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">Start Date</th>
-                            <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">End Date</th>
+                            {isDesktop && (
+                                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-700">End Date</th>
+                            )}
                         </tr>
                     </thead>
                     <tbody>
                         {reservationHistory.map((item, idx) => (
                             <tr key={idx} className="border-t border-gray-100 hover:bg-green-50">
-                                <td className="px-3 py-2 text-sm">{item.serial_number}</td>
+                                {!isMobile && (
+                                    <td className="px-3 py-2 text-sm">{item.serial_number}</td>
+                                )}
                                 <td className="px-3 py-2 text-sm">{item.equip_name}</td>
                                 <td className="px-3 py-2 text-sm">{item.requester}</td>
-                                <td className="px-3 py-2 text-sm">{moment(item.reservation_start_date).format('MMMM D h:mm A')}</td>
-                                <td className="px-3 py-2 text-sm">{moment(item.reservation_end_date).format('MMMM D h:mm A')}</td>
+                                <td className="px-3 py-2 text-sm">{moment(item.reservation_start_date).format(isMobile ? 'MMM D h:mm A' : 'MMMM D h:mm A')}</td>
+                                {isDesktop && (
+                                    <td className="px-3 py-2 text-sm">{moment(item.reservation_end_date).format('MMMM D h:mm A')}</td>
+                                )}
                             </tr>
                         ))}
                     </tbody>
@@ -302,9 +316,9 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
     const items = [
         {
             key: '1',
-            label: <span className="text-base font-medium">Monthly Overview</span>,
+            label: <span className={`${isMobile ? 'text-sm' : 'text-base'} font-medium`}>{isMobile ? 'Overview' : 'Monthly Overview'}</span>,
             children: (
-                <div className="p-4" style={{ minHeight: '500px' }}>
+                <div className={`${isMobile ? 'p-2' : 'p-4'}`} style={{ minHeight: isMobile ? '300px' : '500px' }}>
                     {renderMonthlyUtilizationChart()}
                 </div>
             ),
@@ -312,122 +326,214 @@ const View_Utilization = ({ open, onCancel, equipment }) => {
         // NEW TAB
         {
             key: '2',
-            label: <span className="text-base font-medium">Reservation History</span>,
+            label: <span className={`${isMobile ? 'text-sm' : 'text-base'} font-medium`}>{isMobile ? 'History' : 'Reservation History'}</span>,
             children: (
-                <div className="p-4" style={{ minHeight: '500px' }}>
+                <div className={`${isMobile ? 'p-2' : 'p-4'}`} style={{ minHeight: isMobile ? '300px' : '500px' }}>
                     {renderReservationHistory()}
                 </div>
             ),
         }
     ];
 
-    return (
-        <Modal
-            title={
-                <Space className="items-center">
-                    <ToolOutlined style={{ color: '#548e54' }} className="text-xl" />
-                    <Title level={4} className="!mb-0 !text-lg md:!text-xl">Equipment Unit Usage</Title>
-                </Space>
-            }
-            open={open}
-            onCancel={onCancel}
-            width="90%"
-            style={{ 
-                maxWidth: '1200px',
-                top: 20
-            }}
-            className="equipment-utilization-modal"
-            footer={null}
-            bodyStyle={{ 
-                padding: '12px',
-                maxHeight: 'calc(100vh - 120px)',
-                overflowY: 'auto'
-            }}
-            centered
-        >
+    const renderContent = () => (
+        <>
             {loading ? (
                 <div className="flex justify-center items-center min-h-[200px]">
                     <Spin size="large" />
                 </div>
             ) : equipmentDetails && (
-                <div className="space-y-4">
+                <div className={`${isMobile ? 'space-y-2' : 'space-y-4'}`}>
                     {/* Equipment Info Section */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 p-3" style={{ backgroundColor: '#d4f4dc' }}>
+                    <div className={`grid ${isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-3'} gap-3 ${isMobile ? 'p-2' : 'p-3'}`} style={{ backgroundColor: '#d4f4dc' }}>
                         <div>
-                            <Title level={4} className="!mb-2 !text-base md:!text-lg">
+                            <Title level={isMobile ? 5 : 4} className={`!mb-2 ${isMobile ? '!text-sm' : '!text-base md:!text-lg'}`}>
                                 {equipmentDetails.equip_name}
                             </Title>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                            <Text style={{ color: '#333333' }} className={`block ${isMobile ? 'text-xs' : 'text-sm md:text-base'}`}>
                                 <span className="font-medium">Serial Number:</span> {equipmentDetails.serial_number}
                             </Text>
+                            {equipmentDetails.equipment_brand && (
+                                <Text style={{ color: '#333333' }} className={`block ${isMobile ? 'text-xs' : 'text-sm md:text-base'}`}>
+                                    <span className="font-medium">Brand:</span> {equipmentDetails.equipment_brand}
+                                </Text>
+                            )}
+                            {equipmentDetails.equipment_model && (
+                                <Text style={{ color: '#333333' }} className={`block ${isMobile ? 'text-xs' : 'text-sm md:text-base'}`}>
+                                    <span className="font-medium">Model:</span> {equipmentDetails.equipment_model}
+                                </Text>
+                            )}
                         </div>
-                        <div>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
-                                <span className="font-medium">Category:</span> {equipmentDetails.equipments_category_name}
-                            </Text>
-                           
-                        </div>
-                        <div>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
-                                <span className="font-medium">Status:</span>{' '}
-                                <Tag color={equipmentDetails.status_availability_id === '1' ? '#548e54' : '#83b383'}>
-                                    {equipmentDetails.status_availability_name}
-                                </Tag>
-                            </Text>
-                            <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
-                                <span className="font-medium">Created At:</span> {equipmentDetails.unit_created_at}
-                            </Text>
-                        </div>
+                        {!isMobile && (
+                            <>
+                                <div>
+                                    <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                        <span className="font-medium">Category:</span> {equipmentDetails.equipments_category_name}
+                                    </Text>
+                                    {equipmentDetails.equipment_description && (
+                                        <Text style={{ color: '#333333' }} className="block text-sm md:text-base italic">
+                                            <span className="font-medium">Description:</span> {equipmentDetails.equipment_description}
+                                        </Text>
+                                    )}
+                                    {equipmentDetails.equipment_specs && (
+                                        <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                            <span className="font-medium">Specs:</span> {equipmentDetails.equipment_specs}
+                                        </Text>
+                                    )}
+                                    {equipmentDetails.inch && (
+                                        <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                            <span className="font-medium">Inch:</span> {equipmentDetails.inch}
+                                        </Text>
+                                    )}
+                                </div>
+                                <div>
+                                    <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                        <span className="font-medium">Status:</span>{' '}
+                                        <Tag color={equipmentDetails.status_availability_id === '1' ? '#548e54' : '#83b383'}>
+                                            {equipmentDetails.status_availability_name}
+                                        </Tag>
+                                    </Text>
+                                    <Text style={{ color: '#333333' }} className="block text-sm md:text-base">
+                                        <span className="font-medium">Created At:</span> {equipmentDetails.unit_created_at}
+                                    </Text>
+                                </div>
+                            </>
+                        )}
+                        {isMobile && (
+                            <div className="flex flex-col gap-1 mt-2">
+                                <Text style={{ color: '#333333' }} className="text-xs">
+                                    <span className="font-medium">Category:</span> {equipmentDetails.equipments_category_name}
+                                </Text>
+                                {equipmentDetails.equipment_description && (
+                                    <Text style={{ color: '#333333' }} className="text-xs italic">
+                                        <span className="font-medium">Description:</span> {equipmentDetails.equipment_description}
+                                    </Text>
+                                )}
+                                {equipmentDetails.equipment_specs && (
+                                    <Text style={{ color: '#333333' }} className="text-xs">
+                                        <span className="font-medium">Specs:</span> {equipmentDetails.equipment_specs}
+                                    </Text>
+                                )}
+                                {equipmentDetails.inch && (
+                                    <Text style={{ color: '#333333' }} className="text-xs">
+                                        <span className="font-medium">Inch:</span> {equipmentDetails.inch}
+                                    </Text>
+                                )}
+                                <Text style={{ color: '#333333' }} className="text-xs">
+                                    <span className="font-medium">Created:</span> {equipmentDetails.unit_created_at}
+                                </Text>
+                                <div>
+                                    <Text style={{ color: '#333333' }} className="text-xs">
+                                        <span className="font-medium">Status:</span>{' '}
+                                        <Tag size="small" color={equipmentDetails.status_availability_id === '1' ? '#548e54' : '#83b383'}>
+                                            {equipmentDetails.status_availability_name}
+                                        </Tag>
+                                    </Text>
+                                </div>
+                            </div>
+                        )}
                     </div>
 
                     {/* Statistics Section */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 p-3">
-                        <div style={{ backgroundColor: '#d4f4dc' }} className="p-3 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                    <div className={`grid ${isMobile ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'} gap-3 ${isMobile ? 'p-2' : 'p-3'}`}>
+                        <div style={{ backgroundColor: '#d4f4dc' }} className={`${isMobile ? 'p-2' : 'p-3'} rounded-lg shadow-sm hover:shadow-md transition-shadow`}>
                             <Statistic
-                                title={<Text style={{ color: '#333333' }} className="text-xs md:text-sm">Total Usage</Text>}
+                                title={<Text style={{ color: '#333333' }} className={isMobile ? 'text-xs' : 'text-xs md:text-sm'}>{isMobile ? 'Usage' : 'Total Usage'}</Text>}
                                 value={utilizationData?.totalUtilizations || 0}
-                                prefix={<DatabaseOutlined style={{ color: '#548e54' }} className="text-base md:text-lg" />}
-                                valueStyle={{ fontSize: '18px', fontWeight: '600', color: '#548e54' }}
+                                prefix={<DatabaseOutlined style={{ color: '#548e54' }} className={isMobile ? 'text-sm' : 'text-base md:text-lg'} />}
+                                valueStyle={{ fontSize: isMobile ? '14px' : '18px', fontWeight: '600', color: '#548e54' }}
                             />
                         </div>
-                        <div style={{ backgroundColor: '#d4f4dc' }} className="p-3 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div style={{ backgroundColor: '#d4f4dc' }} className={`${isMobile ? 'p-2' : 'p-3'} rounded-lg shadow-sm hover:shadow-md transition-shadow`}>
                             <Statistic
-                                title={<Text style={{ color: '#333333' }} className="text-xs md:text-sm">Total Issues</Text>}
+                                title={<Text style={{ color: '#333333' }} className={isMobile ? 'text-xs' : 'text-xs md:text-sm'}>{isMobile ? 'Issues' : 'Total Issues'}</Text>}
                                 value={utilizationData?.totalIssues || 0}
-                                prefix={<ToolOutlined style={{ color: '#83b383' }} className="text-base md:text-lg" />}
-                                valueStyle={{ fontSize: '18px', fontWeight: '600', color: '#83b383' }}
+                                prefix={<ToolOutlined style={{ color: '#83b383' }} className={isMobile ? 'text-sm' : 'text-base md:text-lg'} />}
+                                valueStyle={{ fontSize: isMobile ? '14px' : '18px', fontWeight: '600', color: '#83b383' }}
                             />
                         </div>
-                        <div style={{ backgroundColor: '#d4f4dc' }} className="p-3 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div style={{ backgroundColor: '#d4f4dc' }} className={`${isMobile ? 'p-2' : 'p-3'} rounded-lg shadow-sm hover:shadow-md transition-shadow`}>
                             <Statistic
-                                title={<Text style={{ color: '#333333' }} className="text-xs md:text-sm">Average Use Time</Text>}
+                                title={<Text style={{ color: '#333333' }} className={isMobile ? 'text-xs' : 'text-xs md:text-sm'}>{isMobile ? 'Avg Time' : 'Average Use Time'}</Text>}
                                 value={utilizationData?.avgUtilizationTime || 0}
-                                suffix="hours"
-                                prefix={<ClockCircleOutlined style={{ color: '#548e54' }} className="text-base md:text-lg" />}
-                                valueStyle={{ fontSize: '18px', fontWeight: '600', color: '#548e54' }}
+                                suffix={isMobile ? 'h' : 'hours'}
+                                prefix={<ClockCircleOutlined style={{ color: '#548e54' }} className={isMobile ? 'text-sm' : 'text-base md:text-lg'} />}
+                                valueStyle={{ fontSize: isMobile ? '14px' : '18px', fontWeight: '600', color: '#548e54' }}
                             />
                         </div>
-                        <div style={{ backgroundColor: '#d4f4dc' }} className="p-3 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                        <div style={{ backgroundColor: '#d4f4dc' }} className={`${isMobile ? 'p-2' : 'p-3'} rounded-lg shadow-sm hover:shadow-md transition-shadow`}>
                             <Statistic
-                                title={<Text style={{ color: '#333333' }} className="text-xs md:text-sm">Success Rate</Text>}
+                                title={<Text style={{ color: '#333333' }} className={isMobile ? 'text-xs' : 'text-xs md:text-sm'}>{isMobile ? 'Success' : 'Success Rate'}</Text>}
                                 value={utilizationData?.successRate || 0}
                                 suffix="%"
-                                prefix={<CheckCircleOutlined style={{ color: '#83b383' }} className="text-base md:text-lg" />}
-                                valueStyle={{ fontSize: '18px', fontWeight: '600', color: '#83b383' }}
+                                prefix={<CheckCircleOutlined style={{ color: '#83b383' }} className={isMobile ? 'text-sm' : 'text-base md:text-lg'} />}
+                                valueStyle={{ fontSize: isMobile ? '14px' : '18px', fontWeight: '600', color: '#83b383' }}
                             />
                         </div>
                     </div>
 
                     {/* Chart Section */}
-                    <div className="mt-4">
+                    <div className={isMobile ? 'mt-2' : 'mt-4'}>
                         <Tabs 
                             items={items}
                             className="utilization-tabs"
-                            size="small"
+                            size={isMobile ? 'small' : 'middle'}
                         />
                     </div>
                 </div>
             )}
+        </>
+    );
+
+    const modalTitle = (
+        <Space className="items-center">
+            <ToolOutlined style={{ color: '#548e54' }} className={isMobile ? 'text-lg' : 'text-xl'} />
+            <Title level={isMobile ? 5 : 4} className={`!mb-0 ${isMobile ? '!text-base' : '!text-lg md:!text-xl'}`}>Equipment Unit Usage</Title>
+        </Space>
+    );
+
+    if (isMobile) {
+        return (
+            <Drawer
+                title={modalTitle}
+                placement="bottom"
+                onClose={onCancel}
+                open={open}
+                height="95%"
+                className="equipment-utilization-drawer"
+                headerStyle={{
+                    background: 'linear-gradient(135deg, #d4f4dc 0%, #83b383 100%)',
+                    borderBottom: '1px solid #83b383'
+                }}
+                bodyStyle={{
+                    padding: '8px',
+                    paddingBottom: '20px'
+                }}
+            >
+                {renderContent()}
+            </Drawer>
+        );
+    }
+
+    return (
+        <Modal
+            title={modalTitle}
+            open={open}
+            onCancel={onCancel}
+            width={isTablet ? "95%" : "90%"}
+            style={{ 
+                maxWidth: isTablet ? '900px' : '1200px',
+                top: 20
+            }}
+            className="equipment-utilization-modal"
+            footer={null}
+            bodyStyle={{ 
+                padding: isTablet ? '8px' : '12px',
+                maxHeight: 'calc(100vh - 120px)',
+                overflowY: 'auto'
+            }}
+            centered
+        >
+            {renderContent()}
         </Modal>
     );
 };

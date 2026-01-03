@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Card, Empty, Tag, Spin, Input, Pagination } from 'antd';
+import { Card, Empty, Tag, Spin, Input, Pagination, Button } from 'antd';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CarOutlined } from '@ant-design/icons';
-import { SearchOutlined } from '@ant-design/icons';
+import { SearchOutlined, FilterOutlined } from '@ant-design/icons';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
 import { SecureStorage } from '../../../../utils/encryption';
@@ -69,7 +69,7 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, isMobile }
             </div>
             
             <div className={`
-              flex items-center
+              flex items-center flex-wrap
               ${isMobile ? 'gap-1' : 'gap-2'}
             `}>
               <Tag 
@@ -82,6 +82,18 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, isMobile }
               >
                 {vehicle.vehicle_category_name}
               </Tag>
+              {vehicle.vehicle_license && (
+                <Tag 
+                  color="blue"
+                  className={`
+                    font-medium whitespace-nowrap
+                    ${isMobile ? 'text-[10px] px-1 py-0' : 'text-xs px-2 py-0.5'}
+                    bg-blue-100/80 border border-blue-200/50
+                  `}
+                >
+                  {vehicle.vehicle_license}
+                </Tag>
+              )}
             </div>
           </div>
         </div>
@@ -90,7 +102,7 @@ const VehicleCard = React.forwardRef(({ vehicle, isSelected, onClick, isMobile }
   );
 });
 
-const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
+const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile, showSelectedOnly = false, onFilterToggle }) => {
   const [vehicles, setVehicles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -100,13 +112,21 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
   const firstVehicleRef = useRef(null);
   const scrollContainerRef = useRef(null);
 
-  const filteredVehicles = vehicles.filter(vehicle =>
-    (
-      (vehicle.vehicle_make_name + ' ' + vehicle.vehicle_model_name + ' ' + (vehicle.vehicle_category_name || ''))
+  const filteredVehicles = vehicles.filter(vehicle => {
+    // Apply search filter
+    const matchesSearch = (
+      (vehicle.vehicle_make_name + ' ' + vehicle.vehicle_model_name + ' ' + (vehicle.vehicle_category_name || '') + ' ' + (vehicle.vehicle_license || ''))
         .toLowerCase()
         .includes(searchQuery.toLowerCase())
-    )
-  );
+    );
+    
+    // Apply selected filter - automatically show all if no items are selected
+    const isSelected = selectedVehicles.includes(vehicle.vehicle_id);
+    const hasSelectedItems = selectedVehicles.length > 0;
+    const matchesSelectedFilter = !showSelectedOnly || !hasSelectedItems || isSelected;
+    
+    return matchesSearch && matchesSelectedFilter;
+  });
 
   const totalItems = filteredVehicles.length;
   const startIndex = (currentPage - 1) * itemsPerPage;
@@ -156,7 +176,11 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
       }
     } catch (error) {
       console.error("Error fetching vehicles:", error);
-      toast.error("An error occurred while fetching vehicles.");
+      if (!error.response && (error.message === 'Network Error' || error.code === 'ERR_NETWORK' || !navigator.onLine)) {
+        toast.error("Network connection lost. Please check your internet connection and try again.");
+      } else {
+        toast.error("An error occurred while fetching vehicles.");
+      }
     } finally {
       setLoading(false);
     }
@@ -172,12 +196,11 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
       animate={{ opacity: 1 }}
       className={`flex flex-col h-full ${isMobile ? 'p-1' : 'p-3'}`}
     >
-      {/* Fixed Header Section */}
+      {/* Header Section */}
       <div className={`
         flex flex-col gap-3
         bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
         ${isMobile ? 'p-3 mb-2' : 'p-4 mb-3'}
-        sticky top-0 z-10
         border border-gray-100/20
       `}>
         <div className="flex flex-col sm:flex-row sm:items-center gap-2">
@@ -199,17 +222,36 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
                 : 'Select vehicles to proceed'}
             </p>
           </div>
+          
+          {/* Filter Button */}
+          {selectedVehicles.length > 0 && onFilterToggle && (
+            <Button
+              type={showSelectedOnly ? "primary" : "default"}
+              icon={<FilterOutlined />}
+              onClick={onFilterToggle}
+              size={isMobile ? "small" : "middle"}
+              className={`
+                flex items-center gap-1
+                ${showSelectedOnly 
+                  ? 'bg-green-500 border-green-500 hover:bg-green-600 hover:border-green-600' 
+                  : 'border-gray-300 hover:border-green-500 hover:text-green-500'}
+                transition-all duration-200
+              `}
+            >
+              {showSelectedOnly ? 'Show All' : 'Show Selected'}
+            </Button>
+          )}
         </div>
 
         {/* Search Input */}
         <div className={`${isMobile ? 'mt-1' : 'mt-2'}`}>
           <Input
-            placeholder="Search vehicles by make, model, or category..."
+            placeholder="Search vehicles by make, model, category, or license..."
             prefix={<SearchOutlined className="text-gray-400" />}
             onChange={(e) => handleSearch(e.target.value)}
             value={searchQuery}
             className="w-full"
-            size={isMobile ? 'middle' : 'large'}
+            size={isMobile ? "middle" : "large"}
             bordered
             allowClear
           />
@@ -280,12 +322,11 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile }) => {
         )}
       </div>
 
-      {/* Fixed Pagination Section */}
+      {/* Pagination Section */}
       {filteredVehicles.length > 0 && (
         <div className={`
           bg-white/80 backdrop-blur-sm rounded-lg shadow-sm
           ${isMobile ? 'p-2 mt-1' : 'p-3 mt-2'}
-          sticky bottom-0 z-10
           border border-gray-100/20
         `}>
           <Pagination

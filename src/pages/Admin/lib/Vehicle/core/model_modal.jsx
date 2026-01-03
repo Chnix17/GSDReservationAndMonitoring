@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select } from 'antd';
 import { toast } from 'sonner';
 import axios from 'axios';
 import {SecureStorage} from '../../../../../utils/encryption';
+import { sanitizeInput, validateInput } from '../../../../../utils/sanitize';
 
 const ModelModal = ({ open, onCancel, onSuccess }) => {
     const [form] = Form.useForm();
@@ -63,12 +64,31 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
     const handleSubmit = async () => {
         try {
             const values = await form.validateFields();
+            const sanitizedName = sanitizeInput(values.modelName);
+            
+            // Additional validation for whitespace
+            if (!sanitizedName || !sanitizedName.trim()) {
+                toast.error("Model name cannot be empty or contain only spaces.", {
+                    description: "Please enter a valid model name.",
+                    duration: 4000
+                });
+                return;
+            }
+
+            if (!validateInput(sanitizedName)) {
+                toast.error("Input contains invalid characters.", {
+                    description: "Please use only letters, numbers, and basic punctuation.",
+                    duration: 4000
+                });
+                return;
+            }
+
             setIsSubmitting(true);
 
             const modelData = {
                 operation: "saveModelData",
                 json: {
-                    name: values.modelName,
+                    name: sanitizedName.trim(),
                     category_id: values.category,
                     make_id: values.make
                 }
@@ -77,15 +97,43 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
             const response = await axios.post(BASE_URL, modelData);
             
             if (response.data.status === 'success') {
-                toast.success('Model added successfully');
+                toast.success(`Vehicle model "${sanitizedName.trim()}" added successfully!`, {
+                    description: "The model has been added to the system.",
+                    duration: 4000
+                });
                 onSuccess(values);
                 form.resetFields();
             } else {
-                toast.error(response.data.message || 'Failed to add model');
+                toast.error(response.data.message || 'Failed to add vehicle model.', {
+                    description: "Please check the model information and try again.",
+                    duration: 5000
+                });
             }
         } catch (error) {
             console.error('Error saving model:', error);
-            toast.error(error.message || 'Failed to add model');
+            
+            // Handle different types of errors with specific messages
+            if (error.errorFields && error.errorFields.length > 0) {
+                toast.error("Please fix the form errors before submitting.", {
+                    description: "Check the highlighted fields for validation errors.",
+                    duration: 4000
+                });
+            } else if (error.response?.status === 409) {
+                toast.error("Vehicle model already exists!", {
+                    description: "Please use a different model name.",
+                    duration: 5000
+                });
+            } else if (error.response?.status >= 500) {
+                toast.error("Server error occurred", {
+                    description: "Please try again later or contact support.",
+                    duration: 5000
+                });
+            } else {
+                toast.error(error.response?.data?.message || error.message || "An unexpected error occurred", {
+                    description: "Please try again or contact support if the problem persists.",
+                    duration: 5000
+                });
+            }
         } finally {
             setIsSubmitting(false);
         }
@@ -134,7 +182,17 @@ const ModelModal = ({ open, onCancel, onSuccess }) => {
                 <Form.Item
                     name="modelName"
                     label="Model Name"
-                    rules={[{ required: true, message: 'Please enter model name' }]}
+                    rules={[
+                        { required: true, message: 'Please enter model name' },
+                        { 
+                            validator: (_, value) => {
+                                if (!value || !value.trim()) {
+                                    return Promise.reject(new Error('Model name cannot be empty or contain only spaces'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
+                    ]}
                 >
                     <Input placeholder="Enter model name" />
                 </Form.Item>

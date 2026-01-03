@@ -3,6 +3,7 @@ import { Typography } from 'antd';
 import { motion } from 'framer-motion';
 import { BankOutlined, CarOutlined } from '@ant-design/icons';
 import { FaTools } from 'react-icons/fa';
+import { BsTools } from 'react-icons/bs';
 import { Tag } from 'primereact/tag';
 import { FaCheckCircle } from 'react-icons/fa';
 import { SecureStorage } from '../../../../src/utils/encryption';
@@ -40,6 +41,14 @@ const resourceTypes = [
     description: 'Projectors, laptops, audio systems, and other equipment',
     color: '#548e54',
     gradient: 'from-lightcream to-accent-light'
+  },
+  { 
+    value: 'work_request', 
+    title: 'Work Request', 
+    icon: <BsTools className="text-3xl sm:text-4xl mb-2 sm:mb-3" />,
+    description: 'Report an issue or request maintenance / ticket',
+    color: '#548e54',
+    gradient: 'from-lightcream to-accent-light'
   }
 ];
 
@@ -49,14 +58,20 @@ const SelectType = ({ resourceType, onResourceTypeSelect, onStepAdvance }) => {
   React.useEffect(() => {
     // Get user level from secure storage
     const userLevel = SecureStorage.getLocalItem("user_level_id");
-    const allowedLevels = ['1', '5', '6', '18'];
+    const allowedLevels = ['1', '5', '6', '18' , '20'];
+    
+    // Filter resource types based on user level and hide equipment
+    let filtered = resourceTypes;
     
     // If user level is not in the allowed list, filter out the vehicle option
     if (userLevel && !allowedLevels.includes(userLevel.toString())) {
-      setFilteredResourceTypes(resourceTypes.filter(type => type.value !== 'vehicle'));
-    } else {
-      setFilteredResourceTypes(resourceTypes);
+      filtered = filtered.filter(type => type.value !== 'vehicle');
     }
+    
+    // Always filter out equipment option
+    filtered = filtered.filter(type => type.value !== 'equipment');
+    
+    setFilteredResourceTypes(filtered);
   }, []);
   const handleResourceTypeSelect = (type) => {
     onResourceTypeSelect(type);

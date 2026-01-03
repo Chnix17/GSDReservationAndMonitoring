@@ -3,21 +3,31 @@ import { Bar } from 'react-chartjs-2';
 import { FaChartBar } from 'react-icons/fa';
 import axios from 'axios';
 import { SecureStorage } from '../../../utils/encryption';
+import { Select } from 'antd';
 
 const ReservationChart = () => {
     const [monthlyData, setMonthlyData] = useState(Array(12).fill(0));
+    const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
     const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
     const months = [
         'January', 'February', 'March', 'April', 'May', 'June',
         'July', 'August', 'September', 'October', 'November', 'December'
     ];
+    
+    // Generate year options (current year and 5 years back)
+    const yearOptions = [];
+    for (let i = 0; i <= 5; i++) {
+        yearOptions.push(currentYear - i);
+    }
 
     useEffect(() => {
         const fetchReservationData = async () => {
             try {
                 const encryptedUrl = SecureStorage.getLocalItem("url");
                 const response = await axios.post(`${encryptedUrl}/Admin.php`, {
-                    operation: 'countTrendReservations'
+                    operation: 'countTrendReservations',
+                    year: selectedYear
                 });
 
                 if (response.data.status === 'success') {
@@ -39,7 +49,7 @@ const ReservationChart = () => {
         };
 
         fetchReservationData();
-    }, []);
+    }, [selectedYear]);
 
     const data = {
         labels: months,
@@ -125,8 +135,21 @@ const ReservationChart = () => {
                 <h2 className="text-white text-base md:text-lg font-semibold flex items-center">
                     <FaChartBar className="mr-2 text-sm md:text-base" /> Reservation Trends
                 </h2>
-                <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
-                    {months[currentMonth]}
+                <div className="flex items-center gap-2">
+                    <Select
+                        value={selectedYear}
+                        onChange={setSelectedYear}
+                        style={{ width: 100 }}
+                        size="small"
+                        options={yearOptions.map(year => ({
+                            value: year,
+                            label: year
+                        }))}
+                        className="year-select"
+                    />
+                    <div className="bg-white/30 px-2 py-1 rounded-md text-xs font-medium text-white">
+                        {months[currentMonth]}
+                    </div>
                 </div>
             </div>
             <div className="p-3 md:p-4">

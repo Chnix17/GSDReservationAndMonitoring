@@ -179,9 +179,354 @@ class User {
 
     public function fetchVenue() {
         $sql = "SELECT 
-                ven_id, ven_name, ven_occupancy, ven_created_at, ven_updated_at, status_availability_id, 
-                ven_pic, is_active, event_type, area_type FROM tbl_venue WHERE is_active = 1 ORDER BY ven_id DESC";
+                v.ven_id, v.ven_name, v.ven_occupancy, v.ven_created_at, v.ven_updated_at, v.status_availability_id, v.ven_minimum ,
+                v.ven_pic, v.is_active, v.event_type, v.area_type, v.venue_building_id,
+                vb.venue_building_name
+                FROM tbl_venue v
+                LEFT JOIN tbl_venue_building vb ON v.venue_building_id = vb.venue_building_id
+                WHERE v.is_active = 1 ORDER BY v.ven_id DESC";
         return $this->executeQuery($sql);
+    }
+
+    public function fetchVenueBuildings() {
+        $sql = "SELECT venue_building_id, venue_building_name, venue_added_by, is_active FROM tbl_venue_building WHERE is_active = 1 ORDER BY venue_building_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    /**
+     * Fetch location categories
+     * Expected table: tbllocationcategory with fields locCateg_id, locCateg_name
+     */
+    public function fetchLocationCategory() {
+        $sql = "SELECT `locCateg_id`, `locCateg_name` FROM `tbllocationcategory` WHERE 1 ORDER BY locCateg_name";
+        return $this->executeQuery($sql);
+    }
+
+    /**
+     * Fetch locations
+     * Expected table: tbllocation with fields location_id, location_name, location_categoryId
+     */
+    public function fetchLocation() {
+        $sql = "SELECT l.location_id, l.location_name, l.location_categoryId, 
+                       lc.locCateg_name AS locCateg_name, lc.locCateg_name AS location_categoryname
+                FROM tbllocation l
+                LEFT JOIN tbllocationcategory lc ON l.location_categoryId = lc.locCateg_id
+                ORDER BY l.location_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    /**
+     * Update an existing location
+     * Expects $data with: location_id, location_name, location_categoryId (optional), userid (optional)
+     */
+    public function updateLocation($data) {
+        try {
+            if (is_string($data)) $data = json_decode($data, true);
+            if (!is_array($data)) return json_encode(['status' => 'error', 'message' => 'Invalid input data']);
+
+            $id = isset($data['location_id']) ? (int)$data['location_id'] : 0;
+            $name = isset($data['location_name']) ? trim($data['location_name']) : '';
+            $categoryId = isset($data['location_categoryId']) && $data['location_categoryId'] !== '' ? (int)$data['location_categoryId'] : null;
+            $userId = isset($data['userid']) ? $data['userid'] : null;
+
+            if ($id <= 0) return json_encode(['status' => 'error', 'message' => 'location_id is required']);
+            if ($name === '') return json_encode(['status' => 'error', 'message' => 'location_name is required']);
+
+            // Check duplicate name excluding current id
+            $checkSql = "SELECT COUNT(*) FROM tbllocation WHERE LOWER(TRIM(location_name)) = LOWER(TRIM(:name)) AND location_id != :id";
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->execute([':name' => $name, ':id' => $id]);
+            if ($checkStmt->fetchColumn() > 0) {
+                return json_encode(['status' => 'error', 'message' => 'Another location with same name exists']);
+            }
+
+            $sql = "UPDATE tbllocation SET location_name = :name, location_categoryId = :categoryId WHERE location_id = :id";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':name', $name, PDO::PARAM_STR);
+            if ($categoryId !== null) {
+                $stmt->bindValue(':categoryId', $categoryId, PDO::PARAM_INT);
+            } else {
+                $stmt->bindValue(':categoryId', null, PDO::PARAM_NULL);
+            }
+            $stmt->bindParam(':id', $id, PDO::PARAM_INT);
+
+            if ($stmt->execute()) {
+                // audit
+                try {
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:desc, 'UPDATE LOCATION', NOW(), :createdBy)";
+                    $audit = $this->conn->prepare($auditSql);
+                    $desc = 'Updated Location #' . $id . ': ' . $name;
+                    $audit->bindParam(':desc', $desc);
+                    if ($userId !== null) {
+                        $audit->bindValue(':createdBy', (int)$userId, PDO::PARAM_INT);
+                    } else {
+                        $audit->bindValue(':createdBy', null, PDO::PARAM_NULL);
+                    }
+                    $audit->execute();
+                } catch (Exception $e) { /* ignore audit errors */ }
+
+                return json_encode(['status' => 'success', 'message' => 'Location updated']);
+            }
+
+            return json_encode(['status' => 'error', 'message' => 'Failed to update location']);
+        } catch (PDOException $e) {
+            error_log('updateLocation DB error: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Create a new location
+     * Expects $data array with keys: location_name, location_categoryId, userid (optional)
+     */
+    public function createLocation($data) {
+        try {
+            if (is_string($data)) $data = json_decode($data, true);
+            if (!is_array($data)) return json_encode(['status' => 'error', 'message' => 'Invalid input data']);
+
+            $name = isset($data['location_name']) ? trim($data['location_name']) : '';
+            $categoryId = isset($data['location_categoryId']) ? $data['location_categoryId'] : null;
+            $userId = isset($data['userid']) ? $data['userid'] : null;
+
+            if ($name === '') {
+                return json_encode(['status' => 'error', 'message' => 'Location name is required']);
+            }
+
+            // Optional: prevent duplicates (case-insensitive)
+            $checkSql = "SELECT COUNT(*) FROM tbllocation WHERE LOWER(TRIM(location_name)) = LOWER(TRIM(:name))";
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->execute([':name' => $name]);
+            if ($checkStmt->fetchColumn() > 0) {
+                return json_encode(['status' => 'error', 'message' => 'Location already exists']);
+            }
+
+            // Insert only fields that are present in the tbllocation schema
+            $sql = "INSERT INTO tbllocation (location_name, location_categoryId) VALUES (:name, :categoryId)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':name', $name, PDO::PARAM_STR);
+            if ($categoryId !== null && $categoryId !== '') {
+                $stmt->bindValue(':categoryId', (int)$categoryId, PDO::PARAM_INT);
+            } else {
+                $stmt->bindValue(':categoryId', null, PDO::PARAM_NULL);
+            }
+
+            if ($stmt->execute()) {
+                $id = $this->conn->lastInsertId();
+                // non-blocking audit (created_by may be absent in tbllocation but audit_log can record creator)
+                try {
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:desc, 'CREATE LOCATION', NOW(), :createdBy)";
+                    $audit = $this->conn->prepare($auditSql);
+                    $desc = 'Created Location: ' . $name;
+                    $audit->bindParam(':desc', $desc);
+                    if ($userId !== null) {
+                        $audit->bindValue(':createdBy', (int)$userId, PDO::PARAM_INT);
+                    } else {
+                        $audit->bindValue(':createdBy', null, PDO::PARAM_NULL);
+                    }
+                    $audit->execute();
+                } catch (Exception $e) { /* ignore audit errors */ }
+
+                return json_encode(['status' => 'success', 'message' => 'Location created', 'location_id' => $id]);
+            }
+
+            return json_encode(['status' => 'error', 'message' => 'Failed to create location']);
+        } catch (PDOException $e) {
+            error_log('createLocation DB error: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+        }
+    }
+
+    public function fetchInactiveBuilding() {
+        $sql = "SELECT venue_building_id, venue_building_name, venue_added_by FROM tbl_venue_building WHERE is_active = 0 ORDER BY venue_building_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    public function fetchBuildingById($id) {
+        $sql = "SELECT venue_building_id, venue_building_name, venue_added_by, is_active FROM tbl_venue_building WHERE venue_building_id = :id";
+        return $this->executeQuery($sql, [':id' => $id]);
+    }
+
+    public function buildingExists($buildingName) {
+        $sql = "SELECT COUNT(*) as count FROM tbl_venue_building WHERE LOWER(venue_building_name) = LOWER(:name)";
+        $result = $this->executeQuery($sql, [':name' => trim($buildingName)]);
+        if ($result) {
+            $data = json_decode($result, true);
+            return isset($data['data'][0]['count']) && $data['data'][0]['count'] > 0;
+        }
+        return false;
+    }
+
+    public function saveBuilding($data) {
+        try {
+            if (!isset($data['user_admin_id'])) {
+                return json_encode(['status' => 'error', 'message' => 'Admin ID is required']);
+            }
+            if (!isset($data['building_name']) || trim($data['building_name']) === '') {
+                return json_encode(['status' => 'error', 'message' => 'Building name is required']);
+            }
+            if ($this->buildingExists($data['building_name'])) {
+                return json_encode(['status' => 'error', 'message' => 'This building name already exists.']);
+            }
+
+            $sql = "INSERT INTO tbl_venue_building (venue_building_name, venue_added_by) VALUES (:name, :admin_id)";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':name', $data['building_name'], PDO::PARAM_STR);
+            $stmt->bindParam(':admin_id', $data['user_admin_id'], PDO::PARAM_INT);
+
+            if ($stmt->execute()) {
+                $buildingId = $this->conn->lastInsertId();
+                // Audit log
+                try {
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                    $audit = $this->conn->prepare($auditSql);
+                    $desc = "Created Building: " . $data['building_name'];
+                    $action = 'CREATE';
+                    $audit->bindParam(':description', $desc, PDO::PARAM_STR);
+                    $audit->bindParam(':action', $action, PDO::PARAM_STR);
+                    $audit->bindParam(':created_by', $data['user_admin_id'], PDO::PARAM_INT);
+                    $audit->execute();
+                } catch (PDOException $e) {
+                    error_log("Audit log insert failed (saveBuilding): " . $e->getMessage());
+                }
+                return json_encode(['status' => 'success', 'message' => 'Building added successfully', 'building_id' => $buildingId]);
+            }
+
+            return json_encode(['status' => 'error', 'message' => 'Failed to add building']);
+        } catch(PDOException $e) {
+            error_log("Database error: " . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateBuilding($buildingData) {
+        try {
+            if (!isset($buildingData['building_id'], $buildingData['building_name'])) {
+                return json_encode(['status' => 'error', 'message' => 'Missing required fields']);
+            }
+
+            // Check if building name already exists (excluding current building)
+            $sql = "SELECT COUNT(*) as count FROM tbl_venue_building 
+                    WHERE LOWER(venue_building_name) = LOWER(:name) AND venue_building_id != :id";
+            $result = $this->executeQuery($sql, [
+                ':name' => trim($buildingData['building_name']),
+                ':id' => $buildingData['building_id']
+            ]);
+            
+            if ($result) {
+                $data = json_decode($result, true);
+                if (isset($data['data'][0]['count']) && $data['data'][0]['count'] > 0) {
+                    return json_encode(['status' => 'error', 'message' => 'This building name already exists.']);
+                }
+            }
+
+            $sql = "UPDATE tbl_venue_building SET venue_building_name = :building_name WHERE venue_building_id = :building_id";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':building_name', $buildingData['building_name'], PDO::PARAM_STR);
+            $stmt->bindParam(':building_id', $buildingData['building_id'], PDO::PARAM_INT);
+
+            $success = $stmt->execute();
+            if ($success) {
+                // Audit logging
+                try {
+                    $actorId = null;
+                    if (isset($buildingData['user_admin_id']) && $buildingData['user_admin_id'] !== '') {
+                        $actorId = (int)$buildingData['user_admin_id'];
+                    }
+
+                    $buildingName = $buildingData['building_name'] ?? '';
+                    $desc = 'Updated Building: ' . $buildingName;
+
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                    $auditStmt = $this->conn->prepare($auditSql);
+                    $auditStmt->execute([
+                        ':description' => $desc,
+                        ':action' => 'UPDATE BUILDING',
+                        ':created_by' => $actorId
+                    ]);
+                } catch (Throwable $te) { /* ignore audit errors */ }
+
+                return json_encode(['status' => 'success', 'message' => 'Building updated successfully']);
+            } else {
+                return json_encode(['status' => 'error', 'message' => 'Could not update building']);
+            }
+        } catch (PDOException $e) {
+            error_log('Database error in updateBuilding: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function archiveBuilding($buildingIds, $userId) {
+        try {
+            if (empty($buildingIds)) {
+                return json_encode(['status' => 'error', 'message' => 'No building IDs provided']);
+            }
+
+            $buildingIds = is_array($buildingIds) ? $buildingIds : [$buildingIds];
+            
+            // Check if any building is being used by active venues
+            $placeholders = implode(',', array_fill(0, count($buildingIds), '?'));
+            $checkSql = "SELECT venue_building_id, 
+                                GROUP_CONCAT(v.ven_name SEPARATOR ', ') as venue_names
+                         FROM tbl_venue v
+                         WHERE v.venue_building_id IN ($placeholders) 
+                         AND v.is_active = 1
+                         GROUP BY venue_building_id";
+            
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->execute($buildingIds);
+            $usedBuildings = $checkStmt->fetchAll(PDO::FETCH_ASSOC);
+
+            if (!empty($usedBuildings)) {
+                $errorMessages = [];
+                foreach ($usedBuildings as $building) {
+                    $errorMessages[] = "Building is used by active venues: " . $building['venue_names'];
+                }
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => implode('; ', $errorMessages)
+                ]);
+            }
+
+            // Proceed with deactivation
+            $sql = "UPDATE tbl_venue_building SET is_active = 0 WHERE venue_building_id IN ($placeholders)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($buildingIds);
+
+            // Audit log
+            try {
+                foreach ($buildingIds as $buildingId) {
+                    // Get building name
+                    $nameSql = "SELECT venue_building_name FROM tbl_venue_building WHERE venue_building_id = ?";
+                    $nameStmt = $this->conn->prepare($nameSql);
+                    $nameStmt->execute([$buildingId]);
+                    $buildingName = $nameStmt->fetchColumn();
+
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                    $audit = $this->conn->prepare($auditSql);
+                    $desc = "Deactivated Building: " . $buildingName;
+                    $action = 'DEACTIVATE BUILDING';
+                    $audit->bindParam(':description', $desc, PDO::PARAM_STR);
+                    $audit->bindParam(':action', $action, PDO::PARAM_STR);
+                    $audit->bindParam(':created_by', $userId, PDO::PARAM_INT);
+                    $audit->execute();
+                }
+            } catch (PDOException $e) {
+                error_log("Audit log insert failed (archiveBuilding): " . $e->getMessage());
+            }
+
+            $count = count($buildingIds);
+            $message = $count > 1 ? "$count buildings successfully deactivated" : "Building successfully deactivated";
+            return json_encode(['status' => 'success', 'message' => $message]);
+        } catch(PDOException $e) {
+            error_log("Database error in archiveBuilding: " . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
     }
 
 public function fetchEquipmentsWithStatus() {
@@ -204,6 +549,8 @@ public function fetchEquipmentsWithStatus() {
                 tbl_equipments AS te
             INNER JOIN
                 tbl_equipment_category AS tec ON te.equipments_category_id = tec.equipments_category_id
+            WHERE
+                te.is_active = 1
             ORDER BY
                 te.equip_id DESC
         ";
@@ -226,25 +573,28 @@ public function fetchEquipmentsWithStatus() {
 
     public function fetchUserByEmailOrFullname($searchTerm) {
         $sql = "SELECT 
-                    users_id,
-                    users_fname,
-                    users_mname,
-                    users_lname,
-                    users_email,
-                    users_school_id,
-                    users_contact_number,
-                    users_user_level_id,
-                    users_password,
-                    users_department_id,
-                    users_pic,
-                    users_created_at,
-                    users_updated_at
+                    u.users_id,
+                    TRIM(CONCAT(
+                        CASE WHEN t.abbreviation IS NOT NULL AND t.abbreviation != '' THEN CONCAT(t.abbreviation, ' ') ELSE '' END,
+                        u.users_fname,
+                        CASE WHEN u.users_mname IS NOT NULL AND u.users_mname != '' THEN CONCAT(' ', u.users_mname) ELSE '' END,
+                        ' ',
+                        u.users_lname,
+                        CASE WHEN u.users_suffix IS NOT NULL AND u.users_suffix != '' THEN CONCAT(' ', u.users_suffix) ELSE '' END
+                    )) AS full_name,
+                    u.users_email,
+                    u.users_school_id,
+                    u.users_contact_number,
+                    u.users_user_level_id,
+                    u.users_department_id,
+                    u.users_pic
                 FROM 
-                    tbl_users 
+                    tbl_users u
+                LEFT JOIN titles t ON u.title_id = t.id
                 WHERE 
-                    users_email LIKE :searchTerm
-                    OR CONCAT(users_fname, ' ', users_mname, ' ', users_lname) LIKE :searchTerm
-                    OR CONCAT(users_fname, ' ', users_lname) LIKE :searchTerm";
+                    u.users_email LIKE :searchTerm
+                    OR CONCAT(u.users_fname, ' ', u.users_mname, ' ', u.users_lname) LIKE :searchTerm
+                    OR CONCAT(u.users_fname, ' ', u.users_lname) LIKE :searchTerm";
         
         $searchTerm = '%' . $searchTerm . '%';
         return $this->executeQuery($sql, [':searchTerm' => $searchTerm]);
@@ -281,6 +631,7 @@ public function fetchEquipmentsWithStatus() {
     public function fetchDepartments() {
         $sql = "SELECT departments_id, departments_name, department_type 
                 FROM tbl_departments 
+                WHERE is_active = 1 
                 ORDER BY departments_id DESC";
         return $this->executeQuery($sql);
     }
@@ -392,32 +743,16 @@ public function fetchEquipmentsWithStatus() {
     }
 
 
-    public function fetchDriver($startDateTime = null, $endDateTime = null, $userId = null) {
+    public function fetchDriver($startDateTime = null, $endDateTime = null, $userId = null, $reservationId = null) {
         try {
-            // Log function call
-            error_log("fetchDriver called with startDateTime: " . ($startDateTime ?? 'null') . ", endDateTime: " . ($endDateTime ?? 'null'));
-            // Base query to get all active drivers
+        
             $sql = "
                 SELECT 
                     u.users_id,
                     u.users_fname,
                     u.users_mname,
                     u.users_lname,
-                    u.users_birthdate,
-                    u.users_suffix,
-                    u.users_email,
-                    u.users_school_id,
-                    u.users_contact_number,
-                    u.users_user_level_id,
-                    u.users_password,
-                    u.first_login,
-                    u.users_department_id,
-                    u.users_pic,
-                    u.users_created_at,
-                    u.users_updated_at,
-                    u.is_active,
-                    u.is_2FAactive,
-                    u.title_id
+                    u.users_suffix
                 FROM 
                     tbl_users u
                 WHERE 
@@ -427,42 +762,21 @@ public function fetchEquipmentsWithStatus() {
     
             // If no date filters, return all drivers
             if ($startDateTime === null || $endDateTime === null) {
-                error_log("fetchDriver: No date filters provided, returning all active drivers");
                 $sql .= " ORDER BY u.users_lname, u.users_fname";
                 return $this->executeQuery($sql);
             }
             
-            // Check if user is Department Head from COO department or Secretary from GSD department
-            $bypassReservationCheck = false;
-            if ($userId !== null) {
-                $userCheckSql = "SELECT ul.user_level_name, d.departments_name 
-                                FROM tbl_users u
-                                LEFT JOIN tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
-                                LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
-                                WHERE u.users_id = ?";
-                $userCheckStmt = $this->conn->prepare($userCheckSql);
-                $userCheckStmt->execute([$userId]);
-                $userDetails = $userCheckStmt->fetch(PDO::FETCH_ASSOC);
-                
-                if ($userDetails) {
-                    // If Department Head from COO department or Secretary from GSD department, bypass reservation check
-                    if (($userDetails['user_level_name'] === 'Department Head' && $userDetails['departments_name'] === 'COO') ||
-                        ($userDetails['user_level_name'] === 'Secretary' && $userDetails['departments_name'] === 'GSD')) {
-                        $bypassReservationCheck = true;
-                    }
-                }
-            }
-            
-            error_log("fetchDriver: Checking driver availability for period: $startDateTime to $endDateTime");
     
-            // Get drivers who are already assigned to vehicles during the specified period
-            // Modified to handle rescheduled reservations properly - only show one entry for active rescheduled reservations
+            // Get drivers who are already assigned to ACTIVE reservations during the specified period
+            // Only exclude drivers with active statuses: 1,3,6,7,8,10,11,14
+            // Drivers with cancelled (2), completed (5), or rejected (4) are available
+            // EXCLUDE the current reservation (if provided) so drivers assigned to it remain available
             $sqlUnavailableDrivers = "
                 SELECT DISTINCT rd.reservation_driver_user_id
                 FROM tbl_reservation_driver rd
                 INNER JOIN tbl_reservation_vehicle rv ON rd.reservation_vehicle_id = rv.reservation_vehicle_id
                 INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
-                LEFT JOIN (
+                INNER JOIN (
                     SELECT rs1.*
                     FROM tbl_reservation_status rs1
                     INNER JOIN (
@@ -485,41 +799,49 @@ public function fetchEquipmentsWithStatus() {
                          AND rs1.reservation_status_id = mid.max_id
                 ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
                 WHERE 
-                    r.reservation_id NOT IN (
-                        SELECT DISTINCT reservation_reservation_id 
-                        FROM tbl_reservation_status 
-                        WHERE reservation_status_status_id IN (2, 5)
-                    )
-                    AND latest_status.reservation_status_status_id IN (6, 8, 10, 14)
+                    latest_status.reservation_status_status_id IN (1,3,6,7,8,10,11,14)
                     AND (
-                        (latest_status.reservation_status_status_id = 6 AND latest_status.reservation_active = 1)
-                        OR (latest_status.reservation_status_status_id IN (8, 10, 14) AND (latest_status.reservation_active = 0 OR latest_status.reservation_active = 1))
-                        OR (latest_status.reservation_status_status_id = 6 AND EXISTS (
-                            SELECT 1 FROM tbl_reservation_status rs2 
-                            WHERE rs2.reservation_reservation_id = r.reservation_id 
-                            AND rs2.reservation_status_status_id IN (10, 14) 
-                            AND rs2.reservation_active = 1
-                        ))
-                    )
-                    AND (
-                        -- Check for date overlap using appropriate dates based on reservation status
-                        (latest_status.reservation_status_status_id IN (6, 8) AND r.reservation_start_date <= :endDateTime AND r.reservation_end_date >= :startDateTime)
-                        OR (latest_status.reservation_status_status_id IN (10, 14) AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL AND r.reschedule_start_date <= :endDateTime AND r.reschedule_end_date >= :startDateTime)
+                        (latest_status.reservation_status_status_id IN (1,3,6,7,8) AND r.reservation_start_date <= :endDateTime AND r.reservation_end_date >= :startDateTime)
+                        OR (latest_status.reservation_status_status_id IN (10, 11, 14) AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL AND r.reschedule_start_date <= :endDateTime AND r.reschedule_end_date >= :startDateTime)
                     )
             ";
+            
+            // Exclude current reservation from conflict check
+            if ($reservationId !== null) {
+                $sqlUnavailableDrivers .= " AND r.reservation_id != :reservationId";
+              
+            }
     
-            // Only execute unavailable driver check if user doesn't bypass it
-            if (!$bypassReservationCheck) {
+            // Execute unavailable driver check
+            try {
                 $stmt = $this->conn->prepare($sqlUnavailableDrivers);
-                $stmt->execute([
+                $params = [
                     ':startDateTime' => $startDateTime,
                     ':endDateTime' => $endDateTime
-                ]);
+                ];
+                
+                // Add reservationId to params if provided
+                if ($reservationId !== null) {
+                    $params[':reservationId'] = $reservationId;
+                }
+                
+                $stmt->execute($params);
                 $unavailableDriverIds = $stmt->fetchAll(PDO::FETCH_COLUMN, 0);
-            } else {
+                
+                // Filter out null/empty values
+                $unavailableDriverIds = array_filter($unavailableDriverIds, function($id) {
+                    return $id !== null && $id !== '' && $id !== false;
+                });
+                // Re-index array after filtering
+                $unavailableDriverIds = array_values($unavailableDriverIds);
+                
+             
+            } catch (PDOException $e) {
+                error_log("fetchDriver: Error checking unavailable drivers - " . $e->getMessage());
+         
                 $unavailableDriverIds = [];
             }
-            error_log("fetchDriver: Found " . count($unavailableDriverIds) . " unavailable drivers: " . implode(',', $unavailableDriverIds));
+            
     
             // Exclude unavailable drivers from main query
             if (!empty($unavailableDriverIds)) {
@@ -529,6 +851,8 @@ public function fetchEquipmentsWithStatus() {
     
             $sql .= " ORDER BY u.users_lname, u.users_fname";
     
+            
+    
             // Execute final query
             $stmt = $this->conn->prepare($sql);
             if (!empty($unavailableDriverIds)) {
@@ -536,9 +860,8 @@ public function fetchEquipmentsWithStatus() {
             } else {
                 $stmt->execute();
             }
-
+    
             $drivers = $stmt->fetchAll(PDO::FETCH_ASSOC);
-            error_log("fetchDriver: Returning " . count($drivers) . " available drivers");
             return json_encode(['status' => 'success', 'data' => $drivers]);
     
         } catch (PDOException $e) {
@@ -717,7 +1040,18 @@ public function fetchEquipmentsWithStatus() {
             $params = [];
             
             foreach ($allowedFields as $field) {
-                if (isset($userData[$field])) {
+                // For title_id and users_suffix, check if they exist in the data (even if null)
+                if (($field === 'title_id' || $field === 'users_suffix') && array_key_exists($field, $userData)) {
+                    $updateFields[] = "$field = :$field";
+                    
+                    // Set to NULL if value is null, empty string, or string 'null'
+                    if ($userData[$field] === null || $userData[$field] === '' || $userData[$field] === 'null') {
+                        $params[$field] = null;
+                    } else {
+                        $params[$field] = $userData[$field];
+                    }
+                } else if (isset($userData[$field])) {
+                    // For other fields, use the original logic
                     $updateFields[] = "$field = :$field";
                     $params[$field] = $userData[$field];
                 }
@@ -844,14 +1178,12 @@ public function fetchEquipmentsWithStatus() {
 
 
     public function fetchHoliday() {
-        $sql = "SELECT `holiday_id`, `holiday_name`, `holiday_date` FROM `tbl_holidays` WHERE 1";
+        $sql = "SELECT `holiday_id`, `holiday_name`, `holiday_date` FROM `tbl_holidays` WHERE is_active = 1";
         return $this->executeQuery($sql);
     }
 
     public function updateHoliday($holidayId, $holidayName, $holidayDate, $userId = null) {
         try {
-            // Debug: log userId and target holiday
-            error_log("updateHoliday userId=" . var_export($userId, true) . ", holidayId=" . var_export($holidayId, true));
             // First, get the current values to check if they're the same
             $getCurrentSql = "SELECT holiday_name, holiday_date FROM `tbl_holidays` 
                              WHERE `holiday_id` = :holiday_id";
@@ -884,14 +1216,6 @@ public function fetchEquipmentsWithStatus() {
                         $audit->bindValue(':created_by', null, PDO::PARAM_NULL);
                     }
                     $audit->execute();
-                    try {
-                        $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
-                        $sel->execute();
-                        $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                        error_log("audit_log latest (updateHoliday same-values): " . json_encode($latest));
-                    } catch (PDOException $ex) {
-                        error_log("Audit log select failed (updateHoliday same-values): " . $ex->getMessage());
-                    }
                 } catch (PDOException $e) {
                     error_log("Audit log insert failed (updateHoliday same-values): " . $e->getMessage());
                 }
@@ -949,14 +1273,6 @@ public function fetchEquipmentsWithStatus() {
                         $audit->bindValue(':created_by', null, PDO::PARAM_NULL);
                     }
                     $audit->execute();
-                    try {
-                        $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
-                        $sel->execute();
-                        $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                        error_log("audit_log latest (updateHoliday): " . json_encode($latest));
-                    } catch (PDOException $ex) {
-                        error_log("Audit log select failed (updateHoliday): " . $ex->getMessage());
-                    }
                 } catch (PDOException $e) {
                     error_log("Audit log insert failed (updateHoliday): " . $e->getMessage());
                 }
@@ -988,8 +1304,13 @@ public function fetchEquipmentsWithStatus() {
         }
     }
 
-   public function countTrendReservations() {
+   public function countTrendReservations($year = null) {
     try {
+        // If no year provided, use current year
+        if ($year === null) {
+            $year = date('Y');
+        }
+
         $sql = "
             SELECT 
                 r.reservation_id,
@@ -1000,7 +1321,7 @@ public function fetchEquipmentsWithStatus() {
             LEFT JOIN tbl_reservation_status rs 
                 ON rs.reservation_reservation_id = r.reservation_id
             WHERE 
-                rs.reservation_status_status_id = 6
+                YEAR(r.reservation_created_at) = :year
             GROUP BY 
                 r.reservation_id
             ORDER BY 
@@ -1008,13 +1329,15 @@ public function fetchEquipmentsWithStatus() {
         ";
 
         $stmt = $this->conn->prepare($sql);
+        $stmt->bindParam(':year', $year, PDO::PARAM_INT);
         $stmt->execute();
         $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
         return json_encode([
             'status' => 'success',
             'data' => [ 
                 'countTrendReservation' => count($reservations),
-                'reservations' => $reservations
+                'reservations' => $reservations,
+                'year' => $year
             ]
         ]);
     } catch (PDOException $e) {
@@ -1223,6 +1546,11 @@ public function saveStock($data) {
     }
 }
 
+// Alias for updateEquipmentUnit to match switch case operation name
+public function updateUnit($unitData) {
+    return $this->updateEquipmentUnit($unitData);
+}
+
 public function saveUnit($data) {
     try {
         if (is_string($data)) $data = json_decode($data, true);
@@ -1272,16 +1600,23 @@ public function saveUnit($data) {
             }
         } catch (Throwable $te) { /* ignore name fetch errors */ }
 
-        // Insert query (brand, size, color removed)
+        // Insert query with new fields: equipment_brand, equipment_model, equipment_description, equipment_specs, inch
         $sql = "INSERT INTO tbl_equipment_unit (
-                    equip_id, serial_number, status_availability_id, unit_created_at, is_active, user_admin_id
+                    equip_id, serial_number, equipment_brand, equipment_model, equipment_description, equipment_specs, inch,
+                    status_availability_id, unit_created_at, is_active, user_admin_id
                 ) VALUES (
-                    :equip_id, :serial_number, :status_id, NOW(), 1, :admin_id
+                    :equip_id, :serial_number, :equipment_brand, :equipment_model, :equipment_description, :equipment_specs, :inch,
+                    :status_id, NOW(), 1, :admin_id
                 )";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(':equip_id', $data['equip_id'], PDO::PARAM_INT);
         $stmt->bindParam(':serial_number', $data['serial_number']);
+        $stmt->bindParam(':equipment_brand', $data['equipment_brand']);
+        $stmt->bindParam(':equipment_model', $data['equipment_model']);
+        $stmt->bindParam(':equipment_description', $data['equipment_description']);
+        $stmt->bindParam(':equipment_specs', $data['equipment_specs']);
+        $stmt->bindParam(':inch', $data['inch']);
         $stmt->bindParam(':status_id', $data['status_availability_id'], PDO::PARAM_INT);
         $stmt->bindParam(':admin_id', $data['user_admin_id'], PDO::PARAM_INT);
 
@@ -1322,6 +1657,27 @@ public function updateEquipmentUnit($unitData) {
             ]);
         }
 
+        // Check if status_availability_id is being changed
+        if (isset($unitData['status_availability_id'])) {
+            // Get current status_availability_id
+            $currentStatusStmt = $this->conn->prepare("SELECT status_availability_id FROM tbl_equipment_unit WHERE unit_id = :unit_id");
+            $currentStatusStmt->bindParam(':unit_id', $unitData['unit_id'], PDO::PARAM_INT);
+            $currentStatusStmt->execute();
+            $currentStatus = $currentStatusStmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Only check for active transactions if status is actually changing
+            if ($currentStatus && $currentStatus['status_availability_id'] != $unitData['status_availability_id']) {
+                $activeTransactionCheck = $this->checkActiveTransactions('equipment', [$unitData['unit_id']]);
+                // Disabled restriction: previously prevented updating equipment unit status when there were active reservations
+                // if ($activeTransactionCheck['hasActive']) {
+                //     return json_encode([
+                //         'status' => 'error', 
+                //         'message' => 'Cannot update equipment unit status with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+                //     ]);
+                // }
+            }
+        }
+
         // Begin transaction
         $this->conn->beginTransaction();
 
@@ -1341,6 +1697,11 @@ public function updateEquipmentUnit($unitData) {
         // Map the allowed fields that can be updated
         $allowedFields = [
             'serial_number' => PDO::PARAM_STR,
+            'equipment_brand' => PDO::PARAM_STR,
+            'equipment_model' => PDO::PARAM_STR,
+            'equipment_description' => PDO::PARAM_STR,
+            'equipment_specs' => PDO::PARAM_STR,
+            'inch' => PDO::PARAM_STR,
             'status_availability_id' => PDO::PARAM_INT,
             'is_active' => PDO::PARAM_BOOL,
             'user_admin_id' => PDO::PARAM_INT
@@ -1379,10 +1740,6 @@ public function updateEquipmentUnit($unitData) {
         foreach ($params as $field => $param) {
             $updateStmt->bindValue(":$field", $param['value'], $param['type']);
         }
-        
-        // Add debug logging
-        error_log("Executing SQL: $sql");
-        error_log("Parameters: " . print_r($params, true));
         
         $updateStmt->execute();
         $this->conn->commit();
@@ -1431,8 +1788,6 @@ public function updateEquipmentUnit($unitData) {
 
 public function saveHoliday($data, $userId = null) {
         try {
-            // Debug: log userId for auditing context
-            error_log("saveHoliday userId=" . var_export($userId, true));
             // If data is a JSON string, decode it
             if (is_string($data)) {
                 $data = json_decode($data, true);
@@ -1481,14 +1836,6 @@ public function saveHoliday($data, $userId = null) {
                     }
                     if (!$audit->execute()) {
                         error_log("Audit log insert failed (saveHoliday): " . print_r($audit->errorInfo(), true));
-                    } else {
-                        try {
-                            $latestAuditStmt = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1");
-                            $latest = $latestAuditStmt ? $latestAuditStmt->fetch(PDO::FETCH_ASSOC) : null;
-                            error_log("audit_log latest (saveHoliday): " . json_encode($latest));
-                        } catch (Throwable $te) {
-                            error_log("Failed to read back latest audit_log (saveHoliday): " . $te->getMessage());
-                        }
                     }
                 } catch (Throwable $e2) {
                     error_log("Audit logging error (saveHoliday): " . $e2->getMessage());
@@ -1516,16 +1863,21 @@ public function saveEquipment($json) {
         }
 
         // Validate required fields
-        $required = ['name', 'equipments_category_id', 'equip_type', 'user_admin_id'];
+        $required = ['name', 'user_admin_id'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 return json_encode(['status' => 'error', 'message' => "$field is required or invalid"]);
             }
-            
-            // Check if numeric fields are actually numeric
-            if (in_array($field, ['equipments_category_id']) && !is_numeric($data[$field])) {
-                return json_encode(['status' => 'error', 'message' => "$field must be numeric"]);
-            }
+        }
+
+        // Optional fields (allow name-only submissions)
+        // Default type to Bulk (safer default for equipment master)
+        $equipType = isset($data['equip_type']) && $data['equip_type'] !== '' ? $data['equip_type'] : 'Bulk';
+        // Default category to 1 if not provided (must exist in tbl_equipment_category)
+        $categoryId = isset($data['equipments_category_id']) && $data['equipments_category_id'] !== '' ? $data['equipments_category_id'] : 1;
+
+        if (!is_numeric($categoryId)) {
+            return json_encode(['status' => 'error', 'message' => "equipments_category_id must be numeric"]);
         }
 
         // Check for duplicate equipment name (case-insensitive)
@@ -1546,8 +1898,8 @@ public function saveEquipment($json) {
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(':name', $data['name']);
-        $stmt->bindParam(':category_id', $data['equipments_category_id'], PDO::PARAM_INT);
-        $stmt->bindParam(':type', $data['equip_type']);
+        $stmt->bindParam(':category_id', $categoryId, PDO::PARAM_INT);
+        $stmt->bindParam(':type', $equipType);
         $stmt->bindParam(':admin_id', $data['user_admin_id'], PDO::PARAM_INT);
 
         if ($stmt->execute()) {
@@ -1578,16 +1930,54 @@ public function saveEquipment($json) {
 public function updateEquipment($data) {
     try {
         // Validate required fields
-        $required = ['equip_id', 'equip_name', 'equip_type', 'equipments_category_id'];
+        $required = ['equip_id', 'equip_name'];
         foreach ($required as $field) {
             if (empty($data[$field])) {
                 return json_encode(['status' => 'error', 'message' => "$field is required"]);
             }
-            
+
             // Check if numeric fields are actually numeric
-            if (in_array($field, ['equip_id', 'equipments_category_id']) && !is_numeric($data[$field])) {
+            if (in_array($field, ['equip_id']) && !is_numeric($data[$field])) {
                 return json_encode(['status' => 'error', 'message' => "$field must be numeric"]);
             }
+        }
+
+        // If optional fields are omitted, preserve existing values
+        $currentType = null;
+        $currentCategoryId = null;
+        try {
+            $curStmt = $this->conn->prepare("SELECT equip_type, equipments_category_id FROM tbl_equipments WHERE equip_id = :id");
+            $curStmt->execute([':id' => $data['equip_id']]);
+            $cur = $curStmt->fetch(PDO::FETCH_ASSOC);
+            if ($cur) {
+                $currentType = $cur['equip_type'] ?? null;
+                $currentCategoryId = $cur['equipments_category_id'] ?? null;
+            }
+        } catch (PDOException $e) { /* ignore for main flow */ }
+
+        $equipType = isset($data['equip_type']) && $data['equip_type'] !== '' ? $data['equip_type'] : $currentType;
+        $categoryId = isset($data['equipments_category_id']) && $data['equipments_category_id'] !== '' ? $data['equipments_category_id'] : $currentCategoryId;
+
+        if ($equipType === null || $categoryId === null) {
+            return json_encode(['status' => 'error', 'message' => 'Equipment not found']);
+        }
+
+        if (!is_numeric($categoryId)) {
+            return json_encode(['status' => 'error', 'message' => "equipments_category_id must be numeric"]);
+        }
+
+        // Check for active transactions before updating
+        // Note: For equipment, we need to check all units of this equipment
+        $equipmentUnitsCheck = $this->getEquipmentUnits($data['equip_id']);
+        if (!empty($equipmentUnitsCheck)) {
+            $activeTransactionCheck = $this->checkActiveTransactions('equipment', $equipmentUnitsCheck);
+            // Disabled restriction: previously prevented updating equipment master when there were active reservations
+            // if ($activeTransactionCheck['hasActive']) {
+            //     return json_encode([
+            //         'status' => 'error', 
+            //         'message' => 'Cannot update equipment with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+            //     ]);
+            // }
         }
 
         // Fetch old values for audit (name only)
@@ -1610,8 +2000,8 @@ public function updateEquipment($data) {
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(':name', $data['equip_name']);
-        $stmt->bindParam(':type', $data['equip_type']);
-        $stmt->bindParam(':category_id', $data['equipments_category_id'], PDO::PARAM_INT);
+        $stmt->bindParam(':type', $equipType);
+        $stmt->bindParam(':category_id', $categoryId, PDO::PARAM_INT);
         $stmt->bindParam(':id', $data['equip_id'], PDO::PARAM_INT);
 
         $success = $stmt->execute();
@@ -1675,12 +2065,12 @@ public function saveVehicle($data) {
         }
 
         $sql = "INSERT INTO tbl_vehicle (
-                    vehicle_model_id, vehicle_license, year, 
-                    status_availability_id, user_admin_id, 
+                    vehicle_model_id, vehicle_license, year,
+                    status_availability_id, user_admin_id,
                     is_active, created_at, updated_at
                 ) VALUES (
-                    :modelId, :license, :year, 
-                    1, :adminId, 
+                    :modelId, :license, :year,
+                    1, :adminId,
                     1, NOW(), NOW()
                 )";
 
@@ -1724,6 +2114,38 @@ public function updateVehicleLicense($vehicleData) {
         foreach ($required as $field) {
             if (!isset($vehicleData[$field])) {
                 return json_encode(['status' => 'error', 'message' => "$field is required"]);
+            }
+        }
+
+        // Check if vehicle license already exists (excluding current vehicle)
+        $licenseToCheck = isset($vehicleData['vehicle_license']) ? trim($vehicleData['vehicle_license']) : '';
+        $dupSql = "SELECT vehicle_id FROM tbl_vehicle WHERE LOWER(TRIM(vehicle_license)) = LOWER(TRIM(:license)) AND vehicle_id != :vehicle_id LIMIT 1";
+        $dupStmt = $this->conn->prepare($dupSql);
+        $dupStmt->bindParam(':license', $licenseToCheck);
+        $dupStmt->bindParam(':vehicle_id', $vehicleData['vehicle_id'], PDO::PARAM_INT);
+        $dupStmt->execute();
+        if ($dupStmt->fetch(PDO::FETCH_ASSOC)) {
+            return json_encode(['status' => 'error', 'message' => 'Vehicle license already exists', 'field' => 'vehicle_license']);
+        }
+
+        // Check if status_availability_id is being changed
+        if (isset($vehicleData['status_availability_id'])) {
+            // Get current status_availability_id
+            $currentStatusStmt = $this->conn->prepare("SELECT status_availability_id FROM tbl_vehicle WHERE vehicle_id = :vehicle_id");
+            $currentStatusStmt->bindParam(':vehicle_id', $vehicleData['vehicle_id'], PDO::PARAM_INT);
+            $currentStatusStmt->execute();
+            $currentStatus = $currentStatusStmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Only check for active transactions if status is actually changing
+            if ($currentStatus && $currentStatus['status_availability_id'] != $vehicleData['status_availability_id']) {
+                $activeTransactionCheck = $this->checkActiveTransactions('vehicle', [$vehicleData['vehicle_id']]);
+                // Disabled restriction: previously prevented updating vehicle status when there were active reservations
+                // if ($activeTransactionCheck['hasActive']) {
+                //     return json_encode([
+                //         'status' => 'error', 
+                //         'message' => 'Cannot update vehicle status with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+                //     ]);
+                // }
             }
         }
 
@@ -1809,20 +2231,27 @@ public function saveVenue($data) {
         if (!isset($data['name']) || !isset($data['occupancy']) || !isset($data['event_type']) || !isset($data['area_type'])) {
             return json_encode(['status' => 'error', 'message' => 'Missing required fields']);
         }
-        if ($this->venueExists($data['name'])) {
-            return json_encode(['status' => 'error', 'message' => 'This venue name is already in use.']);
+        
+        // Check if venue name exists in the same building
+        $buildingId = isset($data['building_id']) && $data['building_id'] !== '' ? $data['building_id'] : null;
+        if ($this->venueExistsInBuilding($data['name'], $buildingId)) {
+            return json_encode(['status' => 'error', 'message' => 'This venue name is already in use in this location.']);
         }
 
         $sql = "INSERT INTO tbl_venue 
-                (ven_name, ven_occupancy, status_availability_id, user_admin_id, event_type, area_type) 
-                VALUES (:name, :occupancy, 1, :admin_id, :event_type, :area_type)";
+                (ven_name, ven_occupancy, ven_minimum, status_availability_id, user_admin_id, event_type, area_type, venue_building_id) 
+                VALUES (:name, :occupancy, :min_occupancy, 1, :admin_id, :event_type, :area_type, :building_id)";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(':name', $data['name'], PDO::PARAM_STR);
         $stmt->bindParam(':occupancy', $data['occupancy'], PDO::PARAM_INT);
+        $minOccupancy = isset($data['min_occupancy']) ? intval($data['min_occupancy']) : 0;
+        $stmt->bindParam(':min_occupancy', $minOccupancy, PDO::PARAM_INT);
         $stmt->bindParam(':admin_id', $data['user_admin_id'], PDO::PARAM_INT);
         $stmt->bindParam(':event_type', $data['event_type'], PDO::PARAM_STR);
         $stmt->bindParam(':area_type', $data['area_type'], PDO::PARAM_STR);
+        $buildingId = isset($data['building_id']) && $data['building_id'] !== '' ? $data['building_id'] : null;
+        $stmt->bindParam(':building_id', $buildingId, PDO::PARAM_INT);
 
         if ($stmt->execute()) {
             $venueId = $this->conn->lastInsertId();
@@ -1855,20 +2284,53 @@ public function updateVenue($venueData) {
             return json_encode(['status' => 'error', 'message' => 'Missing required fields']);
         }
 
+        // Check if venue name exists in the same building (excluding current venue)
+        $buildingId = isset($venueData['building_id']) && $venueData['building_id'] !== '' ? $venueData['building_id'] : null;
+        if ($this->venueExistsInBuilding($venueData['venue_name'], $buildingId, $venueData['venue_id'])) {
+            return json_encode(['status' => 'error', 'message' => 'This venue name is already in use in this location.']);
+        }
+
+        // Check if status_availability_id is being changed
+        if (isset($venueData['status_availability_id'])) {
+            // Get current status_availability_id
+            $currentStatusStmt = $this->conn->prepare("SELECT status_availability_id FROM tbl_venue WHERE ven_id = :venue_id");
+            $currentStatusStmt->bindParam(':venue_id', $venueData['venue_id'], PDO::PARAM_INT);
+            $currentStatusStmt->execute();
+            $currentStatus = $currentStatusStmt->fetch(PDO::FETCH_ASSOC);
+            
+            // Only check for active transactions if status is actually changing
+            if ($currentStatus && $currentStatus['status_availability_id'] != $venueData['status_availability_id']) {
+                $activeTransactionCheck = $this->checkActiveTransactions('venue', [$venueData['venue_id']]);
+                // Disabled restriction: previously prevented updating venue status when there were active reservations
+                // if ($activeTransactionCheck['hasActive']) {
+                //     return json_encode([
+                //         'status' => 'error', 
+                //         'message' => 'Cannot update venue status with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+                //     ]);
+                // }
+            }
+        }
+
         $sql = "UPDATE tbl_venue SET 
                     ven_name = :venue_name, 
                     ven_occupancy = :max_occupancy,
+                    ven_minimum = :min_occupancy,
                     status_availability_id = :status_availability_id,
                     event_type = :event_type,
-                    area_type = :area_type
+                    area_type = :area_type,
+                    venue_building_id = :building_id
                 WHERE ven_id = :venue_id";
 
         $stmt = $this->conn->prepare($sql);
         $stmt->bindParam(':venue_name', $venueData['venue_name'], PDO::PARAM_STR);
         $stmt->bindParam(':max_occupancy', $venueData['max_occupancy'], PDO::PARAM_INT);
+        $minOccupancy = isset($venueData['min_occupancy']) ? intval($venueData['min_occupancy']) : 0;
+        $stmt->bindParam(':min_occupancy', $minOccupancy, PDO::PARAM_INT);
         $stmt->bindParam(':status_availability_id', $venueData['status_availability_id'], PDO::PARAM_INT);
         $stmt->bindParam(':event_type', $venueData['event_type'], PDO::PARAM_STR);
         $stmt->bindParam(':area_type', $venueData['area_type'], PDO::PARAM_STR);
+        $buildingId = isset($venueData['building_id']) && $venueData['building_id'] !== '' ? $venueData['building_id'] : null;
+        $stmt->bindParam(':building_id', $buildingId, PDO::PARAM_INT);
         $stmt->bindParam(':venue_id', $venueData['venue_id'], PDO::PARAM_INT);
 
         $success = $stmt->execute();
@@ -2009,6 +2471,7 @@ public function saveUser($data) {
                     title_id,
                     users_fname, users_mname, users_lname,
                     users_email, users_school_id, users_contact_number,
+                    license_number,
                     users_user_level_id, users_password, users_department_id,
                     users_birthdate, users_suffix, users_pic,
                     first_login,
@@ -2017,6 +2480,7 @@ public function saveUser($data) {
                     :title_id,
                     :fname, :mname, :lname,
                     :email, :schoolId, :contact,
+                    :license_number,
                     :userLevelId, :password, :departmentId,
                     :birthdate, :suffix, :pic,
                     1,
@@ -2024,21 +2488,28 @@ public function saveUser($data) {
                 )";
 
         $stmt = $this->conn->prepare($sql);
-        $stmt->bindParam(':title_id',     $data['title_id'],     PDO::PARAM_INT);
-        $stmt->bindParam(':fname',        $data['fname'],        PDO::PARAM_STR);
-        $stmt->bindParam(':mname',        $data['mname'],        PDO::PARAM_STR);
-        $stmt->bindParam(':lname',        $data['lname'],        PDO::PARAM_STR);
-        $stmt->bindParam(':email',        $data['email'],        PDO::PARAM_STR);
-        $stmt->bindParam(':schoolId',     $data['schoolId'],     PDO::PARAM_STR);
-        $stmt->bindParam(':contact',      $data['contact'],      PDO::PARAM_STR);
-        $stmt->bindParam(':userLevelId',  $data['userLevelId'],  PDO::PARAM_INT);
-        $stmt->bindParam(':password',     $hashedPassword,       PDO::PARAM_STR);
-        $stmt->bindParam(':departmentId', $data['departmentId'], PDO::PARAM_INT);
-        $stmt->bindParam(':birthdate',    $data['birthdate'],    PDO::PARAM_STR);
-        $stmt->bindParam(':suffix',       $data['suffix'],       PDO::PARAM_STR);
-        $stmt->bindParam(':pic',          $picPath,              PDO::PARAM_STR);
+        
+        // Prepare license_number variable for bindParam (cannot pass expressions by reference)
+        $licenseNumber = $data['license_number'] ?? null;
+        
+        $stmt->bindParam(':title_id',      $data['title_id'],      PDO::PARAM_INT);
+        $stmt->bindParam(':fname',         $data['fname'],         PDO::PARAM_STR);
+        $stmt->bindParam(':mname',         $data['mname'],         PDO::PARAM_STR);
+        $stmt->bindParam(':lname',         $data['lname'],         PDO::PARAM_STR);
+        $stmt->bindParam(':email',         $data['email'],         PDO::PARAM_STR);
+        $stmt->bindParam(':schoolId',      $data['schoolId'],      PDO::PARAM_STR);
+        $stmt->bindParam(':contact',       $data['contact'],       PDO::PARAM_STR);
+        $stmt->bindParam(':license_number', $licenseNumber,         PDO::PARAM_STR);
+        $stmt->bindParam(':userLevelId',   $data['userLevelId'],   PDO::PARAM_INT);
+        $stmt->bindParam(':password',      $hashedPassword,        PDO::PARAM_STR);
+        $stmt->bindParam(':departmentId',  $data['departmentId'],  PDO::PARAM_INT);
+        $stmt->bindParam(':birthdate',     $data['birthdate'],     PDO::PARAM_STR);
+        $stmt->bindParam(':suffix',        $data['suffix'],        PDO::PARAM_STR);
+        $stmt->bindParam(':pic',           $picPath,               PDO::PARAM_STR);
 
         if ($stmt->execute()) {
+            $newUserId = $this->conn->lastInsertId();
+            
             // Audit log (non-blocking): User: (fullname) has been created
             try {
                 $actorId = null;
@@ -2062,10 +2533,42 @@ public function saveUser($data) {
                 ]);
             } catch (Throwable $te) { /* ignore audit errors */ }
 
-            return json_encode([
-                'status'  => 'success',
-                'message' => 'User added successfully.'
-            ]);
+            // Fetch newly created user data with all details
+            try {
+                $fetchSql = "SELECT 
+                                u.*,
+                                t.abbreviation AS title_abbreviation,
+                                d.departments_name,
+                                ul.user_level_name
+                            FROM 
+                                tbl_users u
+                            LEFT JOIN 
+                                titles t ON u.title_id = t.id
+                            LEFT JOIN 
+                                tbl_departments d ON u.users_department_id = d.departments_id
+                            LEFT JOIN 
+                                tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
+                            WHERE 
+                                u.users_id = :userId";
+                
+                $fetchStmt = $this->conn->prepare($fetchSql);
+                $fetchStmt->execute([':userId' => $newUserId]);
+                $newUser = $fetchStmt->fetch(PDO::FETCH_ASSOC);
+                
+                return json_encode([
+                    'status'  => 'success',
+                    'message' => 'User added successfully.',
+                    'user_id' => $newUserId,
+                    'data' => $newUser
+                ]);
+            } catch (Throwable $fe) {
+                // If fetch fails, still return success with user_id
+                return json_encode([
+                    'status'  => 'success',
+                    'message' => 'User added successfully.',
+                    'user_id' => $newUserId
+                ]);
+            }
         }
 
         return json_encode([
@@ -2158,6 +2661,7 @@ public function updateUser($userData) {
                     users_fname, users_mname, users_lname,
                     users_birthdate, users_suffix,
                     users_email, users_school_id, users_contact_number,
+                    license_number,
                     users_user_level_id, users_department_id,
                     users_pic, is_active
                 FROM tbl_users WHERE users_id = :userId");
@@ -2176,6 +2680,7 @@ public function updateUser($userData) {
                     users_email          = :email,
                     users_school_id      = :schoolId,
                     users_contact_number = :contact,
+                    license_number       = :license_number,
                     users_user_level_id  = :userLevelId,
                     users_department_id  = :departmentId,
                     users_pic            = :pic,
@@ -2189,21 +2694,25 @@ public function updateUser($userData) {
 
         $stmt = $this->conn->prepare($sql);
 
+        // Prepare license_number variable for bindParam (cannot pass expressions by reference)
+        $licenseNumber = $userData['license_number'] ?? null;
+
         // Bind common params
-        $stmt->bindParam(':title_id',     $userData['title_id'],     PDO::PARAM_INT);
-        $stmt->bindParam(':fname',        $userData['fname'],        PDO::PARAM_STR);
-        $stmt->bindParam(':mname',        $userData['mname'],        PDO::PARAM_STR);
-        $stmt->bindParam(':lname',        $userData['lname'],        PDO::PARAM_STR);
-        $stmt->bindParam(':birthdate',    $userData['birthdate'],    PDO::PARAM_STR);
-        $stmt->bindParam(':suffix',       $userData['suffix'],       PDO::PARAM_STR);
-        $stmt->bindParam(':email',        $email,                    PDO::PARAM_STR);
-        $stmt->bindParam(':schoolId',     $schoolId,                 PDO::PARAM_STR);
-        $stmt->bindParam(':contact',      $userData['contact'],      PDO::PARAM_STR);
-        $stmt->bindParam(':userLevelId',  $userData['userLevelId'],  PDO::PARAM_INT);
-        $stmt->bindParam(':departmentId', $userData['departmentId'], PDO::PARAM_INT);
-        $stmt->bindParam(':pic',          $userData['pic'],          PDO::PARAM_STR);
-        $stmt->bindParam(':isActive',     $userData['isActive'],     PDO::PARAM_BOOL);
-        $stmt->bindParam(':userId',       $userId,                   PDO::PARAM_INT);
+        $stmt->bindParam(':title_id',      $userData['title_id'],      PDO::PARAM_INT);
+        $stmt->bindParam(':fname',         $userData['fname'],         PDO::PARAM_STR);
+        $stmt->bindParam(':mname',         $userData['mname'],         PDO::PARAM_STR);
+        $stmt->bindParam(':lname',         $userData['lname'],         PDO::PARAM_STR);
+        $stmt->bindParam(':birthdate',     $userData['birthdate'],     PDO::PARAM_STR);
+        $stmt->bindParam(':suffix',        $userData['suffix'],        PDO::PARAM_STR);
+        $stmt->bindParam(':email',         $email,                     PDO::PARAM_STR);
+        $stmt->bindParam(':schoolId',      $schoolId,                  PDO::PARAM_STR);
+        $stmt->bindParam(':contact',       $userData['contact'],       PDO::PARAM_STR);
+        $stmt->bindParam(':license_number', $licenseNumber,             PDO::PARAM_STR);
+        $stmt->bindParam(':userLevelId',   $userData['userLevelId'],   PDO::PARAM_INT);
+        $stmt->bindParam(':departmentId',  $userData['departmentId'],  PDO::PARAM_INT);
+        $stmt->bindParam(':pic',           $userData['pic'],           PDO::PARAM_STR);
+        $stmt->bindParam(':isActive',      $userData['isActive'],      PDO::PARAM_BOOL);
+        $stmt->bindParam(':userId',        $userId,                    PDO::PARAM_INT);
 
         // Hash & bind the new password if provided
         if (!empty($userData['password'])) {
@@ -2239,6 +2748,7 @@ public function updateUser($userData) {
                         'users_email'          => ['label' => 'email',          'new' => $email],
                         'users_school_id'      => ['label' => 'school id',      'new' => $schoolId],
                         'users_contact_number' => ['label' => 'contact number', 'new' => $userData['contact']         ?? null],
+                        'license_number'       => ['label' => 'license number', 'new' => $userData['license_number']  ?? null],
                         'users_user_level_id'  => ['label' => 'user level',     'new' => $userData['userLevelId']     ?? null],
                         'users_department_id'  => ['label' => 'department',     'new' => $userData['departmentId']    ?? null],
                         'users_pic'            => ['label' => 'pic',            'new' => $userData['pic']             ?? null],
@@ -2275,10 +2785,40 @@ public function updateUser($userData) {
                 ]);
             } catch (Throwable $te) { /* ignore audit errors */ }
 
-            return json_encode([
-                'status'  => 'success',
-                'message' => 'User updated successfully.'
-            ]);
+            // Fetch updated user data with all details
+            try {
+                $fetchSql = "SELECT 
+                                u.*,
+                                t.abbreviation AS title_abbreviation,
+                                d.departments_name,
+                                ul.user_level_name
+                            FROM 
+                                tbl_users u
+                            LEFT JOIN 
+                                titles t ON u.title_id = t.id
+                            LEFT JOIN 
+                                tbl_departments d ON u.users_department_id = d.departments_id
+                            LEFT JOIN 
+                                tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
+                            WHERE 
+                                u.users_id = :userId";
+                
+                $fetchStmt = $this->conn->prepare($fetchSql);
+                $fetchStmt->execute([':userId' => $userId]);
+                $updatedUser = $fetchStmt->fetch(PDO::FETCH_ASSOC);
+                
+                return json_encode([
+                    'status'  => 'success',
+                    'message' => 'User updated successfully.',
+                    'data' => $updatedUser
+                ]);
+            } catch (Throwable $fe) {
+                // If fetch fails, still return success for the update
+                return json_encode([
+                    'status'  => 'success',
+                    'message' => 'User updated successfully.'
+                ]);
+            }
         }
 
         return json_encode([
@@ -2307,28 +2847,207 @@ public function venueExists($venueName) {
         }
     }
 
-    // Insert a new reservation driver (for reservation_driver_user_id only, no driver_name)
-    public function insertDriver($reservation_driver_user_id, $reservation_vehicle_id = null) {
+    // Check if venue name exists in a specific building
+    public function venueExistsInBuilding($venueName, $buildingId = null, $excludeVenueId = null) {
         try {
+            $sql = "SELECT COUNT(*) FROM tbl_venue WHERE ven_name = :name";
+            
+            // Add building condition
+            if ($buildingId !== null) {
+                $sql .= " AND venue_building_id = :building_id";
+            } else {
+                $sql .= " AND venue_building_id IS NULL";
+            }
+            
+            // Exclude current venue when updating
+            if ($excludeVenueId !== null) {
+                $sql .= " AND ven_id != :exclude_id";
+            }
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':name', $venueName, PDO::PARAM_STR);
+            
+            if ($buildingId !== null) {
+                $stmt->bindParam(':building_id', $buildingId, PDO::PARAM_INT);
+            }
+            
+            if ($excludeVenueId !== null) {
+                $stmt->bindParam(':exclude_id', $excludeVenueId, PDO::PARAM_INT);
+            }
+            
+            $stmt->execute();
+            return $stmt->fetchColumn() > 0;
+        } catch(PDOException $e) {
+            error_log("venueExistsInBuilding error: " . $e->getMessage());
+            return false; // Treat as not existing on error
+        }
+    }
+
+    // Update an existing reservation driver
+    public function updateDriver($reservation_driver_id, $reservation_driver_user_id, $driver_name = null) {
+        // Debug logging inside the method
+       
+        try {
+            // Handle custom driver case - when driverId is 'custom', treat as null for user_id
+            if ($reservation_driver_user_id === 'custom') {
+                $reservation_driver_user_id = null;
+              
+            }
+            $sql = "UPDATE tbl_reservation_driver SET 
+                        reservation_driver_user_id = :reservation_driver_user_id,
+                        driver_name = :driver_name,
+                        updated_at = NOW()
+                    WHERE reservation_driver_id = :reservation_driver_id";
+            $stmt = $this->conn->prepare($sql);
+            
+          
+            
+            $stmt->bindValue(':reservation_driver_id', $reservation_driver_id, PDO::PARAM_INT);
+            $stmt->bindValue(':reservation_driver_user_id', $reservation_driver_user_id, is_null($reservation_driver_user_id) ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':driver_name', $driver_name, is_null($driver_name) ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            
+            if ($stmt->execute()) {
+                $affectedRows = $stmt->rowCount();
+                if ($affectedRows > 0) {
+                    return json_encode([
+                        'status' => 'success',
+                        'message' => 'Driver updated successfully',
+                        'affected_rows' => $affectedRows
+                    ]);
+                } else {
+                    return json_encode([
+                        'status' => 'error',
+                        'message' => 'No driver record found to update'
+                    ]);
+                }
+            } else {
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'Failed to update driver'
+                ]);
+            }
+        } catch(PDOException $e) {
+            error_log("updateDriver PDO error: " . $e->getMessage());
+            return json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    // Insert or update a reservation driver (supports both user_id and driver_name for "No Driver Available" cases)
+    public function insertDriver($reservation_driver_user_id, $reservation_vehicle_id = null, $driver_name = null, $reservation_driver_id = null) {
+       
+        try {
+            // Handle custom driver case - when driverId is 'custom', treat as null for user_id
+            if ($reservation_driver_user_id === 'custom') {
+                $reservation_driver_user_id = null;
+            }
+            
+            // If reservation_driver_id is provided, update existing record
+            if ($reservation_driver_id) {
+                return $this->updateDriver($reservation_driver_id, $reservation_driver_user_id, $driver_name);
+            }
+            
+            // Otherwise, insert new record
             $sql = "INSERT INTO tbl_reservation_driver (
                         reservation_driver_user_id,
+                        driver_name,
                         reservation_vehicle_id,
                         created_at,
                         updated_at
                     ) VALUES (
                         :reservation_driver_user_id,
+                        :driver_name,
                         :reservation_vehicle_id,
                         NOW(),
                         NOW()
                     )";
             $stmt = $this->conn->prepare($sql);
-            $stmt->bindParam(':reservation_driver_user_id', $reservation_driver_user_id, PDO::PARAM_INT);
-            $stmt->bindParam(':reservation_vehicle_id', $reservation_vehicle_id, PDO::PARAM_INT);
+            
+            
+            
+            $stmt->bindValue(':reservation_driver_user_id', $reservation_driver_user_id, is_null($reservation_driver_user_id) ? PDO::PARAM_NULL : PDO::PARAM_INT);
+            $stmt->bindValue(':driver_name', $driver_name, is_null($driver_name) ? PDO::PARAM_NULL : PDO::PARAM_STR);
+            $stmt->bindValue(':reservation_vehicle_id', $reservation_vehicle_id, is_null($reservation_vehicle_id) ? PDO::PARAM_NULL : PDO::PARAM_INT);
             if ($stmt->execute()) {
+                $newDriverId = $this->conn->lastInsertId();
+                
+                // Get reservation_id from tbl_reservation_vehicle
+                $reservationId = null;
+                $reservationTitle = 'Reservation';
+                
+                if ($reservation_vehicle_id) {
+                    $sqlGetReservation = "
+                        SELECT rv.reservation_reservation_id, r.reservation_title
+                        FROM tbl_reservation_vehicle rv
+                        INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                        WHERE rv.reservation_vehicle_id = :vehicle_id
+                    ";
+                    $stmtGetReservation = $this->conn->prepare($sqlGetReservation);
+                    $stmtGetReservation->bindValue(':vehicle_id', $reservation_vehicle_id, PDO::PARAM_INT);
+                    $stmtGetReservation->execute();
+                    $reservationData = $stmtGetReservation->fetch(PDO::FETCH_ASSOC);
+                    
+                    if ($reservationData) {
+                        $reservationId = $reservationData['reservation_reservation_id'];
+                        $reservationTitle = $reservationData['reservation_title'] ?? 'Reservation';
+                    }
+                }
+                
+                // Send notification to driver (only if driver has user_id - not custom driver)
+                if ($reservation_driver_user_id && $reservationId) {
+                    try {
+                        // Get driver name for notification message
+                        $driverName = 'Driver';
+                        $sqlGetDriver = "
+                            SELECT CONCAT(users_fname, ' ', users_lname) AS full_name
+                            FROM tbl_users
+                            WHERE users_id = :user_id
+                        ";
+                        $stmtGetDriver = $this->conn->prepare($sqlGetDriver);
+                        $stmtGetDriver->bindValue(':user_id', $reservation_driver_user_id, PDO::PARAM_INT);
+                        $stmtGetDriver->execute();
+                        $driverData = $stmtGetDriver->fetch(PDO::FETCH_ASSOC);
+                        if ($driverData) {
+                            $driverName = $driverData['full_name'];
+                        }
+                        
+                        // Insert notification into tbl_notification_reservation
+                        $notificationMessage = "You have been assigned as a driver for '{$reservationTitle}'";
+                        $sqlNotification = "
+                            INSERT INTO tbl_notification_reservation 
+                            (notification_message, notification_reservation_reservation_id, notification_user_id, notification_created_at, is_read) 
+                            VALUES (:message, :reservation_id, :user_id, NOW(), 0)
+                        ";
+                        $stmtNotification = $this->conn->prepare($sqlNotification);
+                        $stmtNotification->bindValue(':message', $notificationMessage, PDO::PARAM_STR);
+                        $stmtNotification->bindValue(':reservation_id', $reservationId, PDO::PARAM_INT);
+                        $stmtNotification->bindValue(':user_id', $reservation_driver_user_id, PDO::PARAM_INT);
+                        $stmtNotification->execute();
+                        
+                       
+                        // Send push notification
+                        $pushTitle = "Driver Assignment";
+                        $pushBody = "You have been assigned as a driver for '{$reservationTitle}'";
+                        $pushData = [
+                            'reservation_id' => $reservationId,
+                            'type' => 'driver_assignment',
+                            'url' => '/gsd/grms/Admin/viewRequest'
+                        ];
+                        
+                        $this->sendPushNotificationToUser($reservation_driver_user_id, $pushTitle, $pushBody, $pushData);
+                       
+                    } catch (Exception $e) {
+                        error_log("Error sending notification to driver: " . $e->getMessage());
+                        // Continue even if notification fails
+                    }
+                }
+                
                 return json_encode([
                     'status' => 'success',
                     'message' => 'Driver assigned to reservation successfully',
-                    'reservation_driver_id' => $this->conn->lastInsertId()
+                    'reservation_driver_id' => $newDriverId
                 ]);
             } else {
                 return json_encode([
@@ -2378,115 +3097,140 @@ public function venueExists($venueName) {
     }
 
     public function fetchRecord() {
-    try {
-        $sql = "
-            SELECT 
-                r.reservation_id, 
-                r.reservation_title, 
-                r.reservation_description, 
-                r.reservation_start_date, 
-                r.reservation_end_date, 
-                r.reschedule_start_date,
-                r.reschedule_end_date,
-                r.reservation_participants, 
-                r.reservation_user_id, 
-                r.reservation_created_at, 
-                TRIM(
-                    CONCAT(
-                        COALESCE(t.abbreviation, ''),
-                        CASE WHEN COALESCE(t.abbreviation, '') <> '' THEN ' ' ELSE '' END,
-                        COALESCE(u.users_fname, ''),
-                        CASE WHEN COALESCE(u.users_mname, '') <> '' THEN CONCAT(' ', u.users_mname) ELSE '' END,
-                        CASE WHEN COALESCE(u.users_lname, '') <> '' THEN CONCAT(' ', u.users_lname) ELSE '' END,
-                        CASE WHEN COALESCE(u.users_suffix, '') <> '' THEN CONCAT(', ', u.users_suffix) ELSE '' END
-                    )
-                ) AS user_full_name,
-                u.users_suffix AS requester_suffix,
-                t.abbreviation AS requester_title_abbreviation,
-                sm.status_master_name AS reservation_status_name,
-                latest_status.reservation_status_status_id,
-                latest_status.reservation_updated_at,
-                latest_status.reservation_active,
-                CASE WHEN active_resched.max_reschedule_status_id IS NULL THEN 0 ELSE 1 END AS has_active_reschedule
-
-            FROM tbl_reservation r
-
-            LEFT JOIN (
-                SELECT rs1.*
-                FROM tbl_reservation_status rs1
-                INNER JOIN (
-                    SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_status_id
+        try {
+            $sql = "
+                SELECT 
+                    r.reservation_id, 
+                    r.reservation_title, 
+                    r.reservation_description, 
+                    r.reservation_start_date, 
+                    r.reservation_end_date, 
+                    r.reschedule_start_date,
+                    r.reschedule_end_date,
+                    -- reservation_participants moved to tbl_reservation_venue
+                    r.reservation_user_id, 
+                    r.reservation_created_at, 
+                    TRIM(
+                        CONCAT(
+                            COALESCE(t.abbreviation, ''),
+                            CASE WHEN COALESCE(t.abbreviation, '') <> '' THEN ' ' ELSE '' END,
+                            COALESCE(u.users_fname, ''),
+                            CASE WHEN COALESCE(u.users_mname, '') <> '' THEN CONCAT(' ', u.users_mname) ELSE '' END,
+                            CASE WHEN COALESCE(u.users_lname, '') <> '' THEN CONCAT(' ', u.users_lname) ELSE '' END,
+                            CASE WHEN COALESCE(u.users_suffix, '') <> '' THEN CONCAT(', ', u.users_suffix) ELSE '' END
+                        )
+                    ) AS user_full_name,
+                    u.users_suffix AS requester_suffix,
+                    t.abbreviation AS requester_title_abbreviation,
+                    sm.status_master_name AS reservation_status_name,
+                    latest_status.reservation_status_status_id,
+                    latest_status.reservation_updated_at,
+                    latest_status.reservation_active,
+                    CASE WHEN active_resched.max_reschedule_status_id IS NULL THEN 0 ELSE 1 END AS has_active_reschedule,
+                    
+                    -- Add reservation type determination
+                    CASE 
+                        WHEN EXISTS (
+                            SELECT 1 FROM tbl_reservation_vehicle rv 
+                            WHERE rv.reservation_reservation_id = r.reservation_id
+                        ) THEN 'Trip'
+                        WHEN EXISTS (
+                            SELECT 1 FROM tbl_reservation_venue rven 
+                            WHERE rven.reservation_reservation_id = r.reservation_id
+                        ) THEN 'Activity/Event'
+                        WHEN EXISTS (
+                            SELECT 1 FROM tbl_reservation_equipment re 
+                            WHERE re.reservation_reservation_id = r.reservation_id
+                        ) THEN 'EQ'
+                        ELSE 'Unknown'
+                    END AS reservation_type
+    
+                FROM tbl_reservation r
+    
+                LEFT JOIN (
+                    SELECT rs1.*
+                    FROM tbl_reservation_status rs1
+                    INNER JOIN (
+                        SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_status_id
+                        FROM tbl_reservation_status
+                        GROUP BY reservation_reservation_id
+                    ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id
+                    AND rs1.reservation_status_id = rs2.max_status_id
+                ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+    
+                LEFT JOIN (
+                    SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                     FROM tbl_reservation_status
+                    WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
                     GROUP BY reservation_reservation_id
-                ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id
-                AND rs1.reservation_status_id = rs2.max_status_id
-            ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
-
-            LEFT JOIN (
-                SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
-                FROM tbl_reservation_status
-                WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
-                GROUP BY reservation_reservation_id
-            ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
-
-            LEFT JOIN tbl_status_master sm ON sm.status_master_id = latest_status.reservation_status_status_id
-            LEFT JOIN tbl_users u ON u.users_id = r.reservation_user_id
-            LEFT JOIN titles t ON u.title_id = t.id
-
-            ORDER BY r.reservation_created_at DESC
-        ";
-
-        $stmt = $this->conn->prepare($sql);
-        $stmt->execute();
-
-        $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        // Process each reservation to determine which dates to display
-        // Following the same logic as fetchRequestById and fetchAvailability
-        foreach ($reservations as &$reservation) {
-            $statusId = (int)$reservation['reservation_status_status_id'];
-            $active = (int)$reservation['reservation_active'];
-            $hasActiveReschedule = (int)$reservation['has_active_reschedule'];
-            
-            // Determine the effective dates to use based on reschedule status
-            // This follows the same pattern as fetchRequestById in reservation.php
-            if ($statusId === 14 && $active === 1 && 
-                !empty($reservation['reschedule_start_date']) && 
-                !empty($reservation['reschedule_end_date'])) {
-                // For active reschedule (status 14 with active=1), use reschedule dates
-                $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
-                $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
-            } elseif ($statusId === 11 && 
-                      !empty($reservation['reschedule_start_date']) && 
-                      !empty($reservation['reschedule_end_date'])) {
-                // For status 11 (rescheduled), use reschedule dates
-                $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
-                $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
-            } elseif ($statusId === 10 && $hasActiveReschedule && 
-                      !empty($reservation['reschedule_start_date']) && 
-                      !empty($reservation['reschedule_end_date'])) {
-                // For status 10 with active reschedule, use reschedule dates
-                $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
-                $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
-            } else {
-                // For all other cases, use original dates
-                $reservation['effective_start_date'] = $reservation['reservation_start_date'];
-                $reservation['effective_end_date'] = $reservation['reservation_end_date'];
+                ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
+    
+                LEFT JOIN tbl_status_master sm ON sm.status_master_id = latest_status.reservation_status_status_id
+                LEFT JOIN tbl_users u ON u.users_id = r.reservation_user_id
+                LEFT JOIN titles t ON u.title_id = t.id
+    
+                ORDER BY r.reservation_created_at DESC
+            ";
+    
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+    
+            $reservations = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    
+            // Process each reservation to determine which dates to display
+            // Following the same logic as fetchRequestById and fetchAvailability
+            foreach ($reservations as &$reservation) {
+                $statusId = (int)$reservation['reservation_status_status_id'];
+                $active = (int)$reservation['reservation_active'];
+                $hasActiveReschedule = (int)$reservation['has_active_reschedule'];
+                
+                // Determine the effective dates to use based on reschedule status
+                // This follows the same pattern as fetchRequestById in reservation.php
+                if ($statusId === 14 && $active === 1 && 
+                    !empty($reservation['reschedule_start_date']) && 
+                    !empty($reservation['reschedule_end_date'])) {
+                    // For active reschedule (status 14 with active=1), use reschedule dates
+                    $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
+                    $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
+                } elseif ($statusId === 11 && 
+                          !empty($reservation['reschedule_start_date']) && 
+                          !empty($reservation['reschedule_end_date'])) {
+                    // For status 11 (rescheduled), use reschedule dates
+                    $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
+                    $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
+                } elseif ($statusId === 10 && $hasActiveReschedule && 
+                          !empty($reservation['reschedule_start_date']) && 
+                          !empty($reservation['reschedule_end_date'])) {
+                    // For status 10 with active reschedule, use reschedule dates
+                    $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
+                    $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
+                } elseif ($statusId === 5 && 
+                          !empty($reservation['reschedule_start_date']) && 
+                          !empty($reservation['reschedule_end_date'])) {
+                    // For status 5 (cancelled) with reschedule dates, use reschedule dates
+                    // This handles cases where reservation was rescheduled but then cancelled
+                    $reservation['effective_start_date'] = $reservation['reschedule_start_date'];
+                    $reservation['effective_end_date'] = $reservation['reschedule_end_date'];
+                } else {
+                    // For all other cases, use original dates
+                    $reservation['effective_start_date'] = $reservation['reservation_start_date'];
+                    $reservation['effective_end_date'] = $reservation['reservation_end_date'];
+                }
+                
+                // Keep original reschedule dates for reference (like fetchRequestById does)
+                // Don't null them out - let the frontend decide what to display
+                
+                // Remove helper field
+                unset($reservation['has_active_reschedule']);
             }
-            
-            // Keep original reschedule dates for reference (like fetchRequestById does)
-            // Don't null them out - let the frontend decide what to display
-            
-            // Remove helper field
-            unset($reservation['has_active_reschedule']);
+    
+            return json_encode(['status' => 'success', 'data' => $reservations]);
+    
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
         }
-
-        return json_encode(['status' => 'success', 'data' => $reservations]);
-
-    } catch (PDOException $e) {
-        return json_encode(['status' => 'error', 'message' => $e->getMessage()]);
     }
-}
+        
 
 
     public function insertNotificationTouser($notification_message, $notification_user_id, $reservation_id = null) {
@@ -2539,8 +3283,7 @@ public function venueExists($venueName) {
         } else {
             $data = json_decode($json, true);
         }
-        error_log(print_r($data, true));
-        error_log("saveModelData userId=" . var_export($userId, true)); 
+        
 
         try {
             // Check if the model name already exists globally (unique across all models)
@@ -2585,7 +3328,7 @@ public function venueExists($venueName) {
                     try {
                         $latestAuditStmt = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1");
                         $latest = $latestAuditStmt ? $latestAuditStmt->fetch(PDO::FETCH_ASSOC) : null;
-                        error_log("audit_log latest (saveModelData): " . json_encode($latest));
+                        
                     } catch (Throwable $te) {
                         error_log("Failed to read back latest audit_log (saveModelData): " . $te->getMessage());
                     }
@@ -2607,8 +3350,7 @@ public function venueExists($venueName) {
         } else {
             $data = json_decode($json, true);
         }
-        error_log("saveCategoryData userId=" . var_export($userId, true));
-    
+       
         // Check if category name is set
         if (!isset($data['vehicle_category_name'])) {
             return json_encode(['status' => 'error', 'message' => 'Category name is required.']);
@@ -2648,7 +3390,7 @@ public function venueExists($venueName) {
                     try {
                         $latestAuditStmt = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1");
                         $latest = $latestAuditStmt ? $latestAuditStmt->fetch(PDO::FETCH_ASSOC) : null;
-                        error_log("audit_log latest (saveCategoryData): " . json_encode($latest));
+                       
                     } catch (Throwable $te) {
                         error_log("Failed to read back latest audit_log (saveCategoryData): " . $te->getMessage());
                     }
@@ -2670,9 +3412,7 @@ public function venueExists($venueName) {
         } else {
             $data = json_decode($json, true);
         }
-        // Log userId for auditing
-        error_log("saveMakeData userId=" . var_export($userId, true));
-        
+       
         // Inline existence check
         $sql = "SELECT COUNT(*) FROM tbl_vehicle_make WHERE vehicle_make_name = :name";
         $stmt = $this->conn->prepare($sql);
@@ -2707,7 +3447,7 @@ public function venueExists($venueName) {
                     $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                     $sel->execute();
                     $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                    error_log("audit_log latest (saveMakeData): " . json_encode($latest));
+                    
                 } catch (PDOException $ex) {
                     error_log("Audit log select failed (saveMakeData): " . $ex->getMessage());
                 }
@@ -2739,7 +3479,7 @@ public function venueExists($venueName) {
     public function saveEquipmentCategory($json, $userId = null) {
         // Handle both string and array inputs
         $data = is_array($json) ? $json : json_decode($json, true);
-        error_log("saveEquipmentCategory userId=" . var_export($userId, true));
+      
         
         // Check if category name is set
         if (!isset($data['equipments_category_name'])) {
@@ -2776,7 +3516,7 @@ public function venueExists($venueName) {
                     try {
                         $latestAuditStmt = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1");
                         $latest = $latestAuditStmt ? $latestAuditStmt->fetch(PDO::FETCH_ASSOC) : null;
-                        error_log("audit_log latest (saveEquipmentCategory): " . json_encode($latest));
+                      
                     } catch (Throwable $te) {
                         error_log("Failed to read back latest audit_log (saveEquipmentCategory): " . $te->getMessage());
                     }
@@ -2846,13 +3586,95 @@ public function venueExists($venueName) {
     }
 
     public function fetchMake() {
-        $sql = "SELECT vehicle_make_id, vehicle_make_name FROM tbl_vehicle_make ORDER BY vehicle_make_id DESC";
+        $sql = "SELECT vehicle_make_id, vehicle_make_name FROM tbl_vehicle_make WHERE is_active = 1 ORDER BY vehicle_make_id DESC";
         return $this->executeQuery($sql);
     }
 
+    public function fetchDriverRestrictionCodes() {
+        $sql = "SELECT restriction_id, restriction_code, restriction_desc, vehicle_category, wheels_count 
+                FROM tbl_driver_restriction_codes 
+                ORDER BY restriction_code ASC";
+        return $this->executeQuery($sql);
+    }
+
+    // Fetch driver restrictions for a specific user
+    public function fetchDriverRestrictions($userId) {
+        try {
+            $sql = "SELECT 
+                        dr.driver_restriction_id,
+                        dr.driver_user_id,
+                        dr.restriction_code_id,
+                        dr.assigned_at,
+                        drc.restriction_code,
+                        drc.restriction_desc,
+                        drc.vehicle_category,
+                        drc.wheels_count
+                    FROM tbl_driver_restrictions dr
+                    INNER JOIN tbl_driver_restriction_codes drc 
+                        ON dr.restriction_code_id = drc.restriction_id
+                    WHERE dr.driver_user_id = :user_id
+                    ORDER BY drc.restriction_code ASC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmt->execute();
+            $restrictions = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode([
+                'status' => 'success',
+                'data' => $restrictions
+            ]);
+        } catch (PDOException $e) {
+            return json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
+    // Save driver restrictions (insert or update)
+    public function saveDriverRestrictions($userId, $restrictionIds, $updatedBy) {
+        try {
+            $this->conn->beginTransaction();
+            
+            // Delete existing restrictions for this user
+            $deleteSql = "DELETE FROM tbl_driver_restrictions WHERE driver_user_id = :user_id";
+            $deleteStmt = $this->conn->prepare($deleteSql);
+            $deleteStmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $deleteStmt->execute();
+            
+            // Insert new restrictions
+            if (!empty($restrictionIds)) {
+                $insertSql = "INSERT INTO tbl_driver_restrictions 
+                            (driver_user_id, restriction_code_id, updated_by, assigned_at) 
+                            VALUES (:user_id, :restriction_id, :updated_by, NOW())";
+                $insertStmt = $this->conn->prepare($insertSql);
+                
+                foreach ($restrictionIds as $restrictionId) {
+                    $insertStmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+                    $insertStmt->bindParam(':restriction_id', $restrictionId, PDO::PARAM_INT);
+                    $insertStmt->bindParam(':updated_by', $updatedBy, PDO::PARAM_INT);
+                    $insertStmt->execute();
+                }
+            }
+            
+            $this->conn->commit();
+            
+            return json_encode([
+                'status' => 'success',
+                'message' => 'Driver restrictions saved successfully'
+            ]);
+        } catch (PDOException $e) {
+            $this->conn->rollBack();
+            return json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+    }
+
     public function updateVehicleMake($id, $name, $userId = null) {
-        // Log userId for auditing
-        error_log("updateVehicleMake userId=" . var_export($userId, true));
+
         try {
             // First, get the current vehicle make name to check if it's the same
             $currentSql = "SELECT vehicle_make_name FROM tbl_vehicle_make WHERE vehicle_make_id = :id";
@@ -2894,7 +3716,7 @@ public function venueExists($venueName) {
                             $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                             $sel->execute();
                             $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                            error_log("audit_log latest (updateVehicleMake same-name): " . json_encode($latest));
+                            
                         } catch (PDOException $ex) {
                             error_log("Audit log select failed (updateVehicleMake same-name): " . $ex->getMessage());
                         }
@@ -2944,7 +3766,7 @@ public function venueExists($venueName) {
                         $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                         $sel->execute();
                         $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                        error_log("audit_log latest (updateVehicleMake): " . json_encode($latest));
+                      
                     } catch (PDOException $ex) {
                         error_log("Audit log select failed (updateVehicleMake): " . $ex->getMessage());
                     }
@@ -2962,7 +3784,13 @@ public function venueExists($venueName) {
     }
 
     public function fetchVehicleCategories() {
-        $sql = "SELECT vehicle_category_id, vehicle_category_name FROM tbl_vehicle_category ORDER BY vehicle_category_name";
+        $sql = "
+                SELECT 
+                    vc.vehicle_category_id, 
+                    vc.vehicle_category_name
+                FROM tbl_vehicle_category vc
+                WHERE vc.is_active = 1 
+                ORDER BY vc.vehicle_category_name";
         return $this->executeQuery($sql);
     }
 
@@ -3008,7 +3836,7 @@ public function venueExists($venueName) {
                             $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                             $sel->execute();
                             $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                            error_log("audit_log latest (updateVehicleCategory same-name): " . json_encode($latest));
+                          
                         } catch (PDOException $ex) {
                             error_log("Audit log select failed (updateVehicleCategory same-name): " . $ex->getMessage());
                         }
@@ -3064,7 +3892,7 @@ public function venueExists($venueName) {
                         $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                         $sel->execute();
                         $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                        error_log("audit_log latest (updateVehicleCategory): " . json_encode($latest));
+                       
                     } catch (PDOException $ex) {
                         error_log("Audit log select failed (updateVehicleCategory): " . $ex->getMessage());
                     }
@@ -3105,6 +3933,8 @@ public function venueExists($venueName) {
                 tbl_vehicle_make make ON vm.vehicle_model_vehicle_make_id = make.vehicle_make_id
             LEFT JOIN 
                 tbl_vehicle_category category ON vm.vehicle_category_id = category.vehicle_category_id
+            WHERE 
+                vm.is_active = 1
             ORDER BY 
                 vm.vehicle_model_id DESC
         ";
@@ -3120,8 +3950,26 @@ public function venueExists($venueName) {
             return json_encode(['status' => 'error', 'message' => 'Missing required fields']);
         }
 
-        error_log("Starting vehicle model update with data: " . print_r($modelData, true));
-        error_log("updateVehicleModel userId=" . var_export($userId, true));
+        
+        // First, verify the record exists
+        $modelId = intval($modelData['id']);
+        $checkSql = "SELECT vehicle_model_id, vehicle_model_name FROM tbl_vehicle_model WHERE vehicle_model_id = :modelId";
+        try {
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->bindValue(':modelId', $modelId, PDO::PARAM_INT);
+            $checkStmt->execute();
+            $existingRecord = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$existingRecord) {
+                error_log("Record verification failed: No record found with vehicle_model_id = $modelId");
+                return json_encode(['status' => 'error', 'message' => "Vehicle model with ID $modelId does not exist in the database"]);
+            }
+            
+            error_log("Record found: " . print_r($existingRecord, true));
+        } catch (PDOException $e) {
+            error_log("Record verification error: " . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error during verification']);
+        }
         
         $sql = "UPDATE tbl_vehicle_model SET 
                     vehicle_model_name = :modelName, 
@@ -3135,7 +3983,6 @@ public function venueExists($venueName) {
             $stmt = $this->conn->prepare($sql);
             
             // Convert values to appropriate types
-            $modelId = intval($modelData['id']);
             $categoryId = intval($modelData['category_id']);
             $makeId = intval($modelData['make_id']);
             
@@ -3145,13 +3992,12 @@ public function venueExists($venueName) {
             $stmt->bindValue(':modelId', $modelId, PDO::PARAM_INT);
 
             // Log the actual values being used
-            error_log("Executing query with values: modelId=$modelId, name={$modelData['name']}, categoryId=$categoryId, makeId=$makeId");
+            
             
             $result = $stmt->execute();
             $rowCount = $stmt->rowCount();
             
-            error_log("Query execution result: " . ($result ? "success" : "failed"));
-            error_log("Rows affected: $rowCount");
+            
             
             if ($result) {
                 if ($rowCount > 0) {
@@ -3159,7 +4005,7 @@ public function venueExists($venueName) {
                     try {
                         $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
                         $audit = $this->conn->prepare($auditSql);
-                        $desc = "Updated Vehicle Model: '" . ($currentName ?? '') . "' -> '" . ($modelData['name'] ?? '') . "'";
+                        $desc = "Updated Vehicle Model: '" . ($existingRecord['vehicle_model_name'] ?? '') . "' -> '" . ($modelData['name'] ?? '') . "'";
                         $action = 'UPDATE';
                         $audit->bindParam(':description', $desc, PDO::PARAM_STR);
                         $audit->bindParam(':action', $action, PDO::PARAM_STR);
@@ -3174,7 +4020,7 @@ public function venueExists($venueName) {
                             try {
                                 $latestAuditStmt = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1");
                                 $latest = $latestAuditStmt ? $latestAuditStmt->fetch(PDO::FETCH_ASSOC) : null;
-                                error_log("audit_log latest (updateVehicleModel): " . json_encode($latest));
+                               
                             } catch (Throwable $te) {
                                 error_log("Failed to read back latest audit_log (updateVehicleModel): " . $te->getMessage());
                             }
@@ -3198,7 +4044,7 @@ public function venueExists($venueName) {
     }
 
     public function fetchEquipmentsCategory() {
-        $sql = "SELECT equipments_category_id, equipments_category_name FROM tbl_equipment_category ORDER BY equipments_category_id DESC";
+        $sql = "SELECT equipments_category_id, equipments_category_name FROM tbl_equipment_category WHERE is_active = 1 ORDER BY equipments_category_id DESC";
         return $this->executeQuery($sql);
     }
 
@@ -3229,10 +4075,8 @@ public function venueExists($venueName) {
                 $stmt->bindParam(':categoryId', $categoryData['categoryId'], PDO::PARAM_INT);
 
                 // Add these lines for debugging
-                error_log("Updating category: " . print_r($categoryData, true));
+                
                 $result = $stmt->execute();
-                error_log("Update result: " . ($result ? "true" : "false"));
-                error_log("Rows affected: " . $stmt->rowCount());
 
                 if ($result) {
                     // Audit log (non-blocking)
@@ -3253,7 +4097,7 @@ public function venueExists($venueName) {
                             $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                             $sel->execute();
                             $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                            error_log("audit_log latest (updateEquipmentCategory same-name): " . json_encode($latest));
+                           
                         } catch (PDOException $ex) {
                             error_log("Audit log select failed (updateEquipmentCategory same-name): " . $ex->getMessage());
                         }
@@ -3288,10 +4132,9 @@ public function venueExists($venueName) {
             $stmt->bindParam(':categoryId', $categoryData['categoryId'], PDO::PARAM_INT);
 
             // Add these lines for debugging
-            error_log("Updating category: " . print_r($categoryData, true));
+           
             $result = $stmt->execute();
-            error_log("Update result: " . ($result ? "true" : "false"));
-            error_log("Rows affected: " . $stmt->rowCount());
+           
 
             if ($result) {
                 // Audit log (non-blocking)
@@ -3312,7 +4155,7 @@ public function venueExists($venueName) {
                         $sel = $this->conn->prepare("SELECT id, description, action, created_at, created_by FROM audit_log WHERE 1 ORDER BY id DESC LIMIT 1");
                         $sel->execute();
                         $latest = $sel->fetch(PDO::FETCH_ASSOC);
-                        error_log("audit_log latest (updateEquipmentCategory): " . json_encode($latest));
+                       
                     } catch (PDOException $ex) {
                         error_log("Audit log select failed (updateEquipmentCategory): " . $ex->getMessage());
                     }
@@ -3436,29 +4279,50 @@ public function venueExists($venueName) {
             return json_encode(['status' => 'error', 'message' => 'Invalid ID format']);
         }
     
-        $sql = "SELECT 
-                    u.*,
-                    t.abbreviation AS title_abbreviation,
-                    d.departments_name,
-                    ul.user_level_name
-                FROM 
-                    tbl_users u
-                LEFT JOIN 
-                    titles t ON u.title_id = t.id
-                LEFT JOIN 
-                    tbl_departments d ON u.users_department_id = d.departments_id
-                LEFT JOIN 
-                    tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
-                WHERE 
-                    u.users_id = :id";
-    
-        return $this->executeQuery($sql, [':id' => $id]);
+        try {
+            // Fetch user details
+            $sql = "SELECT 
+                        u.*,
+                        t.abbreviation AS title_abbreviation,
+                        d.departments_name,
+                        ul.user_level_name
+                    FROM 
+                        tbl_users u
+                    LEFT JOIN 
+                        titles t ON u.title_id = t.id
+                    LEFT JOIN 
+                        tbl_departments d ON u.users_department_id = d.departments_id
+                    LEFT JOIN 
+                        tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
+                    WHERE 
+                        u.users_id = :id";
+        
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([':id' => $id]);
+            $user = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$user) {
+                return json_encode(['status' => 'error', 'message' => 'User not found']);
+            }
+            
+            return json_encode([
+                'status' => 'success',
+                'data' => [$user]
+            ]);
+            
+        } catch (PDOException $e) {
+            return json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
     }
     public function fetchVenueById($id) {
         $sql = "SELECT 
             v.ven_id, 
             v.ven_name, 
             v.ven_occupancy, 
+            v.ven_minimum,
             v.ven_created_at, 
             v.ven_updated_at, 
             v.status_availability_id, 
@@ -3468,9 +4332,12 @@ public function venueExists($venueName) {
             v.user_admin_id,
             sa.status_availability_name,
             v.event_type,
-            v.area_type
+            v.area_type,
+            v.venue_building_id,
+            vb.venue_building_name
         FROM tbl_venue v
         INNER JOIN tbl_status_availability sa ON v.status_availability_id = sa.status_availability_id
+        LEFT JOIN tbl_venue_building vb ON v.venue_building_id = vb.venue_building_id
         WHERE v.ven_id = :id";
         
         return $this->executeQuery($sql, [':id' => $id]);
@@ -3535,6 +4402,11 @@ public function venueExists($venueName) {
                         unit_id,
                         equip_id,
                         serial_number,
+                        equipment_brand,
+                        equipment_model,
+                        equipment_description,
+                        equipment_specs,
+                        inch,
                         status_availability_id,
                         unit_created_at,
                         is_active,
@@ -3552,6 +4424,11 @@ public function venueExists($venueName) {
                     return [
                         'unit_id'               => (int)$u['unit_id'],
                         'serial_number'         => $u['serial_number'],
+                        'equipment_brand'       => $u['equipment_brand'] ?? null,
+                        'equipment_model'       => $u['equipment_model'] ?? null,
+                        'equipment_description' => $u['equipment_description'] ?? null,
+                        'equipment_specs'       => $u['equipment_specs'] ?? null,
+                        'inch'                  => $u['inch'] ?? null,
                         'status_availability_id'=> (int)$u['status_availability_id'],
                         'unit_created_at'       => $u['unit_created_at'],
                         'user_admin_id'         => (int)$u['user_admin_id'],
@@ -3651,7 +4528,7 @@ public function venueExists($venueName) {
                 INNER JOIN 
                     tbl_status_availability sa ON v.status_availability_id = sa.status_availability_id 
                 WHERE 
-                    v.status_availability_id != 7 AND v.status_availability_id != 8 
+                    v.status_availability_id != 2 AND v.is_active = 1
                 ORDER BY 
                     ven_name"; 
         return $this->executeQuery($sql);
@@ -3667,6 +4544,7 @@ public function venueExists($venueName) {
                     vmd.vehicle_model_name,      
                     v.vehicle_license,
                     sa.status_availability_name
+                  
                 FROM 
                     tbl_vehicle v 
                 INNER JOIN 
@@ -3678,8 +4556,8 @@ public function venueExists($venueName) {
                 INNER JOIN
                     tbl_status_availability sa ON v.status_availability_id = sa.status_availability_id
                 WHERE 
-                    v.status_availability_id != 7 AND v.status_availability_id != 8";
-                 // Added condition for availability
+                    v.status_availability_id != 2 AND v.is_active = 1";
+             
 
         return $this->executeQuery($sql);
     }
@@ -3697,6 +4575,58 @@ public function get_message($userid) {
         ORDER BY c.created_at ASC
     ";
     return $this->executeQuery($sql, [':userid' => $userid]);
+}
+
+public function markMessagesAsRead($userId, $otherUserId) {
+    try {
+        $sql = "UPDATE tbl_chat 
+                SET is_read = 1 
+                WHERE receiver_id = :userId 
+                AND sender_id = :otherUserId 
+                AND is_read = 0";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([
+            ':userId' => $userId,
+            ':otherUserId' => $otherUserId
+        ]);
+        
+        $affectedRows = $stmt->rowCount();
+        
+        return json_encode([
+            'status' => 'success',
+            'message' => 'Messages marked as read',
+            'affected_rows' => $affectedRows
+        ]);
+    } catch (PDOException $e) {
+        return json_encode([
+            'status' => 'error',
+            'message' => 'Failed to mark messages as read: ' . $e->getMessage()
+        ]);
+    }
+}
+
+public function getUnreadCount($userId) {
+    try {
+        $sql = "SELECT sender_id, COUNT(*) as unread_count
+                FROM tbl_chat
+                WHERE receiver_id = :userId AND is_read = 0
+                GROUP BY sender_id";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute([':userId' => $userId]);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        return json_encode([
+            'status' => 'success',
+            'data' => $results
+        ]);
+    } catch (PDOException $e) {
+        return json_encode([
+            'status' => 'error',
+            'message' => 'Failed to get unread count: ' . $e->getMessage()
+        ]);
+    }
 }
 
 public function fetchConditions() {
@@ -3831,36 +4761,343 @@ public function fetchDeansApproval($reservationId) {
         ]);
     }
 }
-public function handleRequest($reservationId, $isAccepted, $userId, $notificationMessage = '', $notification_user_id = null) {
+
+// Helper method to check if user is the final approver in sequence
+private function isFinalApprover($reservationId, $userId) {
+    try {
+        // Get approval sequence from tbl_approval_in_order
+        $sql = "SELECT approval_order_id, users_id, approval_sequence, approval_status_status_id 
+                FROM tbl_approval_in_order 
+                ORDER BY approval_sequence ASC";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        $approvers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+       
+        
+        if (empty($approvers)) {
+            
+            return true; // If no sequence defined, treat as final approver
+        }
+        
+        // Find the highest sequence number (last approver)
+        $maxSequence = 0;
+        $lastApproverUserId = null;
+        
+        foreach ($approvers as $approver) {
+            if ($approver['approval_sequence'] > $maxSequence) {
+                $maxSequence = $approver['approval_sequence'];
+                $lastApproverUserId = $approver['users_id'];
+            }
+        }
+        
+        $isFinal = ($lastApproverUserId == $userId);
+        
+        
+        return $isFinal;
+        
+    } catch (PDOException $e) {
+        error_log("Error checking final approver: " . $e->getMessage());
+        return true; // Default to final approver on error
+    }
+}
+
+// Helper method to get next approver in sequence
+private function getNextApprover($reservationId, $currentUserId) {
+    try {
+        // Get approval sequence from tbl_approval_in_order
+        $sql = "SELECT approval_order_id, users_id, approval_sequence, approval_status_status_id 
+                FROM tbl_approval_in_order 
+                ORDER BY approval_sequence ASC";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->execute();
+        $approvers = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+    
+        
+        // Find current approver's sequence and get the next one
+        $currentSequence = null;
+        foreach ($approvers as $approver) {
+            if ($approver['users_id'] == $currentUserId) {
+                $currentSequence = $approver['approval_sequence'];
+                break;
+            }
+        }
+        
+        
+        
+        // Find next approver by sequence number
+        $nextSequence = $currentSequence + 1;
+        foreach ($approvers as $approver) {
+            if ($approver['approval_sequence'] == $nextSequence) {
+                error_log("Next approver found - UserId: " . $approver['users_id'] . ", Sequence: $nextSequence");
+                return $approver;
+            }
+        }
+        
+        error_log("No next approver found after sequence $currentSequence");
+        return null; // No next approver
+        
+    } catch (PDOException $e) {
+        error_log("Error getting next approver: " . $e->getMessage());
+        return null;
+    }
+}
+
+// Helper method to mark approver as approved in sequence
+private function markApproverAsApproved($reservationId, $userId) {
+    try {
+        // Note: The approval sequence appears to be global, not per-reservation
+        // We'll create a record to track this specific approval for this reservation
+        $sql = "INSERT INTO tbl_reservation_approval_tracking 
+                (reservation_id, users_id, has_approved, approval_date, approval_status_id, approval_active)
+                VALUES (:reservation_id, :user_id, 1, NOW(), 3, 1)
+                ON DUPLICATE KEY UPDATE 
+                has_approved = 1, 
+                approval_date = NOW(),
+                approval_status_id = 3,
+                approval_active = 1";
+        
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+        $stmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+        $stmt->execute();
+        
+    } catch (PDOException $e) {
+        // If the tracking table doesn't exist, we'll just log the approval
+        error_log("Approval tracking: Reservation $reservationId approved by User $userId");
+        error_log("Error details: " . $e->getMessage());
+    }
+}
+
+// Helper method to check venue schedule conflicts
+private function checkVenueScheduleConflict($reservationId) {
+    try {
+        // Get active semester
+        $semesterStmt = $this->conn->prepare("SELECT semester_id FROM tbl_semester WHERE is_active = 1 LIMIT 1");
+        $semesterStmt->execute();
+        $semester = $semesterStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$semester) {
+            // No active semester, skip validation
+            return ['has_conflict' => false];
+        }
+        
+        $semesterId = $semester['semester_id'];
+        
+        // Get reservation details
+        $reservationStmt = $this->conn->prepare("
+            SELECT r.reservation_start_date, r.reservation_end_date
+            FROM tbl_reservation r
+            WHERE r.reservation_id = :reservation_id
+        ");
+        $reservationStmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+        $reservationStmt->execute();
+        $reservation = $reservationStmt->fetch(PDO::FETCH_ASSOC);
+        
+        if (!$reservation) {
+            return ['has_conflict' => false];
+        }
+        
+        // Get venues for this reservation
+        $venueStmt = $this->conn->prepare("
+            SELECT rv.reservation_venue_venue_id, v.ven_name
+            FROM tbl_reservation_venue rv
+            INNER JOIN tbl_venue v ON rv.reservation_venue_venue_id = v.ven_id
+            WHERE rv.reservation_reservation_id = :reservation_id
+        ");
+        $venueStmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+        $venueStmt->execute();
+        $venues = $venueStmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        if (empty($venues)) {
+            return ['has_conflict' => false];
+        }
+        
+        // Parse reservation dates
+        $startDateTime = new DateTime($reservation['reservation_start_date']);
+        $endDateTime = new DateTime($reservation['reservation_end_date']);
+        
+        $conflictingVenues = [];
+        
+        // Check each venue for schedule conflicts
+        foreach ($venues as $venue) {
+            $venueId = $venue['reservation_venue_venue_id'];
+            $venueName = $venue['ven_name'];
+            
+            // Get all scheduled classes for this venue in the active semester
+            $scheduleStmt = $this->conn->prepare("
+                SELECT 
+                    cvs.schedule_id,
+                    cvs.day_of_week,
+                    cvs.start_time,
+                    cvs.end_time,
+                    s.section_name
+                FROM tbl_class_venue_schedule cvs
+                INNER JOIN tbl_section s ON cvs.section_id = s.section_id
+                WHERE cvs.ven_id = :venue_id 
+                AND cvs.semester_id = :semester_id
+            ");
+            $scheduleStmt->bindParam(':venue_id', $venueId, PDO::PARAM_INT);
+            $scheduleStmt->bindParam(':semester_id', $semesterId, PDO::PARAM_INT);
+            $scheduleStmt->execute();
+            $schedules = $scheduleStmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            if (empty($schedules)) {
+                continue; // No schedules for this venue
+            }
+            
+            // Check for conflicts in the reservation date range
+            $conflicts = [];
+            $currentDate = clone $startDateTime;
+            
+            while ($currentDate <= $endDateTime) {
+                $dayOfWeek = $currentDate->format('l'); // Monday, Tuesday, etc.
+                
+                // Check if there are any schedules for this day
+                foreach ($schedules as $schedule) {
+                    if ($schedule['day_of_week'] === $dayOfWeek) {
+                        // Parse schedule times
+                        $scheduleStart = DateTime::createFromFormat('H:i:s', $schedule['start_time']);
+                        $scheduleEnd = DateTime::createFromFormat('H:i:s', $schedule['end_time']);
+                        
+                        // Parse reservation times
+                        $reservationStart = clone $currentDate;
+                        $reservationStart->setTime(
+                            (int)$startDateTime->format('H'),
+                            (int)$startDateTime->format('i'),
+                            (int)$startDateTime->format('s')
+                        );
+                        
+                        $reservationEnd = clone $currentDate;
+                        // If reservation spans multiple days, use end of day for intermediate days
+                        if ($currentDate->format('Y-m-d') === $endDateTime->format('Y-m-d')) {
+                            $reservationEnd->setTime(
+                                (int)$endDateTime->format('H'),
+                                (int)$endDateTime->format('i'),
+                                (int)$endDateTime->format('s')
+                            );
+                        } else if ($currentDate->format('Y-m-d') === $startDateTime->format('Y-m-d')) {
+                            $reservationEnd->setTime(23, 59, 59);
+                        } else {
+                            $reservationEnd->setTime(23, 59, 59);
+                        }
+                        
+                        // Check for time overlap
+                        $resStartTime = $reservationStart->format('H:i:s');
+                        $resEndTime = $reservationEnd->format('H:i:s');
+                        
+                        if ($resStartTime < $schedule['end_time'] && $resEndTime > $schedule['start_time']) {
+                            $conflicts[] = [
+                                'date' => $currentDate->format('Y-m-d'),
+                                'day' => $dayOfWeek,
+                                'section' => $schedule['section_name'],
+                                'class_time' => $schedule['start_time'] . ' - ' . $schedule['end_time']
+                            ];
+                        }
+                    }
+                }
+                
+                $currentDate->modify('+1 day');
+            }
+            
+            if (!empty($conflicts)) {
+                $conflictingVenues[] = [
+                    'venue_id' => $venueId,
+                    'venue_name' => $venueName,
+                    'conflicts' => $conflicts
+                ];
+            }
+        }
+        
+        if (!empty($conflictingVenues)) {
+            $message = "Cannot approve reservation. The following venues have scheduled classes during the requested time:\n\n";
+            foreach ($conflictingVenues as $cv) {
+                $message .= "• {$cv['venue_name']}:\n";
+                foreach ($cv['conflicts'] as $conflict) {
+                    $message .= "  - {$conflict['date']} ({$conflict['day']}): {$conflict['section']} at {$conflict['class_time']}\n";
+                }
+            }
+            
+            return [
+                'has_conflict' => true,
+                'message' => $message,
+                'venues' => $conflictingVenues
+            ];
+        }
+        
+        return ['has_conflict' => false];
+        
+    } catch (PDOException $e) {
+        error_log("Error checking venue schedule conflicts: " . $e->getMessage());
+        // On error, allow approval to proceed
+        return ['has_conflict' => false];
+    }
+}
+
+public function handleRequest($reservationId, $isAccepted, $userId, $notificationMessage = '', $notification_user_id = null, $declineReason = null) {
     try {
         $this->conn->beginTransaction();
+        
+        // Debug logging
+       
+
+        // Check if this user is the final approver in the sequence (needed for both approve and decline)
+        $isFinalApprover = false;
+        if ($isAccepted) {
+            $isFinalApprover = $this->isFinalApprover($reservationId, $userId);
+           
+        }
 
         if ($isAccepted) {
-            // For user ID 99, handle acceptance
-            if ($userId == 99) {
-                // Update status ID 1 to active = 1
-                $sqlUpdate = "
+            // Validate venue schedule conflicts before approval
+            $scheduleConflict = $this->checkVenueScheduleConflict($reservationId);
+            if ($scheduleConflict['has_conflict']) {
+                $this->conn->rollBack();
+                return json_encode([
+                    'status' => 'error',
+                    'message' => $scheduleConflict['message'],
+                    'conflicting_venues' => $scheduleConflict['venues']
+                ]);
+            }
+            // First, update the current pending status to active = 1
+            $sqlUpdate = "
+                UPDATE tbl_reservation_status 
+                SET reservation_active = 1 
+                WHERE reservation_reservation_id = :reservation_id 
+                AND reservation_status_status_id = 1 
+                AND reservation_active = 0";
+            
+            $stmtUpdate = $this->conn->prepare($sqlUpdate);
+            $stmtUpdate->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $stmtUpdate->execute();
+            
+           
+            if ($isFinalApprover) {
+                // Final approver: Update status_id 7 to active = 0, then insert status_id 3 AND status_id 6
+                $sqlUpdateStatus7 = "
                     UPDATE tbl_reservation_status 
-                    SET reservation_active = 1 
+                    SET reservation_active = 0 
                     WHERE reservation_reservation_id = :reservation_id 
-                    AND reservation_status_status_id = 8";
+                    AND reservation_status_status_id = 7";
                 
-                $stmtUpdate = $this->conn->prepare($sqlUpdate);
-                $stmtUpdate->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtUpdate->execute();
+                $stmtUpdateStatus7 = $this->conn->prepare($sqlUpdateStatus7);
+                $stmtUpdateStatus7->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtUpdateStatus7->execute();
                 
-                // Insert 2 new statuses: status_id 6 and status_id 12
+                error_log("Updated status_id 7 to active = 0. Rows affected: " . $stmtUpdateStatus7->rowCount());
                 
-
-                $sqlInsert12 = "
+                $sqlInsert3 = "
                     INSERT INTO tbl_reservation_status 
                     (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id) 
-                    VALUES (:reservation_id, 12, 1, NOW(), :user_id)";
+                    VALUES (:reservation_id, 3, 1, NOW(), :user_id)";
                 
-                $stmtInsert12 = $this->conn->prepare($sqlInsert12);
-                $stmtInsert12->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtInsert12->bindParam(':user_id', $userId, PDO::PARAM_INT);
-                $stmtInsert12->execute();
+                $stmtInsert3 = $this->conn->prepare($sqlInsert3);
+                $stmtInsert3->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtInsert3->bindParam(':user_id', $userId, PDO::PARAM_INT);
+                $stmtInsert3->execute();
 
                 $sqlInsert6 = "
                     INSERT INTO tbl_reservation_status 
@@ -3871,56 +5108,46 @@ public function handleRequest($reservationId, $isAccepted, $userId, $notificatio
                 $stmtInsert6->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
                 $stmtInsert6->bindParam(':user_id', $userId, PDO::PARAM_INT);
                 $stmtInsert6->execute();
-            } else {
-                // For other users, handle acceptance
-                // Update status ID 1 to active = 1
-                $sqlUpdate = "
-                    UPDATE tbl_reservation_status 
-                    SET reservation_active = 1 
-                    WHERE reservation_reservation_id = :reservation_id 
-                    AND reservation_status_status_id = 1";
                 
-                $stmtUpdate = $this->conn->prepare($sqlUpdate);
-                $stmtUpdate->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtUpdate->execute();
-
-                // Insert new status: status_id 7
-                $sqlInsert7 = "
+                // Update approval sequence to mark this approver as approved
+                $this->markApproverAsApproved($reservationId, $userId);
+            } else {
+                // Not final approver: Insert only status_id 3
+                $sqlInsert3 = "
                     INSERT INTO tbl_reservation_status 
                     (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id) 
-                    VALUES (:reservation_id, 7, 1, NOW(), :user_id)";
+                    VALUES (:reservation_id, 3, 1, NOW(), :user_id)";
                 
-                $stmtInsert7 = $this->conn->prepare($sqlInsert7);
-                $stmtInsert7->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtInsert7->bindParam(':user_id', $userId, PDO::PARAM_INT);
-                $stmtInsert7->execute();
+                $stmtInsert3 = $this->conn->prepare($sqlInsert3);
+                $stmtInsert3->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtInsert3->bindParam(':user_id', $userId, PDO::PARAM_INT);
+                $stmtInsert3->execute();
+                
+                // Update approval sequence to mark this approver as approved
+                $this->markApproverAsApproved($reservationId, $userId);
+                
+                
             }
         } else {
             // DECLINE logic
+            
+            // Update decline_reason in tbl_reservation if provided
+            if ($declineReason !== null && trim($declineReason) !== '') {
+                $sqlUpdateReason = "
+                    UPDATE tbl_reservation 
+                    SET decline_reason = :decline_reason 
+                    WHERE reservation_id = :reservation_id";
+                
+                $stmtUpdateReason = $this->conn->prepare($sqlUpdateReason);
+                $stmtUpdateReason->bindParam(':decline_reason', $declineReason, PDO::PARAM_STR);
+                $stmtUpdateReason->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtUpdateReason->execute();
+                
+            }
+            
             if ($userId == 99) {
                 // For user ID 99, handle decline
-                // Update status ID 8 to active = 1 (do NOT set to -1)
-                $sqlUpdate = "
-                    UPDATE tbl_reservation_status 
-                    SET reservation_active = 1 
-                    WHERE reservation_reservation_id = :reservation_id 
-                    AND reservation_status_status_id = 8";
-                
-                $stmtUpdate = $this->conn->prepare($sqlUpdate);
-                $stmtUpdate->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtUpdate->execute();
-
-                // Insert 2 new statuses: status_id 13 and status_id 2
-                $sqlInsert13 = "
-                    INSERT INTO tbl_reservation_status 
-                    (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id) 
-                    VALUES (:reservation_id, 13, 1, NOW(), :user_id)";
-                
-                $stmtInsert13 = $this->conn->prepare($sqlInsert13);
-                $stmtInsert13->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtInsert13->bindParam(':user_id', $userId, PDO::PARAM_INT);
-                $stmtInsert13->execute();
-
+              
                 $sqlInsert2 = "
                     INSERT INTO tbl_reservation_status 
                     (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id) 
@@ -3953,6 +5180,16 @@ public function handleRequest($reservationId, $isAccepted, $userId, $notificatio
                 $stmtInsert9->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
                 $stmtInsert9->bindParam(':user_id', $userId, PDO::PARAM_INT);
                 $stmtInsert9->execute();
+
+                $sqlInsert2 = "
+                INSERT INTO tbl_reservation_status 
+                (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id) 
+                VALUES (:reservation_id, 2, 1, NOW(), :user_id)";
+            
+            $stmtInsert2 = $this->conn->prepare($sqlInsert2);
+            $stmtInsert2->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $stmtInsert2->bindParam(':user_id', $userId, PDO::PARAM_INT);
+            $stmtInsert2->execute();
             }
         }
 
@@ -4016,7 +5253,7 @@ public function handleRequest($reservationId, $isAccepted, $userId, $notificatio
             } else {
                 try {
                     $latest = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-                    error_log("audit_log latest (handleRequest): " . json_encode($latest));
+                   
                 } catch (Throwable $te) {
                     error_log("Failed to read latest audit_log (handleRequest): " . $te->getMessage());
                 }
@@ -4025,9 +5262,21 @@ public function handleRequest($reservationId, $isAccepted, $userId, $notificatio
             error_log("Audit logging error (handleRequest): " . $te->getMessage());
         }
 
-        // Send push notification to the requester after successful database operations
-        $notificationUserId = $notification_user_id ?? $userId;
-        // Compose notification content
+        // Fetch the requester user ID from the reservation
+        $requesterUserId = null;
+        try {
+            $requesterStmt = $this->conn->prepare("SELECT reservation_user_id FROM tbl_reservation WHERE reservation_id = :rid");
+            $requesterStmt->bindParam(':rid', $reservationId, PDO::PARAM_INT);
+            $requesterStmt->execute();
+            $requesterData = $requesterStmt->fetch(PDO::FETCH_ASSOC);
+            if ($requesterData && isset($requesterData['reservation_user_id'])) {
+                $requesterUserId = (int)$requesterData['reservation_user_id'];
+            }
+        } catch (Throwable $te) {
+            error_log("Failed to fetch requester user ID (handleRequest): " . $te->getMessage());
+        }
+
+        // Send push notifications after successful database operations
         $status = $isAccepted ? 'approved' : 'declined';
         $title = "Reservation " . ucfirst($status);
         $body = "Your reservation has been {$status}.";
@@ -4036,7 +5285,41 @@ public function handleRequest($reservationId, $isAccepted, $userId, $notificatio
             'status' => $status,
             'type' => 'reservation_approval'
         ];
-        $this->sendPushNotificationToUser($notificationUserId, $title, $body, $data);
+
+        // For DECLINE: Send to user ID 99 and requester
+        if (!$isAccepted) {
+            // Send to user ID 99 (skip if final approver)
+            if (!$isFinalApprover) {
+                $this->sendPushNotificationToUser(99, $title, $body, $data);
+            } else {
+               
+            }
+            
+            // Always send to requester if different from user ID 99
+            if ($requesterUserId && $requesterUserId != 99) {
+                $this->sendPushNotificationToUser($requesterUserId, $title, $body, $data);
+            }
+        } else {
+            // For ACCEPT: Send to user ID 99 for final approval (skip if already final approver)
+            if (!$isFinalApprover) {
+                $finalApprovalTitle = "Final Approval Required";
+                $finalApprovalBody = "A reservation has been approved and requires your final approval.";
+                $finalApprovalData = [
+                    'reservation_id' => $reservationId,
+                    'status' => 'pending_final_approval',
+                    'type' => 'reservation_final_approval',
+                    'url' => '/gsd/grms/Admin/viewRequest'
+                ];
+                $this->sendPushNotificationToUser(99, $finalApprovalTitle, $finalApprovalBody, $finalApprovalData);
+            } else {
+              
+            }
+            
+            // Always send to requester
+            if ($requesterUserId) {
+                $this->sendPushNotificationToUser($requesterUserId, $title, $body, $data);
+            }
+        }
 
         return json_encode([
             'status' => 'success', 
@@ -4061,6 +5344,17 @@ public function archiveUser($userType, $userId) {
         // Convert single ID to array for consistent handling
         if (!is_array($userId)) {
             $userId = [$userId];
+        }
+
+        // Check for active transactions before archiving (only for users, not drivers)
+        if ($userType === 'user') {
+            $activeTransactionCheck = $this->checkActiveTransactions('user', $userId);
+            if ($activeTransactionCheck['hasActive']) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot archive user(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+                ]);
+            }
         }
 
         // Create placeholders for IN clause
@@ -4152,17 +5446,26 @@ public function unArchive($userType, $userId) {
 public function archiveResource($resourceType, $resourceId, $is_serialize = false, $userId = null) {
     try {
         // Debug: log context
-        error_log("archiveResource userId=" . var_export($userId, true) . ", type=" . var_export($resourceType, true));
+     
         if (empty($resourceType) || empty($resourceId)) {
             return json_encode(['status' => 'error', 'message' => 'Resource type and ID are required.']);
         }
-
-        $query = "";
 
         // Convert single ID to array for consistent handling
         if (!is_array($resourceId)) {
             $resourceId = [$resourceId];
         }
+
+        // Check for active transactions before archiving
+        $activeTransactionCheck = $this->checkActiveTransactions($resourceType, $resourceId);
+        if ($activeTransactionCheck['hasActive']) {
+            return json_encode([
+                'status' => 'error', 
+                'message' => 'Cannot archive resource(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+            ]);
+        }
+
+        $query = "";
 
         // Create placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($resourceId), '?'));
@@ -4177,7 +5480,8 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
                 break;
 
             case 'equipment':
-                $query = "UPDATE tbl_equipment_unit SET is_active = 0 WHERE unit_id IN ($placeholders)";
+                // Update equipment master record to deactivate the entire equipment
+                $query = "UPDATE tbl_equipments SET is_active = 0 WHERE equip_id IN ($placeholders)";
                 break;
 
             default:
@@ -4209,7 +5513,7 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
                     } else {
                         try {
                             $latest = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-                            error_log("audit_log latest (archiveResource): " . json_encode($latest));
+                         
                         } catch (Throwable $te) {
                             error_log("Failed to read latest audit_log (archiveResource): " . $te->getMessage());
                         }
@@ -4250,6 +5554,15 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
             $resourceId = [$resourceId];
         }
 
+        // Check for active transactions before unarchiving
+        $activeTransactionCheck = $this->checkActiveTransactions($resourceType, $resourceId);
+        if ($activeTransactionCheck['hasActive']) {
+            return json_encode([
+                'status' => 'error', 
+                'message' => 'Cannot unarchive resource(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+            ]);
+        }
+
         // Create placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($resourceId), '?'));
 
@@ -4264,7 +5577,8 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
                 break;
 
             case 'equipment':
-                $query = "UPDATE tbl_equipment_unit SET is_active = 1 WHERE unit_id IN ($placeholders)";
+                // Update equipment master record to reactivate the entire equipment
+                $query = "UPDATE tbl_equipments SET is_active = 1 WHERE equip_id IN ($placeholders)";
                 break;
 
             default:
@@ -4296,7 +5610,6 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
                     } else {
                         try {
                             $latest = $this->conn->query("SELECT id, description, action, created_at, created_by FROM audit_log ORDER BY id DESC LIMIT 1")->fetch(PDO::FETCH_ASSOC);
-                            error_log("audit_log latest (unarchiveResource): " . json_encode($latest));
                         } catch (Throwable $te) {
                             error_log("Failed to read latest audit_log (unarchiveResource): " . $te->getMessage());
                         }
@@ -4362,12 +5675,47 @@ public function fetchInactiveUser() {
 
 
 public function fetchEquipmentAndInactiveUnits() {
-    // Fetch only inactive units, but include their equipment name
+    // Fetch inactive equipment (master records), with total unit count
+    $equipmentSql = "SELECT 
+                        e.equip_id, 
+                        e.equip_name,
+                        e.equip_type,
+                        COUNT(eu.unit_id) as total_units
+                    FROM 
+                        tbl_equipments e
+                    LEFT JOIN 
+                        tbl_equipment_unit eu ON e.equip_id = eu.equip_id
+                    WHERE 
+                        e.is_active = 0
+                    GROUP BY e.equip_id, e.equip_name, e.equip_type";
+
+    $stmt = $this->conn->prepare($equipmentSql);
+    $stmt->execute();
+    $inactiveEquipment = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+    $response = [];
+
+    foreach ($inactiveEquipment as $equipment) {
+        $response[] = [
+            'equip_id' => (int)$equipment['equip_id'],
+            'equip_name' => $equipment['equip_name'],
+            'equip_type' => $equipment['equip_type'] ?? 'Not specified',
+            'total_units' => (int)$equipment['total_units'],
+            'serial_number' => null // Not applicable for master equipment records
+        ];
+    }
+
+    return json_encode(['status' => 'success', 'data' => $response]);
+}
+
+public function fetchInactiveEquipmentUnits() {
+    // Fetch inactive equipment units with their equipment name
     $unitSql = "SELECT 
                     eu.unit_id, 
                     eu.equip_id, 
                     eu.serial_number,
-                    e.equip_name
+                    e.equip_name,
+                    e.equip_type
                 FROM 
                     tbl_equipment_unit eu
                 INNER JOIN 
@@ -4383,15 +5731,121 @@ public function fetchEquipmentAndInactiveUnits() {
 
     foreach ($inactiveUnits as $unit) {
         $response[] = [
+            'unit_id' => (int)$unit['unit_id'],
             'equip_id' => (int)$unit['equip_id'],
             'equip_name' => $unit['equip_name'],
-            'unit_id' => (int)$unit['unit_id'],
-            'serial_number' => $unit['serial_number'] ?? null,
-            'quantity' => isset($unit['quantity']) ? (int)$unit['quantity'] : null
+            'equip_type' => $unit['equip_type'] ?? 'Not specified',
+            'serial_number' => $unit['serial_number'] ?? 'N/A'
         ];
     }
 
     return json_encode(['status' => 'success', 'data' => $response]);
+}
+
+public function deactivateEquipmentUnits($unitIds, $userId = null) {
+    try {
+        // Convert single ID to array for consistent handling
+        if (!is_array($unitIds)) {
+            $unitIds = [$unitIds];
+        }
+
+        // Create placeholders for IN clause
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        
+        $query = "UPDATE tbl_equipment_unit SET is_active = 0 WHERE unit_id IN ($placeholders)";
+        $stmt = $this->conn->prepare($query);
+        
+        if ($stmt->execute($unitIds)) {
+            $count = $stmt->rowCount();
+            if ($count > 0) {
+                // Audit log
+                try {
+                    $desc = "Deactivated equipment unit(s): " . $count;
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                    $audit = $this->conn->prepare($auditSql);
+                    $action = 'DEACTIVATE_UNIT';
+                    $audit->bindParam(':description', $desc, PDO::PARAM_STR);
+                    $audit->bindParam(':action', $action, PDO::PARAM_STR);
+                    if ($userId !== null) {
+                        $audit->bindValue(':created_by', $userId, PDO::PARAM_INT);
+                    } else {
+                        $audit->bindValue(':created_by', null, PDO::PARAM_NULL);
+                    }
+                    $audit->execute();
+                } catch (Throwable $te) {
+                    error_log("Audit logging error (deactivateEquipmentUnits): " . $te->getMessage());
+                }
+                
+                return json_encode([
+                    'status' => 'success', 
+                    'message' => $count . ' equipment unit(s) deactivated successfully.'
+                ]);
+            } else {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'No units found with the given IDs.'
+                ]);
+            }
+        }
+
+        return json_encode(['status' => 'error', 'message' => 'Error deactivating equipment unit(s).']);
+
+    } catch (PDOException $e) {
+        return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+    }
+}
+
+public function reactivateEquipmentUnits($unitIds, $userId = null) {
+    try {
+        // Convert single ID to array for consistent handling
+        if (!is_array($unitIds)) {
+            $unitIds = [$unitIds];
+        }
+
+        // Create placeholders for IN clause
+        $placeholders = implode(',', array_fill(0, count($unitIds), '?'));
+        
+        $query = "UPDATE tbl_equipment_unit SET is_active = 1 WHERE unit_id IN ($placeholders)";
+        $stmt = $this->conn->prepare($query);
+        
+        if ($stmt->execute($unitIds)) {
+            $count = $stmt->rowCount();
+            if ($count > 0) {
+                // Audit log
+                try {
+                    $desc = "Reactivated equipment unit(s): " . $count;
+                    $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                    $audit = $this->conn->prepare($auditSql);
+                    $action = 'REACTIVATE_UNIT';
+                    $audit->bindParam(':description', $desc, PDO::PARAM_STR);
+                    $audit->bindParam(':action', $action, PDO::PARAM_STR);
+                    if ($userId !== null) {
+                        $audit->bindValue(':created_by', $userId, PDO::PARAM_INT);
+                    } else {
+                        $audit->bindValue(':created_by', null, PDO::PARAM_NULL);
+                    }
+                    $audit->execute();
+                } catch (Throwable $te) {
+                    error_log("Audit logging error (reactivateEquipmentUnits): " . $te->getMessage());
+                }
+                
+                return json_encode([
+                    'status' => 'success', 
+                    'message' => $count . ' equipment unit(s) reactivated successfully.'
+                ]);
+            } else {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'No units found with the given IDs.'
+                ]);
+            }
+        }
+
+        return json_encode(['status' => 'error', 'message' => 'Error reactivating equipment unit(s).']);
+
+    } catch (PDOException $e) {
+        return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+    }
 }
 
     public function fetchInactiveVenue() {
@@ -4436,13 +5890,791 @@ public function fetchEquipmentAndInactiveUnits() {
     
         return $this->executeQuery($sql);
     }
+
+    // Fetch inactive vehicle makes
+    public function fetchInactiveVehicleMake() {
+        $sql = "SELECT vehicle_make_id, vehicle_make_name 
+                FROM tbl_vehicle_make 
+                WHERE is_active = 0 
+                ORDER BY vehicle_make_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    // Fetch inactive vehicle categories
+    public function fetchInactiveVehicleCategory() {
+        $sql = "SELECT vehicle_category_id, vehicle_category_name 
+                FROM tbl_vehicle_category 
+                WHERE is_active = 0 
+                ORDER BY vehicle_category_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    // Fetch inactive vehicle models
+    public function fetchInactiveVehicleModel() {
+        $sql = "SELECT 
+                    vm.vehicle_model_id,
+                    vm.vehicle_model_name,
+                    vmk.vehicle_make_name,
+                    vc.vehicle_category_name
+                FROM tbl_vehicle_model vm
+                LEFT JOIN tbl_vehicle_make vmk ON vm.vehicle_model_vehicle_make_id = vmk.vehicle_make_id
+                LEFT JOIN tbl_vehicle_category vc ON vm.vehicle_category_id = vc.vehicle_category_id
+                WHERE vm.is_active = 0 
+                ORDER BY vm.vehicle_model_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    // Fetch inactive equipment categories
+    public function fetchInactiveEquipmentCategory() {
+        $sql = "SELECT equipments_category_id, equipments_category_name 
+                FROM tbl_equipment_category 
+                WHERE is_active = 0 
+                ORDER BY equipments_category_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    // Fetch inactive departments
+    public function fetchInactiveDepartment() {
+        $sql = "SELECT departments_id, departments_name, department_type 
+                FROM tbl_departments 
+                WHERE is_active = 0 
+                ORDER BY departments_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    // Fetch inactive holidays
+    public function fetchInactiveHoliday() {
+        $sql = "SELECT holiday_id, holiday_name, holiday_date 
+                FROM tbl_holidays 
+                WHERE is_active = 0 
+                ORDER BY holiday_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    // Check if vehicle make or category is referenced by active vehicle models
+    private function checkVehicleReferenceInModels($referenceType, $referenceIds) {
+        try {
+            if (!is_array($referenceIds)) {
+                $referenceIds = [$referenceIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($referenceIds), '?'));
+            
+            // Build query based on reference type
+            switch ($referenceType) {
+                case 'vehicle_make':
+                    $sql = "SELECT DISTINCT vmk.vehicle_make_name, vm.vehicle_model_name
+                            FROM tbl_vehicle_model vm
+                            INNER JOIN tbl_vehicle_make vmk ON vm.vehicle_model_vehicle_make_id = vmk.vehicle_make_id
+                            WHERE vmk.vehicle_make_id IN ($placeholders)
+                            AND vm.is_active = 1";
+                    break;
+
+                case 'vehicle_category':
+                    $sql = "SELECT DISTINCT vc.vehicle_category_name, vm.vehicle_model_name
+                            FROM tbl_vehicle_model vm
+                            INNER JOIN tbl_vehicle_category vc ON vm.vehicle_category_id = vc.vehicle_category_id
+                            WHERE vc.vehicle_category_id IN ($placeholders)
+                            AND vm.is_active = 1";
+                    break;
+
+                default:
+                    return ['hasActive' => false, 'itemsWithModels' => []];
+            }
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($referenceIds);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $hasActive = count($results) > 0;
+            $itemsWithModels = [];
+            
+            if ($hasActive) {
+                // Group model names by make/category
+                $groupedModels = [];
+                foreach ($results as $row) {
+                    $parentName = $row[array_keys($row)[0]]; // First column (make or category name)
+                    if (!isset($groupedModels[$parentName])) {
+                        $groupedModels[$parentName] = [];
+                    }
+                    $groupedModels[$parentName][] = $row['vehicle_model_name'];
+                }
+                
+                foreach ($groupedModels as $parentName => $models) {
+                    $itemsWithModels[] = $parentName . ' (has active models: ' . implode(', ', $models) . ')';
+                }
+            }
+
+            return ['hasActive' => $hasActive, 'itemsWithModels' => $itemsWithModels];
+
+        } catch (PDOException $e) {
+            error_log("Error checking vehicle reference in models: " . $e->getMessage());
+            return ['hasActive' => false, 'itemsWithModels' => []];
+        }
+    }
+
+    // Check if vehicle model is referenced by active vehicles
+    private function checkVehicleModelInVehicles($modelIds) {
+        try {
+            if (!is_array($modelIds)) {
+                $modelIds = [$modelIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($modelIds), '?'));
+            
+            $sql = "SELECT DISTINCT vm.vehicle_model_name, v.vehicle_license
+                    FROM tbl_vehicle v
+                    INNER JOIN tbl_vehicle_model vm ON v.vehicle_model_id = vm.vehicle_model_id
+                    WHERE vm.vehicle_model_id IN ($placeholders)
+                    AND v.is_active = 1";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($modelIds);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $hasActive = count($results) > 0;
+            $itemsWithVehicles = [];
+            
+            if ($hasActive) {
+                // Group vehicle licenses by model
+                $groupedVehicles = [];
+                foreach ($results as $row) {
+                    $modelName = $row['vehicle_model_name'];
+                    if (!isset($groupedVehicles[$modelName])) {
+                        $groupedVehicles[$modelName] = [];
+                    }
+                    $groupedVehicles[$modelName][] = $row['vehicle_license'];
+                }
+                
+                foreach ($groupedVehicles as $modelName => $licenses) {
+                    $itemsWithVehicles[] = $modelName . ' (has active vehicles: ' . implode(', ', $licenses) . ')';
+                }
+            }
+
+            return ['hasActive' => $hasActive, 'itemsWithVehicles' => $itemsWithVehicles];
+
+        } catch (PDOException $e) {
+            error_log("Error checking vehicle model in vehicles: " . $e->getMessage());
+            return ['hasActive' => false, 'itemsWithVehicles' => []];
+        }
+    }
+
+    // Check if equipment category is referenced by active equipment
+    private function checkEquipmentCategoryInEquipment($categoryIds) {
+        try {
+            if (!is_array($categoryIds)) {
+                $categoryIds = [$categoryIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
+            
+            $sql = "SELECT DISTINCT ec.equipments_category_name, e.equip_name
+                    FROM tbl_equipments e
+                    INNER JOIN tbl_equipment_category ec ON e.equipments_category_id = ec.equipments_category_id
+                    WHERE ec.equipments_category_id IN ($placeholders)
+                    AND e.is_active = 1";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($categoryIds);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $hasActive = count($results) > 0;
+            $itemsWithEquipment = [];
+            
+            if ($hasActive) {
+                // Group equipment names by category
+                $groupedEquipment = [];
+                foreach ($results as $row) {
+                    $categoryName = $row['equipments_category_name'];
+                    if (!isset($groupedEquipment[$categoryName])) {
+                        $groupedEquipment[$categoryName] = [];
+                    }
+                    $groupedEquipment[$categoryName][] = $row['equip_name'];
+                }
+                
+                foreach ($groupedEquipment as $categoryName => $equipment) {
+                    $itemsWithEquipment[] = $categoryName . ' (has active equipment: ' . implode(', ', $equipment) . ')';
+                }
+            }
+
+            return ['hasActive' => $hasActive, 'itemsWithEquipment' => $itemsWithEquipment];
+
+        } catch (PDOException $e) {
+            error_log("Error checking equipment category in equipment: " . $e->getMessage());
+            return ['hasActive' => false, 'itemsWithEquipment' => []];
+        }
+    }
+
+    // Check if vehicle make, category, or model is used in active transactions
+    private function checkVehicleReferenceInTransactions($referenceType, $referenceIds) {
+        try {
+            if (!is_array($referenceIds)) {
+                $referenceIds = [$referenceIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($referenceIds), '?'));
+            
+            // Build query based on reference type
+            switch ($referenceType) {
+                case 'vehicle_make':
+                    $sql = "SELECT DISTINCT vmk.vehicle_make_name
+                            FROM tbl_reservation_vehicle rv
+                            INNER JOIN tbl_vehicle v ON rv.reservation_vehicle_vehicle_id = v.vehicle_id
+                            INNER JOIN tbl_vehicle_model vm ON v.vehicle_model_id = vm.vehicle_model_id
+                            INNER JOIN tbl_vehicle_make vmk ON vm.vehicle_model_vehicle_make_id = vmk.vehicle_make_id
+                            INNER JOIN tbl_reservation r ON rv.reservation_vehicle_reservation_id = r.reservation_id
+                            INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
+                            WHERE vmk.vehicle_make_id IN ($placeholders)
+                            AND rs.reservation_active = 1
+                            AND rs.reservation_status_status_id NOT IN (2, 4, 5)";
+                    break;
+
+                case 'vehicle_category':
+                    $sql = "SELECT DISTINCT vc.vehicle_category_name
+                            FROM tbl_reservation_vehicle rv
+                            INNER JOIN tbl_vehicle v ON rv.reservation_vehicle_vehicle_id = v.vehicle_id
+                            INNER JOIN tbl_vehicle_model vm ON v.vehicle_model_id = vm.vehicle_model_id
+                            INNER JOIN tbl_vehicle_category vc ON vm.vehicle_category_id = vc.vehicle_category_id
+                            INNER JOIN tbl_reservation r ON rv.reservation_vehicle_reservation_id = r.reservation_id
+                            INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
+                            WHERE vc.vehicle_category_id IN ($placeholders)
+                            AND rs.reservation_active = 1
+                            AND rs.reservation_status_status_id NOT IN (2, 4, 5)";
+                    break;
+
+                case 'vehicle_model':
+                    $sql = "SELECT DISTINCT vm.vehicle_model_name
+                            FROM tbl_reservation_vehicle rv
+                            INNER JOIN tbl_vehicle v ON rv.reservation_vehicle_vehicle_id = v.vehicle_id
+                            INNER JOIN tbl_vehicle_model vm ON v.vehicle_model_id = vm.vehicle_model_id
+                            INNER JOIN tbl_reservation r ON rv.reservation_vehicle_reservation_id = r.reservation_id
+                            INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
+                            WHERE vm.vehicle_model_id IN ($placeholders)
+                            AND rs.reservation_active = 1
+                            AND rs.reservation_status_status_id NOT IN (2, 4, 5)";
+                    break;
+
+                default:
+                    return ['hasActive' => false, 'itemsWithTransactions' => []];
+            }
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($referenceIds);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $hasActive = count($results) > 0;
+            $itemsWithTransactions = array_column($results, array_values($results[0])[0] ?? 'name');
+
+            return ['hasActive' => $hasActive, 'itemsWithTransactions' => $itemsWithTransactions];
+
+        } catch (PDOException $e) {
+            error_log("Error checking vehicle reference transactions: " . $e->getMessage());
+            return ['hasActive' => false, 'itemsWithTransactions' => []];
+        }
+    }
+
+    // Check if department is used in approval exclusive table
+    private function checkDepartmentInApprovalExclusive($departmentIds) {
+        try {
+            if (!is_array($departmentIds)) {
+                $departmentIds = [$departmentIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($departmentIds), '?'));
+            
+            $sql = "SELECT DISTINCT d.departments_name, ul.user_level_name
+                    FROM tbl_approval_exclusive ae
+                    INNER JOIN tbl_departments d ON ae.approval_exclusive_department_id = d.departments_id
+                    INNER JOIN tbl_user_level ul ON ae.approval_exclusive_user_level_id = ul.user_level_id
+                    WHERE d.departments_id IN ($placeholders)";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($departmentIds);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $hasActive = count($results) > 0;
+            $itemsWithApprovals = [];
+            
+            if ($hasActive) {
+                // Group user levels by department
+                $groupedApprovals = [];
+                foreach ($results as $row) {
+                    $departmentName = $row['departments_name'];
+                    if (!isset($groupedApprovals[$departmentName])) {
+                        $groupedApprovals[$departmentName] = [];
+                    }
+                    $groupedApprovals[$departmentName][] = $row['user_level_name'];
+                }
+                
+                foreach ($groupedApprovals as $departmentName => $userLevels) {
+                    $itemsWithApprovals[] = $departmentName . ' (used in approval exclusive for: ' . implode(', ', array_unique($userLevels)) . ')';
+                }
+            }
+
+            return ['hasActive' => $hasActive, 'itemsWithApprovals' => $itemsWithApprovals];
+
+        } catch (PDOException $e) {
+            error_log("Error checking department in approval exclusive: " . $e->getMessage());
+            return ['hasActive' => false, 'itemsWithApprovals' => []];
+        }
+    }
+
+    // Check if department is used in venue department approval table
+    private function checkDepartmentInVenueApproval($departmentIds) {
+        try {
+            if (!is_array($departmentIds)) {
+                $departmentIds = [$departmentIds];
+            }
+
+            $placeholders = implode(',', array_fill(0, count($departmentIds), '?'));
+            
+            $sql = "SELECT DISTINCT d.departments_name, v.ven_name
+                    FROM tbl_venue_department_approval vda
+                    INNER JOIN tbl_departments d ON vda.approval_venue_department_id = d.departments_id
+                    INNER JOIN tbl_venue v ON vda.approval_venue_venue_id = v.ven_id
+                    WHERE d.departments_id IN ($placeholders)";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute($departmentIds);
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+            $hasActive = count($results) > 0;
+            $itemsWithVenues = [];
+            
+            if ($hasActive) {
+                // Group venues by department
+                $groupedVenues = [];
+                foreach ($results as $row) {
+                    $departmentName = $row['departments_name'];
+                    if (!isset($groupedVenues[$departmentName])) {
+                        $groupedVenues[$departmentName] = [];
+                    }
+                    $groupedVenues[$departmentName][] = $row['ven_name'];
+                }
+                
+                foreach ($groupedVenues as $departmentName => $venues) {
+                    $itemsWithVenues[] = $departmentName . ' (assigned to venues: ' . implode(', ', $venues) . ')';
+                }
+            }
+
+            return ['hasActive' => $hasActive, 'itemsWithVenues' => $itemsWithVenues];
+
+        } catch (PDOException $e) {
+            error_log("Error checking department in venue approval: " . $e->getMessage());
+            return ['hasActive' => false, 'itemsWithVenues' => []];
+        }
+    }
+
+    // Archive/Deactivate catalog items (vehicle make, category, model, equipment category, departments, holidays)
+    public function archiveCatalogItem($itemType, $itemIds, $userId = null) {
+        try {
+            if (empty($itemType) || empty($itemIds)) {
+                return json_encode(['status' => 'error', 'message' => 'Item type and ID are required.']);
+            }
+
+            // Convert single ID to array for consistent handling
+            if (!is_array($itemIds)) {
+                $itemIds = [$itemIds];
+            }
+
+            // For vehicle make and category, check if they're referenced by active vehicle models FIRST
+            if (in_array($itemType, ['vehicle_make', 'vehicle_category'])) {
+                $modelCheck = $this->checkVehicleReferenceInModels($itemType, $itemIds);
+                if ($modelCheck['hasActive']) {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'Cannot deactivate item(s) that have active vehicle models: ' . implode(', ', $modelCheck['itemsWithModels'])
+                    ]);
+                }
+            }
+
+            // For vehicle model, check if they're referenced by active vehicles FIRST
+            if ($itemType === 'vehicle_model') {
+                $vehicleCheck = $this->checkVehicleModelInVehicles($itemIds);
+                if ($vehicleCheck['hasActive']) {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'Cannot deactivate vehicle model(s) that have active vehicles: ' . implode(', ', $vehicleCheck['itemsWithVehicles'])
+                    ]);
+                }
+            }
+
+            // For equipment category, check if they're referenced by active equipment FIRST
+            if ($itemType === 'equipment_category') {
+                $equipmentCheck = $this->checkEquipmentCategoryInEquipment($itemIds);
+                if ($equipmentCheck['hasActive']) {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'Cannot deactivate equipment category that has active equipment: ' . implode(', ', $equipmentCheck['itemsWithEquipment'])
+                    ]);
+                }
+            }
+
+            // For vehicle-related tables, check if they're used in active transactions
+            if (in_array($itemType, ['vehicle_make', 'vehicle_category', 'vehicle_model'])) {
+                $transactionCheck = $this->checkVehicleReferenceInTransactions($itemType, $itemIds);
+                if ($transactionCheck['hasActive']) {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'Cannot deactivate item(s) used in active reservations: ' . implode(', ', $transactionCheck['itemsWithTransactions'])
+                    ]);
+                }
+            }
+
+            // For departments, check if they're used in approval systems
+            if ($itemType === 'department') {
+                // Check approval exclusive table
+                $approvalExclusiveCheck = $this->checkDepartmentInApprovalExclusive($itemIds);
+                if ($approvalExclusiveCheck['hasActive']) {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'Cannot deactivate department(s) that are used in approval exclusive settings: ' . implode(', ', $approvalExclusiveCheck['itemsWithApprovals'])
+                    ]);
+                }
+
+                // Check venue department approval table
+                $venueApprovalCheck = $this->checkDepartmentInVenueApproval($itemIds);
+                if ($venueApprovalCheck['hasActive']) {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'Cannot deactivate department(s) that are assigned to venue approvals: ' . implode(', ', $venueApprovalCheck['itemsWithVenues'])
+                    ]);
+                }
+            }
+
+            // Create placeholders for IN clause
+            $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+
+            $query = "";
+            $itemName = "";
+
+            switch ($itemType) {
+                case 'vehicle_make':
+                    $query = "UPDATE tbl_vehicle_make SET is_active = 0 WHERE vehicle_make_id IN ($placeholders)";
+                    $itemName = "Vehicle Make";
+                    break;
+
+                case 'vehicle_category':
+                    $query = "UPDATE tbl_vehicle_category SET is_active = 0 WHERE vehicle_category_id IN ($placeholders)";
+                    $itemName = "Vehicle Category";
+                    break;
+
+                case 'vehicle_model':
+                    $query = "UPDATE tbl_vehicle_model SET is_active = 0 WHERE vehicle_model_id IN ($placeholders)";
+                    $itemName = "Vehicle Model";
+                    break;
+
+                case 'equipment_category':
+                    $query = "UPDATE tbl_equipment_category SET is_active = 0 WHERE equipments_category_id IN ($placeholders)";
+                    $itemName = "Equipment Category";
+                    break;
+
+                case 'department':
+                    $query = "UPDATE tbl_departments SET is_active = 0 WHERE departments_id IN ($placeholders)";
+                    $itemName = "Department";
+                    break;
+
+                case 'holiday':
+                    $query = "UPDATE tbl_holidays SET is_active = 0 WHERE holiday_id IN ($placeholders)";
+                    $itemName = "Holiday";
+                    break;
+
+                default:
+                    return json_encode(['status' => 'error', 'message' => 'Invalid item type.']);
+            }
+
+            $stmt = $this->conn->prepare($query);
+            
+            if ($stmt->execute($itemIds)) {
+                $count = $stmt->rowCount();
+                if ($count > 0) {
+                    // Audit log
+                    try {
+                        $desc = "Deactivated $itemName: $count item(s)";
+                        $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                        $audit = $this->conn->prepare($auditSql);
+                        $action = 'DEACTIVATE';
+                        $audit->bindParam(':description', $desc, PDO::PARAM_STR);
+                        $audit->bindParam(':action', $action, PDO::PARAM_STR);
+                        if ($userId !== null) {
+                            $audit->bindValue(':created_by', $userId, PDO::PARAM_INT);
+                        } else {
+                            $audit->bindValue(':created_by', null, PDO::PARAM_NULL);
+                        }
+                        $audit->execute();
+                    } catch (Throwable $te) {
+                        error_log("Audit logging error (archiveCatalogItem): " . $te->getMessage());
+                    }
+                    return json_encode([
+                        'status' => 'success', 
+                        'message' => "$count $itemName(s) deactivated successfully."
+                    ]);
+                } else {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'No items found with the given IDs.'
+                    ]);
+                }
+            }
+
+            return json_encode(['status' => 'error', 'message' => 'Error deactivating item(s).']);
+
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    // Unarchive/Reactivate catalog items
+    public function unarchiveCatalogItem($itemType, $itemIds, $userId = null) {
+        try {
+            if (empty($itemType) || empty($itemIds)) {
+                return json_encode(['status' => 'error', 'message' => 'Item type and ID are required.']);
+            }
+
+            // Convert single ID to array for consistent handling
+            if (!is_array($itemIds)) {
+                $itemIds = [$itemIds];
+            }
+
+            // Create placeholders for IN clause
+            $placeholders = implode(',', array_fill(0, count($itemIds), '?'));
+
+            $query = "";
+            $itemName = "";
+
+            switch ($itemType) {
+                case 'vehicle_make':
+                    $query = "UPDATE tbl_vehicle_make SET is_active = 1 WHERE vehicle_make_id IN ($placeholders)";
+                    $itemName = "Vehicle Make";
+                    break;
+
+                case 'vehicle_category':
+                    $query = "UPDATE tbl_vehicle_category SET is_active = 1 WHERE vehicle_category_id IN ($placeholders)";
+                    $itemName = "Vehicle Category";
+                    break;
+
+                case 'vehicle_model':
+                    $query = "UPDATE tbl_vehicle_model SET is_active = 1 WHERE vehicle_model_id IN ($placeholders)";
+                    $itemName = "Vehicle Model";
+                    break;
+
+                case 'equipment_category':
+                    $query = "UPDATE tbl_equipment_category SET is_active = 1 WHERE equipments_category_id IN ($placeholders)";
+                    $itemName = "Equipment Category";
+                    break;
+
+                case 'department':
+                    $query = "UPDATE tbl_departments SET is_active = 1 WHERE departments_id IN ($placeholders)";
+                    $itemName = "Department";
+                    break;
+
+                case 'holiday':
+                    $query = "UPDATE tbl_holidays SET is_active = 1 WHERE holiday_id IN ($placeholders)";
+                    $itemName = "Holiday";
+                    break;
+
+                case 'building':
+                    $query = "UPDATE tbl_venue_building SET is_active = 1 WHERE venue_building_id IN ($placeholders)";
+                    $itemName = "Building";
+                    break;
+
+                default:
+                    return json_encode(['status' => 'error', 'message' => 'Invalid item type.']);
+            }
+
+            $stmt = $this->conn->prepare($query);
+            
+            if ($stmt->execute($itemIds)) {
+                $count = $stmt->rowCount();
+                if ($count > 0) {
+                    // Audit log
+                    try {
+                        $desc = "Reactivated $itemName: $count item(s)";
+                        $auditSql = "INSERT INTO audit_log (description, action, created_at, created_by) VALUES (:description, :action, NOW(), :created_by)";
+                        $audit = $this->conn->prepare($auditSql);
+                        $action = 'REACTIVATE';
+                        $audit->bindParam(':description', $desc, PDO::PARAM_STR);
+                        $audit->bindParam(':action', $action, PDO::PARAM_STR);
+                        if ($userId !== null) {
+                            $audit->bindValue(':created_by', $userId, PDO::PARAM_INT);
+                        } else {
+                            $audit->bindValue(':created_by', null, PDO::PARAM_NULL);
+                        }
+                        $audit->execute();
+                    } catch (Throwable $te) {
+                        error_log("Audit logging error (unarchiveCatalogItem): " . $te->getMessage());
+                    }
+                    return json_encode([
+                        'status' => 'success', 
+                        'message' => "$count $itemName(s) reactivated successfully."
+                    ]);
+                } else {
+                    return json_encode([
+                        'status' => 'error', 
+                        'message' => 'No items found with the given IDs.'
+                    ]);
+                }
+            }
+
+            return json_encode(['status' => 'error', 'message' => 'Error reactivating item(s).']);
+
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
     
+
+    public function handleProcessed($reservationId, $userId) {
+        try {
+            // First, check the current status of the reservation
+            $checkSql = "
+                SELECT 
+                    rs.reservation_status_status_id,
+                    rs.reservation_active,
+                    sm.status_master_name
+                FROM tbl_reservation_status rs
+                LEFT JOIN tbl_status_master sm ON rs.reservation_status_status_id = sm.status_master_id
+                WHERE rs.reservation_reservation_id = :reservation_id
+                ORDER BY rs.reservation_status_id DESC
+                LIMIT 1
+            ";
+            
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $checkStmt->execute();
+            $currentStatus = $checkStmt->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$currentStatus) {
+                return json_encode(['status' => 'error', 'message' => 'Reservation not found']);
+            }
+            
+           
+            
+            $currentStatusId = (int)$currentStatus['reservation_status_status_id'];
+            
+            // Check if reservation is in final states (cancelled, completed, declined)
+            if ($currentStatusId === 2) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot process reservation: Reservation has been cancelled',
+                    'current_status' => $currentStatus['status_master_name']
+                ]);
+            }
+            
+            if ($currentStatusId === 4) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot process reservation: Reservation has been declined/rejected',
+                    'current_status' => $currentStatus['status_master_name']
+                ]);
+            }
+            
+            if ($currentStatusId === 5) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Cannot process reservation: Reservation has been completed',
+                    'current_status' => $currentStatus['status_master_name']
+                ]);
+            }
+            
+            // Check if the reservation is pending (status_id 1, 3, or 8) and needs to be processed
+            $pendingStatuses = [1]; // Pending, Approved, Department Approval
+            
+            // If already has status 7 (Admin Approved/Process), don't insert again
+            if ($currentStatusId === 7) {
+                return json_encode([
+                    'status' => 'success', 
+                    'message' => 'Reservation is already being processed',
+                    'already_processed' => true
+                ]);
+            }
+            
+            // If status is pending (status_id 1), insert status 7 and update status 1 to active
+            if (in_array($currentStatusId, $pendingStatuses)) {
+                // Start transaction
+                $this->conn->beginTransaction();
+                
+                try {
+                    // First, insert status 7 (Process)
+                    $insertSql = "
+                        INSERT INTO tbl_reservation_status 
+                        (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_users_id, reservation_updated_at) 
+                        VALUES (:reservation_id, 7, 1, :user_id, NOW())
+                    ";
+                    
+                    $insertStmt = $this->conn->prepare($insertSql);
+                    $insertStmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                    $insertStmt->bindParam(':user_id', $userId, PDO::PARAM_INT);
+                    
+                    if (!$insertStmt->execute()) {
+                        throw new Exception("Failed to insert status 7");
+                    }
+                    
+                    // Second, update the original status_id 1 to active = 1
+                    $updateSql = "
+                        UPDATE tbl_reservation_status 
+                        SET reservation_active = 1 
+                        WHERE reservation_reservation_id = :reservation_id 
+                        AND reservation_status_status_id = 1
+                    ";
+                    
+                    $updateStmt = $this->conn->prepare($updateSql);
+                    $updateStmt->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                    
+                    if (!$updateStmt->execute()) {
+                        throw new Exception("Failed to update status 1 to active");
+                    }
+                    
+                    // Commit transaction
+                    $this->conn->commit();
+                    
+                    
+                    
+                    // Check if reservation has department approval requirements and send push notifications
+                    if ($this->hasDepartmentApproval($reservationId)) {
+                        $this->sendPushNotificationToDepartmentApproval($reservationId);
+                    }
+                    
+                    return json_encode([
+                        'status' => 'success', 
+                        'message' => 'Reservation status updated to Process',
+                        'status_inserted' => true,
+                        'status_updated' => true,
+                        'new_status_id' => 7
+                    ]);
+                    
+                } catch (Exception $e) {
+                    // Rollback transaction on error
+                    $this->conn->rollBack();
+                    error_log("Failed to process reservation {$reservationId}: " . $e->getMessage());
+                    return json_encode(['status' => 'error', 'message' => 'Failed to update reservation status: ' . $e->getMessage()]);
+                }
+            } else {
+                // Status is not pending, no action needed
+                return json_encode([
+                    'status' => 'success', 
+                    'message' => 'No status update needed',
+                    'current_status' => $currentStatus['status_master_name'],
+                    'status_inserted' => false
+                ]);
+            }
+            
+        } catch (PDOException $e) {
+            error_log('Database error in handleProcessed: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
     public function sendPushNotificationToUser($userId, $title = 'Notification', $body = 'You have a new notification', $data = []) {
         try {
             // Make a POST request to the push notification service
             // Use absolute URL for production environment compatibility
-            $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
+            // $pushNotificationUrl = 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php';
+            // Include push notification configuration
+            require_once __DIR__ . '/config/pushConfig.php';
             
+            // Get push notification URL from configuration
+            $pushNotificationUrl = getPushNotificationUrl();
             $postData = json_encode([
                 'operation' => 'send',
                 'user_id' => $userId,
@@ -4463,25 +6695,1412 @@ public function fetchEquipmentAndInactiveUnits() {
                 ]
             ]);
             
-            $result = file_get_contents($pushNotificationUrl, false, $context);
+            // Use cURL instead of file_get_contents to avoid warnings
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $pushNotificationUrl);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json',
+                'Content-Length: ' . strlen($postData)
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
             
-            if ($result === false) {
-                error_log("Failed to send push notification to user {$userId}");
+            $result = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
+            curl_close($ch);
+            
+            // Handle cURL errors (connection issues, timeouts, etc.)
+            if ($curlError) {
+                error_log("Push notification cURL error for user $userId: $curlError");
                 return false;
             }
             
+            // Handle HTTP error codes with specific messages
+            if ($httpCode < 200 || $httpCode >= 300 || $result === false) {
+                $errorMessage = "Push notification HTTP error for user $userId (Code: $httpCode)";
+                
+                // Categorize HTTP errors
+                if ($httpCode >= 400 && $httpCode < 500) {
+                    // Client errors (4xx)
+                    switch ($httpCode) {
+                        case 400:
+                            $errorMessage .= " - Bad Request: Invalid request data sent to push service";
+                            break;
+                        case 401:
+                            $errorMessage .= " - Unauthorized: Authentication required or failed";
+                            break;
+                        case 403:
+                            $errorMessage .= " - Forbidden: Access denied to push notification service";
+                            break;
+                        case 404:
+                            $errorMessage .= " - Not Found: Push notification service endpoint not found at $pushNotificationUrl";
+                            break;
+                        case 408:
+                            $errorMessage .= " - Request Timeout: Push notification service did not respond in time";
+                            break;
+                        case 429:
+                            $errorMessage .= " - Too Many Requests: Rate limit exceeded for push notifications";
+                            break;
+                        default:
+                            $errorMessage .= " - Client Error: Request could not be processed";
+                    }
+                } elseif ($httpCode >= 500 && $httpCode < 600) {
+                    // Server errors (5xx)
+                    switch ($httpCode) {
+                        case 500:
+                            $errorMessage .= " - Internal Server Error: Push notification service encountered an error";
+                            break;
+                        case 502:
+                            $errorMessage .= " - Bad Gateway: Invalid response from push notification service";
+                            break;
+                        case 503:
+                            $errorMessage .= " - Service Unavailable: Push notification service is temporarily down";
+                            break;
+                        case 504:
+                            $errorMessage .= " - Gateway Timeout: Push notification service timed out";
+                            break;
+                        default:
+                            $errorMessage .= " - Server Error: Push notification service error";
+                    }
+                } else {
+                    $errorMessage .= " - Unexpected response code";
+                }
+                
+                // Include response body if available for debugging
+                if ($result) {
+                    $errorMessage .= " | Response: " . substr($result, 0, 200);
+                }
+                
+                error_log($errorMessage);
+                return false;
+            }
+            
+            // Parse and validate successful response
             $response = json_decode($result, true);
             if ($response && isset($response['status']) && $response['status'] === 'success') {
-                error_log("Push notification sent successfully to user {$userId}");
+                error_log("Push notification sent successfully to user $userId");
                 return true;
             } else {
-                error_log("Push notification failed for user {$userId}: " . ($response['message'] ?? 'Unknown error'));
+                // Response received but indicates failure
+                $failureMessage = "Push notification failed for user $userId";
+                if ($response && isset($response['message'])) {
+                    $failureMessage .= ": " . $response['message'];
+                } elseif ($result) {
+                    $failureMessage .= ": " . substr($result, 0, 200);
+                } else {
+                    $failureMessage .= ": Unknown error - empty response";
+                }
+                error_log($failureMessage);
                 return false;
             }
             
         } catch (Exception $e) {
             error_log("Exception in sendPushNotificationToUser: " . $e->getMessage());
             return false;
+        }
+    }
+
+    // Send push notification to department approval users
+    private function sendPushNotificationToDepartmentApproval($reservationId) {
+        try {
+            error_log("🚀 INITIATING department approval push notifications for reservation ID: $reservationId");
+            // Get all department approvals for this reservation
+            $sqlDeptApprovals = "SELECT department_approval_department_id 
+                               FROM tbl_department_approval 
+                               WHERE department_request_reservation_id = :reservation_id 
+                               AND department_is_approved = 0";
+            $stmtDeptApprovals = $this->conn->prepare($sqlDeptApprovals);
+            $stmtDeptApprovals->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $stmtDeptApprovals->execute();
+            $deptApprovals = $stmtDeptApprovals->fetchAll(PDO::FETCH_ASSOC);
+            
+            if (empty($deptApprovals)) {
+                error_log("ℹ️  No department approvals found for reservation ID: $reservationId - skipping push notifications");
+                return;
+            }
+            
+            error_log("📋 Found " . count($deptApprovals) . " department(s) requiring approval for reservation ID: $reservationId");
+            
+            // Get reservation details for notification
+            $sqlReservation = "SELECT r.reservation_title, 
+                                    CONCAT(u.users_fname, ' ', u.users_mname, ' ', u.users_lname) AS requester_name
+                             FROM tbl_reservation r
+                             LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
+                             WHERE r.reservation_id = :reservation_id";
+            $stmtReservation = $this->conn->prepare($sqlReservation);
+            $stmtReservation->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $stmtReservation->execute();
+            $reservation = $stmtReservation->fetch(PDO::FETCH_ASSOC);
+            
+            if (!$reservation) {
+                error_log("Could not find reservation details for ID: " . $reservationId);
+                return;
+            }
+            
+            $allDeptUsers = [];
+            
+            // Get users from each department that needs approval
+            foreach ($deptApprovals as $deptApproval) {
+                $deptId = $deptApproval['department_approval_department_id'];
+                
+                // Get department heads (level 5) and deans (level 16) from the department
+                $sqlDeptUsers = "SELECT 
+                                    u.users_id,
+                                    CONCAT(u.users_fname, ' ', u.users_mname, ' ', u.users_lname) AS full_name,
+                                    ps.subscription_id,
+                                    ps.endpoint,
+                                    ps.p256dh_key,
+                                    ps.auth_key,
+                                    d.departments_name
+                                FROM tbl_users u
+                                INNER JOIN tbl_push_subscriptions ps ON u.users_id = ps.user_id
+                                LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
+                                WHERE u.users_department_id = :dept_id 
+                                AND u.users_user_level_id IN (5, 16)
+                                AND ps.is_active = 1";
+                
+                $stmtDeptUsers = $this->conn->prepare($sqlDeptUsers);
+                $stmtDeptUsers->bindParam(':dept_id', $deptId, PDO::PARAM_INT);
+                $stmtDeptUsers->execute();
+                $deptUsers = $stmtDeptUsers->fetchAll(PDO::FETCH_ASSOC);
+                
+                $allDeptUsers = array_merge($allDeptUsers, $deptUsers);
+            }
+            
+           
+            
+            
+            
+            // Prepare notification data
+            $title = "Department Approval Required";
+            $body = "A reservation '{$reservation['reservation_title']}' by {$reservation['requester_name']} requires your department's approval.";
+            $data = [
+                'reservation_id' => $reservationId,
+                'type' => 'department_approval',
+                'action_url' => '/gsd/grms/Department/ViewApproval'
+            ];
+            
+            // Include push notification configuration
+            require_once __DIR__ . '/config/pushConfig.php';
+            $pushUrl = getPushNotificationUrl();
+            $successCount = 0;
+            $errorCount = 0;
+            
+            // Send push notification to all department users
+            foreach ($allDeptUsers as $user) {
+                $pushData = [
+                    'operation' => 'send',
+                    'user_id' => $user['users_id'],
+                    'title' => $title,
+                    'body' => $body,
+                    'data' => $data
+                ];
+                
+                
+                
+                $ch = curl_init();
+                curl_setopt($ch, CURLOPT_URL, $pushUrl);
+                curl_setopt($ch, CURLOPT_POST, true);
+                curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($pushData));
+                curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                    'Content-Type: application/json',
+                    'Content-Length: ' . strlen(json_encode($pushData))
+                ]);
+                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+                curl_setopt($ch, CURLOPT_TIMEOUT, 10);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                
+                $response = curl_exec($ch);
+                $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $error = curl_error($ch);
+                curl_close($ch);
+                
+                
+                
+                if ($error || $httpCode < 200 || $httpCode >= 300) {
+                    $errorCount++;
+                } else {
+                    $successCount++;
+                }
+            }
+
+            
+         
+            
+        } catch (Exception $e) {
+            error_log("Error sending department approval notifications: " . $e->getMessage());
+        }
+    }
+
+    // Approval Order Management Methods
+    public function fetchApprovalOrders() {
+        $sql = "SELECT 
+                    ao.approval_order_id,
+                    ao.users_id,
+                    ao.approval_sequence,
+                    CONCAT(
+                        u.users_fname,
+                        CASE 
+                            WHEN u.users_mname != '' THEN CONCAT(' ', LEFT(u.users_mname, 1), '.')
+                            ELSE ''
+                        END,
+                        ' ',
+                        u.users_lname
+                    ) AS user_name,
+                    ul.user_level_name,
+                    d.departments_name
+                FROM tbl_approval_in_order ao
+                LEFT JOIN tbl_users u ON ao.users_id = u.users_id
+                LEFT JOIN tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
+                LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
+                ORDER BY ao.approval_sequence ASC, ao.approval_order_id DESC";
+        return $this->executeQuery($sql);
+    }
+
+    public function fetchAdmin() {
+        $sql = "SELECT 
+                    u.users_id,
+                    CONCAT(
+                        COALESCE(t.abbreviation, ''),
+                        CASE 
+                            WHEN t.abbreviation IS NOT NULL AND t.abbreviation != '' THEN ' '
+                            ELSE ''
+                        END,
+                        u.users_fname,
+                        CASE 
+                            WHEN u.users_mname != '' THEN CONCAT(' ', LEFT(u.users_mname, 1), '.')
+                            ELSE ''
+                        END,
+                        ' ',
+                        u.users_lname,
+                        CASE 
+                            WHEN u.users_suffix != '' THEN CONCAT(' ', u.users_suffix)
+                            ELSE ''
+                        END
+                    ) AS full_name
+                FROM tbl_users u
+                LEFT JOIN titles t ON u.title_id = t.id
+                WHERE u.users_user_level_id = 1
+                ORDER BY u.users_fname ASC, u.users_lname ASC";
+        return $this->executeQuery($sql);
+    }
+
+    public function addApprovalOrder($usersId, $approvalSequence) {
+        try {
+            // Check if the user and sequence combination already exists
+            $checkSql = "SELECT approval_order_id FROM tbl_approval_in_order 
+                        WHERE users_id = :users_id AND approval_sequence = :approval_sequence";
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->execute([
+                ':users_id' => $usersId,
+                ':approval_sequence' => $approvalSequence
+            ]);
+            
+            if ($checkStmt->fetch()) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'This user already has an approval order with the same sequence number'
+                ]);
+            }
+
+            $sql = "INSERT INTO tbl_approval_in_order (users_id, approval_sequence) 
+                    VALUES (:users_id, :approval_sequence)";
+            $stmt = $this->conn->prepare($sql);
+            $result = $stmt->execute([
+                ':users_id' => $usersId,
+                ':approval_sequence' => $approvalSequence
+            ]);
+
+            if ($result) {
+                return json_encode(['status' => 'success', 'message' => 'Approval order added successfully']);
+            } else {
+                return json_encode(['status' => 'error', 'message' => 'Failed to add approval order']);
+            }
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Duplicate entry: This user and sequence combination already exists'
+                ]);
+            }
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateApprovalOrder($approvalOrderId, $usersId, $approvalSequence) {
+        try {
+            // Check if there are any active reservations in the system using the same logic as fetchRequestReservation
+          
+            // Check if another record has the same user and sequence combination (excluding current record)
+            $checkSql = "SELECT approval_order_id FROM tbl_approval_in_order 
+                        WHERE users_id = :users_id AND approval_sequence = :approval_sequence 
+                        AND approval_order_id != :approval_order_id";
+            $checkStmt = $this->conn->prepare($checkSql);
+            $checkStmt->execute([
+                ':users_id' => $usersId,
+                ':approval_sequence' => $approvalSequence,
+                ':approval_order_id' => $approvalOrderId
+            ]);
+            
+            if ($checkStmt->fetch()) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'This user already has an approval order with the same sequence number'
+                ]);
+            }
+
+            $sql = "UPDATE tbl_approval_in_order 
+                    SET users_id = :users_id, approval_sequence = :approval_sequence 
+                    WHERE approval_order_id = :approval_order_id";
+            $stmt = $this->conn->prepare($sql);
+            $result = $stmt->execute([
+                ':users_id' => $usersId,
+                ':approval_sequence' => $approvalSequence,
+                ':approval_order_id' => $approvalOrderId
+            ]);
+
+            if ($result) {
+                return json_encode(['status' => 'success', 'message' => 'Approval order updated successfully']);
+            } else {
+                return json_encode(['status' => 'error', 'message' => 'Failed to update approval order']);
+            }
+        } catch (PDOException $e) {
+            if ($e->getCode() == 23000) {
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Duplicate entry: This user and sequence combination already exists'
+                ]);
+            }
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteApprovalOrder($approvalOrderId) {
+        try {
+           
+
+            $sql = "DELETE FROM tbl_approval_in_order WHERE approval_order_id = :approval_order_id";
+            $stmt = $this->conn->prepare($sql);
+            $result = $stmt->execute([':approval_order_id' => $approvalOrderId]);
+
+            if ($result) {
+                if ($stmt->rowCount() > 0) {
+                    return json_encode(['status' => 'success', 'message' => 'Approval order deleted successfully']);
+                } else {
+                    return json_encode(['status' => 'error', 'message' => 'Approval order not found']);
+                }
+            } else {
+                return json_encode(['status' => 'error', 'message' => 'Failed to delete approval order']);
+            }
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function updateAllApprovalOrders($approvalOrders) {
+        try {
+            // Check if any approval orders are being used in active reservations
+            $getAllOrdersSql = "SELECT approval_order_id FROM tbl_approval_in_order";
+            $getAllOrdersStmt = $this->conn->prepare($getAllOrdersSql);
+            $getAllOrdersStmt->execute();
+            $existingOrderIds = $getAllOrdersStmt->fetchAll(PDO::FETCH_COLUMN);
+            
+           
+
+            // Start transaction
+            $this->conn->beginTransaction();
+
+            // First, delete all existing approval orders
+            $deleteSql = "DELETE FROM tbl_approval_in_order";
+            $deleteStmt = $this->conn->prepare($deleteSql);
+            $deleteStmt->execute();
+
+            // If approvalOrders is empty, just return success (all orders cleared)
+            if (empty($approvalOrders)) {
+                $this->conn->commit();
+                return json_encode(['status' => 'success', 'message' => 'All approval orders cleared successfully']);
+            }
+
+            // Insert new approval orders
+            $insertSql = "INSERT INTO tbl_approval_in_order (users_id, approval_sequence) VALUES (:users_id, :approval_sequence)";
+            $insertStmt = $this->conn->prepare($insertSql);
+
+            $successCount = 0;
+            $errors = [];
+
+            foreach ($approvalOrders as $order) {
+                if (!isset($order['users_id']) || !isset($order['approval_sequence'])) {
+                    $errors[] = "Missing required fields for approval order";
+                    continue;
+                }
+
+                $result = $insertStmt->execute([
+                    ':users_id' => $order['users_id'],
+                    ':approval_sequence' => $order['approval_sequence']
+                ]);
+
+                if ($result) {
+                    $successCount++;
+                } else {
+                    $errors[] = "Failed to insert approval order for user ID: " . $order['users_id'];
+                }
+            }
+
+            if (!empty($errors)) {
+                $this->conn->rollback();
+                return json_encode([
+                    'status' => 'error', 
+                    'message' => 'Some approval orders failed to update',
+                    'errors' => $errors
+                ]);
+            }
+
+            $this->conn->commit();
+            return json_encode([
+                'status' => 'success', 
+                'message' => $successCount . ' approval orders updated successfully'
+            ]);
+
+        } catch (PDOException $e) {
+            $this->conn->rollback();
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function deleteAllApprovalOrders() {
+        try {
+            
+
+            $sql = "DELETE FROM tbl_approval_in_order";
+            $stmt = $this->conn->prepare($sql);
+            $result = $stmt->execute();
+
+            if ($result) {
+                $deletedCount = $stmt->rowCount();
+                return json_encode([
+                    'status' => 'success', 
+                    'message' => $deletedCount . ' approval orders deleted successfully'
+                ]);
+            } else {
+                return json_encode(['status' => 'error', 'message' => 'Failed to delete approval orders']);
+            }
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Check for active reservation requests in the system
+     * @return string JSON response with active request count
+     */
+    public function checkActiveRequests() {
+        try {
+            $sql = "
+                SELECT COUNT(DISTINCT r.reservation_id) as active_count
+                FROM tbl_reservation r
+                LEFT JOIN (
+                    SELECT rs1.*
+                    FROM tbl_reservation_status rs1
+                    INNER JOIN (
+                        SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_status_id
+                        FROM tbl_reservation_status
+                        GROUP BY reservation_reservation_id
+                    ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id
+                    AND rs1.reservation_status_id = rs2.max_status_id
+                ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+
+    /**
+     * Check if approval orders are being used in active reservations
+                        latest_status.reservation_status_status_id IN (1, 3, 7, 8, 10) 
+                        AND latest_status.reservation_active IN (0, 1)
+                    )
+                    OR 
+                    (
+                        -- Show status 11 (Change Request) but exclude if it has cancelled or rescheduled statuses
+                        latest_status.reservation_status_status_id = 11 
+                        AND latest_status.reservation_active IN (0, 1)
+                        AND NOT EXISTS (
+                            SELECT 1 
+                            FROM tbl_reservation_status rs_check_final
+                            WHERE rs_check_final.reservation_reservation_id = r.reservation_id 
+                            AND rs_check_final.reservation_status_status_id IN (2, 14)
+                            AND rs_check_final.reservation_active = 1
+                        )
+                    )
+                    OR 
+                    (
+                        -- Show status 6 (Completed) with active = 1 if it has a change request (status 11)
+                        latest_status.reservation_status_status_id = 6 
+                        AND latest_status.reservation_active = 1
+                        AND EXISTS (
+                            SELECT 1 
+                            FROM tbl_reservation_status rs_change_request
+                            WHERE rs_change_request.reservation_reservation_id = r.reservation_id 
+                            AND rs_change_request.reservation_status_status_id = 11
+                        )
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM tbl_reservation_status rs3
+                        WHERE rs3.reservation_reservation_id = r.reservation_id
+                        AND rs3.reservation_status_status_id = 2
+                        AND rs3.reservation_active = 1
+                    )
+                    AND NOT EXISTS (
+                        SELECT 1
+                        FROM tbl_reservation_status rs4
+                        WHERE rs4.reservation_reservation_id = r.reservation_id
+                        AND rs4.reservation_status_status_id = 14
+                        AND rs4.reservation_active = 1
+                    )
+            ";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            $activeCount = isset($result['active_count']) ? (int)$result['active_count'] : 0;
+            
+            return json_encode([
+                'status' => 'success',
+                'has_active_requests' => $activeCount > 0,
+                'active_count' => $activeCount
+            ]);
+            
+        } catch (PDOException $e) {
+            error_log("Error in checkActiveRequests: " . $e->getMessage());
+            return json_encode([
+                'status' => 'error',
+                'message' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+    }
+    
+    /**
+     * @param array $approvalOrderIds - Array of approval order IDs to check
+     * @return array - ['hasActive' => bool, 'resourcesWithTransactions' => array]
+     */
+    private function checkApprovalOrderUsage($approvalOrderIds) {
+    try {
+        if (empty($approvalOrderIds) || !is_array($approvalOrderIds)) {
+            return ['hasActive' => false, 'resourcesWithTransactions' => []];
+        }
+
+        $resourcesWithTransactions = [];
+        
+        // Check if there are ANY active reservations in the system using the same logic as fetchRequestReservation
+        // Block approval order changes if any reservations are currently active
+        $sql = "
+            SELECT 
+                'approval_order' as resource_type,
+                'Active Reservations Found' as order_name,
+                COUNT(DISTINCT r.reservation_id) as active_count
+            FROM tbl_reservation r
+            LEFT JOIN (
+                SELECT rs1.*
+                FROM tbl_reservation_status rs1
+                INNER JOIN (
+                    SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_status_id
+                    FROM tbl_reservation_status
+                    GROUP BY reservation_reservation_id
+                ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id
+                AND rs1.reservation_status_id = rs2.max_status_id
+            ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+            WHERE
+                (
+                    -- Show status 1, 3, 7, 8, 10 (Pending, Approved, Admin Approved, Department Approval, Rescheduled)
+                    latest_status.reservation_status_status_id IN (1, 3, 7, 8, 10) 
+                    AND latest_status.reservation_active IN (0, 1)
+                )
+                OR 
+                (
+                    -- Show status 11 (Change Request) but exclude if it has cancelled or rescheduled statuses
+                    latest_status.reservation_status_status_id = 11 
+                    AND latest_status.reservation_active IN (0, 1)
+                    AND NOT EXISTS (
+                        SELECT 1 
+                        FROM tbl_reservation_status rs_check_final
+                        WHERE rs_check_final.reservation_reservation_id = r.reservation_id 
+                        AND rs_check_final.reservation_status_status_id IN (2, 14)
+                        AND rs_check_final.reservation_active = 1
+                    )
+                )
+                OR 
+                (
+                    -- Show status 6 (Completed) with active = 1 if it has a change request (status 11)
+                    latest_status.reservation_status_status_id = 6 
+                    AND latest_status.reservation_active = 1
+                    AND EXISTS (
+                        SELECT 1 
+                        FROM tbl_reservation_status rs_change_request
+                        WHERE rs_change_request.reservation_reservation_id = r.reservation_id 
+                        AND rs_change_request.reservation_status_status_id = 11
+                    )
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM tbl_reservation_status rs3
+                    WHERE rs3.reservation_reservation_id = r.reservation_id
+                    AND rs3.reservation_status_status_id = 2
+                    AND rs3.reservation_active = 1
+                )
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM tbl_reservation_status rs4
+                    WHERE rs4.reservation_reservation_id = r.reservation_id
+                    AND rs4.reservation_status_status_id = 14
+                    AND rs4.reservation_active = 1
+                )
+            HAVING active_count > 0
+        ";
+        
+        $stmt = $this->conn->prepare($sql);
+        // No parameters needed since we check all active reservations
+        $stmt->execute();
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        
+        foreach ($results as $row) {
+            if (isset($row['order_name']) && !empty($row['order_name'])) {
+                $resourcesWithTransactions[] = $row['order_name'];
+            }
+        }
+   
+        
+        return [
+            'hasActive' => count($resourcesWithTransactions) > 0,
+            'resourcesWithTransactions' => $resourcesWithTransactions
+        ];
+    } catch (PDOException $e) {
+        error_log("Error checking approval order usage: " . $e->getMessage());
+        return ['hasActive' => true, 'resourcesWithTransactions' => []]; // Assume usage to be safe
+    }
+}
+
+    /**
+     * Get all unit IDs for a given equipment ID
+     * @param int $equipmentId - The equipment ID
+     * @return array - Array of unit IDs
+     */
+    private function getEquipmentUnits($equipmentId) {
+        try {
+            $sql = "SELECT unit_id FROM tbl_equipment_unit WHERE unit_equipment_id = :equipment_id AND is_active = 1";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute([':equipment_id' => $equipmentId]);
+            $results = $stmt->fetchAll(PDO::FETCH_COLUMN);
+            return $results;
+        } catch (PDOException $e) {
+            error_log("Error getting equipment units: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * Check if resources have active transactions/reservations
+     * @param string $resourceType - 'venue', 'vehicle', 'equipment', or 'approval_order'
+     * @param array $resourceIds - Array of resource IDs to check
+     * @return array - ['hasActive' => bool, 'resourcesWithTransactions' => array]
+     */
+    private function checkActiveTransactions($resourceType, $resourceIds) {
+        try {
+            $resourcesWithTransactions = [];
+            $placeholders = implode(',', array_fill(0, count($resourceIds), '?'));
+            
+            // Inactive status IDs that indicate a reservation is no longer active
+            // Status 2: Cancelled
+            // Status 5: Declined  
+            // Status 4: Completed
+            $inactiveStatuses = [2, 5, 4];
+            
+            // Active reservation status IDs (all statuses except cancelled/declined/completed)
+            // Status 1: Pending Admin Approval
+            // Status 3: Pending Approval
+            // Status 6: Pending Assign
+            // Status 7: Admin Approved
+            // Status 8: Pending Department Approval
+            // Status 10: Rescheduled
+            // Status 11: Pending Reschedule
+            // Status 14: Reschedule Declined
+            //
+            // Note: Uses latest_status join to check CURRENT status, not historical statuses
+            // This ensures rescheduled reservations (that may have been cancelled before) are properly detected
+            $activeStatuses = [1, 3, 6, 7, 8, 10, 11, 14];
+            $statusPlaceholders = implode(',', array_fill(0, count($activeStatuses), '?'));
+            
+            switch ($resourceType) {
+                case 'venue':
+                    $sql = "
+                        SELECT DISTINCT 
+                            v.ven_id,
+                            v.ven_name,
+                            COUNT(DISTINCT r.reservation_id) as active_count
+                        FROM tbl_venue v
+                        INNER JOIN tbl_reservation_venue rv ON v.ven_id = rv.reservation_venue_venue_id
+                        INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                        INNER JOIN (
+                            SELECT rs1.*
+                            FROM tbl_reservation_status rs1
+                            INNER JOIN (
+                                SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                FROM tbl_reservation_status
+                                GROUP BY reservation_reservation_id
+                            ) mu ON rs1.reservation_reservation_id = mu.reservation_reservation_id
+                                 AND rs1.reservation_updated_at = mu.max_updated_at
+                            INNER JOIN (
+                                SELECT x.reservation_reservation_id, MAX(x.reservation_status_id) AS max_id
+                                FROM tbl_reservation_status x
+                                INNER JOIN (
+                                    SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                    FROM tbl_reservation_status
+                                    GROUP BY reservation_reservation_id
+                                ) y ON y.reservation_reservation_id = x.reservation_reservation_id
+                                   AND y.max_updated_at = x.reservation_updated_at
+                                GROUP BY x.reservation_reservation_id
+                            ) mid ON rs1.reservation_reservation_id = mid.reservation_reservation_id
+                                 AND rs1.reservation_status_id = mid.max_id
+                        ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                        WHERE v.ven_id IN ($placeholders)
+                          AND latest_status.reservation_status_status_id NOT IN (2, 5, 4)
+                        GROUP BY v.ven_id, v.ven_name
+                        HAVING active_count > 0
+                    ";
+                    break;
+                    
+                case 'vehicle':
+                    $sql = "
+                        SELECT DISTINCT 
+                            vh.vehicle_id,
+                            vh.vehicle_license,
+                            COUNT(DISTINCT r.reservation_id) as active_count
+                        FROM tbl_vehicle vh
+                        INNER JOIN tbl_reservation_vehicle rv ON vh.vehicle_id = rv.reservation_vehicle_vehicle_id
+                        INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
+                        INNER JOIN (
+                            SELECT rs1.*
+                            FROM tbl_reservation_status rs1
+                            INNER JOIN (
+                                SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                FROM tbl_reservation_status
+                                GROUP BY reservation_reservation_id
+                            ) mu ON rs1.reservation_reservation_id = mu.reservation_reservation_id
+                                 AND rs1.reservation_updated_at = mu.max_updated_at
+                            INNER JOIN (
+                                SELECT x.reservation_reservation_id, MAX(x.reservation_status_id) AS max_id
+                                FROM tbl_reservation_status x
+                                INNER JOIN (
+                                    SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                    FROM tbl_reservation_status
+                                    GROUP BY reservation_reservation_id
+                                ) y ON y.reservation_reservation_id = x.reservation_reservation_id
+                                   AND y.max_updated_at = x.reservation_updated_at
+                                GROUP BY x.reservation_reservation_id
+                            ) mid ON rs1.reservation_reservation_id = mid.reservation_reservation_id
+                                 AND rs1.reservation_status_id = mid.max_id
+                        ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                        WHERE vh.vehicle_id IN ($placeholders)
+                          AND latest_status.reservation_status_status_id NOT IN (2, 5, 4)
+                        GROUP BY vh.vehicle_id, vh.vehicle_license
+                        HAVING active_count > 0
+                    ";
+                    break;
+                    
+                case 'equipment':
+                    // Note: Equipment reservations are tracked at equipment level (equip_id), not unit level
+                    // Need to get all units for the equipment IDs being checked
+                    $sql = "
+                        SELECT DISTINCT 
+                            eu.unit_id,
+                            CONCAT(e.equip_name, ' (Unit #', eu.unit_id, ')') as equipment_name,
+                            COUNT(DISTINCT r.reservation_id) as active_count
+                        FROM tbl_equipment_unit eu
+                        INNER JOIN tbl_equipments e ON eu.equip_id = e.equip_id
+                        INNER JOIN tbl_reservation_equipment re ON e.equip_id = re.reservation_equipment_equip_id
+                        INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
+                        INNER JOIN (
+                            SELECT rs1.*
+                            FROM tbl_reservation_status rs1
+                            INNER JOIN (
+                                SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                FROM tbl_reservation_status
+                                GROUP BY reservation_reservation_id
+                            ) mu ON rs1.reservation_reservation_id = mu.reservation_reservation_id
+                                 AND rs1.reservation_updated_at = mu.max_updated_at
+                            INNER JOIN (
+                                SELECT x.reservation_reservation_id, MAX(x.reservation_status_id) AS max_id
+                                FROM tbl_reservation_status x
+                                INNER JOIN (
+                                    SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                    FROM tbl_reservation_status
+                                    GROUP BY reservation_reservation_id
+                                ) y ON y.reservation_reservation_id = x.reservation_reservation_id
+                                   AND y.max_updated_at = x.reservation_updated_at
+                                GROUP BY x.reservation_reservation_id
+                            ) mid ON rs1.reservation_reservation_id = mid.reservation_reservation_id
+                                 AND rs1.reservation_status_id = mid.max_id
+                        ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                        WHERE eu.unit_id IN ($placeholders)
+                          AND latest_status.reservation_status_status_id NOT IN (2, 5, 4)
+                        GROUP BY eu.unit_id, e.equip_name
+                        HAVING active_count > 0
+                    ";
+                    break;
+                    
+                case 'approval_order':
+                    // Check if there are ANY active reservations in the system
+                    // Block approval order changes if any reservations are currently active
+                    $sql = "
+                        SELECT 
+                            'approval_order' as resource_type,
+                            'Active Reservations Found' as order_name,
+                            COUNT(DISTINCT r.reservation_id) as active_count
+                        FROM tbl_reservation r
+                        INNER JOIN (
+                            SELECT rs1.*
+                            FROM tbl_reservation_status rs1
+                            INNER JOIN (
+                                SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                FROM tbl_reservation_status
+                                GROUP BY reservation_reservation_id
+                            ) mu ON rs1.reservation_reservation_id = mu.reservation_reservation_id
+                                 AND rs1.reservation_updated_at = mu.max_updated_at
+                            INNER JOIN (
+                                SELECT x.reservation_reservation_id, MAX(x.reservation_status_id) AS max_id
+                                FROM tbl_reservation_status x
+                                INNER JOIN (
+                                    SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                    FROM tbl_reservation_status
+                                    GROUP BY reservation_reservation_id
+                                ) y ON y.reservation_reservation_id = x.reservation_reservation_id
+                                   AND y.max_updated_at = x.reservation_updated_at
+                                GROUP BY x.reservation_reservation_id
+                            ) mid ON rs1.reservation_reservation_id = mid.reservation_reservation_id
+                                 AND rs1.reservation_status_id = mid.max_id
+                        ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                        WHERE latest_status.reservation_status_status_id NOT IN (2, 5, 4)
+                        HAVING active_count > 0
+                    ";
+                    break;
+                    
+                case 'user':
+                    // Check if user has any active reservations (excluding statuses 2, 5, 4)
+                    // Status 2: Cancelled, Status 5: Declined, Status 4: Completed
+                    $sql = "
+                        SELECT DISTINCT 
+                            u.users_id,
+                            CONCAT(u.users_fname, ' ', u.users_lname) as user_name,
+                            COUNT(DISTINCT r.reservation_id) as active_count
+                        FROM tbl_users u
+                        INNER JOIN tbl_reservation r ON u.users_id = r.reservation_user_id
+                        INNER JOIN (
+                            SELECT rs1.*
+                            FROM tbl_reservation_status rs1
+                            INNER JOIN (
+                                SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                FROM tbl_reservation_status
+                                GROUP BY reservation_reservation_id
+                            ) mu ON rs1.reservation_reservation_id = mu.reservation_reservation_id
+                                 AND rs1.reservation_updated_at = mu.max_updated_at
+                            INNER JOIN (
+                                SELECT x.reservation_reservation_id, MAX(x.reservation_status_id) AS max_id
+                                FROM tbl_reservation_status x
+                                INNER JOIN (
+                                    SELECT reservation_reservation_id, MAX(reservation_updated_at) AS max_updated_at
+                                    FROM tbl_reservation_status
+                                    GROUP BY reservation_reservation_id
+                                ) y ON y.reservation_reservation_id = x.reservation_reservation_id
+                                   AND y.max_updated_at = x.reservation_updated_at
+                                GROUP BY x.reservation_reservation_id
+                            ) mid ON rs1.reservation_reservation_id = mid.reservation_reservation_id
+                                 AND rs1.reservation_status_id = mid.max_id
+                        ) latest_status ON latest_status.reservation_reservation_id = r.reservation_id
+                        WHERE u.users_id IN ($placeholders)
+                          AND latest_status.reservation_status_status_id NOT IN (2, 5, 4)
+                        GROUP BY u.users_id, u.users_fname, u.users_lname
+                        HAVING active_count > 0
+                    ";
+                    break;
+                    
+                default:
+                    return ['hasActive' => false, 'resourcesWithTransactions' => []];
+            }
+            
+            // Execute query - using latest_status join for proper status filtering
+            $stmt = $this->conn->prepare($sql);
+            // For approval_order, we don't need parameters since we check all reservations
+            if ($resourceType === 'approval_order') {
+                $stmt->execute();
+                error_log("Approval Order Check - Checking for ANY active reservations in system");
+            } else {
+                $stmt->execute($resourceIds);
+            }
+            $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            // Debug logging for approval_order
+            if ($resourceType === 'approval_order') {
+                error_log("Approval Order Check - Query returned " . count($results) . " result(s)");
+                error_log("Approval Order Check - Results: " . print_r($results, true));
+            }
+            
+            foreach ($results as $row) {
+                switch ($resourceType) {
+                    case 'venue':
+                        $resourcesWithTransactions[] = $row['ven_name'];
+                        break;
+                    case 'vehicle':
+                        $resourcesWithTransactions[] = $row['vehicle_license'];
+                        break;
+                    case 'equipment':
+                        $resourcesWithTransactions[] = $row['equipment_name'];
+                        break;
+                    case 'approval_order':
+                        $resourcesWithTransactions[] = $row['order_name'];
+                        break;
+                    case 'user':
+                        $resourcesWithTransactions[] = $row['user_name'];
+                        break;
+                }
+            }
+            
+            $hasActive = count($resourcesWithTransactions) > 0;
+            
+            // Debug logging for approval_order
+            if ($resourceType === 'approval_order') {
+                error_log("Approval Order Check - Final hasActive: " . ($hasActive ? 'true' : 'false'));
+                error_log("Approval Order Check - Resources with transactions: " . print_r($resourcesWithTransactions, true));
+            }
+            
+            return [
+                'hasActive' => $hasActive,
+                'resourcesWithTransactions' => $resourcesWithTransactions
+            ];
+            
+        } catch (PDOException $e) {
+            error_log("Error checking active transactions: " . $e->getMessage());
+            // On error, be conservative and block the operation
+            return [
+                'hasActive' => true,
+                'resourcesWithTransactions' => ['Error checking transactions - operation blocked for safety']
+            ];
+        }
+    }
+
+    // ======================== School Year & Semester Management ========================
+    
+    /**
+     * Fetch all school years
+     */
+    public function fetchSchoolYears() {
+        try {
+            $sql = "SELECT school_year_id, school_year_name, created_at 
+                    FROM tbl_school_year 
+                    ORDER BY school_year_id DESC";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Fetch semesters by school year (or all if no school_year_id provided)
+     */
+    public function fetchSemesters($schoolYearId = null) {
+        try {
+            if ($schoolYearId) {
+                $sql = "SELECT s.semester_id, s.school_year_id, s.semester_name, s.created_at, s.is_active,
+                               sy.school_year_name
+                        FROM tbl_semester s
+                        LEFT JOIN tbl_school_year sy ON s.school_year_id = sy.school_year_id
+                        WHERE s.school_year_id = :school_year_id
+                        ORDER BY s.semester_id DESC";
+                $stmt = $this->conn->prepare($sql);
+                $stmt->bindParam(':school_year_id', $schoolYearId, PDO::PARAM_INT);
+            } else {
+                $sql = "SELECT s.semester_id, s.school_year_id, s.semester_name, s.created_at, s.is_active,
+                               sy.school_year_name
+                        FROM tbl_semester s
+                        LEFT JOIN tbl_school_year sy ON s.school_year_id = sy.school_year_id
+                        ORDER BY s.school_year_id DESC, s.semester_id DESC";
+                $stmt = $this->conn->prepare($sql);
+            }
+            
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Get the active semester
+     */
+    public function getActiveSemester() {
+        try {
+            $sql = "SELECT s.semester_id, s.school_year_id, s.semester_name, s.created_at, s.is_active,
+                           sy.school_year_name
+                    FROM tbl_semester s
+                    LEFT JOIN tbl_school_year sy ON s.school_year_id = sy.school_year_id
+                    WHERE s.is_active = 1
+                    LIMIT 1";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($result) {
+                return json_encode(['status' => 'success', 'data' => $result, 'hasActive' => true]);
+            } else {
+                return json_encode(['status' => 'success', 'data' => null, 'hasActive' => false]);
+            }
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Set active semester (only one can be active at a time)
+     */
+    public function setActiveSemester($semesterId) {
+        try {
+            $this->conn->beginTransaction();
+            
+            // First, deactivate all semesters
+            $sqlDeactivate = "UPDATE tbl_semester SET is_active = 0";
+            $stmtDeactivate = $this->conn->prepare($sqlDeactivate);
+            $stmtDeactivate->execute();
+            
+            // Then, activate the selected semester
+            $sqlActivate = "UPDATE tbl_semester SET is_active = 1 WHERE semester_id = :semester_id";
+            $stmtActivate = $this->conn->prepare($sqlActivate);
+            $stmtActivate->bindParam(':semester_id', $semesterId, PDO::PARAM_INT);
+            $stmtActivate->execute();
+            
+            if ($stmtActivate->rowCount() === 0) {
+                $this->conn->rollBack();
+                return json_encode(['status' => 'error', 'message' => 'Semester not found']);
+            }
+            
+            $this->conn->commit();
+            
+            // Fetch the newly activated semester
+            return $this->getActiveSemester();
+            
+        } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Add a new school year
+     */
+    public function addSchoolYear($schoolYearName) {
+        try {
+            // Check for duplicate
+            $sqlCheck = "SELECT COUNT(*) as count FROM tbl_school_year WHERE school_year_name = :school_year_name";
+            $stmtCheck = $this->conn->prepare($sqlCheck);
+            $stmtCheck->bindParam(':school_year_name', $schoolYearName, PDO::PARAM_STR);
+            $stmtCheck->execute();
+            $checkResult = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            
+            if ($checkResult['count'] > 0) {
+                return json_encode(['status' => 'error', 'message' => 'School year already exists']);
+            }
+            
+            $sql = "INSERT INTO tbl_school_year (school_year_name, created_at) 
+                    VALUES (:school_year_name, NOW())";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':school_year_name', $schoolYearName, PDO::PARAM_STR);
+            $stmt->execute();
+            
+            return json_encode(['status' => 'success', 'message' => 'School year added successfully']);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Add a new semester
+     */
+    public function addSemester($schoolYearId, $semesterName) {
+        try {
+            // Check for duplicate
+            $sqlCheck = "SELECT COUNT(*) as count FROM tbl_semester 
+                        WHERE school_year_id = :school_year_id AND semester_name = :semester_name";
+            $stmtCheck = $this->conn->prepare($sqlCheck);
+            $stmtCheck->bindParam(':school_year_id', $schoolYearId, PDO::PARAM_INT);
+            $stmtCheck->bindParam(':semester_name', $semesterName, PDO::PARAM_STR);
+            $stmtCheck->execute();
+            $checkResult = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            
+            if ($checkResult['count'] > 0) {
+                return json_encode(['status' => 'error', 'message' => 'Semester already exists for this school year']);
+            }
+            
+            $sql = "INSERT INTO tbl_semester (school_year_id, semester_name, created_at, is_active) 
+                    VALUES (:school_year_id, :semester_name, NOW(), 0)";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':school_year_id', $schoolYearId, PDO::PARAM_INT);
+            $stmt->bindParam(':semester_name', $semesterName, PDO::PARAM_STR);
+            $stmt->execute();
+            
+            return json_encode(['status' => 'success', 'message' => 'Semester added successfully']);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    // ======================== Academic Session Management ========================
+    
+    /**
+     * Fetch all academic sessions with school year and semester details
+     */
+    public function fetchAcademicSessions() {
+        try {
+            $sql = "SELECT 
+                        acs.academic_session_id,
+                        acs.school_year_id,
+                        acs.semester_id,
+                        acs.is_active,
+                        acs.created_at,
+                        acs.updated_at,
+                        sy.school_year_name,
+                        s.semester_name
+                    FROM tbl_academic_session acs
+                    INNER JOIN tbl_school_year sy ON acs.school_year_id = sy.school_year_id
+                    INNER JOIN tbl_semester s ON acs.semester_id = s.semester_id
+                    ORDER BY acs.academic_session_id DESC";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetchAll(PDO::FETCH_ASSOC);
+            
+            return json_encode(['status' => 'success', 'data' => $result]);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Get the active academic session
+     */
+    public function getActiveAcademicSession() {
+        try {
+            $sql = "SELECT 
+                        acs.academic_session_id,
+                        acs.school_year_id,
+                        acs.semester_id,
+                        acs.is_active,
+                        acs.created_at,
+                        acs.updated_at,
+                        sy.school_year_name,
+                        s.semester_name
+                    FROM tbl_academic_session acs
+                    INNER JOIN tbl_school_year sy ON acs.school_year_id = sy.school_year_id
+                    INNER JOIN tbl_semester s ON acs.semester_id = s.semester_id
+                    WHERE acs.is_active = 1
+                    LIMIT 1";
+            
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            
+            if ($result) {
+                return json_encode(['status' => 'success', 'data' => $result, 'hasActive' => true]);
+            } else {
+                return json_encode(['status' => 'success', 'data' => null, 'hasActive' => false]);
+            }
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Set active academic session (only one can be active at a time)
+     */
+    public function setActiveAcademicSession($academicSessionId) {
+        try {
+            $this->conn->beginTransaction();
+            
+            // First, deactivate all academic sessions
+            $sqlDeactivate = "UPDATE tbl_academic_session SET is_active = 0, updated_at = NOW()";
+            $stmtDeactivate = $this->conn->prepare($sqlDeactivate);
+            $stmtDeactivate->execute();
+            
+            // Then, activate the selected academic session
+            $sqlActivate = "UPDATE tbl_academic_session 
+                           SET is_active = 1, updated_at = NOW() 
+                           WHERE academic_session_id = :academic_session_id";
+            $stmtActivate = $this->conn->prepare($sqlActivate);
+            $stmtActivate->bindParam(':academic_session_id', $academicSessionId, PDO::PARAM_INT);
+            $stmtActivate->execute();
+            
+            if ($stmtActivate->rowCount() === 0) {
+                $this->conn->rollBack();
+                return json_encode(['status' => 'error', 'message' => 'Academic session not found']);
+            }
+            
+            $this->conn->commit();
+            
+            // Fetch the newly activated academic session
+            return $this->getActiveAcademicSession();
+            
+        } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Create a new academic session
+     */
+    public function createAcademicSession($schoolYearId, $semesterId) {
+        try {
+            // Check for duplicate
+            $sqlCheck = "SELECT COUNT(*) as count FROM tbl_academic_session 
+                        WHERE school_year_id = :school_year_id AND semester_id = :semester_id";
+            $stmtCheck = $this->conn->prepare($sqlCheck);
+            $stmtCheck->bindParam(':school_year_id', $schoolYearId, PDO::PARAM_INT);
+            $stmtCheck->bindParam(':semester_id', $semesterId, PDO::PARAM_INT);
+            $stmtCheck->execute();
+            $checkResult = $stmtCheck->fetch(PDO::FETCH_ASSOC);
+            
+            if ($checkResult['count'] > 0) {
+                return json_encode(['status' => 'error', 'message' => 'Academic session already exists for this school year and semester']);
+            }
+            
+            $sql = "INSERT INTO tbl_academic_session (school_year_id, semester_id, is_active, created_at, updated_at) 
+                    VALUES (:school_year_id, :semester_id, 0, NOW(), NOW())";
+            $stmt = $this->conn->prepare($sql);
+            $stmt->bindParam(':school_year_id', $schoolYearId, PDO::PARAM_INT);
+            $stmt->bindParam(':semester_id', $semesterId, PDO::PARAM_INT);
+            $stmt->execute();
+            
+            return json_encode(['status' => 'success', 'message' => 'Academic session created successfully']);
+        } catch (PDOException $e) {
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+     function getLocationCategory()
+    {
+        include "connection-pdo.php";
+        $sql = "SELECT * FROM tbllocationcategory ORDER BY locCateg_name";
+        $stmt = $conn->prepare($sql);
+        $returnValue = 0;
+        if ($stmt->execute()) {
+            if ($stmt->rowCount() > 0) {
+                $rs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $returnValue = json_encode($rs);
+            }
+        }
+        return $returnValue;
+    }
+
+    function getAllLocation()
+    {
+        include "connection-pdo.php";
+        $sql = "SELECT * FROM tbllocation ORDER BY location_id";
+        $stmt = $conn->prepare($sql);
+        $returnValue = 0;
+        if ($stmt->execute()) {
+            if ($stmt->rowCount() > 0) {
+                $rs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                $returnValue = json_encode($rs);
+            }
+        }
+        return $returnValue;
+    }
+
+    public function getAllTickets() {
+        try {
+            $sql = "SELECT 
+                    a.comp_id,
+                    a.comp_subject,
+                    a.comp_clientId,
+                    a.comp_locationId,
+                    a.comp_locationCategoryId,
+                    a.comp_description,
+                    a.comp_date,
+                    a.comp_end_date,
+                    a.comp_image,
+                    a.comp_date_closed,
+                    a.comp_closedBy,
+                    a.comp_operation,
+                    a.comp_lastUser,
+                    a.comp_remark,
+                    b.joStatus_name as comp_status, 
+                    CONCAT_WS(' ', c.users_fname, c.users_mname, c.users_lname) as client_full_name,
+                    loc.location_name, 
+                    locCateg.locCateg_name,
+                    latest_status.history_statusId,
+                    latest_status.history_date as status_date,
+                    latest_status.history_updatedBy,
+                    op.operation_name,
+                    CONCAT_WS(' ', closedByUser.users_fname, closedByUser.users_mname, closedByUser.users_lname) as closed_by_full_name,
+                    CONCAT_WS(' ', lastUser.users_fname, lastUser.users_mname, lastUser.users_lname) as last_user_full_name,
+                    joAgg.priority_name,
+                    joAgg.assigned_personnel,
+                    joAgg.job_image
+                    FROM tblcomplaints as a 
+                    LEFT JOIN (
+                        SELECT h1.*
+                        FROM tblcomplaint_status_history h1
+                        INNER JOIN (
+                            SELECT history_compId, MAX(history_id) as max_history_id
+                            FROM tblcomplaint_status_history
+                            GROUP BY history_compId
+                        ) h2 ON h1.history_compId = h2.history_compId 
+                        AND h1.history_id = h2.max_history_id
+                    ) latest_status ON a.comp_id = latest_status.history_compId
+                    LEFT JOIN tbljoborderstatus as b ON latest_status.history_statusId = b.joStatus_id 
+                    LEFT JOIN tbl_users as c ON a.comp_clientId = c.users_id 
+                    LEFT JOIN tbllocation as loc ON a.comp_locationId = loc.location_id
+                    LEFT JOIN tbllocationcategory as locCateg ON a.comp_locationCategoryId = locCateg.locCateg_id
+                    LEFT JOIN tbloperation as op ON a.comp_operation = op.operation_id
+                    LEFT JOIN tbl_users as closedByUser ON a.comp_closedBy = closedByUser.users_id
+                    LEFT JOIN tbl_users as lastUser ON a.comp_lastUser = lastUser.users_id
+                    LEFT JOIN (
+                        SELECT 
+                            jo.job_complaintId AS comp_id,
+                            MAX(p.priority_name) AS priority_name,
+                            GROUP_CONCAT(DISTINCT TRIM(CONCAT_WS(' ', u.users_fname, u.users_mname, u.users_lname)) SEPARATOR ', ') AS assigned_personnel,
+                            MAX(jo.job_image) AS job_image
+                        FROM tbljoborders jo
+                        LEFT JOIN tblpriority p ON p.priority_id = jo.job_priority
+                        LEFT JOIN tbljoborderpersonnel jop ON jop.joPersonnel_joId = jo.job_id
+                        LEFT JOIN tbl_users u ON u.users_id = jop.joPersonnel_userId
+                        GROUP BY jo.job_complaintId
+                    ) joAgg ON joAgg.comp_id = a.comp_id
+                    ORDER BY a.comp_id DESC";
+
+            $stmt = $this->conn->prepare($sql);
+            $stmt->execute();
+
+            if ($stmt->rowCount() > 0) {
+                $rs = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                return json_encode(['status' => 'success', 'data' => $rs]);
+            } else {
+                return json_encode(['status' => 'success', 'data' => []]);
+            }
+        } catch (PDOException $e) {
+            error_log("Error in getAllTickets: " . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        } catch (Exception $e) {
+            error_log("General error in getAllTickets: " . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Error: ' . $e->getMessage()]);
         }
     }
 
@@ -4497,6 +8116,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $operation = $input['operation'] ?? '';   
     $user = new User();   
     switch ($operation) {
+        case "getAllLocation":
+            echo $user->getAllLocation();
+            break;
+
+         case "getLocationCategory":
+            echo $user->getLocationCategory();
+            break;
 
         case 'fetchInactiveUser':
             echo $user->fetchInactiveUser();
@@ -4512,6 +8138,85 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         case 'fetchEquipmentAndInactiveUnits':
             echo $user->fetchEquipmentAndInactiveUnits();
+            break;
+
+        case 'fetchInactiveEquipmentUnits':
+            echo $user->fetchInactiveEquipmentUnits();
+            break;
+
+        case 'fetchInactiveVehicleMake':
+            echo $user->fetchInactiveVehicleMake();
+            break;
+
+        case 'fetchInactiveVehicleCategory':
+            echo $user->fetchInactiveVehicleCategory();
+            break;
+
+        case 'fetchInactiveVehicleModel':
+            echo $user->fetchInactiveVehicleModel();
+            break;
+
+        case 'fetchInactiveEquipmentCategory':
+            echo $user->fetchInactiveEquipmentCategory();
+            break;
+
+        case 'fetchInactiveDepartment':
+            echo $user->fetchInactiveDepartment();
+            break;
+
+        case 'fetchInactiveHoliday':
+            echo $user->fetchInactiveHoliday();
+            break;
+
+        case 'archiveCatalogItem':
+            $itemType = $input['itemType'] ?? ($_POST['itemType'] ?? null);
+            $itemId = $input['itemId'] ?? ($_POST['itemId'] ?? null);
+            $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
+            
+            if ($itemType && $itemId) {
+                error_log("route archiveCatalogItem - Type: $itemType, ID: " . print_r($itemId, true) . ", User: " . ($userId ?? 'null'));
+                echo $user->archiveCatalogItem($itemType, $itemId, $userId);
+            } else {
+                error_log('Archive catalog item failed - Missing parameters. Input: ' . print_r($input, true));
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters. itemType and itemId are required.']);
+            }
+            break;
+
+        case 'unarchiveCatalogItem':
+            $itemType = $input['itemType'] ?? ($_POST['itemType'] ?? null);
+            $itemId = $input['itemId'] ?? ($_POST['itemId'] ?? null);
+            $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
+            
+            if ($itemType && $itemId) {
+                error_log("route unarchiveCatalogItem - Type: $itemType, ID: " . print_r($itemId, true) . ", User: " . ($userId ?? 'null'));
+                echo $user->unarchiveCatalogItem($itemType, $itemId, $userId);
+            } else {
+                error_log('Unarchive catalog item failed - Missing parameters. Input: ' . print_r($input, true));
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters. itemType and itemId are required.']);
+            }
+            break;
+
+        case 'deactivateResource':
+            // Deactivate equipment units (serialize=true) or equipment master
+            $resourceType = $input['resourceType'] ?? ($_POST['resourceType'] ?? null);
+            $resourceId = $input['resourceId'] ?? ($_POST['resourceId'] ?? null);
+            $is_serialize = $input['is_serialize'] ?? ($_POST['is_serialize'] ?? false);
+            $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
+            
+            if ($resourceType && $resourceId) {
+                error_log("route deactivateResource - Type: $resourceType, ID: " . print_r($resourceId, true) . ", Serialize: " . ($is_serialize ? 'true' : 'false') . ", User: " . ($userId ?? 'null'));
+                
+                // If it's equipment with serialize flag, deactivate units
+                if ($resourceType === 'equipment' && $is_serialize) {
+                    echo $user->deactivateEquipmentUnits($resourceId, $userId);
+                } else {
+                    // Otherwise use regular archive (for equipment master)
+                    echo $user->archiveResource($resourceType, $resourceId, $is_serialize, $userId);
+                }
+            } else {
+                error_log('Deactivate resource failed - Missing parameters. Input: ' . print_r($input, true));
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters. resourceType and resourceId are required.']);
+            }
             break;
 
         case 'archiveResource':
@@ -4530,6 +8235,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
             
+        case 'reactivateResource':
+            // Reactivate equipment units (serialize=true) or equipment master
+            $resourceType = $input['resourceType'] ?? ($_POST['resourceType'] ?? null);
+            $resourceId = $input['resourceId'] ?? ($_POST['resourceId'] ?? null);
+            $is_serialize = $input['is_serialize'] ?? ($_POST['is_serialize'] ?? false);
+            $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
+            
+            if ($resourceType && $resourceId) {
+                error_log("route reactivateResource - Type: $resourceType, ID: " . print_r($resourceId, true) . ", Serialize: " . ($is_serialize ? 'true' : 'false') . ", User: " . ($userId ?? 'null'));
+                
+                // If it's equipment with serialize flag, reactivate units
+                if ($resourceType === 'equipment' && $is_serialize) {
+                    echo $user->reactivateEquipmentUnits($resourceId, $userId);
+                } else {
+                    // Otherwise use regular unarchive (for equipment master)
+                    echo $user->unarchiveResource($resourceType, $resourceId, $is_serialize, $userId);
+                }
+            } else {
+                error_log('Reactivate resource failed - Missing parameters. Input: ' . print_r($input, true));
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters. resourceType and resourceId are required.']);
+            }
+            break;
+
         case 'unarchiveResource':
             // Get data from JSON input or fall back to $_POST
             $resourceType = $input['resourceType'] ?? ($_POST['resourceType'] ?? null);
@@ -4583,6 +8311,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $userId = $input['user_id'] ?? null;
                 $notificationMessage = $input['notification_message'] ?? '';
                 $notificationUserId = $input['notification_user_id'] ?? null;
+                $declineReason = $input['decline_reason'] ?? null;
                 if ($reservationId === null) {
                     echo json_encode(['status' => 'error', 'message' => 'Reservation ID is required']);
                     break;
@@ -4591,7 +8320,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     echo json_encode(['status' => 'error', 'message' => 'User ID is required']);
                     break;
                 }
-                echo $user->handleRequest($reservationId, $isAccepted, $userId, $notificationMessage, $notificationUserId);
+                echo $user->handleRequest($reservationId, $isAccepted, $userId, $notificationMessage, $notificationUserId, $declineReason);
                 break;
         case "fetchEquipmentCategoryById": // Fetch equipment category by ID
             $equipmentId = $input['id'] ?? ($_POST['id'] ?? null);
@@ -4643,6 +8372,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             break;
 
+        case "mark_messages_read":
+            $userId = $input['user_id'] ?? ($_POST['user_id'] ?? null);
+            $otherUserId = $input['other_user_id'] ?? ($_POST['other_user_id'] ?? null);
+            if ($userId && $otherUserId) {
+                echo $user->markMessagesAsRead($userId, $otherUserId);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'user_id and other_user_id parameters are required']);
+            }
+            break;
+
+        case "get_unread_count":
+            $userId = $input['user_id'] ?? ($_POST['user_id'] ?? null);
+            if ($userId) {
+                echo $user->getUnreadCount($userId);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'user_id parameter is missing']);
+            }
+            break;
+
         case "fetchVenueById":
             $venueId = $input['id'] ?? ($_POST['id'] ?? null);
             if ($venueId) {
@@ -4673,6 +8421,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         case "fetchMake":
             echo $user->fetchMake();
+            break;
+        case "fetchDriverRestrictionCodes":
+            echo $user->fetchDriverRestrictionCodes();
+            break;
+        case "fetchDriverRestrictions":
+            $userId = $input['user_id'] ?? null;
+            if ($userId === null) {
+                echo json_encode(['status' => 'error', 'message' => 'User ID is required']);
+                break;
+            }
+            echo $user->fetchDriverRestrictions($userId);
+            break;
+        case "saveDriverRestrictions":
+            $userId = $input['user_id'] ?? null;
+            $restrictionIds = $input['restriction_ids'] ?? [];
+            $updatedBy = $input['updated_by'] ?? null;
+            
+            if ($userId === null) {
+                echo json_encode(['status' => 'error', 'message' => 'User ID is required']);
+                break;
+            }
+            if ($updatedBy === null) {
+                echo json_encode(['status' => 'error', 'message' => 'Updated by user ID is required']);
+                break;
+            }
+            
+            echo $user->saveDriverRestrictions($userId, $restrictionIds, $updatedBy);
             break;
         case "fetchRecord":
             echo $user->fetchRecord();
@@ -4706,12 +8481,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case "insertDriver":
             $reservation_driver_user_id = $input['reservation_driver_user_id'] ?? null;
             $reservation_vehicle_id = $input['reservation_vehicle_id'] ?? null;
-            echo $user->insertDriver($reservation_driver_user_id, $reservation_vehicle_id);
+            $driver_name = $input['driver_name'] ?? null;
+            $reservation_driver_id = $input['reservation_driver_id'] ?? null;
+            
+         
+            
+            echo $user->insertDriver($reservation_driver_user_id, $reservation_vehicle_id, $driver_name, $reservation_driver_id);
             break;
 
         case "saveHoliday":
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route saveHoliday userId=" . var_export($userId, true));
+            
             echo $user->saveHoliday($input, $userId);
             break;
          
@@ -4774,7 +8554,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route updateHoliday userId=" . var_export($userId, true));
+          
             echo $user->updateHoliday($holidayId, $holidayName, $holidayDate, $userId);
             break;
         
@@ -4806,6 +8586,40 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case "fetchVenue": 
             echo $user->fetchVenue();
+            break;
+        case "fetchVenueBuildings": 
+            echo $user->fetchVenueBuildings();
+            break;
+        case "fetchInactiveBuilding":
+            echo $user->fetchInactiveBuilding();
+            break;
+        case "fetchBuildingById":
+            $id = $_POST['id'] ?? null;
+            if ($id) {
+                echo $user->fetchBuildingById($id);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Building ID is required']);
+            }
+            break;
+        case "saveBuilding":
+            echo $user->saveBuilding($input);
+            break;
+        case "updateBuilding":
+            echo $user->updateBuilding($input);
+            break;
+        case "buildingExists":
+            $buildingName = $input['building_name'] ?? '';
+            $exists = $user->buildingExists($buildingName);
+            echo json_encode(['status' => 'success', 'exists' => $exists]);
+            break;
+        case "archiveBuilding":
+            $buildingIds = $input['building_ids'] ?? null;
+            $userId = $input['user_id'] ?? null;
+            if ($buildingIds && $userId) {
+                echo $user->archiveBuilding($buildingIds, $userId);
+            } else {
+                echo json_encode(['status' => 'error', 'message' => 'Building IDs and User ID are required']);
+            }
             break;
         case "fetchCategories": 
             echo $user->fetchCategories();
@@ -4856,7 +8670,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $startDateTime = $input['startDateTime'] ?? null;
             $endDateTime = $input['endDateTime'] ?? null;   
             $userId = $input['userId'] ?? null;
-            echo $user->fetchDriver($startDateTime, $endDateTime, $userId);
+            $reservationId = $input['reservationId'] ?? null;
+            $restrictionIds = $input['restrictionIds'] ?? null;
+            echo $user->fetchDriver($startDateTime, $endDateTime, $userId, $reservationId, $restrictionIds);
             break;
         
         case "fetchAllReservations":
@@ -4892,7 +8708,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo $user->countReservationTrends();
             break;
         case "countTrendReservations":
-            echo $user->countTrendReservations();
+            $year = $input['year'] ?? null;
+            echo $user->countTrendReservations($year);
             break;
         case "countCompletedAndCancelledReservations":
             echo $user->countCompletedAndCancelledReservations();
@@ -4910,17 +8727,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         
         case "saveModelData":
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route saveModelData userId=" . var_export($userId, true));
             echo $user->saveModelData($input, $userId);
             break;
         case "saveMakeData":
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route saveMakeData userId=" . var_export($userId, true));
             echo $user->saveMakeData($input, $userId);
             break;
         case "saveEquipmentCategory":
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route saveEquipmentCategory userId=" . var_export($userId, true));
             echo $user->saveEquipmentCategory($input, $userId);
             break;
         case "saveDepartmentData":
@@ -4929,7 +8743,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             break;
         case "saveCategoryData":
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route saveCategoryData userId=" . var_export($userId, true));
             echo $user->saveCategoryData($input, $userId);
             break;
 
@@ -4956,14 +8769,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route updateVehicleCategory userId=" . var_export($userId, true));
             echo $user->updateVehicleCategory($id, $name, $userId);
             break;
 
         case "updateVehicleModel":
             if (isset($input['modelData'])) {
                 $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-                error_log("route updateVehicleModel userId=" . var_export($userId, true));
                 echo $user->updateVehicleModel($input['modelData'], $userId);
             } else {
                 echo json_encode(['status' => 'error', 'message' => 'Missing modelData']);
@@ -4984,7 +8795,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 break;
             }
             $userId = $input['userid'] ?? ($_POST['userid'] ?? null);
-            error_log("route updateEquipmentCategory userId=" . var_export($userId, true));
             echo $user->updateEquipmentCategory($categoryData, $userId);
             break;
         
@@ -5021,8 +8831,213 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         case "fetchVenues":
             echo $user->fetchVenues();
             break;
+        case "fetchLocationCategory":
+            echo $user->fetchLocationCategory();
+            break;
+
+        case "fetchLocation":
+            echo $user->fetchLocation();
+            break;
+
+        case "updateLocation":
+            $data = $input ?? [];
+            // Validate minimal fields
+            if (!isset($data['location_id']) || !isset($data['location_name'])) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters: location_id and location_name']);
+                break;
+            }
+            echo $user->updateLocation($data);
+            break;
+
+        case "createLocation":
+            $data = $input ?? [];
+            echo $user->createLocation($data);
+            break;
         case "fetchVehicles":
             echo $user->fetchVehicles();
+            break;
+
+        // Approval Order Management Operations
+        case "fetchApprovalOrders":
+            echo $user->fetchApprovalOrders();
+            break;
+
+        case "fetchAdmin":
+            echo $user->fetchAdmin();
+            break;
+
+        case "addApprovalOrder":
+            $usersId = $input['users_id'] ?? null;
+            $approvalSequence = $input['approval_sequence'] ?? null;
+            
+            if (!$usersId || !$approvalSequence) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters: users_id and approval_sequence']);
+                break;
+            }
+            
+            echo $user->addApprovalOrder($usersId, $approvalSequence);
+            break;
+
+        case "updateApprovalOrder":
+            $approvalOrderId = $input['approval_order_id'] ?? null;
+            $usersId = $input['users_id'] ?? null;
+            $approvalSequence = $input['approval_sequence'] ?? null;
+            
+            if (!$approvalOrderId || !$usersId || !$approvalSequence) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters: approval_order_id, users_id, and approval_sequence']);
+                break;
+            }
+            
+            echo $user->updateApprovalOrder($approvalOrderId, $usersId, $approvalSequence);
+            break;
+
+        case "deleteApprovalOrder":
+            $approvalOrderId = $input['approval_order_id'] ?? null;
+            
+            if (!$approvalOrderId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameter: approval_order_id']);
+                break;
+            }
+            
+            echo $user->deleteApprovalOrder($approvalOrderId);
+            break;
+
+        case "updateAllApprovalOrders":
+            $approvalOrders = $input['approval_orders'] ?? [];
+            
+            // Validate that approval_orders is an array
+            if (!is_array($approvalOrders)) {
+                echo json_encode(['status' => 'error', 'message' => 'approval_orders must be an array']);
+                break;
+            }
+            
+            echo $user->updateAllApprovalOrders($approvalOrders);
+            break;
+
+        case "deleteAllApprovalOrders":
+            echo $user->deleteAllApprovalOrders();
+            break;
+
+        case "checkActiveRequests":
+            echo $user->checkActiveRequests();
+            break;
+
+        // School Year & Semester Management Operations
+        case "fetchSchoolYears":
+            echo $user->fetchSchoolYears();
+            break;
+
+        case "fetchSemesters":
+            $schoolYearId = $input['school_year_id'] ?? null;
+            echo $user->fetchSemesters($schoolYearId);
+            break;
+
+        case "getActiveSemester":
+            echo $user->getActiveSemester();
+            break;
+
+        case "setActiveSemester":
+            $semesterId = $input['semester_id'] ?? null;
+            
+            if (!$semesterId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameter: semester_id']);
+                break;
+            }
+            
+            echo $user->setActiveSemester($semesterId);
+            break;
+
+        case "addSchoolYear":
+            $schoolYearName = $input['school_year_name'] ?? null;
+            
+            if (!$schoolYearName || trim($schoolYearName) === '') {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameter: school_year_name']);
+                break;
+            }
+            
+            echo $user->addSchoolYear(trim($schoolYearName));
+            break;
+
+        case "addSemester":
+            $schoolYearId = $input['school_year_id'] ?? null;
+            $semesterName = $input['semester_name'] ?? null;
+            
+            if (!$schoolYearId || !$semesterName || trim($semesterName) === '') {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters: school_year_id and semester_name']);
+                break;
+            }
+            
+            echo $user->addSemester($schoolYearId, trim($semesterName));
+            break;
+
+        // Academic Session Management Operations
+        case "fetchAcademicSessions":
+            echo $user->fetchAcademicSessions();
+            break;
+
+        case "getActiveAcademicSession":
+            echo $user->getActiveAcademicSession();
+            break;
+
+        case "setActiveAcademicSession":
+            $academicSessionId = $input['academic_session_id'] ?? null;
+            
+            if (!$academicSessionId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameter: academic_session_id']);
+                break;
+            }
+            
+            echo $user->setActiveAcademicSession($academicSessionId);
+            break;
+
+        case "createAcademicSession":
+            $schoolYearId = $input['school_year_id'] ?? null;
+            $semesterId = $input['semester_id'] ?? null;
+            
+            if (!$schoolYearId || !$semesterId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameters: school_year_id and semester_id']);
+                break;
+            }
+            
+            echo $user->createAcademicSession($schoolYearId, $semesterId);
+            break;
+
+        // Driver Restriction Management Operations
+        case "fetchDriverRestrictionCodes":
+            echo $user->fetchDriverRestrictionCodes();
+            break;
+
+        case "fetchDriverRestrictions":
+            $userId = $input['user_id'] ?? null;
+            
+            if (!$userId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameter: user_id']);
+                break;
+            }
+            
+            echo $user->fetchDriverRestrictions($userId);
+            break;
+
+        case "saveDriverRestrictions":
+            $userId = $input['user_id'] ?? null;
+            $restrictionIds = $input['restriction_ids'] ?? [];
+            $updatedBy = $input['updated_by'] ?? null;
+            
+            if (!$userId) {
+                echo json_encode(['status' => 'error', 'message' => 'Missing required parameter: user_id']);
+                break;
+            }
+            
+            if (!is_array($restrictionIds)) {
+                echo json_encode(['status' => 'error', 'message' => 'restriction_ids must be an array']);
+                break;
+            }
+            
+            echo $user->saveDriverRestrictions($userId, $restrictionIds, $updatedBy);
+            break;
+
+        case "getAllTickets":
+            echo $user->getAllTickets();
             break;
        
         default:

@@ -9,7 +9,10 @@ import { setSessionCookie, removeSessionCookie, refreshSessionCookie } from '../
 import { initializeSessionManager, updateLastActivity } from '../../utils/sessionManager';
 import { SecureStorage } from '../../utils/encryption';
 import ForcePassword from '../../components/forcePassword';
-import { sendLoginOtpMail, sendPasswordResetOtpMail, validatePasswordResetOtp } from '../../utils/otpUtils';
+import { getApiBaseUrl } from '../../utils/apiConfig';
+
+// Configure axios defaults for timeout and error handling
+axios.defaults.timeout = 30000; // 30 seconds timeout
 
 function Logins() {
     const [username, setUsername] = useState("");
@@ -26,10 +29,26 @@ function Logins() {
     const [showForgotPassword, setShowForgotPassword] = useState(false);
     const [email, setEmail] = useState('');
     const [showOtpInput, setShowOtpInput] = useState(false);
+    
+    // Compute correct base path for public assets
+    const assetBasePath = (() => {
+        try {
+          const apiBase = getApiBaseUrl();
+          const url = new URL(apiBase);
+          // For localhost development, we need to use the project path
+          // For production deployment, we need to account for subdirectory paths
+          if (url.hostname === 'localhost') {
+            return '/gsd-reservation-main';
+          }
+          return url.pathname.replace(/\/backend\/.*$/, '');
+        } catch (e) {
+          return '';
+        }
+      })();
 
-    const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
-    // const [isSendingOtp, setIsSendingOtp] = useState(false);
-    const [canResendLoginOtp, setCanResendLoginOtp] = useState(false);
+    // const [isVerifyingEmail, setIsVerifyingEmail] = useState(false);
+    // // const [isSendingOtp, setIsSendingOtp] = useState(false);
+    // const [canResendLoginOtp, setCanResendLoginOtp] = useState(false);
 
     const [otpDigits, setOtpDigits] = useState(Array(6).fill(''));
     const [otpRefs] = useState(Array(6).fill(0).map(() => React.createRef()));
@@ -37,10 +56,10 @@ function Logins() {
     const [forgotPasswordCaptchaRef] = useState(React.createRef());
     // const [forgotPasswordCaptchaText, setForgotPasswordCaptchaText] = useState('');
     // const [forgotPasswordCaptchaInput, setForgotPasswordCaptchaInput] = useState('');
-    const [isForgotPasswordCaptchaCorrect, setIsForgotPasswordCaptchaCorrect] = useState(null);
+    // const [isForgotPasswordCaptchaCorrect, setIsForgotPasswordCaptchaCorrect] = useState(null);
     const [canResendOtp, setCanResendOtp] = useState(false);
     const [resendTimer, setResendTimer] = useState(180); // 3 minutes in seconds
-    const [isResending, setIsResending] = useState(false);
+    // const [isResending, setIsResending] = useState(false);
     const [showPasswordReset, setShowPasswordReset] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
@@ -51,21 +70,26 @@ function Logins() {
         number: false,
         special: false
     });
+    // Login 2FA OTP states
     const [showLoginOTP, setShowLoginOTP] = useState(false);
     const [loginOtpDigits, setLoginOtpDigits] = useState(Array(6).fill(''));
     const [loginOtpRefs] = useState(Array(6).fill(0).map(() => React.createRef()));
     const [isVerifyingLoginOtp, setIsVerifyingLoginOtp] = useState(false);
     const [loginResendTimer, setLoginResendTimer] = useState(180); // 3 minutes
     const [isResendingLoginOtp, setIsResendingLoginOtp] = useState(false);
-    const [lastTimerUpdate, setLastTimerUpdate] = useState(Date.now());
+    const [canResendLoginOtp, setCanResendLoginOtp] = useState(false);
     const [showForcePassword, setShowForcePassword] = useState(false);
     const [currentPassword, setCurrentPassword] = useState('');
     const [loginPassword, setLoginPassword] = useState(''); // Store password for OTP verification context
     
     // OTP storage with expiration (frontend-only, no server/database storage)
     const [storedOTP, setStoredOTP] = useState(null);
-    const [storedOtpOwner, setStoredOtpOwner] = useState(null); // track who requested the OTP
     const [otpExpiration, setOtpExpiration] = useState(null);
+    
+    // Login 2FA OTP storage (separate from forgot password OTP)
+    const [storedLoginOTP, setStoredLoginOTP] = useState(null);
+    const [loginOtpExpiration, setLoginOtpExpiration] = useState(null);
+  
 
 
     const generateCaptcha = useCallback(() => {
@@ -182,7 +206,7 @@ function Logins() {
 
         // setForgotPasswordCaptchaText(captcha);
         // setForgotPasswordCaptchaInput('');
-        setIsForgotPasswordCaptchaCorrect(null);
+        // setIsForgotPasswordCaptchaCorrect(null);
     }, [forgotPasswordCaptchaRef]);
 
     useEffect(() => {
@@ -206,6 +230,7 @@ function Logins() {
                     navigateTo('/Personnel/Dashboard');
                     break;
                 case 'Dean':
+                case 'Principal':
                 case 'Department Head':
                 case 'Secretary':
                     navigateTo('/Department/Dashboard');
@@ -293,44 +318,26 @@ function Logins() {
         };
     }, [showOtpInput, resendTimer, setCanResendOtp]);
 
+    // Login OTP timer effect
     useEffect(() => {
         let intervalId;
-        const handleVisibilityChange = () => {
-            if (!document.hidden) {
-                const now = Date.now();
-                const timePassed = Math.floor((now - lastTimerUpdate) / 1000);
-                
-                if (showLoginOTP && loginResendTimer > 0) {
-                    setLoginResendTimer(prev => Math.max(0, prev - timePassed));
-                }
-                
-                setLastTimerUpdate(now);
-            }
-        };
-
+        
         if (showLoginOTP && loginResendTimer > 0) {
             intervalId = setInterval(() => {
-                setLastTimerUpdate(Date.now());
-                
-                if (showLoginOTP) {
-                    setLoginResendTimer((prev) => {
-                        if (prev <= 1) {
-                            setCanResendLoginOtp(true);
-                            return 0;
-                        }
-                        return prev - 1;
-                    });
-                }
+                setLoginResendTimer((prev) => {
+                    if (prev <= 1) {
+                        setCanResendLoginOtp(true);
+                        return 0;
+                    }
+                    return prev - 1;
+                });
             }, 1000);
-
-            document.addEventListener('visibilitychange', handleVisibilityChange);
         }
 
         return () => {
-            clearInterval(intervalId);
-            document.removeEventListener('visibilitychange', handleVisibilityChange);
+            if (intervalId) clearInterval(intervalId);
         };
-    }, [showLoginOTP, loginResendTimer, lastTimerUpdate, setCanResendLoginOtp]);
+    }, [showLoginOTP, loginResendTimer]);
 
     useEffect(() => {
         // Initialize session timeout handling with enhanced 1-minute inactivity detection
@@ -407,6 +414,66 @@ function Logins() {
         setPassword(e.target.value);
     };
 
+    // Helper function to handle API errors with detailed feedback
+    const handleApiError = (error, context = 'Request') => {
+        console.error(`${context} error:`, error);
+        
+        // Check if it's a timeout error
+        if (error.code === 'ECONNABORTED' || error.message?.includes('timeout')) {
+            notify('Request timed out. Please check your internet connection and try again.', 'error');
+            return;
+        }
+        
+        // Check if it's a network error (no response from server)
+        if (!error.response) {
+            if (error.message === 'Network Error') {
+                notify('Network error. Please check your internet connection.', 'error');
+            } else {
+                notify(`Connection error: ${error.message || 'Unable to reach server'}`, 'error');
+            }
+            return;
+        }
+        
+        // Handle HTTP error responses
+        const status = error.response?.status;
+        const data = error.response?.data;
+        
+        switch (status) {
+            case 400:
+                notify(data?.message || 'Invalid request. Please check your input.', 'error');
+                break;
+            case 401:
+                notify(data?.message || 'Invalid credentials. Please try again.', 'error');
+                break;
+            case 403:
+                notify('Access forbidden. You do not have permission to access this resource.', 'error');
+                break;
+            case 404:
+                notify('Service not found. Please contact support.', 'error');
+                break;
+            case 408:
+                notify('Request timeout. Please try again.', 'error');
+                break;
+            case 429:
+                notify(data?.message || 'Too many requests. Please try again later.', 'error');
+                break;
+            case 500:
+                notify(data?.message || 'Server error. Please try again later.', 'error');
+                break;
+            case 502:
+                notify('Bad gateway. The server is temporarily unavailable.', 'error');
+                break;
+            case 503:
+                notify('Service unavailable. Please try again in a few moments.', 'error');
+                break;
+            case 504:
+                notify('Gateway timeout. The server took too long to respond.', 'error');
+                break;
+            default:
+                notify(data?.message || `Error: ${status}. Please try again.`, 'error');
+        }
+    };
+
     const handleLogin = async (e) => {
         e.preventDefault();
     
@@ -452,6 +519,11 @@ function Logins() {
                     username: username, 
                     password: password 
                 }
+            }, {
+                timeout: 30000, // 30 seconds timeout for this request
+                headers: {
+                    'Content-Type': 'application/json'
+                }
             });
     
             console.log("Login response:", loginResponse.data);
@@ -464,7 +536,7 @@ function Logins() {
                 if (userData.first_login === true) {
                     console.log("First login detected, forcing password change");
                     setCurrentPassword(password); // Store current password for comparison
-                    setLoginPassword(password); // Store password for OTP context
+                    // setLoginPassword(password); // Store password for OTP context
                     // Store user_id temporarily for password change process
                     SecureStorage.setSessionItem("temp_user_id", userData.user_id);
                     setShowForcePassword(true);
@@ -488,79 +560,93 @@ function Logins() {
                     timestamp: new Date().getTime() // Add timestamp for additional security
                 });
     
-                // COMMENTED OUT: Check 2FA status first using backend fetch2FA
-                // let canSendLoginOtp = false;
-                // let twoFaData = null;
-                // let shouldBypass2FA = false;
+                // Check 2FA status first using backend fetch2FA
+                let canSendLoginOtp = false;
+                let twoFaData = null;
+                let shouldBypass2FA = false;
                 
-                // try {
-                //     const twoFaResp = await axios.post(`${apiUrl}login.php`, {
-                //         operation: "fetch2FA",
-                //         json: { user_id: userData.user_id }
-                //     });
-                //     twoFaData = twoFaResp.data;
+                try {
+                    const twoFaResp = await axios.post(`${apiUrl}login.php`, {
+                        operation: "fetch2FA",
+                        json: { user_id: userData.user_id }
+                    }, {
+                        timeout: 15000 // 15 seconds timeout
+                    });
+                    twoFaData = twoFaResp.data;
                     
-                //     if (twoFaData && twoFaData.status === "expired") {
-                //         // 2FA has expired, bypass OTP and proceed to direct login
-                //         console.log("2FA expired, proceeding with direct login");
-                //         shouldBypass2FA = true;
-                //     } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === false) {
-                //         // No 2FA record found, bypass OTP and proceed to direct login
-                //         console.log("No 2FA record found, proceeding with direct login");
-                //         shouldBypass2FA = true;
-                //     } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === true) {
-                //         // 2FA is active and valid, send OTP
-                //         console.log("2FA active, sending login OTP");
-                //         canSendLoginOtp = true;
-                //     } else {
-                //         // Other cases - show error and stop login
-                //         console.error("Unexpected 2FA response:", twoFaData);
-                //         notify(twoFaData?.message || "2FA verification required.", 'error');
-                //         setLoading(false);
-                //         return;
-                //     }
-                // } catch (e) {
-                //     console.error("2FA check error:", e);
-                //     notify("Failed to verify 2FA status.", 'error');
-                //     setLoading(false);
-                //     return;
-                // }
+                    if (twoFaData && twoFaData.status === "expired") {
+                        // 2FA has expired, bypass OTP and proceed to direct login
+                        console.log("2FA expired, proceeding with direct login");
+                        shouldBypass2FA = true;
+                    } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === false) {
+                        // No 2FA record found, bypass OTP and proceed to direct login
+                        shouldBypass2FA = true;
+                    } else if (twoFaData && twoFaData.status === "success" && twoFaData.requires_verification === true) {
+                        // 2FA is active and valid, send OTP
+                        canSendLoginOtp = true;
+                    } else {
+                        // Other cases - show error and stop login
+                        console.error("Unexpected 2FA response:", twoFaData);
+                        notify(twoFaData?.message || "2FA verification required.", 'error');
+                        setLoading(false);
+                        return;
+                    }
+                } catch (e) {
+                    handleApiError(e, '2FA check');
+                    setLoading(false);
+                    return;
+                }
 
-                // let otpResponse = { data: { status: 'error' } };
-                // if (canSendLoginOtp) {
-                //     // Now we'll send OTP using Node.js API
-                //     const otpData = await sendLoginOtpMail(
-                //         userData.user_id,
-                //         userData.email,
-                //         `${userData.firstname} ${userData.lastname}`
-                //     );
-                //     otpResponse = { data: otpData };
-                // } else if (shouldBypass2FA) {
-                //     // 2FA expired or not found; bypass OTP and proceed to direct login branch
-                //     otpResponse = { data: { status: 'success', requires_2fa: false } };
-                // }
-                
-                // console.log("OTP response:", otpResponse.data);
+                let otpResponse = { data: { status: 'error' } };
+                if (canSendLoginOtp) {
+                    // Send OTP using backend PHP method
+                    try {
+                        const otpResp = await axios.post(`${apiUrl}login.php`, {
+                            operation: "sendLoginOTP",
+                            json: { user_id: userData.user_id }
+                        }, {
+                            timeout: 15000 // 15 seconds timeout
+                        });
+                        otpResponse = { data: otpResp.data };
+                    } catch (otpError) {
+                        handleApiError(otpError, 'Send login OTP');
+                        setLoading(false);
+                        return;
+                    }
+                } else if (shouldBypass2FA) {
+                    // 2FA expired or not found; bypass OTP and proceed to direct login branch
+                    otpResponse = { data: { status: 'success', requires_2fa: false } };
+                }
                 
                 // Check the specific message from the API
-                // if (otpResponse.data.status === "success") {
-                //     if (otpResponse.data.requires_2fa) {
-                //         // Store user_id and email temporarily for OTP verification
-                //         SecureStorage.setSessionItem("temp_user_id", userData.user_id);
-                //         SecureStorage.setSessionItem("temp_user_email", userData.email);
-                //         setLoginPassword(password); // Store password for OTP context
+                if (otpResponse.data.status === "success") {
+                    if (otpResponse.data.otp) {
+                        // Store user_id and email temporarily for OTP verification
+                        SecureStorage.setSessionItem("temp_user_id", userData.user_id);
+                        SecureStorage.setSessionItem("temp_user_email", userData.email);
+                        setLoginPassword(password); // Store password for OTP context
                         
-                //         // Store OTP and expiration in frontend state (no server storage)
-                //         const expirationTime = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
-                //         setOtpExpiration(expirationTime);
-                //         setStoredOTP(otpResponse.data.otp); // Store the OTP from response
+                        // Store OTP and expiration in frontend state (no server storage)
+                        // Set timezone to Asia/Manila for expiration calculation
+                        const now = new Date();
+                        const manilaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+                        const expirationTime = new Date(manilaTime.getTime() + 3 * 60 * 1000); // 3 minutes from now in Manila time
+                        setLoginOtpExpiration(expirationTime);
+                        setStoredLoginOTP(otpResponse.data.otp); // Store the OTP from response
                         
-                //         // Show OTP input form
-                //         setShowLoginOTP(true);
-                //         notify("OTP has been sent to your email. Please verify.");
-                //     } else {
-                        // COMMENTED OUT: 2FA is not active, proceed with direct login
-                        console.log("BYPASSING 2FA - proceeding with direct login");
+                        // Reset login OTP states
+                        setLoginOtpDigits(Array(6).fill(''));
+                        setLoginResendTimer(180); // 3 minutes
+                        setCanResendLoginOtp(false);
+                        
+                        // Show OTP input form
+                        setShowLoginOTP(true);
+                        notify("OTP has been sent to your email. Please verify.");
+                        setLoading(false);
+                        return;
+                    } else {
+                        // 2FA is not active, proceed with direct login
+                        console.log("2FA not active - proceeding with direct login");
                         
                         // Save API URL before clearing localStorage
                         const savedApiUrl = apiUrl;
@@ -648,9 +734,19 @@ function Logins() {
                                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
                                 break;
                             case "Dean":
-                            case "Department Head":
-                            case "Secretary":
                                 notify("Dean Login Successful");
+                                setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                                break;
+                            case "Principal":
+                                notify("Principal Login Successful");
+                                setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                                break;
+                            case "Department Head":
+                                notify("Department Head Login Successful");
+                                setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                                break;
+                            case "Secretary":
+                                notify("Secretary Login Successful");
                                 setTimeout(() => navigateTo("/Department/Dashboard"), 100);
                                 break;
                             case "Driver":
@@ -661,118 +757,112 @@ function Logins() {
                                 notify("User Login Successful");
                                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
                         }
-                    // }
-                // } else {
-                //     notify(otpResponse.data.message || "Failed to check 2FA status", 'error');
-                // }
+                    }
+                } else {
+                    notify(otpResponse.data.message || "Failed to check 2FA status", 'error');
+                    setLoading(false);
+                    return;
+                }
             } else {
                 // Password is incorrect
                 notify("Incorrect password. Please try again.", 'error');
                 generateCaptcha();
             }
         } catch (error) {
-            console.error('Login error:', error);
+            handleApiError(error, 'Login');
             removeSessionCookie('userSession');
-            notify("Login failed. Please try again.", 'error');
             generateCaptcha();
             // Clear any stored passwords on error
             setCurrentPassword('');
             setLoginPassword('');
+            // Clear login OTP states on error
+            setStoredLoginOTP(null);
+            setLoginOtpExpiration(null);
+            setShowLoginOTP(false);
         } finally {
             setLoading(false);
         }
     };
 
-    // COMMENTED OUT: OTP Email Check Method
+    // OTP Email Check Method
     const handleCheckEmail = async () => {
-        notify("Password reset via OTP is temporarily disabled", 'error');
-        return;
-        
-        // if (!email) {
-        //     notify("Please enter your email address", 'error');
-        //     return;
-        // }
+        if (!email) {
+            notify("Please enter your email address", 'error');
+            return;
+        }
 
-        // setIsVerifyingEmail(true);
-        // try {
-        //     const apiUrl = SecureStorage.getLocalItem("url");
-        //     if (!apiUrl) {
-        //         notify("API URL configuration is missing. Please contact support.", 'error');
-        //         setIsVerifyingEmail(false);
-        //         return;
-        //     }
+        setLoading(true);
+        try {
+            const apiUrl = SecureStorage.getLocalItem("url");
+            if (!apiUrl) {
+                notify("API URL configuration is missing. Please contact support.", 'error');
+                setLoading(false);
+                return;
+            }
 
-        //     // First, check if email exists in the database
-        //     const response = await axios.post(`${apiUrl}login.php`, {
-        //         operation: "checkEmail",
-        //         json: { email }
-        //     });
+            // Step 1: Check if email exists in database
+            const checkEmailResponse = await axios.post(`${apiUrl}login.php`, {
+                operation: "checkEmail",
+                json: { email: email.trim().toLowerCase() }
+            }, {
+                timeout: 15000 // 15 seconds timeout
+            });
 
-        //     let data = response.data;
-        //     console.log("CheckEmail response:", data);
+            console.log("CheckEmail response:", checkEmailResponse.data);
 
-        //     if (typeof data === "string") {
-        //         try {
-        //             data = JSON.parse(data);
-        //         } catch (e) {
-        //             notify("Invalid response from server", 'error');
-        //             setIsVerifyingEmail(false);
-        //             return;
-        //         }
-        //     }
+            // If email doesn't exist, show error and stop
+            if (checkEmailResponse.data.status === "available") {
+                notify("User Has No Record To This System", 'error');
+                setLoading(false);
+                return;
+            }
 
-        //     console.log("Parsed data.status:", data.status);
+            if (checkEmailResponse.data.status === "error") {
+                notify(checkEmailResponse.data.message || "Error checking email", 'error');
+                setLoading(false);
+                return;
+            }
 
-        //     if (data.status === "exists") {
-        //         console.log("Email exists, proceeding to send OTP");
-                
-        //         // Email exists, now send OTP using Node.js API
-        //         try {
-        //             const otpData = await sendPasswordResetOtpMail(
-        //                 (email || '').trim().toLowerCase(),
-        //                 'User'
-        //             );
-        //             console.log("SendOTP response:", otpData);
+            // Step 2: Email exists, now send OTP
+            if (checkEmailResponse.data.status === "exists") {
+                const response = await axios.post(`${apiUrl}login.php`, {
+                    operation: "send_password_reset_otp",
+                    json: { email: email.trim().toLowerCase() }
+                }, {
+                    timeout: 15000 // 15 seconds timeout
+                });
 
-        //             if (otpData.status === "success") {
-        //                 // Store OTP and expiration for validation
-        //                 const expirationTime = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes from now
-        //                 setOtpExpiration(expirationTime);
-        //                 setStoredOTP(otpData.otp); // Store the OTP from response
-        //                 setStoredOtpOwner((email || '').trim().toLowerCase()); // bind OTP to the requesting email
-        //                 console.log('[OTP DEBUG] issued password-reset OTP', {
-        //                     owner: (email || '').trim().toLowerCase(),
-        //                     otp_tail: String(otpData.otp).slice(-2),
-        //                     expiresAt: expirationTime.toISOString()
-        //                 });
-                        
-        //                 setShowOtpInput(true);
-        //                 setResendTimer(180); // Reset timer
-        //                 setCanResendOtp(false);
-        //                 notify("OTP sent to your email", 'success');
-        //             } else {
-        //                 notify(otpData.message || "Failed to send OTP", 'error');
-        //             }
-        //         } catch (otpError) {
-        //             console.error("SendOTP error:", otpError);
-        //             notify(otpError.response?.data?.message || "Error sending OTP", 'error');
-        //         }
-        //     } else {
-        //         console.log("Email not found block hit, status was:", data.status);
-        //         notify("Email not found in our records", 'error');
-        //     }
-        // } catch (error) {
-        //     console.error("CheckEmail error:", error);
-        //     notify("Error verifying email", 'error');
-        // } finally {
-        //     setIsVerifyingEmail(false);
-        // }
+                if (response.data.status === "success") {
+                    // Store OTP in state for frontend validation with 3-minute expiration
+                    setStoredOTP(response.data.otp);
+                    const expirationTime = new Date(Date.now() + 3 * 60 * 1000); // 3 minutes from now
+                    setOtpExpiration(expirationTime);
+                    
+                    setShowOtpInput(true);
+                    setResendTimer(180); // Reset timer (3 minutes)
+                    setCanResendOtp(false);
+                    notify("OTP sent to your email", 'success');
+                } else {
+                    notify(response.data.message || "Failed to send OTP", 'error');
+                }
+            }
+        } catch (error) {
+            handleApiError(error, 'Email verification');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    // COMMENTED OUT: Send OTP Method
+    // Send/Resend OTP Method
     const handleSendOTP = async (isResend = false) => {
-        notify("OTP functionality is temporarily disabled", 'error');
-        return;
+        if (isResend) {
+            // For resend, use the same email
+            await handleCheckEmail();
+            setResendTimer(180);
+            setCanResendOtp(false);
+        } else {
+            await handleCheckEmail();
+        }
         
         // if (!isResend && !isForgotPasswordCaptchaCorrect) {
         //     notify("Please complete the CAPTCHA verification", 'error');
@@ -821,6 +911,7 @@ function Logins() {
 
     const handleOtpChange = (index, value) => {
         if (value.length > 1) return; // Only allow single digit
+        if (!/^\d*$/.test(value)) return; // Only allow numbers
 
         const newOtpDigits = [...otpDigits];
         newOtpDigits[index] = value;
@@ -854,70 +945,48 @@ function Logins() {
         }
     };
 
-    // COMMENTED OUT: Verify OTP Method
+    // Verify OTP Method (Frontend validation only)
     const handleVerifyOtp = async () => {
-        notify("OTP verification is temporarily disabled", 'error');
-        return;
-        
-        // const otpValue = otpDigits.map(d => (d || '').trim()).join('');
-        // if (otpValue.length !== 6) {
-        //     return;
-        // }
+        const otpValue = otpDigits.map(d => (d || '').trim()).join('');
+        if (otpValue.length !== 6) {
+            // notify("Please enter complete OTP", 'error');
+            return;
+        }
 
-        // try {
-        //     // Check if OTP has expired
-        //     if (otpExpiration && new Date() > otpExpiration) {
-        //         notify("OTP has expired. Please request a new one.", 'error');
-        //         setStoredOTP(null);
-        //         setOtpExpiration(null);
-        //         return;
-        //     }
+        try {
+            // Check if OTP has expired (3 minutes)
+            if (otpExpiration && new Date() > otpExpiration) {
+                notify("OTP has expired. Please request a new one.", 'error');
+                setStoredOTP(null);
+                setOtpExpiration(null);
+                setOtpDigits(Array(6).fill(''));
+                return;
+            }
 
-        //     // Normalize requester email for strict match
-        //     const normalizedEmail = (email || '').trim().toLowerCase();
+            // Validate OTP against frontend-stored value
+            if (!storedOTP) {
+                notify("No OTP found. Please request a new one.", 'error');
+                setOtpDigits(Array(6).fill(''));
+                return;
+            }
 
-        //     // Verify OTP belongs to the same requester (defense-in-depth on client)
-        //     if (storedOtpOwner !== normalizedEmail) {
-        //         notify("This OTP was not requested for this email. Please request a new OTP.", 'error');
-        //         setOtpDigits(Array(6).fill(''));
-        //         return;
-        //     }
-
-        //     // Server-side validation to avoid mismatch from multiple OTP requests
-        //     try {
-        //         const data = await validatePasswordResetOtp(
-        //             normalizedEmail,
-        //             otpValue
-        //         );
-        //         console.log('[OTP DEBUG] server validate result', data);
-        //         if (data.status !== 'success') {
-        //             notify(data.message || "Invalid OTP. Please try again.", 'error');
-        //             setOtpDigits(Array(6).fill(''));
-        //             return;
-        //         }
-        //     } catch (err) {
-        //         console.log('[OTP DEBUG] server validate error', err?.response?.data || err?.message);
-        //         notify(err.response?.data?.message || "Invalid OTP. Please try again.", 'error');
-        //         setOtpDigits(Array(6).fill(''));
-        //         return;
-        //     }
-
-        //     // OTP is valid, proceed with password reset
-        //     console.log('[OTP DEBUG] client verify passed', {
-        //         owner: storedOtpOwner,
-        //         input_tail: String(otpValue).slice(-2),
-        //         stored_tail: String(storedOTP).slice(-2)
-        //     });
-        //     setShowPasswordReset(true);
-        //     notify("OTP verified successfully");
-            
-        //     // Clear OTP data
-        //     setStoredOTP(null);
-        //     setStoredOtpOwner(null);
-        //     setOtpExpiration(null);
-        // } catch (error) {
-        //     notify("Error validating OTP", 'error');
-        // }
+            if (String(storedOTP) === String(otpValue)) {
+                setShowPasswordReset(true);
+                // Keep showOtpInput as true so the password reset form displays
+                notify("OTP verified successfully", 'success');
+                
+                // Clear OTP data
+                setStoredOTP(null);
+                setOtpExpiration(null);
+            } else {
+                notify("Invalid OTP. Please try again.", 'error');
+                setOtpDigits(Array(6).fill(''));
+            }
+        } catch (error) {
+            console.error("OTP validation error:", error);
+            notify("Error validating OTP", 'error');
+            setOtpDigits(Array(6).fill(''));
+        }
     };
 
     const handlePasswordReset = async () => {
@@ -951,6 +1020,278 @@ function Logins() {
         }
     };
 
+    // Login OTP handling functions
+    const handleLoginOtpChange = (index, value) => {
+        if (value.length > 1) return; // Only allow single digit
+        if (!/^\d*$/.test(value)) return; // Only allow numbers
+
+        const newOtpDigits = [...loginOtpDigits];
+        newOtpDigits[index] = value;
+        setLoginOtpDigits(newOtpDigits);
+
+        // Move to next input if value is entered
+        if (value && index < 5) {
+            loginOtpRefs[index + 1].current.focus();
+        }
+        
+        // Auto-verify if all digits are filled
+        if (value && index === 5) {
+            const allFilled = newOtpDigits.every(digit => digit !== '');
+            if (allFilled) {
+                handleVerifyLoginOtp();
+            }
+        }
+    };
+
+    const handleLoginOtpKeyDown = (index, e) => {
+        // Move to previous input on backspace if current input is empty
+        if (e.key === 'Backspace' && !loginOtpDigits[index] && index > 0) {
+            loginOtpRefs[index - 1].current.focus();
+        }
+        // Trigger verification on Enter if all digits are filled
+        if (e.key === 'Enter') {
+            const allFilled = loginOtpDigits.every(digit => digit !== '');
+            if (allFilled) {
+                handleVerifyLoginOtp();
+            }
+        }
+    };
+
+    // Verify Login OTP Method (Frontend validation only)
+    const handleVerifyLoginOtp = async () => {
+        const otpValue = loginOtpDigits.map(d => (d || '').trim()).join('');
+        if (otpValue.length !== 6) {
+            // notify("Please enter complete OTP", 'error');
+            return;
+        }
+
+        setIsVerifyingLoginOtp(true);
+        try {
+            // Check if OTP has expired (3 minutes) using Asia/Manila timezone
+            const now = new Date();
+            const manilaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+            
+            if (loginOtpExpiration && manilaTime > loginOtpExpiration) {
+                notify("OTP has expired. Please request a new one.", 'error');
+                setStoredLoginOTP(null);
+                setLoginOtpExpiration(null);
+                setLoginOtpDigits(Array(6).fill(''));
+                return;
+            }
+
+            // Validate OTP against frontend-stored value
+            if (!storedLoginOTP) {
+                notify("No OTP found. Please request a new one.", 'error');
+                setLoginOtpDigits(Array(6).fill(''));
+                return;
+            }
+
+            if (String(storedLoginOTP) === String(otpValue)) {
+                notify("Login OTP verified successfully", 'success');
+                
+                // Clear OTP data
+                setStoredLoginOTP(null);
+                setLoginOtpExpiration(null);
+                setShowLoginOTP(false);
+                
+                // Proceed with login completion
+                await completeLogin();
+            } else {
+                notify("Invalid OTP. Please try again.", 'error');
+                setLoginOtpDigits(Array(6).fill(''));
+            }
+        } catch (error) {
+            console.error("Login OTP validation error:", error);
+            notify("Error validating OTP", 'error');
+            setLoginOtpDigits(Array(6).fill(''));
+        } finally {
+            setIsVerifyingLoginOtp(false);
+        }
+    };
+
+    // Resend Login OTP
+    const handleResendLoginOtp = async () => {
+        if (!canResendLoginOtp) return;
+        
+        setIsResendingLoginOtp(true);
+        try {
+            const userId = SecureStorage.getSessionItem("temp_user_id");
+            const apiUrl = SecureStorage.getLocalItem("url");
+            
+            const response = await axios.post(`${apiUrl}login.php`, {
+                operation: "sendLoginOTP",
+                json: { user_id: userId }
+            });
+            
+            if (response.data.status === "success" && response.data.otp) {
+                // Store new OTP and reset expiration
+                const now = new Date();
+                const manilaTime = new Date(now.toLocaleString("en-US", {timeZone: "Asia/Manila"}));
+                const expirationTime = new Date(manilaTime.getTime() + 3 * 60 * 1000);
+                setLoginOtpExpiration(expirationTime);
+                setStoredLoginOTP(response.data.otp);
+                
+                // Reset timer and states
+                setLoginResendTimer(180);
+                setCanResendLoginOtp(false);
+                setLoginOtpDigits(Array(6).fill(''));
+                
+                notify("New OTP sent to your email", 'success');
+            } else {
+                notify(response.data.message || "Failed to resend OTP", 'error');
+            }
+        } catch (error) {
+            console.error("Resend login OTP error:", error);
+            notify("Error resending OTP", 'error');
+        } finally {
+            setIsResendingLoginOtp(false);
+        }
+    };
+
+    // Complete login after successful OTP verification
+    const completeLogin = async () => {
+        try {
+            // const userId = SecureStorage.getSessionItem("temp_user_id");
+            // const userEmail = SecureStorage.getSessionItem("temp_user_email");
+            const apiUrl = SecureStorage.getLocalItem("url");
+            
+            // Re-authenticate to get fresh user data
+            const loginResponse = await axios.post(`${apiUrl}login.php`, {
+                operation: "login",
+                json: { 
+                    username: username, 
+                    password: loginPassword 
+                }
+            });
+            
+            if (loginResponse.data.status === "success") {
+                const userData = loginResponse.data.data;
+                
+                // Save API URL before clearing localStorage
+                const savedApiUrl = apiUrl;
+                
+                localStorage.clear();
+                sessionStorage.clear();
+                
+                // Restore API URL
+                SecureStorage.setLocalItem("url", savedApiUrl);
+        
+                // Set localStorage items securely
+                SecureStorage.setLocalItem("user_id", userData.user_id);
+                SecureStorage.setLocalItem("name", `${userData.title_abbreviation} ${userData.firstname} ${userData.middlename} ${userData.lastname} ${userData.suffix}`.trim());
+                SecureStorage.setLocalItem("school_id", userData.school_id);
+                SecureStorage.setLocalItem("email", userData.email);
+                SecureStorage.setLocalItem("Department Name", userData.department_name);
+                SecureStorage.setLocalItem("contact_number", userData.contact_number);
+                SecureStorage.setLocalItem("user_level", userData.user_level_name);
+                SecureStorage.setLocalItem("user_level_id", userData.user_level_id);
+                SecureStorage.setLocalItem("department_id", userData.department_id);
+                SecureStorage.setLocalItem("profile_pic", userData.profile_pic || "");
+                SecureStorage.setLocalItem("loggedIn", "true");
+                SecureStorage.setLocalItem("lastActivity", Date.now().toString());
+                
+
+                SecureStorage.setSessionItem("user_id", userData.user_id);
+                SecureStorage.setSessionItem("name", `${userData.title_abbreviation} ${userData.firstname} ${userData.middlename} ${userData.lastname} ${userData.suffix}`.trim());
+                SecureStorage.setSessionItem("school_id", userData.school_id);
+                SecureStorage.setSessionItem("email", userData.email);
+                SecureStorage.setSessionItem("Department Name", userData.department_name);
+                SecureStorage.setSessionItem("contact_number", userData.contact_number);
+                SecureStorage.setSessionItem("user_level", userData.user_level_name);
+                SecureStorage.setSessionItem("user_level_id", userData.user_level_id);
+                SecureStorage.setSessionItem("department_id", userData.department_id);
+                SecureStorage.setSessionItem("profile_pic", userData.profile_pic || "");
+                SecureStorage.setSessionItem("loggedIn", "true");
+
+                refreshSessionCookie('userSession');
+        
+                // --- PUSH NOTIFICATION SUBSCRIPTION ---
+                console.log("[DEBUG] About to check push notification manager block");
+                if (window.pushNotificationManager) {
+                    const userId = SecureStorage.getLocalItem("user_id");
+                    console.log("[DEBUG] pushNotificationManager exists, subscribing for user:", userId);
+                    window.pushNotificationManager.subscribe(userId)
+                        .then(() => {
+                            console.log("[DEBUG] Push subscription successful for user:", userId);
+                        })
+                        .catch((err) => {
+                            console.error("[DEBUG] Push subscription failed:", err);
+                        });
+                } else {
+                    console.warn("[DEBUG] Push notification manager not available (window.pushNotificationManager is falsy)");
+                }
+                // --- END PUSH NOTIFICATION SUBSCRIPTION ---
+        
+                // Handle "Remember Me" functionality
+                if (rememberMe) {
+                    localStorage.setItem("rememberedUsername", username);
+                } else {
+                    localStorage.removeItem("rememberedUsername");
+                }
+
+                // Log user data and storage operations
+                console.log("User data:", userData);
+                console.log("Setting user level:", userData.user_level_name);
+            
+                
+                // Get the stored user level (it's automatically decrypted by getLocalItem)
+                const userLevel = SecureStorage.getLocalItem("user_level");
+                console.log("Retrieved user level:", userLevel);
+
+                // Navigate based on user level
+                switch(userLevel) {
+                    case "Super Admin":
+                        notify("Super Admin Login Successful");
+                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+                        break;
+                    case "Personnel":
+                        notify("Personnel Login Successful");
+                        setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
+                        break;
+                    case "Admin":
+                        notify("Admin Login Successful");
+                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+                        break;
+                    case "Dean":
+                        notify("Dean Login Successful");
+                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                        break;
+                    case "Principal":
+                        notify("Principal Login Successful");
+                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                        break;
+                    case "Department Head":
+                        notify("Department Head Login Successful");
+                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                        break;
+                    case "Secretary":
+                        notify("Secretary Login Successful");
+                        setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+                        break;
+                    case "Driver":
+                        notify("Driver Login Successful");
+                        setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+                        break;
+                    default:
+                        notify("User Login Successful");
+                        setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
+                }
+                
+                // Clear temp session items
+                sessionStorage.removeItem("temp_user_id");
+                sessionStorage.removeItem("temp_user_email");
+                setLoginPassword('');
+            } else {
+                notify(loginResponse.data.message || "Login failed after OTP verification", 'error');
+                setLoading(false);
+            }
+        } catch (error) {
+            console.error("Complete login error:", error);
+            notify("Error completing login", 'error');
+            setLoading(false);
+        }
+    };
+
     const handleEmailKeyPress = (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
@@ -958,12 +1299,24 @@ function Logins() {
         }
     };
 
-    // const handleCaptchaKeyPress = (e) => {
-    //     if (e.key === 'Enter' && showCaptchaAfterEmail) {
-    //         e.preventDefault();
-    //         handleSendOTP();
-    //     }
-    // };
+    // Format timer display (MM:SS)
+    const formatTimer = (seconds) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    // Handle modal close for login OTP
+    const handleLoginOtpModalClose = () => {
+        setShowLoginOTP(false);
+        setLoginOtpDigits(Array(6).fill(''));
+        setStoredLoginOTP(null);
+        setLoginOtpExpiration(null);
+        setLoginPassword('');
+        // Clear temp session items
+        sessionStorage.removeItem("temp_user_id");
+        sessionStorage.removeItem("temp_user_email");
+    };
 
     const handlePasswordKeyPress = (e) => {
         if (e.key === 'Enter' && isPasswordValid() && newPassword === confirmPassword) {
@@ -979,9 +1332,7 @@ function Logins() {
 
     const handleModalClose = () => {
         setShowForgotPassword(false);
-        // Don't clear email
-        // setForgotPasswordCaptchaInput('');
-        setIsForgotPasswordCaptchaCorrect(null);
+        setEmail(''); // Clear email on modal close
         setShowCaptchaAfterEmail(false);
         setOtpDigits(Array(6).fill(''));
         setShowOtpInput(false);
@@ -1015,229 +1366,229 @@ function Logins() {
         return Object.values(passwordStrength).every(value => value === true);
     };
 
-    const handleLoginOtpChange = (index, value) => {
-        if (value.length > 1) return;
+    // const handleLoginOtpChange = (index, value) => {
+    //     if (value.length > 1) return;
 
-        const newOtpDigits = [...loginOtpDigits];
-        newOtpDigits[index] = value;
-        setLoginOtpDigits(newOtpDigits);
+    //     const newOtpDigits = [...loginOtpDigits];
+    //     newOtpDigits[index] = value;
+    //     setLoginOtpDigits(newOtpDigits);
 
-        if (value && index < 5) {
-            loginOtpRefs[index + 1].current.focus();
-        }
-    };
+    //     if (value && index < 5) {
+    //         loginOtpRefs[index + 1].current.focus();
+    //     }
+    // };
 
-    const handleLoginOtpKeyDown = (index, e) => {
-        if (e.key === 'Backspace' && !loginOtpDigits[index] && index > 0) {
-            loginOtpRefs[index - 1].current.focus();
-        }
-    };
+    // const handleLoginOtpKeyDown = (index, e) => {
+    //     if (e.key === 'Backspace' && !loginOtpDigits[index] && index > 0) {
+    //         loginOtpRefs[index - 1].current.focus();
+    //     }
+    // };
 
-    // COMMENTED OUT: Login OTP Verification Method
-    const handleVerifyLoginOTP = async () => {
-        notify("Login OTP verification is temporarily disabled", 'error');
-        return;
+    // // COMMENTED OUT: Login OTP Verification Method
+    // const handleVerifyLoginOTP = async () => {
+    //     notify("Login OTP verification is temporarily disabled", 'error');
+    //     return;
         
-        // const otpValue = loginOtpDigits.join('');
-        // if (otpValue.length !== 6) {
-        //     notify("Please enter complete OTP", 'error');
-        //     return;
-        // }
+    //     // const otpValue = loginOtpDigits.join('');
+    //     // if (otpValue.length !== 6) {
+    //     //     notify("Please enter complete OTP", 'error');
+    //     //     return;
+    //     // }
 
-        // setIsVerifyingLoginOtp(true);
-        // try {
-        //     // Check if OTP has expired
-        //     if (otpExpiration && new Date() > otpExpiration) {
-        //         notify("OTP has expired. Please request a new one.", 'error');
-        //         setStoredOTP(null);
-        //         setOtpExpiration(null);
-        //         return;
-        //     }
+    //     // setIsVerifyingLoginOtp(true);
+    //     // try {
+    //     //     // Check if OTP has expired
+    //     //     if (otpExpiration && new Date() > otpExpiration) {
+    //     //         notify("OTP has expired. Please request a new one.", 'error');
+    //     //         setStoredOTP(null);
+    //     //         setOtpExpiration(null);
+    //     //         return;
+    //     //     }
 
-        //     // Verify OTP against frontend-stored value
-        //     if (otpValue !== storedOTP) {
-        //         notify("Invalid OTP. Please try again.", 'error');
-        //         setLoginOtpDigits(Array(6).fill(''));
-        //         return;
-        //     }
+    //     //     // Verify OTP against frontend-stored value
+    //     //     if (otpValue !== storedOTP) {
+    //     //         notify("Invalid OTP. Please try again.", 'error');
+    //     //         setLoginOtpDigits(Array(6).fill(''));
+    //     //         return;
+    //     //     }
 
-        //     // OTP is valid, proceed with login
-        //     console.log("OTP verified successfully");
+    //     //     // OTP is valid, proceed with login
+    //     //     console.log("OTP verified successfully");
 
-        //     // Clear OTP data
-        //     setStoredOTP(null);
-        //     setOtpExpiration(null);
+    //     //     // Clear OTP data
+    //     //     setStoredOTP(null);
+    //     //     setOtpExpiration(null);
 
-        //     // Get user_id and API URL
-        //     const userData = SecureStorage.getSessionItem("temp_user_id");
-        //     const apiUrl = SecureStorage.getLocalItem("url");
+    //     //     // Get user_id and API URL
+    //     //     const userData = SecureStorage.getSessionItem("temp_user_id");
+    //     //     const apiUrl = SecureStorage.getLocalItem("url");
 
-        //     // Get user details for login completion
-        //     const userResponse = await axios.post(`${apiUrl}Admin.php`, {
-        //         operation: "fetchUsersById",
-        //         id: userData
-        //     });
+    //     //     // Get user details for login completion
+    //     //     const userResponse = await axios.post(`${apiUrl}Admin.php`, {
+    //     //         operation: "fetchUsersById",
+    //     //         id: userData
+    //     //     });
 
-        //     if (userResponse.data.status === "success" && 
-        //         userResponse.data.data && 
-        //         userResponse.data.data.length > 0) {
+    //     //     if (userResponse.data.status === "success" && 
+    //     //         userResponse.data.data && 
+    //     //         userResponse.data.data.length > 0) {
                 
-        //         const userDetails = userResponse.data.data[0];
+    //     //         const userDetails = userResponse.data.data[0];
 
-        //         // Check if this is the first login and password needs to be changed
-        //         if (userDetails.first_login === true) {
-        //             console.log("First login detected after OTP verification, forcing password change");
-        //             setCurrentPassword(loginPassword); // Store current password for comparison
-        //             setShowForcePassword(true);
-        //             setShowLoginOTP(false);
-        //             return;
-        //         }
+    //     //         // Check if this is the first login and password needs to be changed
+    //     //         if (userDetails.first_login === true) {
+    //     //             console.log("First login detected after OTP verification, forcing password change");
+    //     //             setCurrentPassword(loginPassword); // Store current password for comparison
+    //     //             setShowForcePassword(true);
+    //     //             setShowLoginOTP(false);
+    //     //             return;
+    //     //         }
                 
-        //         // Clear existing storage but preserve API URL
-        //         localStorage.clear();
-        //         sessionStorage.clear();
+    //     //         // Clear existing storage but preserve API URL
+    //     //         localStorage.clear();
+    //     //         sessionStorage.clear();
                 
-        //         // Restore API URL
-        //         SecureStorage.setLocalItem("url", apiUrl);
+    //     //         // Restore API URL
+    //     //         SecureStorage.setLocalItem("url", apiUrl);
                 
-        //         // Set localStorage items securely using the correct field names
-        //         SecureStorage.setLocalItem("user_id", userDetails.users_id);
-        //         SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
-        //         SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
-        //         SecureStorage.setLocalItem("email", userDetails.users_email);
-        //         SecureStorage.setLocalItem("Department Name", userDetails.department_name);
-        //         SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
-        //         SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
-        //         SecureStorage.setLocalItem("user_level_id", userDetails.users_user_level_id);
-        //         SecureStorage.setLocalItem("department_id", userDetails.users_department_id);
-        //         SecureStorage.setLocalItem("profile_pic", userDetails.users_pic || "");
-        //         SecureStorage.setLocalItem("loggedIn", "true");
-        //         SecureStorage.setLocalItem("lastActivity", Date.now().toString());
+    //     //         // Set localStorage items securely using the correct field names
+    //     //         SecureStorage.setLocalItem("user_id", userDetails.users_id);
+    //     //         SecureStorage.setLocalItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
+    //     //         SecureStorage.setLocalItem("school_id", userDetails.users_school_id);
+    //     //         SecureStorage.setLocalItem("email", userDetails.users_email);
+    //     //         SecureStorage.setLocalItem("Department Name", userDetails.department_name);
+    //     //         SecureStorage.setLocalItem("contact_number", userDetails.users_contact_number);
+    //     //         SecureStorage.setLocalItem("user_level", userDetails.user_level_name);
+    //     //         SecureStorage.setLocalItem("user_level_id", userDetails.users_user_level_id);
+    //     //         SecureStorage.setLocalItem("department_id", userDetails.users_department_id);
+    //     //         SecureStorage.setLocalItem("profile_pic", userDetails.users_pic || "");
+    //     //         SecureStorage.setLocalItem("loggedIn", "true");
+    //     //         SecureStorage.setLocalItem("lastActivity", Date.now().toString());
                 
-        //         // Set session storage items
-        //         SecureStorage.setSessionItem("user_id", userDetails.users_id);
-        //         SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
-        //         SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
-        //         SecureStorage.setSessionItem("email", userDetails.users_email);
-        //         SecureStorage.setSessionItem("Department Name", userDetails.department_name);
-        //         SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
-        //         SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
-        //         SecureStorage.setSessionItem("user_level_id", userDetails.users_user_level_id);
-        //         SecureStorage.setSessionItem("department_id", userDetails.users_department_id);
-        //         SecureStorage.setSessionItem("profile_pic", userDetails.users_pic || "");
-        //         SecureStorage.setSessionItem("loggedIn", "true");
+    //     //         // Set session storage items
+    //     //         SecureStorage.setSessionItem("user_id", userDetails.users_id);
+    //     //         SecureStorage.setSessionItem("name", `${userDetails.title_abbreviation} ${userDetails.users_fname} ${userDetails.users_mname} ${userDetails.users_lname} ${userDetails.users_suffix}`.trim());
+    //     //         SecureStorage.setSessionItem("school_id", userDetails.users_school_id);
+    //     //         SecureStorage.setSessionItem("email", userDetails.users_email);
+    //     //         SecureStorage.setSessionItem("Department Name", userDetails.department_name);
+    //     //         SecureStorage.setSessionItem("contact_number", userDetails.users_contact_number);
+    //     //         SecureStorage.setSessionItem("user_level", userDetails.user_level_name);
+    //     //         SecureStorage.setSessionItem("user_level_id", userDetails.users_user_level_id);
+    //     //         SecureStorage.setSessionItem("department_id", userDetails.users_department_id);
+    //     //         SecureStorage.setSessionItem("profile_pic", userDetails.users_pic || "");
+    //     //         SecureStorage.setSessionItem("loggedIn", "true");
 
-        //         refreshSessionCookie('userSession');
+    //     //         refreshSessionCookie('userSession');
 
-        //         // --- PUSH NOTIFICATION SUBSCRIPTION ---
-        //         if (window.pushNotificationManager) {
-        //             const userId = SecureStorage.getLocalItem("user_id");
-        //             window.pushNotificationManager.subscribe(userId)
-        //                 .then(() => {
-        //                     console.log("Push subscription successful for user:", userId);
-        //                 })
-        //                 .catch((err) => {
-        //                     console.error("Push subscription failed:", err);
-        //                 });
-        //         }
+    //     //         // --- PUSH NOTIFICATION SUBSCRIPTION ---
+    //     //         if (window.pushNotificationManager) {
+    //     //             const userId = SecureStorage.getLocalItem("user_id");
+    //     //             window.pushNotificationManager.subscribe(userId)
+    //     //                 .then(() => {
+    //     //                     console.log("Push subscription successful for user:", userId);
+    //     //                 })
+    //     //                 .catch((err) => {
+    //     //                     console.error("Push subscription failed:", err);
+    //     //                 });
+    //     //         }
 
-        //         // Handle "Remember Me" functionality
-        //         if (rememberMe) {
-        //             localStorage.setItem("rememberedUsername", username);
-        //         } else {
-        //             localStorage.removeItem("rememberedUsername");
-        //         }
+    //     //         // Handle "Remember Me" functionality
+    //     //         if (rememberMe) {
+    //     //             localStorage.setItem("rememberedUsername", username);
+    //     //         } else {
+    //     //             localStorage.removeItem("rememberedUsername");
+    //     //         }
 
-        //         // Navigate based on user level
-        //         const userLevel = userDetails.user_level_name;
-        //         switch(userLevel) {
-        //             case "Super Admin":
-        //                 notify("Super Admin Login Successful");
-        //                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
-        //                 break;
-        //             case "Personnel":
-        //                 notify("Personnel Login Successful");
-        //                 setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
-        //                 break;
-        //             case "Admin":
-        //                 notify("Admin Login Successful");
-        //                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
-        //                 break;
-        //             case "Dean":
-        //             case "Department Head":
-        //             case "Secretary":
-        //                 notify("Dean Login Successful");
-        //                 setTimeout(() => navigateTo("/Department/Dashboard"), 100);
-        //                 break;
-        //             case "Driver":
-        //                 notify("Driver Login Successful");
-        //                 setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
-        //                 break;
-        //             default:
-        //                 notify("User Login Successful");
-        //                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
-        //         }
-        //     } else {
-        //         notify("Failed to get user details", 'error');
-        //     }
-        // } catch (error) {
-        //     console.error('OTP verification error:', error);
-        //     notify("OTP verification failed. Please try again.", 'error');
-        //     // Clear any stored passwords on error
-        //     setCurrentPassword('');
-        //     setLoginPassword('');
-        // } finally {
-        //     setIsVerifyingLoginOtp(false);
-        // }
-    };
+    //     //         // Navigate based on user level
+    //     //         const userLevel = userDetails.user_level_name;
+    //     //         switch(userLevel) {
+    //     //             case "Super Admin":
+    //     //                 notify("Super Admin Login Successful");
+    //     //                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+    //     //                 break;
+    //     //             case "Personnel":
+    //     //                 notify("Personnel Login Successful");
+    //     //                 setTimeout(() => navigateTo("/Personnel/Dashboard"), 100);
+    //     //                 break;
+    //     //             case "Admin":
+    //     //                 notify("Admin Login Successful");
+    //     //                 setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
+    //     //                 break;
+    //     //             case "Dean":
+    //     //             case "Department Head":
+    //     //             case "Secretary":
+    //     //                 notify("Dean Login Successful");
+    //     //                 setTimeout(() => navigateTo("/Department/Dashboard"), 100);
+    //     //                 break;
+    //     //             case "Driver":
+    //     //                 notify("Driver Login Successful");
+    //     //                 setTimeout(() => navigateTo("/Driver/Dashboard"), 100);
+    //     //                 break;
+    //     //             default:
+    //     //                 notify("User Login Successful");
+    //     //                 setTimeout(() => navigateTo("/Faculty/Dashboard"), 100);
+    //     //         }
+    //     //     } else {
+    //     //         notify("Failed to get user details", 'error');
+    //     //     }
+    //     // } catch (error) {
+    //     //     console.error('OTP verification error:', error);
+    //     //     notify("OTP verification failed. Please try again.", 'error');
+    //     //     // Clear any stored passwords on error
+    //     //     setCurrentPassword('');
+    //     //     setLoginPassword('');
+    //     // } finally {
+    //     //     setIsVerifyingLoginOtp(false);
+    //     // }
+    // };
 
-    // COMMENTED OUT: Resend Login OTP Method
-    const handleResendLoginOTP = async () => {
-        notify("Resend login OTP is temporarily disabled", 'error');
-        return;
+    // // COMMENTED OUT: Resend Login OTP Method
+    // const handleResendLoginOTP = async () => {
+    //     notify("Resend login OTP is temporarily disabled", 'error');
+    //     return;
         
-        // setIsResendingLoginOtp(true);
-        // try {
-        //     const userData = SecureStorage.getSessionItem("temp_user_id");
+    //     // setIsResendingLoginOtp(true);
+    //     // try {
+    //     //     const userData = SecureStorage.getSessionItem("temp_user_id");
             
-        //     const response = await sendLoginOtpMail(
-        //         userData || username,
-        //         null,
-        //         null
-        //     );
+    //     //     const response = await sendLoginOtpMail(
+    //     //         userData || username,
+    //     //         null,
+    //     //         null
+    //     //     );
 
-        //     if (response.status === "success") {
-        //         setLoginResendTimer(180);
-        //         setCanResendLoginOtp(false);
+    //     //     if (response.status === "success") {
+    //     //         setLoginResendTimer(180);
+    //     //         setCanResendLoginOtp(false);
                 
-        //         if (response.requires_2fa) {
-        //             // Generate new OTP for frontend verification
-        //             const frontendOTP = Math.floor(100000 + Math.random() * 900000).toString();
-        //             setStoredOTP(frontendOTP);
+    //     //         if (response.requires_2fa) {
+    //     //             // Generate new OTP for frontend verification
+    //     //             const frontendOTP = Math.floor(100000 + Math.random() * 900000).toString();
+    //     //             setStoredOTP(frontendOTP);
                     
-        //             // Reset expiration time
-        //             const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
-        //             setOtpExpiration(expirationTime);
+    //     //             // Reset expiration time
+    //     //             const expirationTime = new Date(Date.now() + 3 * 60 * 1000);
+    //     //             setOtpExpiration(expirationTime);
                     
-        //             notify("OTP has been resent to your email");
-        //         } else {
-        //             notify("2FA is not active for this user");
-        //         }
-        //     } else {
-        //         notify(response.data.message || "Failed to resend OTP", 'error');
-        //     }
-        // } catch (error) {
-        //     notify("Error resending OTP", 'error');
-        // } finally {
-        //     setIsResendingLoginOtp(false);
-        // }
-    };
+    //     //             notify("OTP has been resent to your email");
+    //     //         } else {
+    //     //             notify("2FA is not active for this user");
+    //     //         }
+    //     //     } else {
+    //     //         notify(response.data.message || "Failed to resend OTP", 'error');
+    //     //     }
+    //     // } catch (error) {
+    //     //     notify("Error resending OTP", 'error');
+    //     // } finally {
+    //     //     setIsResendingLoginOtp(false);
+    //     // }
+    // };
 
     const handlePasswordChanged = async () => {
         // After password is changed, proceed with the normal login flow
         setShowForcePassword(false);
         setCurrentPassword('');
-        setLoginPassword(''); // Clear stored password
+        // setLoginPassword(''); // Clear stored password
         
         // Re-authenticate with the new password
         try {
@@ -1317,6 +1668,8 @@ function Logins() {
                         setTimeout(() => navigateTo("/adminDashboard"), 100);
                         break;
                     case "Dean":
+                    case "Principal":
+                    case "Department Head":
                     case "Secretary":
                         notify("Dean Login Successful");
                         setTimeout(() => navigateTo("/Department/Dashboard"), 100);
@@ -1335,7 +1688,7 @@ function Logins() {
             }
         } catch (error) {
             console.error('Error after password change:', error);
-            notify("Error completing login after password change", 'error');
+            // notify("Error completing login after password change", 'error');
             navigateTo("/");
         }
     };
@@ -1377,13 +1730,13 @@ function Logins() {
                         <div className="w-full max-w-md text-center mb-12">
                             <div className="flex justify-center mb-6">
                                 <img 
-                                    src="/phinma.png" 
+                                    src={`${assetBasePath}/phinma.png`}
                                     alt="PHINMA CDO Logo" 
                                     className="w-24 h-24 object-contain filter drop-shadow-lg"
                                 />
                             </div>
                             <h1 className="text-4xl font-extrabold bg-gradient-to-r from-primary-dark to-accent-dark bg-clip-text text-transparent tracking-tight mb-3">
-                                General Service Department
+                                General Services Department
                             </h1>
                             <div className="h-1 w-24 mx-auto bg-gradient-to-r from-emerald-600 to-teal-500 rounded-full mb-6"></div>
                             <h2 className="text-2xl font-medium text-gray-600 mb-8">
@@ -1402,7 +1755,7 @@ function Logins() {
                         {/* Mobile Logo (visible only on small screens) */}
                         <div className="flex flex-col items-center lg:hidden mb-10">
                             <img 
-                                src="/phinma.png" 
+                                src={`${assetBasePath}/phinma.png`} 
                                 alt="PHINMA CDO Logo" 
                                 className="w-20 h-20 object-contain mb-4"
                             />
@@ -1410,9 +1763,8 @@ function Logins() {
                             <p className="text-gray-500 text-center">Reservation & Monitoring System</p>
                         </div>
 
-                        {/* Login Form or OTP Verification */}
-                        {!showLoginOTP ? (
-                            /* Login Form */
+                     
+                           
                             <motion.div 
                                 initial={{ opacity: 0, y: 20 }}
                                 animate={{ opacity: 1, y: 0 }}
@@ -1433,7 +1785,7 @@ function Logins() {
                                     <form onSubmit={handleLogin} className="space-y-3">
                                         {/* Username Input */}
                                         <div className="space-y-2">
-                                            <label className="block text-sm font-medium text-gray-700">Employee ID</label>
+                                            <label className="block text-sm font-medium text-gray-700">Student ID / Employee ID</label>
                                             <div className="relative group">
                                                 <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
                                                     <FaUser className="text-gray-400 group-focus-within:text-emerald-500 transition-colors" />
@@ -1521,7 +1873,7 @@ function Logins() {
                                             )}
                                         </div>
 
-                                        {/* Remember Me */}
+                                        {/* Remember Me and Forgot Password */}
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center">
                                                 <input
@@ -1566,90 +1918,7 @@ function Logins() {
                                     </form>
                                 </div>
                             </motion.div>
-                        ) : (
-                            /* OTP Verification Form */
-                            <motion.div 
-                                initial={{ opacity: 0, y: 20 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                transition={{ duration: 0.5 }}
-                                className="bg-white rounded-2xl shadow-xl overflow-hidden"
-                            >
-                                <div className="p-6">
-                                    <div className="text-center mb-6">
-                                        <div className="inline-flex items-center justify-center w-12 h-12 bg-emerald-100 rounded-full mb-3">
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                                            </svg>
-                                        </div>
-                                        <h2 className="text-xl font-bold text-gray-800">Two-Factor Authentication</h2>
-                                        <p className="text-gray-500 mt-1 text-sm">Enter the verification code sent to your email</p>
-                                    </div>
-                                    
-                                    <div className="space-y-6">
-                                        {/* OTP Input Fields */}
-                                        <div className="flex justify-between space-x-2">
-                                            {loginOtpDigits.map((digit, index) => (
-                                                <input
-                                                    key={index}
-                                                    ref={loginOtpRefs[index]}
-                                                    type="text"
-                                                    maxLength="1"
-                                                    value={digit}
-                                                    onChange={(e) => handleLoginOtpChange(index, e.target.value)}
-                                                    onKeyDown={(e) => handleLoginOtpKeyDown(index, e)}
-                                                    className="w-full h-14 text-center text-xl font-medium bg-gray-50 border border-gray-200 rounded-xl shadow-sm focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
-                                                />
-                                            ))}
-                                        </div>
-                                        
-                                        {/* Verify Button */}
-                                        <button
-                                            onClick={handleVerifyLoginOTP}
-                                            disabled={isVerifyingLoginOtp}
-                                            className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-500/30 transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
-                                        >
-                                            {isVerifyingLoginOtp ? (
-                                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
-                                            ) : null}
-                                            {isVerifyingLoginOtp ? 'Verifying...' : 'Verify Code'}
-                                        </button>
-                                        
-                                        {/* Resend Option */}
-                                        <div className="text-center">
-                                            {loginResendTimer > 0 ? (
-                                                <p className="text-sm text-gray-600 flex items-center justify-center">
-                                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                                                    </svg>
-                                                    Resend code in {formatTime(loginResendTimer)}
-                                                </p>
-                                            ) : (
-                                                <button
-                                                    onClick={handleResendLoginOTP}
-                                                    disabled={isResendingLoginOtp || !canResendLoginOtp}
-                                                    className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center justify-center mx-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    {isResendingLoginOtp ? (
-                                                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                        </svg>
-                                                    ) : (
-                                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                                        </svg>
-                                                    )}
-                                                    {isResendingLoginOtp ? 'Resending...' : 'Resend verification code'}
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            </motion.div>
-                        )}
+                        
                     </div>
                 </div>
             </div>
@@ -1713,7 +1982,7 @@ function Logins() {
                             </svg>
                         </div>
                         <h2 className="text-lg font-bold text-gray-800">Reset Your Password</h2>
-                        <p className="text-gray-500 mt-1 text-xs">{!showOtpInput ? "Enter your email to receive a verification code" : showPasswordReset ? "Create a new secure password" : "Enter the verification code sent to your email"}</p>
+                        <p className="text-gray-500 mt-1 text-xs">{!showOtpInput ? "Enter your email to receive a verification code" : showPasswordReset ? "Create a new secure password" : "Enter the verification code sent to your email (expires in 3 minutes)"}</p>
                     </div>
 
                     <div className="space-y-6">
@@ -1742,10 +2011,10 @@ function Logins() {
 
                                 <button
                                     onClick={handleCheckEmail}
-                                    disabled={isVerifyingEmail}
+                                    disabled={loading}
                                     className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-700 hover:to-teal-600 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-emerald-500 shadow-lg shadow-emerald-500/30 transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
                                 >
-                                    {isVerifyingEmail ? (
+                                    {loading ? (
                                         <>
                                             <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -1771,6 +2040,8 @@ function Logins() {
                                             key={index}
                                             ref={otpRefs[index]}
                                             type="text"
+                                            inputMode="numeric"
+                                            pattern="[0-9]*"
                                             maxLength="1"
                                             value={digit}
                                             onChange={(e) => handleOtpChange(index, e.target.value)}
@@ -1798,10 +2069,10 @@ function Logins() {
                                         ) : (
                                             <button
                                                 onClick={() => handleSendOTP(true)}
-                                                disabled={isResending}
-                                                className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center justify-center mx-auto"
+                                                disabled={loading}
+                                                className="text-emerald-600 hover:text-emerald-700 text-sm font-medium flex items-center justify-center mx-auto disabled:opacity-50"
                                             >
-                                                {isResending ? (
+                                                {loading ? (
                                                     <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
@@ -1811,7 +2082,7 @@ function Logins() {
                                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                                                     </svg>
                                                 )}
-                                                {isResending ? 'Resending...' : 'Resend verification code'}
+                                                {loading ? 'Resending...' : 'Resend verification code'}
                                             </button>
                                         )}
                                     </div>
@@ -1904,6 +2175,181 @@ function Logins() {
                     </div>
                 </div>
             </Modal>
+
+            {/* Login OTP Modal */}
+            <Modal
+                title={null}
+                open={showLoginOTP}
+                onCancel={handleLoginOtpModalClose}
+                footer={null}
+                maskClosable={false}
+                width="90%"
+                style={{ maxWidth: '380px' }}
+                className="modern-modal"
+                closeIcon={
+                    <span className="absolute top-4 right-4 p-2 rounded-full hover:bg-gray-100 transition-colors cursor-pointer">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M18 6L6 18M6 6l12 12"></path>
+                        </svg>
+                    </span>
+                }
+            >
+                <div className="p-4 sm:p-6">
+                    <div className="text-center mb-4 sm:mb-6">
+                        <div className="inline-flex items-center justify-center w-10 h-10 sm:w-12 sm:h-12 rounded-full mb-2 sm:mb-3" style={{backgroundColor: '#d4f4dc'}}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 sm:h-6 sm:w-6" style={{color: '#548e54'}} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.031 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                            </svg>
+                        </div>
+                        <h2 className="text-lg sm:text-xl font-bold text-gray-800">Two-Factor Authentication</h2>
+                        <p className="text-gray-500 mt-1 sm:mt-2 text-xs sm:text-sm px-2">
+                            A verification code has been sent to your email address. Please enter the 6-digit code below to complete your login.
+                        </p>
+                    </div>
+
+                    <div className="space-y-4 sm:space-y-6">
+                        <div className="p-3 sm:p-4 rounded-xl text-center border" style={{backgroundColor: '#d4f4dc', borderColor: '#83b383'}}>
+                            <p className="text-xs sm:text-sm font-medium" style={{color: '#548e54'}}>Verification code sent to:</p>
+                            <p className="font-semibold mt-1 text-sm sm:text-base break-all" style={{color: '#145414'}}>{SecureStorage.getSessionItem("temp_user_email")}</p>
+                        </div>
+                        
+                        <div className="flex justify-between space-x-2 sm:space-x-3">
+                            {loginOtpDigits.map((digit, index) => (
+                                <input
+                                    key={index}
+                                    ref={loginOtpRefs[index]}
+                                    type="text"
+                                    inputMode="numeric"
+                                    pattern="[0-9]*"
+                                    maxLength="1"
+                                    value={digit}
+                                    onChange={(e) => handleLoginOtpChange(index, e.target.value)}
+                                    onKeyDown={(e) => handleLoginOtpKeyDown(index, e)}
+                                    className="w-full h-12 sm:h-16 text-center text-lg sm:text-2xl font-bold bg-gray-50 border-2 border-gray-200 rounded-lg sm:rounded-xl shadow-sm focus:bg-white focus:outline-none transition-all"
+                                    onFocus={(e) => {
+                                        e.target.style.borderColor = '#548e54';
+                                        e.target.style.boxShadow = '0 0 0 2px rgba(84, 142, 84, 0.2)';
+                                    }}
+                                    onBlur={(e) => {
+                                        e.target.style.borderColor = '#d1d5db';
+                                        e.target.style.boxShadow = 'none';
+                                    }}
+                                    placeholder="•"
+                                />
+                            ))}
+                        </div>
+
+                        <div className="space-y-3 sm:space-y-4">
+                            <button
+                                onClick={handleVerifyLoginOtp}
+                                disabled={isVerifyingLoginOtp || loginOtpDigits.some(digit => !digit)}
+                                className="w-full flex justify-center items-center py-3 sm:py-4 px-4 border border-transparent rounded-lg sm:rounded-xl text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 shadow-lg transition-all duration-200 ease-in-out disabled:opacity-70 disabled:cursor-not-allowed"
+                                style={{
+                                    background: `linear-gradient(to right, #548e54, #83b383)`,
+                                    boxShadow: '0 10px 15px -3px rgba(84, 142, 84, 0.3)'
+                                }}
+                                onMouseEnter={(e) => {
+                                    if (!e.target.disabled) {
+                                        e.target.style.background = `linear-gradient(to right, #145414, #548e54)`;
+                                    }
+                                }}
+                                onMouseLeave={(e) => {
+                                    if (!e.target.disabled) {
+                                        e.target.style.background = `linear-gradient(to right, #548e54, #83b383)`;
+                                    }
+                                }}
+                            >
+                                {isVerifyingLoginOtp ? (
+                                    <>
+                                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Verifying...
+                                    </>
+                                ) : (
+                                    <>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Verify & Login
+                                    </>
+                                )}
+                            </button>
+                            
+                            <div className="text-center">
+                                {!canResendLoginOtp ? (
+                                    <p className="text-sm text-gray-600 flex items-center justify-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" style={{color: '#548e54'}} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        Resend code in {formatTimer(loginResendTimer)}
+                                    </p>
+                                ) : (
+                                    <button
+                                        onClick={handleResendLoginOtp}
+                                        disabled={isResendingLoginOtp}
+                                        className="text-sm font-medium flex items-center justify-center mx-auto disabled:opacity-50 px-3 py-2 rounded-lg transition-colors"
+                                        style={{color: '#548e54'}}
+                                        onMouseEnter={(e) => {
+                                            if (!e.target.disabled) {
+                                                e.target.style.color = '#145414';
+                                                e.target.style.backgroundColor = '#d4f4dc';
+                                            }
+                                        }}
+                                        onMouseLeave={(e) => {
+                                            if (!e.target.disabled) {
+                                                e.target.style.color = '#548e54';
+                                                e.target.style.backgroundColor = 'transparent';
+                                            }
+                                        }}
+                                    >
+                                        {isResendingLoginOtp ? (
+                                            <>
+                                                <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Resending...
+                                            </>
+                                        ) : (
+                                            <>
+                                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                </svg>
+                                                Resend verification code
+                                            </>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg sm:rounded-xl p-3 sm:p-4">
+                            <div className="flex items-start">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 sm:h-5 sm:w-5 text-amber-600 mt-0.5 mr-2 sm:mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                                </svg>
+                                <div>
+                                    <p className="text-amber-800 text-xs sm:text-sm font-medium">Security Notice</p>
+                                    <p className="text-amber-700 text-xs mt-0.5 sm:mt-1">
+                                        Do not share this code with anyone.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </Modal>
+
+            {/* Force Password Change Modal */}
+            {showForcePassword && (
+                <ForcePassword 
+                    isOpen={showForcePassword}
+                    onClose={() => setShowForcePassword(false)}
+                    currentPassword={currentPassword}
+                />
+            )}
         </div>
     );
 }

@@ -1,5 +1,5 @@
-
-const API_BASE_URL = "http://localhost/gsd-reservation/backend/";
+const API_BASE_URL = "http://localhost/gsd-reservation-main/backend/";
+// const API_BASE_URL = "https://coc-studentinfo.net/gsd/grms/backend/";
 
 // const API_BASE_URL = "https://peachpuff-alligator-715719.hostingersite.com/gsd/api/";
 

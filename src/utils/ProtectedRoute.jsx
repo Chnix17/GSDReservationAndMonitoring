@@ -40,7 +40,7 @@ const ProtectedRoute = ({ children, allowedRoles, requiredDepartment }) => {
     const getRedirectPath = () => {
         if (resolvedUserRole === 'Super Admin' || resolvedUserRole === 'Admin') return '/Admin';
         if (resolvedUserRole === 'Personnel') return '/Personnel/Dashboard';
-        if (resolvedUserRole === 'Dean' || resolvedUserRole === 'Secretary' || resolvedUserRole === 'Department Head') return '/Department/Dashboard';
+        if (resolvedUserRole === 'Dean' || resolvedUserRole === 'Secretary' || resolvedUserRole === 'Department Head' || resolvedUserRole === 'Principal') return '/Department/Dashboard';
         if (resolvedUserRole === 'Faculty/Staff' || resolvedUserRole === 'School Head' || resolvedUserRole === 'SBO PRESIDENT' || resolvedUserRole === 'CSG PRESIDENT') return '/Faculty/Dashboard';
         if (resolvedUserRole === 'Driver') return '/Driver/Dashboard';
         return '/';

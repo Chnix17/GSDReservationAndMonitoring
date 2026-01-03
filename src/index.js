@@ -13,7 +13,7 @@ const root = ReactDOM.createRoot(document.getElementById("root"));
 // Check if we're at the root path, if so show redirect handler
 // Otherwise, render the app with basename
 const isRootPath = window.location.pathname === '/';
-const isReservationPath = window.location.pathname.startsWith('/reservation');
+const isReservationPath = window.location.pathname.startsWith('/gsd/grms');
 
 root.render(
 	<React.StrictMode>
@@ -24,7 +24,7 @@ root.render(
 				</Routes>
 			</BrowserRouter>
 		) : isReservationPath ? (
-			<BrowserRouter basename="/reservation">
+			<BrowserRouter basename="/gsd/grms">
 				<App />
 			</BrowserRouter>
 		) : (

@@ -41,6 +41,120 @@
   }
 }
 
+/* Small phones and 6"+ devices portrait (360-430px width) */
+@media screen and (max-width: 430px) {
+  .mobile-container,
+  .reservation-step {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  /* Steps compact mode */
+  .mobile-steps .ant-steps-item-title { font-size: 12px; }
+  .mobile-steps .ant-steps-item-icon { width: 28px; height: 28px; line-height: 28px; }
+  .mobile-steps .ant-steps-item-description { display: none; }
+
+  /* Buttons grow full width on very small screens */
+  .mobile-actions,
+  .reservation-actions {
+    display: flex;
+    gap: 8px;
+  }
+  .mobile-actions .ant-btn,
+  .reservation-actions .ant-btn {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  /* Unified card spacing */
+  .p-card, .ant-card { border-radius: 12px; }
+}
+
+/* 6–7 inch phones portrait (width 375–480px) */
+@media screen and (min-width: 375px) and (max-width: 480px) {
+  .mobile-steps .ant-steps-item-title { font-size: 13px; }
+  .mobile-steps .ant-steps-item-icon { width: 30px; height: 30px; line-height: 30px; }
+  .reservation-step { padding-left: 14px; padding-right: 14px; }
+  .reservation-actions { gap: 10px; }
+  .reservation-actions .ant-btn { padding-top: 10px; padding-bottom: 10px; }
+  .form-compact .ant-input, .form-compact .ant-select, .form-compact .ant-picker { font-size: 15px; }
+}
+
+/* 6–7 inch phones height tuning (700–920px height) */
+@media screen and (min-height: 700px) and (max-height: 920px) {
+  .vh-compact { max-height: calc(100vh - 140px); }
+  .calendar-viewport { max-height: calc(100vh - 260px); }
+}
+
+/* Galaxy Note20 Ultra and similar (>= 412 x 883) */
+@media screen and (min-width: 412px) and (min-height: 883px) {
+  /* Slightly larger step titles/icons for readability */
+  .mobile-steps .ant-steps-item-title { font-size: 14px; }
+  .mobile-steps .ant-steps-item-icon { width: 32px; height: 32px; line-height: 32px; }
+
+  /* Comfortable page paddings */
+  .reservation-step { padding-left: 16px; padding-right: 16px; }
+
+  /* Action bar spacing and button height */
+  .reservation-actions { gap: 12px; }
+  .reservation-actions .ant-btn { height: 44px; }
+
+  /* Calendar viewport allows legend + month header without clipping */
+  .calendar-viewport { max-height: calc(100vh - 280px); }
+
+  /* Forms readability */
+  .form-compact .ant-input, .form-compact .ant-select, .form-compact .ant-picker { font-size: 16px; }
+}
+
+/* Improve short-height devices usability (<= 700px height) */
+@media screen and (max-height: 700px) {
+  .vh-compact { max-height: calc(100vh - 120px); overflow: auto; }
+  .vh-compact-nofooter { max-height: calc(100vh - 64px); overflow: auto; }
+  .ant-modal-body { max-height: 70vh; overflow: auto; }
+}
+
+/* iOS safe-area insets and fixed footer overlap prevention */
+.safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+.safe-area-top { padding-top: env(safe-area-inset-top); }
+.mobile-footer-spacer { height: calc(64px + env(safe-area-inset-bottom)); }
+
+@supports (padding: max(0px)) {
+  .safe-area-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+}
+
+/* Select Type and Select Resource: wrap and stack */
+@media screen and (max-width: 640px) {
+  .select-grid,
+  .resource-grid,
+  .two-column,
+  .grid-2,
+  .grid-3 { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .filter-row,
+  .controls-row { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filter-row > *,
+  .controls-row > * { flex: 1 1 100%; min-width: 0; }
+  .ant-input, .ant-select, .ant-picker { width: 100%; }
+}
+
+/* Forms: comfortable touch targets on mobile */
+@media screen and (max-width: 640px) {
+  .form-compact .ant-form-item { margin-bottom: 12px; }
+  .form-compact .ant-input,
+  .form-compact .ant-input-affix-wrapper,
+  .form-compact .ant-select-selector,
+  .form-compact .ant-picker-input > input { padding-top: 10px; padding-bottom: 10px; }
+  .form-compact .ant-form-item-label { padding-bottom: 6px; }
+  .form-compact .ant-radio-group, .form-compact .ant-checkbox-group { display: flex; flex-wrap: wrap; gap: 8px 12px; }
+  .form-compact .ant-input, .form-compact .ant-select, .form-compact .ant-picker { width: 100%; }
+}
+
+/* Review step: stack sections and buttons */
+@media screen and (max-width: 640px) {
+  .review-grid { display: grid; grid-template-columns: 1fr; gap: 12px; }
+  .review-actions { display: flex; gap: 8px; }
+  .review-actions .ant-btn { flex: 1 1 auto; min-width: 0; }
+}
+
 /* Responsive Table Styles */
 @media screen and (max-width: 768px) {
   .responsive-table {

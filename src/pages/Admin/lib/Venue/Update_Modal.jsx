@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, Select, Button } from 'antd';
+import { useMediaQuery } from 'react-responsive';
+import { Modal, Form, Input, Select, Button, Drawer } from 'antd';
 import { FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
@@ -7,14 +8,22 @@ import axios from 'axios';
 import { SecureStorage } from '../../../../utils/encryption';
 
 const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
+    // Responsive breakpoints
+    const isMobile = useMediaQuery({ maxWidth: 767 });
+    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+    // const isSmallScreen = useMediaQuery({ maxWidth: 1023 });
+
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [venueName, setVenueName] = useState('');
     const [maxOccupancy, setMaxOccupancy] = useState('');
+    const [minOccupancy, setMinOccupancy] = useState('');
     const [selectedStatus, setSelectedStatus] = useState('1');
     const [statusOptions, setStatusOptions] = useState([]);
     const [eventType, setEventType] = useState('Big Event');
     const [areaType, setAreaType] = useState(null);
+    const [buildingId, setBuildingId] = useState(null);
+    const [buildings, setBuildings] = useState([]);
 
     const baseUrl = SecureStorage.getLocalItem("url");
 
@@ -27,18 +36,48 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             );
             
             if (response.data.status === 'success') {
-                setStatusOptions(response.data.data);
+                // Filter out status IDs 9 (Available Stock) and 10 (Out of stock)
+                const filteredStatuses = response.data.data.filter(
+                    status => status.status_availability_id !== 9 && status.status_availability_id !== 10
+                );
+                setStatusOptions(filteredStatuses);
             } else {
                 console.error("Failed to fetch status options");
             }
         } catch (error) {
             console.error("Error fetching status availability:", error);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error("Network connection lost. Unable to load status options. Please check your internet connection.");
+            }
+        }
+    }, [baseUrl]);
+
+    const fetchBuildings = useCallback(async () => {
+        try {
+            const response = await axios.post(`${baseUrl}/Admin.php`, 
+                new URLSearchParams({
+                    operation: 'fetchVenueBuildings'
+                })
+            );
+            
+            if (response.data.status === 'success') {
+                setBuildings(response.data.data);
+            } else {
+                console.error("Failed to fetch buildings");
+            }
+        } catch (error) {
+            console.error("Error fetching buildings:", error);
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error("Network connection lost. Unable to load buildings.");
+            }
         }
     }, [baseUrl]);
 
     useEffect(() => {
         fetchStatusAvailability();
-    }, [fetchStatusAvailability]);
+        fetchBuildings();
+    }, [fetchStatusAvailability, fetchBuildings]);
 
     const getVenueDetails = useCallback(async () => {
         if (!venueId) {
@@ -66,23 +105,32 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 const venue = response.data.data[0];
                 setVenueName(venue.ven_name);
                 setMaxOccupancy(venue.ven_occupancy);
+                setMinOccupancy(venue.ven_minimum || '');
                 setSelectedStatus(venue.status_availability_id);
                 setEventType(venue.event_type || 'Big Event');
                 setAreaType(venue.area_type || null);
+                setBuildingId(venue.venue_building_id || null);
 
                 form.setFieldsValue({
                     name: venue.ven_name,
                     occupancy: venue.ven_occupancy,
+                    min_occupancy: venue.ven_minimum || '',
                     status: venue.status_availability_id,
                     event_type: venue.event_type || 'Big Event',
                     area_type: venue.area_type || null,
+                    building: venue.venue_building_id || null,
                 });
             } else {
                 toast.error("Failed to fetch venue details");
             }
         } catch (error) {
             console.error("Error fetching venue details:", error);
-            toast.error("An error occurred while fetching venue details");
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error("Network connection lost. Unable to load venue details. Please check your internet connection.");
+            } else {
+                toast.error("An error occurred while fetching venue details");
+            }
         }
     }, [venueId, baseUrl, form]);
 
@@ -104,9 +152,17 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
         }
     };
 
+    const handleMinOccupancyChange = (e) => {
+        const sanitizedValue = sanitizeInput(e.target.value);
+        if (/^\d*$/.test(sanitizedValue)) {
+            setMinOccupancy(sanitizedValue);
+        }
+    };
+
     const validateVenueData = () => {
         const sanitizedName = sanitizeInput(venueName);
         const sanitizedOccupancy = sanitizeInput(maxOccupancy);
+        const sanitizedMinOccupancy = sanitizeInput(minOccupancy);
         const sanitizedEventType = sanitizeInput(eventType);
         const sanitizedAreaType = sanitizeInput(areaType);
 
@@ -116,8 +172,36 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             return false;
         }
 
-        if (!sanitizedName || !sanitizedOccupancy || !sanitizedEventType || !sanitizedAreaType) {
-            toast.error("Please fill in all required fields!");
+        // Check for empty or whitespace-only fields
+        if (!sanitizedName || !sanitizedName.trim()) {
+            toast.error("Venue name cannot be empty or contain only whitespace!");
+            return false;
+        }
+
+        if (!sanitizedOccupancy || !sanitizedOccupancy.toString().trim()) {
+            toast.error("Maximum occupancy cannot be empty or contain only whitespace!");
+            return false;
+        }
+
+        // Require minimum occupancy
+        if (!sanitizedMinOccupancy || !sanitizedMinOccupancy.toString().trim()) {
+            toast.error("Minimum occupancy cannot be empty or contain only whitespace!");
+            return false;
+        }
+
+        if (!sanitizedEventType || !sanitizedEventType.trim()) {
+            toast.error("Event type cannot be empty or contain only whitespace!");
+            return false;
+        }
+
+        if (!sanitizedAreaType || !sanitizedAreaType.trim()) {
+            toast.error("Area type cannot be empty or contain only whitespace!");
+            return false;
+        }
+
+        // Require location selection
+        if (!buildingId) {
+            toast.error("Location is required!");
             return false;
         }
 
@@ -126,28 +210,46 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             return false;
         }
 
+        // Validate minimum occupancy constraints
+        if (parseInt(sanitizedMinOccupancy) < 0) {
+            toast.error("Minimum occupancy cannot be negative!");
+            return false;
+        }
+        if (parseInt(sanitizedMinOccupancy) > parseInt(sanitizedOccupancy)) {
+            toast.error("Minimum occupancy cannot be greater than maximum occupancy!");
+            return false;
+        }
+
         return {
-            name: sanitizedName,
+            name: sanitizedName.trim(),
             occupancy: sanitizedOccupancy,
-            event_type: sanitizedEventType,
-            area_type: sanitizedAreaType
+            min_occupancy: sanitizedMinOccupancy || 0,
+            event_type: sanitizedEventType.trim(),
+            area_type: sanitizedAreaType.trim()
         };
     };
 
     const handleSubmit = async () => {
-        const validatedData = validateVenueData();
-        if (!validatedData) return;
-
-        setLoading(true);
         try {
+            // First validate the form fields
+            await form.validateFields();
+            
+            // Then run custom validation
+            const validatedData = validateVenueData();
+            if (!validatedData) return;
+
+            setLoading(true);
+            
             const requestData = {
                 operation: 'updateVenue',
                 venue_id: venueId,
                 venue_name: validatedData.name,
                 max_occupancy: validatedData.occupancy,
+                min_occupancy: validatedData.min_occupancy,
                 status_availability_id: parseInt(selectedStatus),
                 event_type: validatedData.event_type,
                 area_type: validatedData.area_type,
+                building_id: buildingId,
                 user_personnel_id: SecureStorage.getLocalItem("user_id")
             };
 
@@ -167,38 +269,45 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 form.resetFields();
                 setVenueName('');
                 setMaxOccupancy('');
+                setMinOccupancy('');
                 onCancel();
             } else {
                 toast.error(response.data.message || "Failed to update venue");
             }
         } catch (error) {
+            if (error.errorFields) {
+                // Form validation error - don't show toast as Antd will show field errors
+                return;
+            }
             console.error("Error updating venue:", error);
-            toast.error("An error occurred while updating the venue.");
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error("Network connection lost. Unable to update venue. Please check your internet connection and try again.");
+            } else {
+                toast.error("An error occurred while updating the venue.");
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    return (
-        <Modal
-            title={
-                <div className="flex items-center">
-                    <FaEye className="mr-2 text-green-900" /> 
-                    Edit Venue
-                </div>
-            }
-            open={visible}
-            onCancel={onCancel}
-            footer={null}
-            width={800}
-        >
-            <Form form={form} layout="vertical" className="p-4">
+    const modalContent = (
+        <Form form={form} layout="vertical" className={isMobile ? "p-3" : "p-4"}>
                 <Form.Item
                     label="Venue Name"
                     name="name"
                     initialValue={venueName}
                     rules={[
                         { required: true, message: 'Please input venue name!' },
+                        { 
+                            validator: (_, value) => {
+                                if (value && value.trim() === '') {
+                                    toast.error('Venue name cannot contain only whitespace!');
+                                    return Promise.reject(new Error('Venue name cannot contain only whitespace!'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
                     ]}
                 >
                     <Input
@@ -213,6 +322,19 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                     initialValue={maxOccupancy}
                     rules={[
                         { required: true, message: 'Please input maximum occupancy!' },
+                        { 
+                            validator: (_, value) => {
+                                if (value && value.toString().trim() === '') {
+                                    toast.error('Maximum occupancy cannot contain only whitespace!');
+                                    return Promise.reject(new Error('Maximum occupancy cannot contain only whitespace!'));
+                                }
+                                if (value && parseInt(value) < 0) {
+                                    toast.error('Maximum occupancy cannot be negative!');
+                                    return Promise.reject(new Error('Maximum occupancy cannot be negative!'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
                     ]}
                 >
                     <Input
@@ -221,6 +343,39 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                         onChange={handleOccupancyChange}
                         placeholder="Enter maximum occupancy"
                         min="1"
+                    />
+                </Form.Item>
+                <Form.Item 
+                    label="Min Occupancy"
+                    name="min_occupancy"
+                    initialValue={minOccupancy}
+                    rules={[
+                        { required: true, message: 'Please input minimum occupancy!' },
+                        { 
+                            validator: (_, value) => {
+                                if (value && value.toString().trim() === '') {
+                                    toast.error('Minimum occupancy cannot contain only whitespace!');
+                                    return Promise.reject(new Error('Minimum occupancy cannot contain only whitespace!'));
+                                }
+                                if (value && parseInt(value) < 0) {
+                                    toast.error('Minimum occupancy cannot be negative!');
+                                    return Promise.reject(new Error('Minimum occupancy cannot be negative!'));
+                                }
+                                if (value && maxOccupancy && parseInt(value) > parseInt(maxOccupancy)) {
+                                    toast.error('Minimum occupancy cannot be greater than maximum occupancy!');
+                                    return Promise.reject(new Error('Minimum occupancy cannot be greater than maximum occupancy!'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
+                    ]}
+                >
+                    <Input
+                        type="number"
+                        value={minOccupancy}
+                        onChange={handleMinOccupancyChange}
+                        placeholder="Enter minimum occupancy"
+                        min="0"
                     />
                 </Form.Item>
                 <Form.Item 
@@ -249,6 +404,15 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                     initialValue={eventType}
                     rules={[
                         { required: true, message: 'Please select event type!' },
+                        { 
+                            validator: (_, value) => {
+                                if (value && value.trim() === '') {
+                                    toast.error('Event type cannot contain only whitespace!');
+                                    return Promise.reject(new Error('Event type cannot contain only whitespace!'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
                     ]}
                 >
                     <Select
@@ -266,6 +430,15 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                     initialValue={areaType}
                     rules={[
                         { required: true, message: 'Please select area type!' },
+                        { 
+                            validator: (_, value) => {
+                                if (value && value.trim() === '') {
+                                    toast.error('Area type cannot contain only whitespace!');
+                                    return Promise.reject(new Error('Area type cannot contain only whitespace!'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
                     ]}
                 >
                     <Select
@@ -278,8 +451,31 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                         ]}
                     />
                 </Form.Item>
-                <div className="flex justify-end gap-2 mt-4">
-                    <Button onClick={onCancel}>
+                <Form.Item 
+                    label="Location"
+                    name="Location"
+                    initialValue={buildingId}
+                    rules={[
+                        { required: true, message: 'Please select location!' }
+                    ]}
+                >
+                    <Select
+                        value={buildingId}
+                        onChange={value => setBuildingId(value)}
+                        placeholder="Select building"
+                        allowClear
+                        options={buildings.map(building => ({
+                            value: building.venue_building_id,
+                            label: building.venue_building_name
+                        }))}
+                    />
+                </Form.Item>
+                <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-end gap-2'} mt-4`}>
+                    <Button 
+                        onClick={onCancel}
+                        size={isMobile ? "large" : "default"}
+                        block={isMobile}
+                    >
                         Cancel
                     </Button>
                     <Button 
@@ -287,12 +483,50 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                         onClick={handleSubmit}
                         loading={loading}
                         className="bg-green-900 hover:bg-lime-900"
+                        size={isMobile ? "large" : "default"}
+                        block={isMobile}
                     >
                         Update Venue
                     </Button>
                 </div>
             </Form>
-        </Modal>
+    );
+
+    return (
+        <>
+            {isMobile ? (
+                <Drawer
+                    title={
+                        <div className="flex items-center">
+                            <FaEye className="mr-2 text-green-900" /> 
+                            Edit Venue
+                        </div>
+                    }
+                    placement="bottom"
+                    open={visible}
+                    onClose={onCancel}
+                    height="90%"
+                    bodyStyle={{ paddingBottom: '120px' }}
+                >
+                    {modalContent}
+                </Drawer>
+            ) : (
+                <Modal
+                    title={
+                        <div className="flex items-center">
+                            <FaEye className="mr-2 text-green-900" /> 
+                            Edit Venue
+                        </div>
+                    }
+                    open={visible}
+                    onCancel={onCancel}
+                    footer={null}
+                    width={isTablet ? 700 : 800}
+                >
+                    {modalContent}
+                </Modal>
+            )}
+        </>
     );
 };
 

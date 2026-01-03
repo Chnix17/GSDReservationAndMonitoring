@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Input, Select, Button } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Modal, Form, Input, Select, Button, Drawer } from 'antd';
+// import { PlusOutlined } from '@ant-design/icons';
+import { useMediaQuery } from 'react-responsive';
 import { Calendar } from 'primereact/calendar';
 import { FaEye } from 'react-icons/fa';
 import { toast } from 'sonner';
@@ -19,6 +20,11 @@ const Update_Modal = ({
     isSubmitting,
     editingVehicle
 }) => {
+    // Responsive breakpoints
+    const isMobile = useMediaQuery({ maxWidth: 767 });
+    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+    // const isDesktop = useMediaQuery({ minWidth: 1024 });
+
     const [form] = Form.useForm();
     const [makeId, setMakeId] = useState('');
     const [category, setCategory] = useState('');
@@ -47,7 +53,12 @@ const Update_Modal = ({
                 return [];
             }
         } catch (error) {
-            toast.error(error.message);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load vehicle makes.');
+            } else {
+                toast.error(error.message);
+            }
             return [];
         }
     }, [BASE_URL]);
@@ -71,7 +82,12 @@ const Update_Modal = ({
             }
         } catch (error) {
             console.error('Error fetching categories:', error);
-            toast.error(error.message);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load categories.');
+            } else {
+                toast.error(error.message);
+            }
         }
     }, [BASE_URL]);
 
@@ -105,7 +121,12 @@ const Update_Modal = ({
             }
         } catch (error) {
             console.error('Error fetching models:', error);
-            toast.error(error.message);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load models.');
+            } else {
+                toast.error(error.message);
+            }
         }
     }, [BASE_URL, makeId, modelsByCategory]);
 
@@ -115,14 +136,24 @@ const Update_Modal = ({
                 new URLSearchParams({ operation: "fetchStatusAvailability" })
             );
             if (response.data.status === 'success') {
-                setStatusAvailability(response.data.data);
+                // Filter out status IDs 9 (Available Stock) and 10 (Out of stock)
+                const filteredStatuses = response.data.data.filter(
+                    status => status.status_availability_id !== 9 && status.status_availability_id !== 10
+                );
+                setStatusAvailability(filteredStatuses);
             } else {
                 toast.error(response.data.message);
             }
         } catch (error) {
-            toast.error(error.message);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load status options.');
+            } else {
+                toast.error(error.message);
+            }
         }
     }, [BASE_URL]);
+
 
     const resetForm = useCallback(() => {
         console.log('Resetting form');
@@ -283,25 +314,25 @@ const Update_Modal = ({
         }
     };
 
-    const handleAddMake = () => {
-        setIsMakeModalOpen(true);
-    };
+    // const handleAddMake = () => {
+    //     setIsMakeModalOpen(true);
+    // };
 
     const handleMakeModalSuccess = async () => {
         setIsMakeModalOpen(false);
     };
 
-    const handleAddCategory = () => {
-        setIsCategoryModalOpen(true);
-    };
+    // const handleAddCategory = () => {
+    //     setIsCategoryModalOpen(true);
+    // };
 
     const handleCategoryModalSuccess = async () => {
         setIsCategoryModalOpen(false);
     };
 
-    const handleAddModel = () => {
-        setIsModelModalOpen(true);
-    };
+    // const handleAddModel = () => {
+    //     setIsModelModalOpen(true);
+    // };
 
     const handleModelModalSuccess = async () => {
         setIsModelModalOpen(false);
@@ -323,17 +354,33 @@ const Update_Modal = ({
 
     const handleSubmit = async () => {
         try {
+            // Show loading toast
+          
+            
             const values = await form.validateFields();
             
+            // Validate required fields exist and are not just whitespace
             if (!values.model || !values.year || !values.status || !values.license) {
+             
                 toast.error("Please fill in all required fields.");
                 return;
             }
 
+            // Validate license is not just whitespace
+            if (!values.license.trim()) {
+                // toast.dismiss(loadingToast);
+                toast.error("License number cannot be empty or contain only spaces.");
+                return;
+            }
+
+            // // Update loading message
+            // toast.dismiss(loadingToast);
+            // toast.loading("Updating vehicle information...");
+
             const formData = {
                 vehicle_id: editingVehicle.vehicle_id,
                 vehicle_model_id: values.model,
-                vehicle_license: values.license,
+                vehicle_license: values.license.trim(),
                 year: dayjs(values.year).format('YYYY'),
                 status_availability_id: values.status,
                 user_admin_id: SecureStorage.getLocalItem('user_id'),
@@ -345,7 +392,19 @@ const Update_Modal = ({
             onSubmit(formData);
         } catch (error) {
             console.error('Form validation failed:', error);
-            toast.error('Please check all required fields');
+            
+            // Handle different types of errors with specific messages
+            if (error.errorFields && error.errorFields.length > 0) {
+                toast.error("Please fix the form errors before submitting.", {
+                    description: "Check the highlighted fields for validation errors.",
+                    duration: 4000
+                });
+            } else {
+                toast.error('Please check all required fields', {
+                    description: "Ensure all fields are properly filled out.",
+                    duration: 4000
+                });
+            }
         }
     };
 
@@ -356,169 +415,191 @@ const Update_Modal = ({
         onCancel();
     };
 
+    const modalTitle = (
+        <div className="flex items-center">
+            <FaEye className="mr-2 text-green-900" /> 
+            Edit Vehicle
+        </div>
+    );
+
+    const formContent = (
+        <Form form={form} layout="vertical" className={isMobile ? "p-2" : "p-4"}>
+            <div className={`space-y-${isMobile ? '3' : '4'}`}>
+                <Form.Item
+                    name="make"
+                    label="Make"
+                    required
+                    tooltip="Select the vehicle make"
+                >
+                    <Select
+                        value={makeId}
+                        options={makes.map(make => ({
+                            label: make.vehicle_make_name,
+                            value: make.vehicle_make_id
+                        }))}
+                        onChange={handleMakeChange}
+                        placeholder="Select Make"
+                        className="w-full"
+                        size={isMobile ? "middle" : "large"}
+                    />
+                </Form.Item>
+
+                <Form.Item
+                    name="category"
+                    label="Category"
+                    required
+                    tooltip="Select the vehicle category"
+                >
+                    <Select
+                        value={category}
+                        options={categories.map(cat => ({
+                            label: cat.vehicle_category_name,
+                            value: cat.vehicle_category_id
+                        }))}
+                        onChange={handleCategoryChange}
+                        placeholder="Select Category"
+                        className="w-full"
+                        disabled={!makeId}
+                        size={isMobile ? "middle" : "large"}
+                    />
+                </Form.Item>
+
+                <Form.Item
+                    name="model"
+                    label="Model"
+                    required
+                    tooltip="Select the vehicle model"
+                >
+                    <Select
+                        value={vehicleModelId}
+                        options={modelsByCategory[category]?.map(model => ({
+                            label: model.vehicle_model_name,
+                            value: model.vehicle_model_id
+                        }))}
+                        onChange={(value) => setVehicleModelId(value)}
+                        placeholder="Select Model"
+                        className="w-full"
+                        disabled={!category}
+                        size={isMobile ? "middle" : "large"}
+                    />
+                </Form.Item>
+
+                <Form.Item
+                    name="license"
+                    label="Plate No."
+                    required
+                    tooltip="Enter the vehicle plate no."
+                    rules={[
+                        { required: true, message: 'Plate no. is required' },
+                        { 
+                            validator: (_, value) => {
+                                if (value && value.trim() === '') {
+                                    toast.error('Plate no. cannot contain only whitespace!');
+                                    return Promise.reject(new Error('Plate no. cannot contain only whitespace!'));
+                                }
+                                return Promise.resolve();
+                            }
+                        }
+                    ]}
+                >
+                    <Input
+                        value={vehicleLicensed}
+                        onChange={handleLicenseChange}
+                        placeholder="Enter plate no."
+                        maxLength={50}
+                        size={isMobile ? "middle" : "large"}
+                    />
+                </Form.Item>
+
+                <Form.Item
+                    name="year"
+                    label="Year"
+                    required
+                    tooltip="Select the vehicle year"
+                >
+                    <Calendar
+                        value={year}
+                        onChange={(e) => setYear(e.value)}
+                        view="year"
+                        dateFormat="yy"
+                        placeholder="Select Year"
+                        className="w-full"
+                        maxDate={new Date()}
+                    />
+                </Form.Item>
+
+                <Form.Item
+                    name="status"
+                    label="Availability Status"
+                    required
+                    tooltip="Select the vehicle availability status"
+                >
+                    <Select
+                        value={selectedStatus}
+                        options={statusAvailability.map(status => ({
+                            label: status.status_availability_name,
+                            value: status.status_availability_id
+                        }))}
+                        onChange={(value) => setSelectedStatus(value)}
+                        placeholder="Select Status"
+                        className="w-full"
+                        size={isMobile ? "middle" : "large"}
+                    />
+                </Form.Item>
+            </div>
+        </Form>
+    );
+
+    const footerButtons = (
+        <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-end gap-2'} ${isMobile ? 'mt-4' : 'mt-4'}`}>
+            <Button 
+                onClick={handleClose}
+                size={isMobile ? "large" : "middle"}
+                className={isMobile ? 'w-full' : ''}
+            >
+                Cancel
+            </Button>
+            <Button 
+                type="primary" 
+                onClick={handleSubmit}
+                loading={isSubmitting}
+                disabled={isSubmitting}
+                className={`bg-green-900 hover:bg-lime-900 ${isMobile ? 'w-full' : ''}`}
+                size={isMobile ? "large" : "middle"}
+            >
+                {isSubmitting ? 'Updating...' : 'Update Vehicle'}
+            </Button>
+        </div>
+    );
+
     return (
         <>
-            <Modal
-                title={
-                    <div className="flex items-center">
-                        <FaEye className="mr-2 text-green-900" /> 
-                        Edit Vehicle
-                    </div>
-                }
-                open={open}
-                onCancel={handleClose}
-                footer={null}
-                width={800}
-                className="vehicle-modal"
-            >
-                <Form form={form} layout="vertical" className="p-4">
-                    <div className="space-y-4">
-                        <div className="flex items-end gap-2">
-                            <Form.Item
-                                name="make"
-                                label="Make"
-                                required
-                                tooltip="Select the vehicle make"
-                                className="flex-1 mb-0"
-                            >
-                                <Select
-                                    value={makeId}
-                                    options={makes.map(make => ({
-                                        label: make.vehicle_make_name,
-                                        value: make.vehicle_make_id
-                                    }))}
-                                    onChange={handleMakeChange}
-                                    placeholder="Select Make"
-                                    className="w-full"
-                                />
-                            </Form.Item>
-                            <Button 
-                                type="primary" 
-                                icon={<PlusOutlined />} 
-                                onClick={handleAddMake}
-                            />
-                        </div>
+            {isMobile ? (
+                <Drawer
+                    title={modalTitle}
+                    placement="bottom"
+                    onClose={handleClose}
+                    open={open}
+                    height="90%"
+                    className="vehicle-drawer"
+                    bodyStyle={{ paddingBottom: '120px' }}
+                    footer={footerButtons}
+                >
+                    {formContent}
+                </Drawer>
+            ) : (
+                <Modal
+                    title={modalTitle}
+                    open={open}
+                    onCancel={handleClose}
+                    footer={footerButtons}
+                    width={isTablet ? 700 : 800}
+                    className="vehicle-modal"
+                >
+                    {formContent}
+                </Modal>
+            )}
 
-                        <div className="flex items-end gap-2">
-                            <Form.Item
-                                name="category"
-                                label="Category"
-                                required
-                                tooltip="Select the vehicle category"
-                                className="flex-1 mb-0"
-                            >
-                                <Select
-                                    value={category}
-                                    options={categories.map(cat => ({
-                                        label: cat.vehicle_category_name,
-                                        value: cat.vehicle_category_id
-                                    }))}
-                                    onChange={handleCategoryChange}
-                                    placeholder="Select Category"
-                                    className="w-full"
-                                    disabled={!makeId}
-                                />
-                            </Form.Item>
-                            <Button 
-                                type="primary" 
-                                icon={<PlusOutlined />} 
-                                onClick={handleAddCategory}
-                                disabled={!makeId}
-                            />
-                        </div>
-
-                        <div className="flex items-end gap-2">
-                            <Form.Item
-                                name="model"
-                                label="Model"
-                                required
-                                tooltip="Select the vehicle model"
-                                className="flex-1 mb-0"
-                            >
-                                <Select
-                                    value={vehicleModelId}
-                                    options={modelsByCategory[category]?.map(model => ({
-                                        label: model.vehicle_model_name,
-                                        value: model.vehicle_model_id
-                                    }))}
-                                    onChange={(value) => setVehicleModelId(value)}
-                                    placeholder="Select Model"
-                                    className="w-full"
-                                    disabled={!category}
-                                />
-                            </Form.Item>
-                            <Button 
-                                type="primary" 
-                                icon={<PlusOutlined />} 
-                                onClick={handleAddModel}
-                                disabled={!category}
-                            />
-                        </div>
-
-                        <Form.Item
-                            name="license"
-                            label="License Number"
-                            required
-                            tooltip="Enter the vehicle license number"
-                        >
-                            <Input
-                                value={vehicleLicensed}
-                                onChange={handleLicenseChange}
-                                placeholder="Enter license number"
-                                maxLength={50}
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="year"
-                            label="Year"
-                            required
-                            tooltip="Select the vehicle year"
-                        >
-                            <Calendar
-                                value={year}
-                                onChange={(e) => setYear(e.value)}
-                                view="year"
-                                dateFormat="yy"
-                                placeholder="Select Year"
-                                className="w-full"
-                            />
-                        </Form.Item>
-
-                        <Form.Item
-                            name="status"
-                            label="Availability Status"
-                            required
-                            tooltip="Select the vehicle availability status"
-                        >
-                            <Select
-                                value={selectedStatus}
-                                options={statusAvailability.map(status => ({
-                                    label: status.status_availability_name,
-                                    value: status.status_availability_id
-                                }))}
-                                onChange={(value) => setSelectedStatus(value)}
-                                placeholder="Select Status"
-                                className="w-full"
-                            />
-                        </Form.Item>
-                    </div>
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button onClick={handleClose}>
-                            Cancel
-                        </Button>
-                        <Button 
-                            type="primary" 
-                            onClick={handleSubmit}
-                            loading={isSubmitting}
-                            disabled={isSubmitting}
-                            className="bg-green-900 hover:bg-lime-900"
-                        >
-                            {isSubmitting ? 'Updating...' : 'Update Vehicle'}
-                        </Button>
-                    </div>
-                </Form>
-            </Modal>
 
             <MakeModal
                 open={isMakeModalOpen}

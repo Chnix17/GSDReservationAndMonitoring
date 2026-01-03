@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useMediaQuery } from 'react-responsive';
 import Sidebar from '../../components/core/Sidebar';
 
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import axios from 'axios';
-import { Modal, Button } from 'react-bootstrap';
+import { Modal as AntModal } from 'antd';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import { motion } from 'framer-motion';
 
@@ -14,12 +15,13 @@ import "primereact/resources/primereact.css";     // core css
 import "primeicons/primeicons.css";               // icons
 import { Chip } from 'primereact/chip';
 import { SecureStorage } from '../../utils/encryption';
-import { ExclamationCircleOutlined, EditOutlined, DeleteOutlined, ReloadOutlined } from '@ant-design/icons';
+import { ExclamationCircleOutlined, EditOutlined, ReloadOutlined, StopOutlined, DeleteOutlined } from '@ant-design/icons';
 import CreateModal from './lib/Faculty/Create_Modal';
 import UpdateModal from './lib/Faculty/Update_Modal';
-import { Alert, Empty, Pagination, Input, Tooltip, Space } from 'antd';
+import { Alert, Empty, Pagination, Input, Tooltip, Space, Card } from 'antd';
 import { Button as AntButton } from 'antd';
-import { SearchOutlined, DownOutlined } from '@ant-design/icons';
+import { SearchOutlined, PlusOutlined } from '@ant-design/icons';
+import { FaUsers } from 'react-icons/fa';
 
 // Add custom styles for checkboxes
 const customStyles = `
@@ -78,6 +80,12 @@ const generateAvatarColor = (str) => {
 };
 
 const Faculty = () => {
+    // Responsive breakpoints
+    const isMobile = useMediaQuery({ maxWidth: 767 });
+    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+    // const isDesktop = useMediaQuery({ minWidth: 1024 });
+    // const isSmallScreen = useMediaQuery({ maxWidth: 1023 });
+
     const user_level_id = SecureStorage.getLocalItem('user_level_id');
     const encryptedUrl = SecureStorage.getLocalItem("url");
     const [users, setUsers] = useState([]);
@@ -85,15 +93,26 @@ const Faculty = () => {
     const [modalState, setModalState] = useState({ isOpen: false, type: '', user: null });
     const [departments, setDepartments] = useState([]);
     const [userLevels, setUserLevels] = useState([]);
-    const [viewImageModal, setViewImageModal] = useState(false);
+    // const [viewImageModal, setViewImageModal] = useState(false);
 
-    const [showConfirmArchive, setShowConfirmArchive] = useState(false);
+    const [showConfirmDeactivate, setShowConfirmDeactivate] = useState(false);
     const [selectedUsers, setSelectedUsers] = useState([]);
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [searchTerm, setSearchTerm] = useState('');
 
     const navigate = useNavigate();
+
+    // Update page size based on screen size
+    useEffect(() => {
+        if (isMobile) {
+            setPageSize(5);
+        } else if (isTablet) {
+            setPageSize(8);
+        } else {
+            setPageSize(10);
+        }
+    }, [isMobile, isTablet]);
 
     useEffect(() => {
         const decryptedUserLevel = parseInt(user_level_id);
@@ -123,7 +142,12 @@ const Faculty = () => {
             }
         } catch (error) {
             console.error('Error fetching users:', error);
-            toast.error("An error occurred while fetching users.");
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Please check your internet connection and try again.');
+            } else {
+                toast.error("An error occurred while fetching users.");
+            }
         } finally {
             setLoading(false);
         }
@@ -161,12 +185,18 @@ const Faculty = () => {
                     users_suffix: userData.users_suffix,
                     users_birthdate: userData.users_birthdate,
                     title_abbreviation: userData.title_abbreviation,
+                    license_number: userData.license_number,
                 };
             }
             throw new Error('User not found');
         } catch (error) {
             console.error('Error fetching user details:', error);
-            toast.error("Failed to fetch user details");
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load user details. Please check your internet connection.');
+            } else {
+                toast.error("Failed to fetch user details");
+            }
             return null;
         }
     };
@@ -185,7 +215,12 @@ const Faculty = () => {
             }
         } catch (error) {
             console.error('Error fetching departments:', error);
-            toast.error("An error occurred while fetching departments.");
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load departments.');
+            } else {
+                toast.error("An error occurred while fetching departments.");
+            }
         }
     }, [encryptedUrl]);
 
@@ -203,7 +238,12 @@ const Faculty = () => {
             }
         } catch (error) {
             console.error('Error fetching user levels:', error);
-            toast.error("An error occurred while fetching user levels.");
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to load user levels.');
+            } else {
+                toast.error("An error occurred while fetching user levels.");
+            }
         }
     }, [encryptedUrl]);
 
@@ -219,9 +259,14 @@ const Faculty = () => {
         initializePage();
     }, [fetchUsers, fetchDepartments, fetchUserLevels]);
 
-    const handleArchiveClick = (userIds) => {
+    // Reset to page 1 when search term changes
+    useEffect(() => {
+        setCurrentPage(1);
+    }, [searchTerm]);
+
+    const handleDeactivateUser = (userIds) => {
         setSelectedUsers(Array.isArray(userIds) ? userIds : [userIds]);
-        setShowConfirmArchive(true);
+        setShowConfirmDeactivate(true);
     };
 
     const handleEditClick = async (user) => {
@@ -231,33 +276,48 @@ const Faculty = () => {
         }
     };
 
-    const confirmArchive = async () => {
+    const confirmDeactivate = async () => {
         if (!selectedUsers.length) return;
         
         try {
+            const userId = SecureStorage.getLocalItem('user_id') ||
+                SecureStorage.getLocalItem('user_id') || null;
+
+            const payload = {
+                operation: "archiveUser",
+                userType: "user",
+                userId: selectedUsers,
+                userid: userId
+            };
+
             const response = await axios.post(
                 `${encryptedUrl}Admin.php`,
+                payload,
                 {
-                    operation: 'archiveUser',
-                    userType: 'user',
-                    userId: selectedUsers
-                },
-                { 
-                    headers: { 'Content-Type': 'application/json' } 
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
                 }
             );
 
             if (response.data.status === 'success') {
-                toast.success(selectedUsers.length > 1 ? 'Faculty members archived successfully' : 'Faculty member archived successfully');
+                toast.success(selectedUsers.length > 1 ? 'Faculty members successfully deactivated!' : 'Faculty member successfully deactivated!');
                 fetchUsers(); // Refresh the users list
+                setShowConfirmDeactivate(false);
+                setSelectedUsers([]);
             } else {
-                throw new Error(response.data.message || "Failed to archive user(s)");
+                toast.error("Failed to deactivate faculty member(s): " + response.data.message);
             }
         } catch (error) {
-            console.error('Archive Error:', error);
-            toast.error("An error occurred while archiving the faculty member(s): " + error.message);
+            console.error('Error deactivating faculty member(s):', error);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to deactivate faculty member(s). Please check your internet connection.');
+            } else {
+                toast.error("An error occurred while deactivating the faculty member(s).");
+            }
         } finally {
-            setShowConfirmArchive(false);
+            setShowConfirmDeactivate(false);
             setSelectedUsers([]);
         }
     };
@@ -310,36 +370,44 @@ const Faculty = () => {
     return (
         <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
             <style>{customStyles}</style>
-            {/* Fixed Sidebar */}
-            <div className="flex-none">
-                <Sidebar />
-            </div>
+            {/* Sidebar - hidden on mobile */}
+            {!isMobile && (
+                <div className="flex-shrink-0">
+                    <Sidebar />
+                </div>
+            )}
+
+              {isMobile  && (
+                <div className="flex-shrink-0">
+                    <Sidebar />
+                </div>
+            )}
             
             {/* Scrollable Content Area */}
-            <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
-                <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-20">
+            <div className="flex-grow overflow-y-auto">
+                <div className={`${isMobile ? 'px-4 py-4 mt-15' : isTablet ? 'px-6 py-6 mt-10' : 'px-8 py-6 mt-10 max-w-7xl mx-auto'} min-h-screen`}>
                     <motion.div 
                         initial={{ opacity: 0, y: -50 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.5 }}
-                        className="mb-4 sm:mb-8"
+                        className={`${isMobile ? 'mb-3' : 'mb-4'}`}
                     >
-                        <div className="mb-2 sm:mb-4 mt-20">
-                            <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
-                                Faculty
+                        <div className="mb-2 sm:mb-4 mt-mt-10">
+                            <h2 className="text-2xl font-bold text-green-900 mt-5">
+                                User
                             </h2>
                         </div>
                     </motion.div>
 
                     {/* Search and Filters */}
-                    <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-                        <div className="flex flex-row items-center gap-2 w-full">
+                    <div className={`bg-[#fafff4] ${isMobile ? 'p-3' : 'p-4'} rounded-lg shadow-sm ${isMobile ? 'mb-4' : 'mb-6'}`}>
+                        <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex flex-row items-center gap-2'} w-full`}>
                             <div className="flex-grow">
                                 <Input
-                                    placeholder="Search faculty..."
+                                    placeholder={isMobile ? "Search..." : "Search faculty..."}
                                     allowClear
                                     prefix={<SearchOutlined className="text-gray-400" />}
-                                    size="large"
+                                    size={isMobile ? "middle" : "large"}
                                     value={searchTerm}
                                     onChange={e => {
                                         setSearchTerm(e.target.value);
@@ -348,189 +416,282 @@ const Faculty = () => {
                                     className="w-full"
                                 />
                             </div>
-                            {selectedUsers.length > 0 && (
+                            <div className={`flex ${isMobile ? 'flex-col gap-2' : isTablet ? 'flex-wrap gap-2' : 'gap-2'}`}>
+                                {selectedUsers.length > 0 && (
+                                    <AntButton
+                                        danger
+                                        icon={<StopOutlined />}
+                                        onClick={() => handleDeactivateUser(selectedUsers)}
+                                        size={isMobile ? "middle" : "large"}
+                                        className={isMobile ? 'w-full' : ''}
+                                    >
+                                        <span className="hidden sm:inline">Deactivate Selected ({selectedUsers.length})</span>
+                                        <span className="sm:hidden">Deactivate ({selectedUsers.length})</span>
+                                    </AntButton>
+                                )}
+                                <Tooltip title="Refresh data">
+                                    <AntButton
+                                        icon={<ReloadOutlined />}
+                                        onClick={fetchUsers}
+                                        size={isMobile ? "middle" : "large"}
+                                        className={isMobile ? 'w-full' : ''}
+                                    >
+                                        {isMobile && 'Refresh'}
+                                    </AntButton>
+                                </Tooltip>
                                 <AntButton
-                                    danger
-                                    icon={<DeleteOutlined />}
-                                    onClick={() => handleArchiveClick(selectedUsers)}
-                                    size="large"
+                                    type="primary"
+                                    size={isMobile ? "middle" : "large"}
+                                    className={`bg-green-900 hover:bg-lime-900 ${isMobile ? 'w-full' : ''}`}
+                                    onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
                                 >
-                                    <span className="hidden sm:inline">Archive Selected ({selectedUsers.length})</span>
-                                    <span className="sm:hidden">Archive ({selectedUsers.length})</span>
+                                    <Space>
+                                        <span className="hidden sm:inline">Add User</span>
+                                        <span className="sm:hidden">Add</span>
+                                        <PlusOutlined />
+                                    </Space>
                                 </AntButton>
-                            )}
-                            <Tooltip title="Refresh data">
-                                <AntButton
-                                    icon={<ReloadOutlined />}
-                                    onClick={fetchUsers}
-                                    size="large"
-                                    className="bg-green-50 hover:bg-green-100 text-green-700"
-                                />
-                            </Tooltip>
-                            <AntButton
-                                type="primary"
-                                size="large"
-                                className="bg-lime-900 hover:bg-green-600"
-                                onClick={() => setModalState({ isOpen: true, type: 'add', user: null })}
-                            >
-                                <Space>
-                                    <span className="hidden sm:inline">Add User</span>
-                                    <span className="sm:hidden">Add</span>
-                                    <DownOutlined />
-                                </Space>
-                            </AntButton>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Table */}
-                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
+                    {/* Table/Cards */}
+                    <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
                         {loading ? (
                             <div className="flex justify-center items-center h-64">
                                 <div className="loader"></div>
                             </div>
                         ) : (
                             <>
-                                <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
-                                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
-                                        <tr>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    <input
-                                                        type="checkbox"
-                                                        className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-                                                        onChange={(e) => {
-                                                            if (e.target.checked) {
-                                                                setSelectedUsers(paginatedData.map(user => user.users_id));
-                                                            } else {
-                                                                setSelectedUsers([]);
-                                                            }
-                                                        }}
-                                                        checked={paginatedData.length > 0 && paginatedData.every(user => selectedUsers.includes(user.users_id))}
-                                                    />
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    School ID
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    Full Name
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    Department
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    Role
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    Contact
-                                                </div>
-                                            </th>
-                                            <th scope="col" className="px-4 py-4">
-                                                <div className="flex items-center">
-                                                    Actions
-                                                </div>
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
+                                {isMobile ? (
+                                    // Mobile Card View
+                                    <div className="space-y-3 p-3">
                                         {paginatedData && paginatedData.length > 0 ? (
                                             paginatedData.map((user) => (
-                                                <tr
+                                                <Card
                                                     key={user.users_id}
-                                                    className={`bg-white border-b last:border-b-0 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
-                                                        selectedUsers.includes(user.users_id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
-                                                    }`}
+                                                    className="bg-white border border-gray-200 rounded-lg shadow-sm"
+                                                    size="small"
                                                 >
-                                                    <td className="px-4 py-6">
-                                                        <input
-                                                            type="checkbox"
-                                                            className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
-                                                            checked={selectedUsers.includes(user.users_id)}
-                                                            onChange={(e) => {
-                                                                if (e.target.checked) {
-                                                                    setSelectedUsers([...selectedUsers, user.users_id]);
-                                                                } else {
-                                                                    setSelectedUsers(selectedUsers.filter(id => id !== user.users_id));
-                                                                }
-                                                            }}
-                                                        />
-                                                    </td>
-                                                    <td className="px-4 py-6">
-                                                        <div className="flex items-center">
-                                                            <span className="font-medium truncate block max-w-[120px]">{user.users_school_id}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-6">
-                                                        <div className="flex items-center">
-                                                            <span className="font-medium truncate block max-w-[200px]">
-                                                                {`${user.title_abbreviation ? user.title_abbreviation + ' ' : ''}${user.users_fname} ${user.users_mname ? user.users_mname + ' ' : ''}${user.users_lname}`}
-                                                            </span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-6">
-                                                        {departmentTemplate(user)}
-                                                    </td>
-                                                    <td className="px-4 py-6">
-                                                        {userLevelTemplate(user)}
-                                                    </td>
-                                                    <td className="px-4 py-6">
-                                                        <div className="flex items-center gap-2">
-                                                            <i className="pi pi-phone text-green-500" />
-                                                            <span className="truncate block max-w-[120px]">{user.users_contact_number}</span>
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-4 py-6">
-                                                        <div className="flex justify-center space-x-2">
-                                                            <Tooltip title="Edit Faculty">
+                                                    <div className="space-y-2">
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center space-x-2">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                                    checked={selectedUsers.includes(user.users_id)}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            setSelectedUsers([...selectedUsers, user.users_id]);
+                                                                        } else {
+                                                                            setSelectedUsers(selectedUsers.filter(id => id !== user.users_id));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                                <FaUsers className="text-green-900 text-sm" />
+                                                                <span className="font-medium text-sm truncate max-w-[150px]">
+                                                                    {`${user.title_abbreviation ? user.title_abbreviation + ' ' : ''}${user.users_fname} ${user.users_mname ? user.users_mname + ' ' : ''}${user.users_lname}`}
+                                                                </span>
+                                                            </div>
+                                                            <div className="flex space-x-1">
                                                                 <AntButton
-                                                                    shape="circle"
+                                                                    type="primary"
                                                                     icon={<EditOutlined />}
                                                                     onClick={() => handleEditClick(user)}
-                                                                    size="large"
-                                                                    className="bg-green-900 hover:bg-lime-900 text-white"
+                                                                    size="small"
+                                                                    className="bg-green-900 hover:bg-lime-900"
                                                                 />
-                                                            </Tooltip>
-                                                            <Tooltip title="Archive Faculty">
                                                                 <AntButton
-                                                                    shape="circle"
                                                                     danger
-                                                                    icon={<DeleteOutlined />}
-                                                                    onClick={() => handleArchiveClick(user.users_id)}
-                                                                    size="large"
+                                                                    icon={<StopOutlined />}
+                                                                    onClick={() => handleDeactivateUser(user.users_id)}
+                                                                    size="small"
                                                                 />
-                                                            </Tooltip>
+                                                            </div>
                                                         </div>
-                                                    </td>
-                                                </tr>
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="text-xs text-gray-500">ID:</span>
+                                                            <span className="text-xs text-gray-700">{user.users_school_id}</span>
+                                                        </div>
+                                                        <div className="flex items-center space-x-2">
+                                                            <span className="text-xs text-gray-500">Dept:</span>
+                                                            <span className="text-xs text-gray-700">{user.departments_name}</span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between">
+                                                            <div className="flex items-center space-x-2">
+                                                                <span className="text-xs text-gray-500">Role:</span>
+                                                                <span className="text-xs text-gray-700">{user.user_level_name}</span>
+                                                            </div>
+                                                            <div className="flex items-center space-x-1">
+                                                                <i className="pi pi-phone text-green-500 text-xs" />
+                                                                <span className="text-xs text-gray-700">{user.users_contact_number}</span>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </Card>
                                             ))
                                         ) : (
-                                            <tr>
-                                                <td colSpan={7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
-                                                    <Empty
-                                                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                                                        description={
-                                                            <span className="text-gray-500 dark:text-gray-400">
-                                                                No faculty members found
-                                                            </span>
-                                                        }
-                                                    />
-                                                </td>
-                                            </tr>
+                                            <div className="text-center py-12">
+                                                <Empty
+                                                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                                    description={
+                                                        <span className="text-gray-500">
+                                                            No faculty members found
+                                                        </span>
+                                                    }
+                                                />
+                                            </div>
                                         )}
-                                    </tbody>
-                                </table>
+                                    </div>
+                                ) : (
+                                    // Desktop/Tablet Table View
+                                    <div className="overflow-x-auto">
+                                        <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                                            <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
+                                                <tr>
+                                                    <th scope="col" className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
+                                                        <div className="flex items-center">
+                                                            <input
+                                                                type="checkbox"
+                                                                className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                                onChange={(e) => {
+                                                                    if (e.target.checked) {
+                                                                        setSelectedUsers(paginatedData.map(user => user.users_id));
+                                                                    } else {
+                                                                        setSelectedUsers([]);
+                                                                    }
+                                                                }}
+                                                                checked={paginatedData.length > 0 && paginatedData.every(user => selectedUsers.includes(user.users_id))}
+                                                            />
+                                                        </div>
+                                                    </th>
+                                                    <th scope="col" className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
+                                                        <div className="flex items-center">
+                                                            Student ID / Employee ID
+                                                        </div>
+                                                    </th>
+                                                    <th scope="col" className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
+                                                        <div className="flex items-center">
+                                                            Full Name
+                                                        </div>
+                                                    </th>
+                                                    {!isTablet && (
+                                                        <th scope="col" className="px-4 py-4">
+                                                            <div className="flex items-center">
+                                                                Department
+                                                            </div>
+                                                        </th>
+                                                    )}
+                                                    <th scope="col" className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
+                                                        <div className="flex items-center">
+                                                            Role
+                                                        </div>
+                                                    </th>
+                                                    {!isTablet && (
+                                                        <th scope="col" className="px-4 py-4">
+                                                            <div className="flex items-center">
+                                                                Contact
+                                                            </div>
+                                                        </th>
+                                                    )}
+                                                    <th scope="col" className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
+                                                        <div className="flex items-center">
+                                                            Actions
+                                                        </div>
+                                                    </th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {paginatedData && paginatedData.length > 0 ? (
+                                                    paginatedData.map((user) => (
+                                                        <tr
+                                                            key={user.users_id}
+                                                            className={`bg-white border-b last:border-b-0 border-gray-200 hover:bg-gray-50 dark:hover:bg-gray-600 ${
+                                                                selectedUsers.includes(user.users_id) ? 'bg-blue-50 dark:bg-blue-900/20' : ''
+                                                            }`}
+                                                        >
+                                                            <td className={isTablet ? 'px-3 py-3' : 'px-4 py-6'}>
+                                                                <input
+                                                                    type="checkbox"
+                                                                    className="w-4 h-4 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500"
+                                                                    checked={selectedUsers.includes(user.users_id)}
+                                                                    onChange={(e) => {
+                                                                        if (e.target.checked) {
+                                                                            setSelectedUsers([...selectedUsers, user.users_id]);
+                                                                        } else {
+                                                                            setSelectedUsers(selectedUsers.filter(id => id !== user.users_id));
+                                                                        }
+                                                                    }}
+                                                                />
+                                                            </td>
+                                                            <td className={isTablet ? 'px-3 py-3' : 'px-4 py-6'}>
+                                                                <div className="flex items-center">
+                                                                    <span className="font-medium truncate block max-w-[120px]">{user.users_school_id}</span>
+                                                                </div>
+                                                            </td>
+                                                            <td className={isTablet ? 'px-3 py-3' : 'px-4 py-6'}>
+                                                                <div className="flex items-center">
+                                                                    <span className="font-medium truncate block max-w-[200px]">
+                                                                        {`${user.title_abbreviation ? user.title_abbreviation + ' ' : ''}${user.users_fname} ${user.users_mname ? user.users_mname + ' ' : ''}${user.users_lname}`}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            {!isTablet && (
+                                                                <td className="px-4 py-6">
+                                                                    {departmentTemplate(user)}
+                                                                </td>
+                                                            )}
+                                                            <td className={isTablet ? 'px-3 py-3' : 'px-4 py-6'}>
+                                                                {userLevelTemplate(user)}
+                                                            </td>
+                                                            {!isTablet && (
+                                                                <td className="px-4 py-6">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <i className="pi pi-phone text-green-500" />
+                                                                        <span className="truncate block max-w-[120px]">{user.users_contact_number}</span>
+                                                                    </div>
+                                                                </td>
+                                                            )}
+                                                            <td className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
+                                                                <div className="flex space-x-2 justify-center">
+                                                                    <AntButton
+                                                                        type="primary"
+                                                                        icon={<EditOutlined />}
+                                                                        onClick={() => handleEditClick(user)}
+                                                                        size={isTablet ? "small" : "middle"}
+                                                                        className="bg-green-900 hover:bg-lime-900"
+                                                                    />
+                                                                    <AntButton
+                                                                        danger
+                                                                        icon={<StopOutlined />}
+                                                                        onClick={() => handleDeactivateUser(user.users_id)}
+                                                                        size={isTablet ? "small" : "middle"}
+                                                                    />
+                                                                </div>
+                                                            </td>
+                                                        </tr>
+                                                    ))
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={isTablet ? 5 : 7} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                                                            <Empty
+                                                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                                                description={
+                                                                    <span className="text-gray-500 dark:text-gray-400">
+                                                                        No faculty members found
+                                                                    </span>
+                                                                }
+                                                            />
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
 
                                 {/* Pagination */}
-                                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                                <div className={`${isMobile ? 'p-3' : 'p-4'} border-t border-gray-200 dark:border-gray-700`}>
                                     <Pagination
                                         current={currentPage}
                                         pageSize={pageSize}
@@ -539,11 +700,13 @@ const Faculty = () => {
                                             setCurrentPage(page);
                                             setPageSize(size);
                                         }}
-                                        showSizeChanger={true}
-                                        showTotal={(total, range) =>
-                                            `${range[0]}-${range[1]} of ${total} items`
+                                        showSizeChanger={!isMobile}
+                                        showTotal={!isMobile ? (total, range) =>
+                                            `${range[0]}-${range[1]} of ${total} items` : false
                                         }
-                                        className="flex justify-end"
+                                        size={isMobile ? "small" : "default"}
+                                        className={`flex ${isMobile ? 'justify-center' : 'justify-end'}`}
+                                        simple={isMobile}
                                     />
                                 </div>
                             </>
@@ -574,66 +737,48 @@ const Faculty = () => {
                 />
             )}
 
-            {/* Image Preview Modal */}
-            <Modal
-                show={viewImageModal}
-                onHide={() => setViewImageModal(false)}
-                centered
-                size="lg"
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title>Profile Image</Modal.Title>
-                </Modal.Header>
-                
-                <Modal.Footer>
-                    <Button variant="secondary" onClick={() => setViewImageModal(false)}>
-                        Close
-                    </Button>
-                </Modal.Footer>
-            </Modal>
-
-            {/* Archive Confirmation Modal */}
-            <Modal
-                show={showConfirmArchive}
-                onHide={() => {
-                    setShowConfirmArchive(false);
+            {/* Confirm Deactivate Modal */}
+            <AntModal
+                open={showConfirmDeactivate}
+                onCancel={() => {
+                    setShowConfirmDeactivate(false);
                     setSelectedUsers([]);
                 }}
                 centered
-            >
-                <Modal.Header closeButton>
-                    <Modal.Title className="text-red-600 flex items-center">
-                        <ExclamationCircleOutlined className="mr-2" /> Confirm Archive
-                    </Modal.Title>
-                </Modal.Header>
-                <Modal.Body>
-                    <Alert
-                        message="Warning"
-                        description={`Are you sure you want to archive ${selectedUsers.length} faculty member(s)? This action cannot be undone.`}
-                        type="warning"
-                        showIcon
-                        icon={<ExclamationCircleOutlined />}
-                    />
-                </Modal.Body>
-                <Modal.Footer>
-                    <Button 
-                        variant="secondary" 
+                title={
+                    <span className="text-red-600 flex items-center">
+                        <ExclamationCircleOutlined className="mr-2" /> Confirm Deactivate
+                    </span>
+                }
+                footer={[
+                    <AntButton
+                        key="cancel"
                         onClick={() => {
-                            setShowConfirmArchive(false);
+                            setShowConfirmDeactivate(false);
                             setSelectedUsers([]);
                         }}
                     >
                         Cancel
-                    </Button>
-                    <Button 
-                        variant="danger" 
-                        onClick={confirmArchive}
-                        className="bg-red-600 hover:bg-red-700"
+                    </AntButton>,
+                    <AntButton
+                        key="deactivate"
+                        type="primary"
+                        danger
+                        onClick={confirmDeactivate}
+                        icon={<DeleteOutlined />}
                     >
-                        Archive
-                    </Button>
-                </Modal.Footer>
-            </Modal>
+                        Deactivate
+                    </AntButton>
+                ]}
+            >
+                <Alert
+                    message="Warning"
+                    description={`Are you sure you want to deactivate ${selectedUsers.length} faculty member(s)? This action will move them to inactive status.`}
+                    type="warning"
+                    showIcon
+                    icon={<ExclamationCircleOutlined />}
+                />
+            </AntModal>
         </div>
     );
 };

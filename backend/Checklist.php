@@ -27,10 +27,13 @@ class Checklist {
                     tbl_vehicle v ON cvm.checklist_vehicle_vehicle_id = v.vehicle_id
                 JOIN 
                     tbl_vehicle_model vm ON v.vehicle_model_id = vm.vehicle_model_id  -- Join on vehicle_model_id
+                WHERE 
+                    v.is_active = 1
                 GROUP BY 
                     cvm.checklist_vehicle_vehicle_id, vm.vehicle_model_name, v.vehicle_license
                 ORDER BY 
                     cvm.checklist_vehicle_vehicle_id
+
             ";
     
             // SQL query for venue checklist with venue name
@@ -43,6 +46,8 @@ class Checklist {
                     tbl_checklist_venue_master cve
                 JOIN 
                     tbl_venue ve ON cve.checklist_venue_ven_id = ve.ven_id  -- Use ven_id and ven_name from tbl_venue
+                WHERE 
+                    ve.is_active = 1
                 GROUP BY 
                     cve.checklist_venue_ven_id, ve.ven_name
                 ORDER BY 
@@ -59,6 +64,8 @@ class Checklist {
                     tbl_checklist_equipment_master ce
                 JOIN 
                     tbl_equipments eq ON ce.checklist_equipment_equip_id = eq.equip_id
+                WHERE 
+                    eq.is_active = 1
                 GROUP BY 
                     ce.checklist_equipment_equip_id, eq.equip_name
                 ORDER BY 
@@ -536,7 +543,7 @@ class Checklist {
             FROM tbl_vehicle v
             INNER JOIN tbl_vehicle_model vm ON v.vehicle_model_id = vm.vehicle_model_id
             LEFT JOIN tbl_checklist_vehicle_master cvm ON v.vehicle_id = cvm.checklist_vehicle_vehicle_id
-            WHERE cvm.checklist_vehicle_id IS NULL
+            WHERE cvm.checklist_vehicle_id IS NULL AND v.is_active = 1
         ";
     
         // SQL query for venues - only fetch venue name
@@ -544,7 +551,7 @@ class Checklist {
             SELECT ve.ven_name, ve.ven_id
             FROM tbl_venue ve
             LEFT JOIN tbl_checklist_venue_master cvm ON ve.ven_id = cvm.checklist_venue_ven_id
-            WHERE cvm.checklist_venue_id IS NULL
+            WHERE cvm.checklist_venue_id IS NULL AND ve.is_active = 1
         ";
     
         // SQL query for equipment - only fetch equipment name
@@ -552,7 +559,7 @@ class Checklist {
             SELECT eq.equip_name, eq.equip_id
             FROM tbl_equipments eq
             LEFT JOIN tbl_checklist_equipment_master cem ON eq.equip_id = cem.checklist_equipment_equip_id
-            WHERE cem.checklist_equipment_id IS NULL
+            WHERE cem.checklist_equipment_id IS NULL AND eq.is_active = 1
         ";
     
         try {

@@ -60,7 +60,7 @@ const Dashboard = () => {
       const result = await response.json();
       if (result.status === 'success' && Array.isArray(result.data)) {
         const transformedActivities = result.data
-          .filter(task => task.reservation_status === 'Reserved')
+          .filter(task => task.reservation_status === 'Reserved' || task.reservation_status === 'On Going')
           .map(item => ({
             type: 'Task',
             message: item.reservation_title,

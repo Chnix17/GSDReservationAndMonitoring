@@ -9,10 +9,12 @@ import Equipment from './pages/Admin/Equipment';
 import ViewRequest from './pages/Admin/viewRequest';
 import AddReservation from './components/Reservation/AddReservation'; 
 import { Toaster } from 'sonner';
+import VenueBuilding from './pages/Admin/venueBuilding';
 import './App.css'; 
 // import Logins from './pages/logins';
 import AdminDashboard from './pages/Admin/adminDashboard';
 import Faculty from './pages/Admin/Faculty';  // Updated casing to match file name
+
 
 import Vehiclem from './pages/Admin/vehiclemake';
 import Departments from './pages/Admin/departments';
@@ -23,11 +25,16 @@ import VehicleModel from './pages/Admin/vehiclemodel';
 // import ViewReserve from './pages/User/viewReserve';
 
 import Record from './pages/Admin/Record';
+import AllJobOrders from './pages/Admin/AllJobOrders';
 import ViewApproval from './pages/Dean/viewApproval';
 import DeanDashboard from './pages/Dean/dashboard';
+import MyTicketRequest from './pages/Dean/MyTicketRequest';
 import Chat from './components/core/chat';
 import ProtectedRoute from './utils/ProtectedRoute';
 import AssignPersonnel from './pages/Admin/AssignPersonnel';
+import AssignApproval from './pages/Admin/assignApproval';
+import AssignApprovalVenue from './pages/Admin/assignApprovalVenue';
+import AssignRoleExclusive from './pages/Admin/assignRoleExclusive';
 import LandCalendar from './pages/Admin/landCalendar';
 import Archive from './pages/Admin/archive';
 import NotFound from './utils/NotFound';
@@ -43,7 +50,7 @@ import Notification from './components/core/main_notification';
 import MyReservation from './components/core/viewReserve';
 import RoleRedirect from './utils/RoleRedirect';
 
-import VenueSchedule from './pages/Dean/VenueSchedule'
+import VenueSchedule from './pages/Admin/VenueSchedule'
 // Ensure the push notification manager module loads and attaches to window
 import './utils/pushNotificationManager';
 import AdminLayout from './layouts/AdminLayout';
@@ -53,6 +60,8 @@ import PersonnelLayout from './layouts/PersonnelLayout';
 import DriverLayout from './layouts/DriverLayout';
 import LoginRedirect from './components/LoginRedirect';
 import { getApiBaseUrl } from './utils/apiConfig';
+
+// Service worker registration is handled by pushNotificationManager.js
 
 
 
@@ -72,18 +81,7 @@ const App = () => {
         initializeApiUrl();
     }, []);
 
-    // Register service worker
-    useEffect(() => {
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.register('/sw.js')
-                .then(registration => {
-                    console.log('Service Worker registered successfully:', registration);
-                })
-                .catch(error => {
-                    console.log('Service Worker registration failed:', error);
-                });
-        }
-    }, []);
+    // Service worker registration is handled by pushNotificationManager.js
 
     // Add state for the current theme
     const [theme, setTheme] = useState(() => {
@@ -116,6 +114,7 @@ const App = () => {
                         <Route path="/Admin/*" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminLayout /></ProtectedRoute>}>
                             <Route index element={<AdminDashboard />} />
                             <Route path="Dashboard" element={<AdminDashboard />} />
+                            <Route path="VenueSchedule" element={<ProtectedRoute allowedRoles={['Admin']} requiredDepartment="GSD"><VenueSchedule /></ProtectedRoute>} />
                             {/* Vehicle Management */}
                             <Route path="VehicleEntry" element={<VehicleEntry />} />
                             <Route path="vehiclemake" element={<Vehiclem />} />
@@ -129,16 +128,21 @@ const App = () => {
                             {/* Venue Management */}
                             <Route path="Venue" element={<Venue />} />
                             <Route path="LandCalendar" element={<LandCalendar />} />
+                            <Route path="VenueBuilding" element={<VenueBuilding />} />
                             {/* User Management */}
                             <Route path="Faculty" element={<Faculty />} />
                             <Route path="departments" element={<Departments />} />
                             <Route path="AssignPersonnel" element={<AssignPersonnel />} />
+                            <Route path="assignApproval" element={<AssignApproval />} />
+                            <Route path="assignApprovalVenue" element={<AssignApprovalVenue />} />
+                            <Route path="assignRoleExclusive" element={<AssignRoleExclusive />} />
                             {/* System Management */}
                            
                             <Route path="Holiday" element={<Holiday />} />
                             <Route path="Checklist" element={<Checklists />} />
                             {/* Request & Record */}
                             <Route path="ViewRequest" element={<ViewRequest />} />
+                            <Route path="AllJobOrders" element={<AllJobOrders />} />
                             <Route path="record" element={<Record />} />
                             <Route path="archive" element={<Archive />} />
                             <Route path="Reports" element={<Reports />} />
@@ -161,13 +165,14 @@ const App = () => {
                             <Route path="*" element={<NotFound />} />
                         </Route>
 
-                        <Route path="/Department/*" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head']}><DepartmentLayout /></ProtectedRoute>}>
+                        <Route path="/Department/*" element={<ProtectedRoute allowedRoles={['Dean', 'Secretary', 'Department Head', 'Principal']}><DepartmentLayout /></ProtectedRoute>}>
                             <Route index element={<DeanDashboard />} />
                             <Route path="Dashboard" element={<DeanDashboard />} />
                             <Route path="addReservation" element={<AddReservation />} />
                             <Route path="MyReservations" element={<MyReservation />} />
                             <Route path="ViewApproval" element={<ViewApproval />} />
-                            <Route path="VenueSchedule" element={<ProtectedRoute allowedRoles={['Department Head']} requiredDepartment="REGISTRAR"><VenueSchedule /></ProtectedRoute>} />
+                            <Route path="MyTicketRequest" element={<MyTicketRequest />} />
+                          
                             <Route path="Chat" element={<Chat />} />
                             <Route path="Notification" element={<Notification />} />
                             {/* Catch-all for invalid Department routes */}

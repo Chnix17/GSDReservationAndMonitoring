@@ -110,3 +110,29 @@
   background: #f8f8f8;
   border-radius: 5px;
 }
+
+/* Small screens: reduce paddings and maintain tap targets */
+@media screen and (max-width: 640px) {
+  .calendar-container { padding: 12px; margin: 12px; border-radius: 8px; }
+  .calendar-header { padding: 8px; gap: 8px; }
+  .calendar-header button { padding: 8px 10px; }
+  .view-toggle { gap: 6px; }
+  .view-toggle button { padding: 6px 8px; }
+
+  .calendar-days { gap: 4px; }
+  .day-name { padding: 6px; font-size: 12px; }
+  .calendar-grid { gap: 4px; }
+  .calendar-cell { padding: 8px; }
+  .date-number { top: 4px; left: 4px; font-size: 12px; }
+  .event-indicator { width: 7px; height: 7px; bottom: 4px; right: 4px; }
+
+  /* Ensure calendar fits viewport on short-height devices */
+  .calendar-viewport { max-height: calc(100vh - 220px); overflow: auto; }
+}
+
+/* Very small widths: allow grid to shrink safely while keeping squares */
+@media screen and (max-width: 380px) {
+  .calendar-container { margin: 8px; }
+  .calendar-grid { gap: 3px; }
+  .calendar-cell { padding: 6px; }
+}

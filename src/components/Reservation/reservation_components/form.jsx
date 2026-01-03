@@ -23,6 +23,8 @@ const BasicInformationForm = ({
   vehicles,
   setFormData,
   venues = [], // Add venues as a prop (default empty array)
+  venueParticipants = {}, // Per-venue participants object
+  setVenueParticipants, // Function to update per-venue participants
 }) => {
   // Clean up selectedVenueEquipment to remove non-existent equipment and adjust quantities
   React.useEffect(() => {
@@ -103,13 +105,7 @@ const BasicInformationForm = ({
     console.log('=== Equipment Validation End ===');
   }, [equipment, formData.resourceType, selectedVenueEquipment, setFormData]);
 
-  // Calculate max capacity for selected venues
-  let maxCapacity = 0;
-  if (formData.resourceType === 'venue' && Array.isArray(formData.venues) && venues.length > 0) {
-    maxCapacity = venues
-      .filter(v => formData.venues.includes(v.ven_id))
-      .reduce((sum, v) => sum + (parseInt(v.ven_occupancy) || 0), 0);
-  }
+  // Calculate max capacity for selected venues - removed unused variable
 
   return (
     <Card className="shadow-sm border-0 p-4 sm:p-6">
@@ -152,58 +148,96 @@ const BasicInformationForm = ({
               />
             </Form.Item>
 
+            {/* Per-Venue Participants Section */}
             <Form.Item
-              label={<span className="text-sm">Number of Participants <span className="text-red-500">*</span></span>}
+              label={<span className="text-sm">Number of Participants per Venue <span className="text-red-500">*</span></span>}
               required
-              validateStatus={
-                formData.participants === '' ||
-                (maxCapacity > 0 && parseInt(formData.participants) > maxCapacity)
-                  ? 'error'
-                  : undefined
-              }
-              help={
-                maxCapacity > 0
-                  ? `Maximum allowed: ${maxCapacity} participant${maxCapacity > 1 ? 's' : ''}`
-                  : 'Select venue(s) to see capacity.'
-              }
             >
-              <Input
-                name="participants"
-                value={formData.participants}
-                onChange={e => {
-                  let val = e.target.value.replace(/[^0-9]/g, '');
-                  if (maxCapacity > 0 && val !== '' && parseInt(val) > maxCapacity) {
-                    val = maxCapacity.toString();
+              {formData.venues && formData.venues.length > 0 ? (
+                <div className="space-y-3">
+                  {formData.venues.map(venueId => {
+                    const venue = venues.find(v => v.ven_id === venueId);
+                    if (!venue) return null;
+                    
+                    const minCapacity = venue.ven_minimum || 1;
+                    const maxCapacity = venue.ven_occupancy || 0;
+                    const currentValue = venueParticipants[venueId] || '';
+                    const isInvalid = currentValue === '' || 
+                                     parseInt(currentValue) < minCapacity || 
+                                     (maxCapacity > 0 && parseInt(currentValue) > maxCapacity);
+                    
+                    return (
+                      <div key={venueId} className="border rounded-lg p-3 bg-gray-50">
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <span className="font-medium text-gray-900">{venue.ven_name}</span>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {venue.event_type} • {venue.area_type}
+                            </div>
+                          </div>
+                          <div className="text-xs text-gray-600 text-right">
+                            <div>Min: {minCapacity}</div>
+                            <div>Max: {maxCapacity}</div>
+                          </div>
+                        </div>
+                        <Input
+                          type="number"
+                          min={minCapacity}
+                          max={maxCapacity}
+                          value={currentValue}
+                          onChange={e => {
+                            let val = e.target.value.replace(/[^0-9]/g, '');
+                            // Prevent leading zeros
+                            if (val.length > 1 && val.startsWith('0')) {
+                              val = val.replace(/^0+/, '');
+                            }
+                            // Cap at max capacity if set
+                            if (maxCapacity > 0 && val !== '' && parseInt(val) > maxCapacity) {
+                              val = maxCapacity.toString();
+                            }
+                            setVenueParticipants(prev => ({
+                              ...prev,
+                              [venueId]: val
+                            }));
+                          }}
+                          className="rounded"
+                          size={isMobile ? 'middle' : 'large'}
+                          placeholder={`Enter ${minCapacity}-${maxCapacity} participants`}
+                          status={isInvalid ? 'error' : undefined}
+                        />
+                        {isInvalid && currentValue !== '' && (
+                          <div className="text-xs text-red-500 mt-1">
+                            {parseInt(currentValue) < minCapacity 
+                              ? `Minimum ${minCapacity} participant${minCapacity > 1 ? 's' : ''} required`
+                              : `Maximum ${maxCapacity} participant${maxCapacity > 1 ? 's' : ''} allowed`}
+                          </div>
+                        )}
+                        {currentValue === '' && (
+                          <div className="text-xs text-red-500 mt-1">
+                            Please enter number of participants
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <Empty
+                  image={Empty.PRESENTED_IMAGE_SIMPLE}
+                  description={
+                    <span className="text-gray-500">
+                      Please select venue(s) first to enter participant counts.
+                    </span>
                   }
-                  handleInputChange({
-                    target: {
-                      name: 'participants',
-                      value: val
-                    }
-                  });
-                }}
-                type="number"
-                min="1"
-                max={maxCapacity > 0 ? maxCapacity : undefined}
-                className="rounded"
-                size={isMobile ? 'middle' : 'large'}
-                placeholder={maxCapacity > 0 ? `Up to ${maxCapacity}` : 'Enter number of participants'}
-                required
-              />
+                />
+              )}
             </Form.Item>
 
             <Form.Item
               label={
                 <div className="flex justify-between items-center">
                   <span className="text-sm">Equipment</span>
-                  <Button
-                    type="text"
-                    onClick={() => setShowEquipmentModal(true)}
-                    icon={<FaTools />}
-                    className="text-primary-green hover:text-primary-green-dark"
-                  >
-                    Add Equipment
-                  </Button>
+                  {/* Hide Add Equipment button for venue */}
                 </div>
               }
             >
@@ -303,7 +337,7 @@ const BasicInformationForm = ({
               </div>
 
               <div className="mt-2">
-                <h5 className="text-sm font-medium text-gray-700 mb-2">Driver Selection</h5>
+                {/* <h5 className="text-sm font-medium text-gray-700 mb-2">Driver Selection</h5> */}
                 <div className="driver-grid grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                   {renderDriverDropdown(selectedModels || [], vehicles || [], setFormData)}
                 </div>
@@ -363,8 +397,8 @@ const BasicInformationForm = ({
               </Form.Item>
             </section>
 
-            {/* Additional Equipment Section */}
-            <section className="mt-6">
+            {/* Additional Equipment Section - Hidden for vehicle */}
+            {/* <section className="mt-6">
               <h4 className="text-sm font-semibold text-gray-800 mb-3">Additional Equipment</h4>
               <Form.Item
                 label={
@@ -428,7 +462,7 @@ const BasicInformationForm = ({
                   />
                 )}
               </Form.Item>
-            </section>
+            </section> */}
 
             {/* Additional Note */}
             <Form.Item

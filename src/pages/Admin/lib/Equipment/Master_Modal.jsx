@@ -1,47 +1,22 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Form, Select, Button, message as toast, AutoComplete, Space } from 'antd';
-import { PlusOutlined } from '@ant-design/icons';
+import { Modal, Form, Button, AutoComplete, Drawer } from 'antd';
 import { FaTools } from 'react-icons/fa';
+import { toast } from 'sonner';
+import { useMediaQuery } from 'react-responsive';
 import axios from 'axios';
 import { SecureStorage } from '../../../../utils/encryption';
 import { sanitizeInput, validateInput } from '../../../../utils/sanitize';
-import CategoryModal from './Category_Modal';
-import '../../../../styles/EnhancedDetailModal.css';
-const { Option } = Select;
 
 const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
+    // Responsive breakpoints
+    const isMobile = useMediaQuery({ maxWidth: 767 });
+    const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+    
     const [form] = Form.useForm();
     const [loading, setLoading] = useState(false);
     const [equipmentName, setEquipmentName] = useState('');
-    const [selectedCategory, setSelectedCategory] = useState('');
-    const [equipmentType, setEquipmentType] = useState('');
     const [equipmentNameOptions, setEquipmentNameOptions] = useState([]);
-    const [categories, setCategories] = useState([]);
-    const [isCategoryModalVisible, setIsCategoryModalVisible] = useState(false);
     const baseUrl = SecureStorage.getLocalItem("url");
-
-    // Equipment types
-    const equipmentTypes = [
-        { value: 'Bulk', label: 'Bulk (Multiple units in one entry)' },
-        { value: 'Serialized', label: 'Serialized (Individual unit tracking)' }
-    ];
-
-    const fetchCategories = useCallback(async () => {
-        const url = `${baseUrl}/Admin.php`;
-        const jsonData = { operation: "fetchCategories" };
-
-        try {
-            const response = await axios.post(url, new URLSearchParams(jsonData));
-            if (response.data.status === 'success') {
-                setCategories(response.data.data);
-            } else {
-                toast.error("Error fetching categories: " + response.data.message);
-            }
-        } catch (error) {
-            console.error("Error fetching categories:", error);
-            toast.error("An error occurred while fetching categories.");
-        }
-    }, [baseUrl]);
 
     const fetchEquipmentNames = useCallback(async () => {
         const url = `${baseUrl}/Admin.php`;
@@ -67,17 +42,8 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
     useEffect(() => {
         if (isOpen) {
             fetchEquipmentNames();
-            fetchCategories();
         }
-    }, [isOpen, fetchEquipmentNames, fetchCategories]);
-
-    const handleCategoryManagement = () => {
-        setIsCategoryModalVisible(true);
-    };
-
-    const handleCategoryModalClose = () => {
-        setIsCategoryModalVisible(false);
-    };
+    }, [isOpen, fetchEquipmentNames]);
 
     const handleEquipmentNameSearch = (value) => {
         const sanitized = sanitizeInput(value);
@@ -91,37 +57,45 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
 
     const resetForm = () => {
         setEquipmentName('');
-        setSelectedCategory('');
-        setEquipmentType('');
         form.resetFields();
     };
 
-    const handleSubmit = async () => {
-        if (!validateInput(equipmentName)) {
-            toast.error('Equipment name contains invalid characters.');
-            return;
+    const validateEquipmentData = () => {
+        const sanitizedName = sanitizeInput(equipmentName);
+
+        if (!validateInput(sanitizedName)) {
+            toast.error("Invalid input detected. Please check your entries.");
+            return false;
         }
 
-        if (!equipmentName || !selectedCategory || !equipmentType) {
-            toast.error("All fields are required!");
-            return;
+        // Check for empty or whitespace-only fields
+        if (!sanitizedName || !sanitizedName.trim()) {
+            toast.error("Equipment name cannot be empty or contain only whitespace!");
+            return false;
         }
 
-        const user_admin_id = SecureStorage.getLocalItem('user_id');
-        const requestData = {
-            operation: "saveEquipment",
-            name: equipmentName,
-            equipments_category_id: selectedCategory,
-            equip_type: equipmentType,
-            user_admin_id: user_admin_id
+        return {
+            name: sanitizedName.trim()
         };
+    };
 
-        
-
-        console.log('Request Data:', requestData);
-
-        setLoading(true);
+    const handleSubmit = async () => {
         try {
+            // First validate the form fields
+            await form.validateFields();
+            
+            // Then run custom validation
+            const validatedData = validateEquipmentData();
+            if (!validatedData) return;
+
+            setLoading(true);
+            
+            const requestData = {
+                operation: "saveEquipment",
+                name: validatedData.name,
+                user_admin_id: SecureStorage.getLocalItem('user_id')
+            };
+
             const response = await axios.post(
                 `${baseUrl}/Admin.php`,
                 JSON.stringify(requestData),
@@ -138,124 +112,121 @@ const MasterEquipmentModal = ({ isOpen, onClose, onSuccess }) => {
                 onSuccess();
                 onClose();
             } else {
-                toast.error(`Failed to add equipment master: ${response.data.message || "Unknown error"}`);
+                toast.error(response.data.message || "Failed to save equipment");
             }
         } catch (error) {
-            toast.error("An error occurred while adding equipment master.");
-            console.error("Error saving equipment master:", error);
+            if (error.errorFields) {
+                // Form validation error - don't show toast as Antd will show field errors
+                return;
+            }
+            console.error("Error saving equipment:", error);
+            // Check if it's a network connectivity error
+            if (!error.response && (error.code === 'ERR_NETWORK' || error.message === 'Network Error' || !navigator.onLine)) {
+                toast.error('Network connection lost. Unable to create equipment. Please check your internet connection and try again.');
+            } else {
+                toast.error("An error occurred while saving equipment.");
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    const handleCategorySuccess = () => {
-        fetchCategories(); // Refresh the categories list after adding a new one
-    };
+    const modalContent = (
+        <Form form={form} layout="vertical" className={isMobile ? "p-3" : "p-4"}>
+            <Form.Item
+                label="Equipment Name"
+                name="equipmentName"
+                initialValue={equipmentName}
+                rules={[
+                    { required: true, message: 'Please input equipment name!' },
+                    { 
+                        validator: (_, value) => {
+                            if (value && value.trim() === '') {
+                                toast.error('Equipment name cannot contain only whitespace!');
+                                return Promise.reject(new Error('Equipment name cannot contain only whitespace!'));
+                            }
+                            return Promise.resolve();
+                        }
+                    }
+                ]}
+            >
+                <AutoComplete
+                    value={equipmentName}
+                    onChange={(value) => handleEquipmentNameSearch(value)}
+                    placeholder="Enter equipment name"
+                    options={equipmentNameOptions}
+                    size={isMobile ? "middle" : "large"}
+                    filterOption={(inputValue, option) =>
+                        option.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
+                    }
+                />
+            </Form.Item>
+
+            <div className={`flex ${isMobile ? 'flex-col gap-2' : 'justify-end gap-2'} mt-4`}>
+                <Button 
+                    onClick={() => {
+                        resetForm();
+                        onClose();
+                    }}
+                    size={isMobile ? "large" : "middle"}
+                    block={isMobile}
+                >
+                    Cancel
+                </Button>
+                <Button 
+                    type="primary" 
+                    onClick={handleSubmit}
+                    loading={loading}
+                    size={isMobile ? "large" : "middle"}
+                    block={isMobile}
+                    className="bg-green-900 hover:bg-lime-900"
+                >
+                    Add Equipment
+                </Button>
+            </div>
+        </Form>
+    );
 
     return (
         <>
-            <Modal
-                className="enhanced-detail-modal"
-                title={
-                    <div className="flex items-center">
-                        <FaTools className="mr-2 text-green-900" /> 
-                        Add Equipment Master
-                    </div>
-                }
-                open={isOpen}
-                onCancel={() => {
-                    resetForm();
-                    onClose();
-                }}
-                footer={null}
-                width={600}
-            >
-                <Form form={form} layout="vertical" className="p-4">
-                    <Form.Item
-                        label="Equipment Name"
-                        name="equipmentName"
-                        rules={[{ required: true, message: 'Please input equipment name!' }]}
-                    >
-                        <AutoComplete
-                            value={equipmentName}
-                            onChange={(value) => handleEquipmentNameSearch(value)}
-                            placeholder="Enter equipment name"
-                            options={equipmentNameOptions}
-                            filterOption={(inputValue, option) =>
-                                option.value.toLowerCase().indexOf(inputValue.toLowerCase()) !== -1
-                            }
-                        />
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Category"
-                        name="category"
-                        rules={[{ required: true, message: 'Please select a category!' }]}
-                    >
-                        <Space.Compact style={{ width: '100%' }}>
-                            <Select
-                                value={selectedCategory}
-                                onChange={(value) => setSelectedCategory(value)}
-                                placeholder="Select category"
-                                style={{ width: 'calc(100% - 40px)' }}
-                            >
-                                {categories.map(category => (
-                                    <Option key={category.equipments_category_id} value={category.equipments_category_id}>
-                                        {category.equipments_category_name}
-                                    </Option>
-                                ))}
-                            </Select>
-                            <Button
-                                type="primary"
-                                icon={<PlusOutlined />}
-                                onClick={handleCategoryManagement}
-                                style={{ width: '40px' }}
-                            />
-                        </Space.Compact>
-                    </Form.Item>
-
-                    <Form.Item
-                        label="Equipment Type"
-                        name="equipmentType"
-                        rules={[{ required: true, message: 'Please select equipment type!' }]}
-                    >
-                        <Select
-                            value={equipmentType}
-                            onChange={(value) => setEquipmentType(value)}
-                            placeholder="Select equipment type"
-                        >
-                            {equipmentTypes.map(type => (
-                                <Option key={type.value} value={type.value}>
-                                    {type.label}
-                                </Option>
-                            ))}
-                        </Select>
-                    </Form.Item>
-
-                    <div className="flex justify-end gap-2 mt-4">
-                        <Button onClick={() => {
-                            resetForm();
-                            onClose();
-                        }}>
-                            Cancel
-                        </Button>
-                        <Button 
-                            type="primary" 
-                            onClick={handleSubmit}
-                            loading={loading}
-                            className="bg-green-900 hover:bg-lime-900"
-                        >
-                            Add Equipment
-                        </Button>
-                    </div>
-                </Form>
-            </Modal>
-
-            <CategoryModal
-                isOpen={isCategoryModalVisible}
-                onClose={handleCategoryModalClose}
-                onSuccess={handleCategorySuccess}
-            />
+            {isMobile ? (
+                <Drawer
+                    title={
+                        <div className="flex items-center">
+                            <FaTools className="mr-2 text-green-900" /> 
+                            Add Equipment Master
+                        </div>
+                    }
+                    placement="bottom"
+                    height="90%"
+                    open={isOpen}
+                    onClose={() => {
+                        resetForm();
+                        onClose();
+                    }}
+                    bodyStyle={{ paddingBottom: '60px' }}
+                >
+                    {modalContent}
+                </Drawer>
+            ) : (
+                <Modal
+                    title={
+                        <div className="flex items-center">
+                            <FaTools className="mr-2 text-green-900" /> 
+                            Add Equipment Master
+                        </div>
+                    }
+                    open={isOpen}
+                    onCancel={() => {
+                        resetForm();
+                        onClose();
+                    }}
+                    footer={null}
+                    width={isTablet ? 700 : 800}
+                >
+                    {modalContent}
+                </Modal>
+            )}
         </>
     );
 };

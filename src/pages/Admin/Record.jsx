@@ -5,6 +5,9 @@ import {
   EyeOutlined,
   ReloadOutlined,
   SearchOutlined,
+  CalendarOutlined,
+  FileExcelOutlined,
+  UserOutlined
 } from "@ant-design/icons";
 import {
   Button,
@@ -14,6 +17,9 @@ import {
   Pagination,
   Spin,
   Tooltip,
+  Card,
+  Typography,
+  Drawer
 } from "antd";
 import { ToastContainer, toast } from "react-toastify";
 import { useEffect, useState, useCallback } from "react";
@@ -24,9 +30,18 @@ import moment from "moment";
 import { motion } from "framer-motion";
 import ReservationDetails from "../../components/core/reservation_details";
 import { generateReservationReport } from "./core/excel_report";
+import { useMediaQuery } from 'react-responsive';
 
+
+const { Text } = Typography;
 
 const Record = () => {
+  // Responsive breakpoints
+  const isMobile = useMediaQuery({ maxWidth: 767 });
+  const isTablet = useMediaQuery({ minWidth: 768, maxWidth: 1023 });
+  // const isDesktop = useMediaQuery({ minWidth: 1024 });
+  // const isSmallScreen = useMediaQuery({ maxWidth: 1023 });
+  
   const [reservations, setReservations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
@@ -39,6 +54,17 @@ const Record = () => {
   const [baseUrl, setBaseUrl] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [exporting, setExporting] = useState(false);
+
+  // Update page size based on screen size
+  useEffect(() => {
+    if (isMobile) {
+      setPageSize(5);
+    } else if (isTablet) {
+      setPageSize(8);
+    } else {
+      setPageSize(10);
+    }
+  }, [isMobile, isTablet]);
 
   const fetchReservations = useCallback(async (url) => {
     if (!url) return;
@@ -75,7 +101,11 @@ const Record = () => {
       }
     } catch (error) {
       console.error("Error fetching reservations:", error);
-      toast.error("Error fetching reservations. Please try again later.");
+      if (error.code === 'ERR_NETWORK' || !error.response) {
+        toast.error("Network connection lost. Please check your internet connection and try again.");
+      } else {
+        toast.error("Error fetching reservations. Please try again later.");
+      }
       setReservations([]);
     } finally {
       setLoading(false);
@@ -101,6 +131,7 @@ const Record = () => {
       status: item.reservation_status_name || "Unknown",
       requester: item.user_full_name || "Unknown",
       created_at: item.reservation_created_at,
+      reservation_type: item.reservation_type || "Unknown",
     }));
   };
 
@@ -169,6 +200,48 @@ const Record = () => {
           bg: 'bg-cyan-100',
           text: 'text-cyan-800',
           border: 'border-cyan-200'
+        };
+      case 'processed':
+        return {
+          bg: 'bg-teal-100',
+          text: 'text-teal-800',
+          border: 'border-teal-200'
+        };
+      case 'on going':
+      case 'ongoing':
+        return {
+          bg: 'bg-lime-100',
+          text: 'text-lime-800',
+          border: 'border-lime-200'
+        };
+      default:
+        return {
+          bg: 'bg-gray-100',
+          text: 'text-gray-800',
+          border: 'border-gray-200'
+        };
+    }
+  };
+
+  const getReservationTypeStyle = (type) => {
+    switch (type) {
+      case 'Trip':
+        return {
+          bg: 'bg-blue-100',
+          text: 'text-blue-800',
+          border: 'border-blue-200'
+        };
+      case 'Activity/Event':
+        return {
+          bg: 'bg-purple-100',
+          text: 'text-purple-800',
+          border: 'border-purple-200'
+        };
+      case 'EQ':
+        return {
+          bg: 'bg-orange-100',
+          text: 'text-orange-800',
+          border: 'border-orange-200'
         };
       default:
         return {
@@ -264,7 +337,11 @@ const Record = () => {
       }
     } catch (error) {
       console.error("Error generating report:", error);
-      toast.error("Failed to generate report.");
+      if (error.code === 'ERR_NETWORK' || !error.response) {
+        toast.error("Network connection lost. Please check your internet connection and try again.");
+      } else {
+        toast.error("Failed to generate report.");
+      }
     } finally {
       setExporting(false);
     }
@@ -287,6 +364,21 @@ const Record = () => {
       sorter: true,
       sortOrder: sortField === "requester" ? sortOrder : null,
       render: (text) => <span className="font-medium text-gray-700">{text}</span>,
+    },
+    {
+      title: "Type",
+      dataIndex: "reservation_type",
+      key: "reservation_type",
+      sorter: true,
+      sortOrder: sortField === "reservation_type" ? sortOrder : null,
+      render: (type) => {
+        const typeStyle = getReservationTypeStyle(type);
+        return (
+          <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-semibold border ${typeStyle.bg} ${typeStyle.text} ${typeStyle.border}`}>
+            {type}
+          </span>
+        );
+      },
     },
     {
       title: "Date Range",
@@ -334,173 +426,219 @@ const Record = () => {
   return (
     <div className="flex h-screen overflow-hidden bg-gradient-to-br from-green-100 to-white">
       {/* Fixed Sidebar */}
-      <div className="flex-none">
+      <div className="flex-shrink-0">
         <Sidebar />
       </div>
 
       {/* Scrollable Content Area */}
-      <div className="flex-grow p-2 sm:p-4 md:p-8 lg:p-12 overflow-y-auto">
-        <div className="p-2 sm:p-4 md:p-8 lg:p-12 min-h-screen mt-10">
+      <div className="flex-grow overflow-y-auto">
+        <div className={`${isMobile ? 'px-4 py-4 mt-5' : isTablet ? 'px-6 py-6 mt-10' : 'px-8 py-6 mt-10 max-w-7xl mx-auto'} min-h-screen`}>
           <motion.div
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="mb-4 sm:mb-8"
+            className={`${isMobile ? 'mb-3' : 'mb-4'}`}
           >
             <div className="mb-2 sm:mb-4 mt-10">
-              <h2 className="text-xl sm:text-2xl font-bold text-green-900 mt-5">
+              <h2 className="text-2xl font-bold text-green-900 mt-5">
                 Reservation Records
               </h2>
             </div>
           </motion.div>
 
           {/* Search, Filters, and Report Generation */}
-          <div className="bg-[#fafff4] p-4 rounded-lg shadow-sm mb-6">
-            <div className="flex flex-col sm:flex-row items-center gap-2 w-full">
-              <div className="flex-grow w-full">
+          <div className={`bg-[#fafff4] ${isMobile ? 'p-3' : 'p-4'} rounded-lg shadow-sm ${isMobile ? 'mb-4' : 'mb-6'}`}>
+            <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex flex-row items-center gap-2'} w-full`}>
+              <div className="flex-grow">
                 <Input
-                  placeholder="Search by ID, title, or requester"
+                  placeholder={isMobile ? "Search records..." : "Search by ID, title, or requester"}
                   allowClear
                   prefix={<SearchOutlined />}
-                  size="large"
+                  size={isMobile ? "middle" : "large"}
                   value={searchText}
                   onChange={(e) => setSearchText(e.target.value)}
                   className="w-full"
                 />
               </div>
-              <Tooltip title="Refresh data">
-                <Button
-                  icon={<ReloadOutlined />}
-                  onClick={handleRefresh}
-                  size="large"
-                  style={{ borderRadius: 8, height: 40, width: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                />
-              </Tooltip>
-              {/* Month Picker and Generate Report Button */}
-              <div className="flex flex-row items-center gap-2">
-                <DatePicker
-                  picker="month"
-                  onChange={setSelectedMonth}
-                  value={selectedMonth}
-                  allowClear
-                  placeholder="Select month"
-                  style={{ minWidth: 140 }}
-                  size="large"
-                  disabled={exporting}
-                />
-                <Button
-                  type="primary"
-                  onClick={handleGenerateReport}
-                  loading={exporting}
-                  disabled={!selectedMonth || exporting}
-                  className="bg-green-700 hover:bg-green-900 font-medium"
-                >
-                  Generate Report
-                </Button>
+              <div className={`flex gap-2 ${isMobile ? 'justify-center' : ''}`}>
+                <Tooltip title="Refresh data">
+                  <Button
+                    icon={<ReloadOutlined />}
+                    onClick={handleRefresh}
+                    size={isMobile ? "middle" : "large"}
+                  />
+                </Tooltip>
+                {/* Month Picker and Generate Report Button */}
+                <div className={`flex ${isMobile ? 'flex-col gap-2' : 'flex-row'} items-center gap-2`}>
+                  <DatePicker
+                    picker="month"
+                    onChange={setSelectedMonth}
+                    value={selectedMonth}
+                    allowClear
+                    placeholder={isMobile ? "Month" : "Select month"}
+                    style={{ minWidth: isMobile ? '100%' : 140 }}
+                    size={isMobile ? "middle" : "large"}
+                    disabled={exporting}
+                    suffixIcon={<CalendarOutlined />}
+                  />
+                  <Button
+                    type="primary"
+                    icon={<FileExcelOutlined />}
+                    onClick={handleGenerateReport}
+                    loading={exporting}
+                    disabled={!selectedMonth || exporting}
+                    className="bg-green-600 hover:bg-green-700"
+                    size={isMobile ? "middle" : "large"}
+                  >
+                    {isMobile ? "Report" : "Generate Report"}
+                  </Button>
+                </div>
               </div>
             </div>
           </div>
 
           {/* Responsive Table / Cards */}
-          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100" style={{ minWidth: '100%' }}>
+          <div className="relative overflow-x-auto shadow-md sm:rounded-lg bg-[#fafff4] dark:bg-green-100">
             {loading ? (
               <div className="flex justify-center items-center h-64">
                 <div className="loader"></div>
               </div>
             ) : (
               <>
-                {/* Desktop / Tablet: Table */}
-                <div className="hidden md:block">
-                  <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
-                    <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
-                      <tr>
-                        {columns.map((column) => (
-                          <th
-                            key={column.key}
-                            scope="col"
-                            className="px-4 py-4"
-                            onClick={() => column.sorter && handleSort(column.dataIndex)}
-                          >
-                            <div className="flex items-center cursor-pointer hover:text-gray-900">
-                              {column.title}
-                              {sortField === column.dataIndex && (
-                                <span className="ml-1">{sortOrder === "asc" ? "↑" : "↓"}</span>
-                              )}
-                            </div>
-                          </th>
-                        ))}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filteredReservations.length > 0 ? (
-                        filteredReservations
-                          .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                          .map((reservation) => (
-                            <tr key={reservation.reservation_id} className="bg-white border-b last:border-b-0 border-gray-200">
-                              {columns.map((column) => (
-                                <td key={`${reservation.reservation_id}-${column.key}`} className="px-4 py-5">
-                                  {column.render
-                                    ? column.render(reservation[column.dataIndex], reservation)
-                                    : reservation[column.dataIndex]}
-                                </td>
-                              ))}
-                            </tr>
-                          ))
-                      ) : (
+                {isMobile ? (
+                  // Mobile Card View
+                  <div className="p-3">
+                    {filteredReservations.length > 0 ? (
+                      filteredReservations
+                        .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                        .map((reservation) => {
+                          const statusStyle = getStatusStyle(reservation.status);
+                          const typeStyle = getReservationTypeStyle(reservation.reservation_type);
+                          return (
+                            <Card
+                              key={reservation.reservation_id}
+                              className="mb-3 shadow-sm"
+                              size="small"
+                            >
+                              <div className="space-y-2">
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center min-w-0">
+                                    <UserOutlined className="mr-2 text-green-900 flex-shrink-0" />
+                                    <Text strong className="text-sm truncate">{reservation.title}</Text>
+                                  </div>
+                                  <div className="flex gap-1 flex-shrink-0">
+                                    <Button
+                                      icon={<EyeOutlined />}
+                                      onClick={() => showModal(reservation)}
+                                      size="small"
+                                      type="primary"
+                                      className="bg-green-600 hover:bg-green-700"
+                                    />
+                                  </div>
+                                </div>
+                                <div>
+                                  <Text type="secondary" className="text-xs">Requester:</Text>
+                                  <div className="text-sm font-medium">{reservation.requester}</div>
+                                </div>
+                                <div>
+                                  <Text type="secondary" className="text-xs">Date & Time:</Text>
+                                  <div className="text-xs text-gray-600">{formatDateRange(reservation)}</div>
+                                </div>
+                                <div className="flex justify-between items-center">
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold border ${typeStyle.bg} ${typeStyle.text} ${typeStyle.border}`}>
+                                    {reservation.reservation_type}
+                                  </span>
+                                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold border ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
+                                    {reservation.status}
+                                  </span>
+                                </div>
+                              </div>
+                            </Card>
+                          );
+                        })
+                    ) : (
+                      <div className="text-center py-12">
+                        <Empty
+                          image={Empty.PRESENTED_IMAGE_SIMPLE}
+                          description={
+                            <span className="text-gray-500">
+                              No reservation records found
+                            </span>
+                          }
+                        />
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  // Desktop/Tablet Table View
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm text-left text-gray-700 bg-white rounded-t-2xl overflow-hidden">
+                      <thead className="bg-green-100 text-gray-800 font-bold rounded-t-2xl">
                         <tr>
-                          <td colSpan={columns.length} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
-                            <Empty
-                              image={Empty.PRESENTED_IMAGE_SIMPLE}
-                              description={<span className="text-gray-500 dark:text-gray-400">No reservation records found</span>}
-                            />
-                          </td>
+                          {columns.map((column) => {
+                            // Hide certain columns on tablet
+                            if (isTablet && (column.key === 'reservation_type')) {
+                              return null;
+                            }
+                            return (
+                              <th
+                                key={column.key}
+                                scope="col"
+                                className={`${isTablet ? 'px-3 py-3' : 'px-4 py-4'} cursor-pointer`}
+                                onClick={() => column.sorter && handleSort(column.dataIndex)}
+                              >
+                                <div className="flex items-center">
+                                  {column.title}
+                                  {sortField === column.dataIndex && (
+                                    <span className="ml-1">
+                                      {sortOrder === "asc" ? "↑" : "↓"}
+                                    </span>
+                                  )}
+                                </div>
+                              </th>
+                            );
+                          })}
                         </tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
+                      </thead>
+                      <tbody>
+                        {filteredReservations.length > 0 ? (
+                          filteredReservations
+                            .slice((currentPage - 1) * pageSize, currentPage * pageSize)
+                            .map((reservation) => (
+                              <tr key={reservation.reservation_id} className="bg-white border-b last:border-b-0 border-gray-200">
+                                {columns.map((column) => {
+                                  // Hide certain columns on tablet
+                                  if (isTablet && (column.key === 'reservation_type')) {
+                                    return null;
+                                  }
+                                  return (
+                                    <td key={`${reservation.reservation_id}-${column.key}`} className={`${isTablet ? 'px-3 py-3' : 'px-4 py-5'}`}>
+                                      {column.render
+                                        ? column.render(reservation[column.dataIndex], reservation)
+                                        : reservation[column.dataIndex]}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            ))
+                        ) : (
+                          <tr>
+                            <td colSpan={isTablet ? columns.length - 1 : columns.length} className="px-2 py-12 sm:px-6 sm:py-24 text-center">
+                              <Empty
+                                image={Empty.PRESENTED_IMAGE_SIMPLE}
+                                description={<span className="text-gray-500 dark:text-gray-400">No reservation records found</span>}
+                              />
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
-                {/* Mobile: Card list */}
-                <div className="md:hidden p-2">
-                  {filteredReservations.length > 0 ? (
-                    filteredReservations
-                      .slice((currentPage - 1) * pageSize, currentPage * pageSize)
-                      .map((r) => (
-                        <div key={r.reservation_id} className="mb-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <div className="text-xs text-gray-500">{r.requester}</div>
-                              <div className="text-base font-semibold text-gray-900 truncate">{r.title}</div>
-                              <div className="mt-1 text-xs text-gray-600">{formatDateRange(r)}</div>
-                            </div>
-                            {(() => {
-                              const statusStyle = getStatusStyle(r.status);
-                              return (
-                                <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border whitespace-nowrap ${statusStyle.bg} ${statusStyle.text} ${statusStyle.border}`}>
-                                  {r.status}
-                                </span>
-                              );
-                            })()}
-                          </div>
-                          <div className="mt-3 flex justify-end">
-                            <Button size="small" type="primary" onClick={() => showModal(r)} icon={<EyeOutlined />} className="bg-green-700 hover:bg-green-800">
-                              Details
-                            </Button>
-                          </div>
-                        </div>
-                      ))
-                  ) : (
-                    <div className="px-2 py-12 sm:px-6 sm:py-24 text-center">
-                      <Empty
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        description={<span className="text-gray-500 dark:text-gray-400">No reservation records found</span>}
-                      />
-                    </div>
-                  )}
-                </div>
 
                 {/* Pagination */}
-                <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+                <div className={`${isMobile ? 'p-3' : 'p-4'} border-t border-gray-200 dark:border-gray-700`}>
                   <Pagination
                     current={currentPage}
                     pageSize={pageSize}
@@ -509,16 +647,20 @@ const Record = () => {
                       setCurrentPage(page);
                       setPageSize(size);
                     }}
-                    showSizeChanger={true}
-                    showTotal={(total, range) => `${range[0]}-${range[1]} of ${total} items`}
-                    className="flex justify-end"
+                    showSizeChanger={!isMobile}
+                    showTotal={!isMobile ? (total, range) =>
+                      `${range[0]}-${range[1]} of ${total} items` : false
+                    }
+                    size={isMobile ? "small" : "default"}
+                    className={`flex ${isMobile ? 'justify-center' : 'justify-end'}`}
+                    simple={isMobile}
                   />
                 </div>
               </>
             )}
           </div>
 
-          {/* Detail Modal */}
+          {/* Detail Modal/Drawer */}
           <DetailModal
             visible={isModalVisible}
             record={selectedRecord}
@@ -526,6 +668,8 @@ const Record = () => {
               setIsModalVisible(false);
               setSelectedRecord(null);
             }}
+            isMobile={isMobile}
+            isTablet={isTablet}
           />
         </div>
       </div>
@@ -534,7 +678,7 @@ const Record = () => {
   );
 };
 
-const DetailModal = ({ visible, record, onClose }) => {
+const DetailModal = ({ visible, record, onClose, isMobile, isTablet }) => {
   const [modalData, setModalData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [baseUrl, setBaseUrl] = useState("");
@@ -571,7 +715,11 @@ const DetailModal = ({ visible, record, onClose }) => {
           }
         } catch (error) {
           console.error("Error fetching details:", error);
-          toast.error("Error fetching reservation details");
+          if (error.code === 'ERR_NETWORK' || !error.response) {
+            toast.error("Network connection lost. Unable to fetch reservation details.");
+          } else {
+            toast.error("Error fetching reservation details");
+          }
         } finally {
           setIsLoading(false);
         }
@@ -603,6 +751,11 @@ const DetailModal = ({ visible, record, onClose }) => {
         }
       } catch (error) {
         console.error('Error fetching deans approval:', error);
+        if (error.code === 'ERR_NETWORK' || !error.response) {
+          toast.error("Network connection lost. Unable to fetch approval details.");
+        } else {
+          toast.error("Error fetching approval details.");
+        }
         setDeansApproval([]);
       } finally {
         setIsLoadingDeans(false);
@@ -613,17 +766,32 @@ const DetailModal = ({ visible, record, onClose }) => {
   }, [visible, modalData, baseUrl]);
 
   if (isLoading) {
-    return (
+    const LoadingComponent = ({ children }) => (
+      <div className="flex justify-center items-center h-64">
+        <Spin size="large" />
+      </div>
+    );
+
+    return isMobile ? (
+      <Drawer
+        title="Loading Reservation Details"
+        placement="bottom"
+        height="90%"
+        open={visible}
+        onClose={onClose}
+        maskClosable={false}
+      >
+        <LoadingComponent />
+      </Drawer>
+    ) : (
       <Modal
         visible={visible}
         onCancel={onClose}
         footer={null}
-        width={800}
+        width={isTablet ? 700 : 800}
         maskClosable={false}
       >
-        <div className="flex justify-center items-center h-64">
-          <Spin size="large" />
-        </div>
+        <LoadingComponent />
       </Modal>
     );
   }
@@ -635,6 +803,8 @@ const DetailModal = ({ visible, record, onClose }) => {
       reservationDetails={modalData}
       deansApproval={deansApproval}
       isLoadingDeans={isLoadingDeans}
+      isMobile={isMobile}
+      isTablet={isTablet}
     />
   );
 };
