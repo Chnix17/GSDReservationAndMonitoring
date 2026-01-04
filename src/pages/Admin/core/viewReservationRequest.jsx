@@ -1367,7 +1367,7 @@ const ReservationRequestsComponent = () => {
             <div className="bg-gradient-to-r from-lime-900 to-green-900 p-3 md:p-4 flex justify-between items-center">
                 <h2 className="text-white text-base md:text-lg font-semibold flex items-center">
                     <BarChartOutlined className="mr-2 text-sm md:text-base" />
-                    Reservation Trends
+                    Reservation Request
                 </h2>
                 <Tooltip title="Refresh data">
                     <Button 

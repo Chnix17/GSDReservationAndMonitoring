@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom';
 import VehicleEntry from './pages/Admin/VehicleEntry';
 import PersonnelDashboard from './pages/Personnel/dashboard';
 import ViewTask from './pages/Personnel/ViewPersonnelTask';
+import JobOrderTask from './pages/Personnel/JobOrderTask';
 import Venue from './pages/Admin/Venue';
 import  Dashboard from './pages/User/dashboard';
 import Equipment from './pages/Admin/Equipment';
@@ -192,6 +193,7 @@ const App = () => {
                             <Route index element={<PersonnelDashboard />} />
                             <Route path="Dashboard" element={<PersonnelDashboard />} />
                             <Route path="ViewTask" element={<ViewTask />} />
+                            <Route path="JobOrderTask" element={<JobOrderTask />} />
                             <Route path="SubmitReport" element={<SubmitReport />} />
                             <Route path="Notification" element={<Notification />} />
                             <Route path="Chat" element={<Chat />} />

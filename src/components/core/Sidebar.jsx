@@ -891,6 +891,7 @@ const Sidebar = () => {
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Personnel/Dashboard' },
       { type: 'link', icon: FaComments, text: 'Chat', link: '/Personnel/Chat' },
       { type: 'link', icon: FaFileAlt, text: 'View Task', link: '/Personnel/ViewTask' },
+      { type: 'link', icon: FaFileAlt, text: 'Job Order Task', link: '/Personnel/JobOrderTask' },
       { type: 'section', text: 'Reports' },
       { type: 'link', icon: FaFileAlt, text: 'Submit Report', link: '/Personnel/SubmitReport' },
     ],
