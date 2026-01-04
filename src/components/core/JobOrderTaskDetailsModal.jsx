@@ -5,6 +5,8 @@ import axios from 'axios';
 import { toast } from 'sonner';
 import { SecureStorage } from '../../utils/encryption';
 
+const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
+
 const getStatusColor = (status) => {
   const s = String(status || '').toLowerCase();
   if (s.includes('complete') || s.includes('done')) return 'green';
@@ -153,6 +155,14 @@ const JobOrderTaskDetailsModal = ({ open, onClose, task, baseUrl, onSuccess }) =
       cancelled = true;
     };
   }, [open, mode, fetchEquipments, fetchOperations, form, task]);
+
+  const handleBeforeUpload = (file) => {
+    if (file?.size > MAX_IMAGE_BYTES) {
+      toast.error('Image must be less than or equal to 1MB');
+      return Upload.LIST_IGNORE;
+    }
+    return false;
+  };
 
   const handleSubmitMarkDone = async () => {
     setErrorMessage('');
@@ -389,11 +399,12 @@ const JobOrderTaskDetailsModal = ({ open, onClose, task, baseUrl, onSuccess }) =
                     listType="picture"
                     maxCount={1}
                     fileList={fileList}
-                    beforeUpload={() => false}
+                    beforeUpload={handleBeforeUpload}
                     onChange={({ fileList: next }) => setFileList(next)}
                   >
                     <Button disabled={loading}>Select Image</Button>
                   </Upload>
+                  <div className="text-xs text-gray-500 mt-1">Max file size: 1MB</div>
                 </Form.Item>
 
                 <div className="flex justify-end gap-2 mt-4">

@@ -3430,13 +3430,15 @@ private function sendPushNotificationToAdmins($reservation_id) {
                     }
                 }
 
-                // If GD with WebP support is available, convert to WebP; otherwise, fall back to moving the original file
                 $canUseGdWebp = function_exists('imagewebp') && (
                     function_exists('imagecreatefromjpeg') ||
                     function_exists('imagecreatefrompng') ||
                     function_exists('imagecreatefromgif') ||
                     function_exists('imagecreatefromwebp')
                 );
+
+                $fileName = 'job_' . time() . '_' . mt_rand(1000, 9999) . '.webp';
+                $destPath = $uploadDir . '/' . $fileName;
 
                 if ($canUseGdWebp) {
                     // Create GD image from source
@@ -3464,10 +3466,6 @@ private function sendPushNotificationToAdmins($reservation_id) {
                         return;
                     }
 
-                    // Generate unique filename and save as WebP
-                    $fileName = 'job_' . time() . '_' . mt_rand(1000, 9999) . '.webp';
-                    $destPath = $uploadDir . '/' . $fileName;
-
                     if (!imagewebp($srcImage, $destPath, 80)) {
                         imagedestroy($srcImage);
                         echo json_encode(['status' => 'error', 'message' => 'Failed to save image.']);
@@ -3475,24 +3473,37 @@ private function sendPushNotificationToAdmins($reservation_id) {
                     }
 
                     imagedestroy($srcImage);
-                } else {
-                    // Fallback: keep original format and move file as-is
-                    $ext = '.jpg';
-                    if ($mimeType === 'image/png') {
-                        $ext = '.png';
-                    } elseif ($mimeType === 'image/gif') {
-                        $ext = '.gif';
-                    } elseif ($mimeType === 'image/webp') {
-                        $ext = '.webp';
-                    }
+                } elseif (class_exists('Imagick')) {
+                    try {
+                        $img = new Imagick();
+                        $img->readImage($file['tmp_name']);
 
-                    $fileName = 'job_' . time() . '_' . mt_rand(1000, 9999) . $ext;
-                    $destPath = $uploadDir . '/' . $fileName;
+                        if (method_exists($img, 'autoOrient')) {
+                            $img->autoOrient();
+                        }
 
-                    if (!move_uploaded_file($file['tmp_name'], $destPath)) {
-                        echo json_encode(['status' => 'error', 'message' => 'Failed to save image.']);
+                        if ($img->getNumberImages() > 1) {
+                            $img = $img->coalesceImages();
+                            foreach ($img as $frame) {
+                                $frame->setImageFormat('webp');
+                                $frame->setImageCompressionQuality(80);
+                            }
+                            $img->writeImages($destPath, true);
+                        } else {
+                            $img->setImageFormat('webp');
+                            $img->setImageCompressionQuality(80);
+                            $img->writeImage($destPath);
+                        }
+
+                        $img->clear();
+                        $img->destroy();
+                    } catch (Exception $e) {
+                        echo json_encode(['status' => 'error', 'message' => 'WebP conversion failed.']);
                         return;
                     }
+                } else {
+                    echo json_encode(['status' => 'error', 'message' => 'WebP conversion is not supported on this server (GD WebP/Imagick unavailable).']);
+                    return;
                 }
 
                 // Relative path for DB/frontend

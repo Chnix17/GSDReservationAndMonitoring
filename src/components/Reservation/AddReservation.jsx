@@ -34,6 +34,8 @@ import ResourceEquipment from './reservation_components/resource/resource_equipm
 import BasicInformationForm from './reservation_components/form';
 import ReviewSection from './reservation_components/review';
 
+const MAX_IMAGE_BYTES = 1 * 1024 * 1024;
+
 const fadeInAnimation = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0 },
@@ -269,9 +271,18 @@ const AddReservation = () => {
                   accept="image/*"
                   onChange={(e) => {
                     const file = e.target.files?.[0] || null;
+
+                    if (file && file.size > MAX_IMAGE_BYTES) {
+                      toast.error('Image must be less than or equal to 1MB');
+                      e.target.value = '';
+                      setFormData((prev) => ({ ...prev, workRequestImageFile: null }));
+                      return;
+                    }
+
                     setFormData((prev) => ({ ...prev, workRequestImageFile: file }));
                   }}
                 />
+                <div className="text-xs text-gray-500 mt-1">Max file size: 1MB</div>
               </div>
 
               <div>
