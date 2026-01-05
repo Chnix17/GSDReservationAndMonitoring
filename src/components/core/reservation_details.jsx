@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Modal, Tag, Tabs, Spin, Collapse, Button, Drawer } from 'antd';
+import React, { useEffect, useMemo, useState } from 'react';
+import { Modal, Tag, Tabs, Spin, Collapse, Button, Drawer, Form, Input, DatePicker, TimePicker } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -8,10 +8,16 @@ import {
     ToolOutlined,
     DownOutlined,
     RightOutlined,
-    CloseOutlined
+    CloseOutlined,
+    EditOutlined,
+    SaveOutlined
 } from '@ant-design/icons';
 import { useMediaQuery } from 'react-responsive';
 import DriversTicket from './trip_ticket';
+import { toast } from 'react-toastify';
+import { SecureStorage } from '../../utils/encryption';
+import axios from 'axios';
+import dayjs from 'dayjs';
 
 const formatDateRange = (startDate, endDate) => {
     const start = new Date(startDate);
@@ -44,7 +50,8 @@ const ReservationDetails = ({
     deansApproval = [],
     isLoadingDeans = false,
     showAvailability = false,
-    checkResourceAvailability = () => true
+    checkResourceAvailability = () => true,
+    onRefresh
 }) => {
     // Responsive breakpoints
     const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -55,6 +62,89 @@ const ReservationDetails = ({
     // Trip Ticket export state
     const [isExporting, setIsExporting] = useState(false);
     const [showTripTicketPreview, setShowTripTicketPreview] = useState(false);
+
+    const baseUrl = SecureStorage.getLocalItem('url');
+    const [localReservationDetails, setLocalReservationDetails] = useState(reservationDetails);
+    const [showCancelModal, setShowCancelModal] = useState(false);
+    const [isEditMode, setIsEditMode] = useState(false);
+    const [editForm] = Form.useForm();
+    const [isUpdating, setIsUpdating] = useState(false);
+    const [checkingAvailability, setCheckingAvailability] = useState(false);
+    const [availabilityError, setAvailabilityError] = useState(null);
+    const [availabilityBlocks, setAvailabilityBlocks] = useState([]);
+    const [dayStatuses, setDayStatuses] = useState({});
+
+    useEffect(() => {
+        setLocalReservationDetails(reservationDetails);
+    }, [reservationDetails]);
+    useEffect(() => {
+        if (!isEditMode) return;
+
+        const BUSINESS_START_HOUR = 4;
+        const BUSINESS_END_HOUR = 22;
+        const totalBusinessMinutes = (BUSINESS_END_HOUR - BUSINESS_START_HOUR) * 60;
+
+        const dateKeys = new Set();
+        availabilityBlocks.forEach(b => {
+            const startDay = b.start.startOf('day');
+            const endDay = b.end.startOf('day');
+            let d = startDay.clone();
+            while (d.isSame(endDay) || d.isBefore(endDay)) {
+                dateKeys.add(d.format('YYYY-MM-DD'));
+                d = d.add(1, 'day');
+            }
+        });
+
+        const today = dayjs().startOf('month');
+        for (let i = -1; i <= 2; i++) {
+            const month = today.add(i, 'month');
+            const daysInMonth = month.daysInMonth();
+            for (let d = 1; d <= daysInMonth; d++) {
+                dateKeys.add(month.date(d).format('YYYY-MM-DD'));
+            }
+        }
+
+        const next = {};
+        dateKeys.forEach(dateKey => {
+            const currentDay = dayjs(dateKey).startOf('day');
+            const dayStart = currentDay.hour(BUSINESS_START_HOUR).minute(0).second(0);
+            const dayEnd = currentDay.hour(BUSINESS_END_HOUR).minute(0).second(0);
+
+            const intervals = availabilityBlocks
+                .map(b => {
+                    const s = b.start.isAfter(dayStart) ? b.start : dayStart;
+                    const e = b.end.isBefore(dayEnd) ? b.end : dayEnd;
+                    return (e.isAfter(s)) ? { s, e } : null;
+                })
+                .filter(Boolean)
+                .sort((a, b) => a.s.valueOf() - b.s.valueOf());
+
+            const merged = [];
+            intervals.forEach(cur => {
+                if (merged.length === 0) {
+                    merged.push({ ...cur });
+                } else {
+                    const last = merged[merged.length - 1];
+                    if (cur.s.isSame(last.e) || cur.s.isBefore(last.e)) {
+                        if (cur.e.isAfter(last.e)) last.e = cur.e;
+                    } else {
+                        merged.push({ ...cur });
+                    }
+                }
+            });
+
+            const blockedMinutes = merged.reduce((acc, it) => acc + it.e.diff(it.s, 'minute'), 0);
+            if (blockedMinutes >= totalBusinessMinutes) {
+                next[dateKey] = 'reserved';
+            } else if (blockedMinutes > 0) {
+                next[dateKey] = 'partial';
+            } else {
+                next[dateKey] = 'available';
+            }
+        });
+
+        setDayStatuses(next);
+    }, [availabilityBlocks, isEditMode]);
     const ticketInitialData = useMemo(() => {
         const details = reservationDetails || {};
         // Map destination (from title) and purpose (from description)
@@ -158,6 +248,375 @@ const ReservationDetails = ({
         : reservationDetails.reservation_end_date;
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
+    const currentStatusName = String(localReservationDetails?.status_name || reservationDetails?.status_name || '').toLowerCase();
+    const allowsCancellation = currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'reschedule confirmed';
+    const allowsEditSchedule = currentStatusName === 'reserved' || isReservedActive;
+
+    const cellRender = (current, info) => {
+        if (info?.type !== 'date') return info?.originNode;
+        const dateKey = dayjs(current).format('YYYY-MM-DD');
+        const status = dayStatuses[dateKey];
+
+        let bg = '';
+        let color = '';
+        if (status === 'reserved') {
+            bg = '#FEE2E2';
+            color = '#991B1B';
+        } else if (status === 'partial') {
+            bg = '#FEF3C7';
+            color = '#92400E';
+        }
+
+        if (!bg) return info.originNode;
+
+        return (
+            <div style={{ background: bg, color, borderRadius: 6, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {current.date()}
+            </div>
+        );
+    };
+
+    const isRedDay = (date) => {
+        if (!date) return false;
+        const dateKey = dayjs(date).format('YYYY-MM-DD');
+        return dayStatuses[dateKey] === 'reserved';
+    };
+
+    const disabledDate = (current) => {
+        if (!current) return false;
+        return isRedDay(current);
+    };
+
+    const getBlockedHoursForDate = (date) => {
+        if (!date) return [];
+        const BUSINESS_START_HOUR = 4;
+        const BUSINESS_END_HOUR = 22;
+
+        const day = dayjs(date).startOf('day');
+        const dayStart = day.hour(BUSINESS_START_HOUR).minute(0).second(0);
+        const dayEnd = day.hour(BUSINESS_END_HOUR).minute(0).second(0);
+
+        const blocked = new Set();
+
+        availabilityBlocks.forEach(b => {
+            const s = b.start.isAfter(dayStart) ? b.start : dayStart;
+            const e = b.end.isBefore(dayEnd) ? b.end : dayEnd;
+            if (!e.isAfter(s)) return;
+
+            // Convert interval [s, e) into blocked hour indices.
+            // Example: 08:00–10:00 blocks hours 8 and 9.
+            const startHour = Math.max(BUSINESS_START_HOUR, s.hour());
+            const endHourInclusive = Math.min(BUSINESS_END_HOUR, e.hour());
+
+            // Include the end boundary hour as blocked too.
+            // Example: 08:00–10:00 blocks 8, 9, and 10.
+            for (let h = startHour; h <= endHourInclusive; h++) {
+                blocked.add(h);
+            }
+        });
+
+        return Array.from(blocked);
+    };
+
+    const disabledHoursForDate = (date, extraBlockUpToHour = null) => {
+        const BUSINESS_START_HOUR = 4;
+        const BUSINESS_END_HOUR = 22;
+
+        // Always block non-business hours
+        const hours = [];
+        for (let h = 0; h < 24; h++) {
+            if (h < BUSINESS_START_HOUR || h >= BUSINESS_END_HOUR) hours.push(h);
+        }
+
+        // If red day, block all business hours too
+        if (date && isRedDay(date)) {
+            for (let h = BUSINESS_START_HOUR; h < BUSINESS_END_HOUR; h++) hours.push(h);
+            return Array.from(new Set(hours));
+        }
+
+        // Yellow day: block only the hours overlapping reservations
+        if (date) {
+            getBlockedHoursForDate(date).forEach(h => hours.push(h));
+        }
+
+        // Additional rule (e.g. end time on same day): block hours <= extraBlockUpToHour
+        if (extraBlockUpToHour !== null && extraBlockUpToHour !== undefined) {
+            for (let h = BUSINESS_START_HOUR; h <= extraBlockUpToHour; h++) {
+                hours.push(h);
+            }
+        }
+
+        return Array.from(new Set(hours));
+    };
+
+    const checkAvailability = async (startDateTime, endDateTime) => {
+        try {
+            setCheckingAvailability(true);
+            setAvailabilityError(null);
+
+            const venueIds = (localReservationDetails?.venues || []).map(v => v.venue_id || v.ven_id).filter(Boolean);
+            const vehicleIds = (localReservationDetails?.vehicles || []).map(v => v.vehicle_id).filter(Boolean);
+            const reservationId = localReservationDetails?.reservation_id || reservationDetails?.reservation_id;
+
+            const allBlocks = [];
+            const start = dayjs(startDateTime);
+            const end = dayjs(endDateTime);
+
+            if (venueIds.length > 0) {
+                const venueResp = await axios.post(`${baseUrl}reservation.php`, {
+                    operation: 'fetchAvailability',
+                    itemType: 'venue',
+                    itemId: venueIds
+                });
+
+                if (venueResp.data?.status === 'success' && Array.isArray(venueResp.data.data)) {
+                    venueResp.data.data.forEach(res => {
+                        if (String(res.reservation_id) === String(reservationId)) return;
+
+                        const statusId = parseInt(res.reservation_status_status_id);
+                        const reservationActive = parseInt(res.reservation_active);
+                        const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
+
+                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                            allBlocks.push({ start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) });
+                        } else if (statusId === 10 && hasReschedule) {
+                            allBlocks.push(
+                                { start: dayjs(res.reservation_start_date), end: dayjs(res.reservation_end_date) },
+                                { start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) }
+                            );
+                        } else if (res.reservation_start_date && res.reservation_end_date) {
+                            allBlocks.push({ start: dayjs(res.reservation_start_date), end: dayjs(res.reservation_end_date) });
+                        }
+
+                        let resStart;
+                        let resEnd;
+                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                            resStart = dayjs(res.reschedule_start_date);
+                            resEnd = dayjs(res.reschedule_end_date);
+                        } else if (statusId === 10 && hasReschedule) {
+                            const origStart = dayjs(res.reservation_start_date);
+                            const origEnd = dayjs(res.reservation_end_date);
+                            const reschedStart = dayjs(res.reschedule_start_date);
+                            const reschedEnd = dayjs(res.reschedule_end_date);
+                            const origOverlap = start.isBefore(origEnd) && end.isAfter(origStart);
+                            const reschedOverlap = start.isBefore(reschedEnd) && end.isAfter(reschedStart);
+                            if (origOverlap || reschedOverlap) {
+                                setAvailabilityError(`Venue conflict detected`);
+                            }
+                            return;
+                        } else if (res.reservation_start_date && res.reservation_end_date) {
+                            resStart = dayjs(res.reservation_start_date);
+                            resEnd = dayjs(res.reservation_end_date);
+                        }
+
+                        if (resStart && resEnd && start.isBefore(resEnd) && end.isAfter(resStart)) {
+                            setAvailabilityError(`Venue conflict detected`);
+                        }
+                    });
+                }
+            }
+
+            if (vehicleIds.length > 0) {
+                const vehicleResp = await axios.post(`${baseUrl}reservation.php`, {
+                    operation: 'fetchAvailability',
+                    itemType: 'vehicle',
+                    itemId: vehicleIds
+                });
+
+                if (vehicleResp.data?.status === 'success' && Array.isArray(vehicleResp.data.data)) {
+                    vehicleResp.data.data.forEach(res => {
+                        if (String(res.reservation_id) === String(reservationId)) return;
+
+                        const statusId = parseInt(res.reservation_status_status_id);
+                        const reservationActive = parseInt(res.reservation_active);
+                        const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
+
+                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                            allBlocks.push({ start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) });
+                        } else if (statusId === 10 && hasReschedule) {
+                            allBlocks.push(
+                                { start: dayjs(res.reservation_start_date), end: dayjs(res.reservation_end_date) },
+                                { start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) }
+                            );
+                        } else if (res.reservation_start_date && res.reservation_end_date) {
+                            allBlocks.push({ start: dayjs(res.reservation_start_date), end: dayjs(res.reservation_end_date) });
+                        }
+
+                        let resStart;
+                        let resEnd;
+                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                            resStart = dayjs(res.reschedule_start_date);
+                            resEnd = dayjs(res.reschedule_end_date);
+                        } else if (statusId === 10 && hasReschedule) {
+                            const origStart = dayjs(res.reservation_start_date);
+                            const origEnd = dayjs(res.reservation_end_date);
+                            const reschedStart = dayjs(res.reschedule_start_date);
+                            const reschedEnd = dayjs(res.reschedule_end_date);
+                            const origOverlap = start.isBefore(origEnd) && end.isAfter(origStart);
+                            const reschedOverlap = start.isBefore(reschedEnd) && end.isAfter(reschedStart);
+                            if (origOverlap || reschedOverlap) {
+                                setAvailabilityError(`Vehicle conflict detected`);
+                            }
+                            return;
+                        } else if (res.reservation_start_date && res.reservation_end_date) {
+                            resStart = dayjs(res.reservation_start_date);
+                            resEnd = dayjs(res.reservation_end_date);
+                        }
+
+                        if (resStart && resEnd && start.isBefore(resEnd) && end.isAfter(resStart)) {
+                            setAvailabilityError(`Vehicle conflict detected`);
+                        }
+                    });
+                }
+            }
+
+            setAvailabilityBlocks(allBlocks);
+            return true;
+        } catch (error) {
+            if (!error?.response || error?.message === 'Network Error' || error?.name === 'TypeError' || !navigator.onLine) {
+                toast.error('Network connection lost. Unable to check availability.');
+            }
+            return false;
+        } finally {
+            setCheckingAvailability(false);
+        }
+    };
+
+    const handleEditClick = async () => {
+        if (!allowsEditSchedule) {
+            toast.error('You can only edit the schedule once the reservation is Reserved');
+            return;
+        }
+
+        setIsEditMode(true);
+        setAvailabilityError(null);
+
+        const startDateTime = dayjs(localReservationDetails?.reservation_start_date || reservationDetails?.reservation_start_date);
+        const endDateTime = dayjs(localReservationDetails?.reservation_end_date || reservationDetails?.reservation_end_date);
+
+        editForm.setFieldsValue({
+            title: localReservationDetails?.reservation_title || reservationDetails?.reservation_title,
+            description: localReservationDetails?.reservation_description || reservationDetails?.reservation_description,
+            startDate: startDateTime,
+            startTime: startDateTime,
+            endDate: endDateTime,
+            endTime: endDateTime
+        });
+
+        await checkAvailability(
+            startDateTime.format('YYYY-MM-DD HH:mm:ss'),
+            endDateTime.format('YYYY-MM-DD HH:mm:ss')
+        );
+    };
+
+    const handleCancelEdit = () => {
+        setIsEditMode(false);
+        editForm.resetFields();
+        setAvailabilityError(null);
+        setAvailabilityBlocks([]);
+    };
+
+    const handleSaveEdit = async () => {
+        try {
+            const values = await editForm.validateFields();
+            setIsUpdating(true);
+
+            const userId = SecureStorage.getLocalItem('user_id');
+            if (!userId) {
+                toast.error('User session expired');
+                return;
+            }
+
+            const startDateTime = dayjs(values.startDate)
+                .hour(dayjs(values.startTime).hour())
+                .minute(0)
+                .second(0)
+                .format('YYYY-MM-DD HH:mm:ss');
+
+            const endDateTime = dayjs(values.endDate)
+                .hour(dayjs(values.endTime).hour())
+                .minute(0)
+                .second(0)
+                .format('YYYY-MM-DD HH:mm:ss');
+
+            const response = await axios.post(`${baseUrl}faculty&staff.php`, {
+                operation: 'updateReservationDetails',
+                reservation_id: localReservationDetails?.reservation_id || reservationDetails?.reservation_id,
+                title: values.title,
+                description: values.description,
+                start_date: startDateTime,
+                end_date: endDateTime,
+                userId: parseInt(userId)
+            });
+
+            if (response.data?.status === 'success') {
+                toast.success('Reservation details updated successfully!');
+                setIsEditMode(false);
+                if (onRefresh) onRefresh();
+            } else {
+                toast.error(response.data?.message || 'Failed to update reservation details');
+            }
+        } catch (error) {
+            if (!error?.response || error?.message === 'Network Error' || error?.name === 'TypeError' || !navigator.onLine) {
+                toast.error('Network connection lost. Unable to update details.');
+            } else if (error?.errorFields) {
+                toast.error('Please fix the form errors');
+            } else {
+                toast.error('Failed to update reservation details');
+            }
+        } finally {
+            setIsUpdating(false);
+        }
+    };
+
+    const handleCancelReservation = async () => {
+        try {
+            const userId = SecureStorage.getLocalItem('user_id');
+            if (!userId) {
+                toast.error('User session expired');
+                return;
+            }
+
+            const reservationId = localReservationDetails?.reservation_id || reservationDetails?.reservation_id;
+            if (!reservationId) {
+                toast.error('Invalid reservation ID');
+                return;
+            }
+
+            const response = await fetch(`${baseUrl}faculty&staff.php`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    operation: 'handleCancelReservation',
+                    reservation_id: reservationId,
+                    user_id: userId
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const result = await response.json();
+            if (result?.status === 'success') {
+                toast.success(result.message || 'Reservation cancelled successfully!');
+                setShowCancelModal(false);
+                onClose();
+                if (onRefresh) onRefresh();
+            } else {
+                toast.error(result?.message || 'Failed to cancel reservation');
+            }
+        } catch (error) {
+            if (!error?.response || error?.message === 'Network Error' || error?.name === 'TypeError' || !navigator.onLine) {
+                toast.error('Network connection lost. Unable to cancel reservation.');
+            } else {
+                toast.error(`Failed to cancel reservation: ${error.message}`);
+            }
+        }
+    };
+
     // Responsive modal/drawer content
     const modalContent = (
         <div className={`${isMobile ? 'h-full' : ''}`}>
@@ -251,26 +710,178 @@ const ReservationDetails = ({
 
                                         {/* Schedule and Details */}
                                         <div className="space-y-4">
-                                            <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 flex items-center gap-2`}>
-                                                <CalendarOutlined className="text-orange-500" />
-                                                Schedule & Details
-                                            </h3>
+                                            <div className="flex items-center justify-between gap-2">
+                                                <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 flex items-center gap-2`}>
+                                                    <CalendarOutlined className="text-orange-500" />
+                                                    Schedule & Details
+                                                </h3>
+                                                {!isEditMode && allowsEditSchedule && (
+                                                    <Button
+                                                        type="text"
+                                                        icon={<EditOutlined />}
+                                                        onClick={handleEditClick}
+                                                        size="small"
+                                                        className="text-blue-600 hover:text-blue-800"
+                                                    >
+                                                        Edit
+                                                    </Button>
+                                                )}
+                                            </div>
                                             <div className="space-y-3">
-                                                <div>
-                                                    <p className="text-sm text-gray-500">Title</p>
-                                                    <p className="font-medium">{reservationDetails.reservation_title}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-500">Description</p>
-                                                    <p className="font-medium">{reservationDetails.reservation_description}</p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-sm text-gray-500">Date & Time</p>
-                                                    <p className="font-medium">{formatDateRange(
-                                                        startDateStr,
-                                                        endDateStr
-                                                    )}</p>
-                                                </div>
+                                                {isEditMode ? (
+                                                    <Form form={editForm} layout="vertical" className="space-y-3">
+                                                        <Form.Item
+                                                            name="title"
+                                                            label={<span className="text-sm text-gray-500">Title</span>}
+                                                            rules={[
+                                                                { required: true, message: 'Title is required' },
+                                                                {
+                                                                    validator: (_, value) => {
+                                                                        if (value && value.trim() === '') {
+                                                                            return Promise.reject(new Error('Title cannot contain only whitespace'));
+                                                                        }
+                                                                        return Promise.resolve();
+                                                                    }
+                                                                }
+                                                            ]}
+                                                        >
+                                                            <Input placeholder="Enter reservation title" />
+                                                        </Form.Item>
+                                                        <Form.Item
+                                                            name="description"
+                                                            label={<span className="text-sm text-gray-500">Description</span>}
+                                                            rules={[
+                                                                { required: true, message: 'Description is required' },
+                                                                {
+                                                                    validator: (_, value) => {
+                                                                        if (value && value.trim() === '') {
+                                                                            return Promise.reject(new Error('Description cannot contain only whitespace'));
+                                                                        }
+                                                                        return Promise.resolve();
+                                                                    }
+                                                                }
+                                                            ]}
+                                                        >
+                                                            <Input.TextArea rows={3} placeholder="Enter reservation description" />
+                                                        </Form.Item>
+
+                                                        <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-2 gap-3'}`}>
+                                                            <Form.Item
+                                                                name="startDate"
+                                                                label={<span className="text-sm text-gray-500">Start Date</span>}
+                                                                rules={[{ required: true, message: 'Start date is required' }]}
+                                                            >
+                                                                <DatePicker
+                                                                    format="YYYY-MM-DD"
+                                                                    className="w-full"
+                                                                    cellRender={cellRender}
+                                                                    disabledDate={disabledDate}
+                                                                />
+                                                            </Form.Item>
+                                                            <Form.Item
+                                                                name="startTime"
+                                                                label={<span className="text-sm text-gray-500">Start Time</span>}
+                                                                rules={[{ required: true, message: 'Start time is required' }]}
+                                                            >
+                                                                <TimePicker
+                                                                    format="h:mm A"
+                                                                    className="w-full"
+                                                                    use12Hours
+                                                                    minuteStep={60}
+                                                                    disabledHours={() => {
+                                                                        const startDate = editForm.getFieldValue('startDate');
+                                                                        return disabledHoursForDate(startDate);
+                                                                    }}
+                                                                />
+                                                            </Form.Item>
+                                                            <Form.Item
+                                                                name="endDate"
+                                                                label={<span className="text-sm text-gray-500">End Date</span>}
+                                                                rules={[{ required: true, message: 'End date is required' }]}
+                                                            >
+                                                                <DatePicker
+                                                                    format="YYYY-MM-DD"
+                                                                    className="w-full"
+                                                                    cellRender={cellRender}
+                                                                    disabledDate={disabledDate}
+                                                                />
+                                                            </Form.Item>
+                                                            <Form.Item
+                                                                name="endTime"
+                                                                label={<span className="text-sm text-gray-500">End Time</span>}
+                                                                rules={[{ required: true, message: 'End time is required' }]}
+                                                            >
+                                                                <TimePicker
+                                                                    format="h:mm A"
+                                                                    className="w-full"
+                                                                    use12Hours
+                                                                    minuteStep={60}
+                                                                    disabledHours={() => {
+                                                                        const endDate = editForm.getFieldValue('endDate');
+                                                                        const startDate = editForm.getFieldValue('startDate');
+                                                                        const startTime = editForm.getFieldValue('startTime');
+
+                                                                        let extraBlockUpToHour = null;
+                                                                        if (endDate && startDate && startTime && dayjs(endDate).isSame(dayjs(startDate), 'day')) {
+                                                                            extraBlockUpToHour = dayjs(startTime).hour();
+                                                                        }
+
+                                                                        return disabledHoursForDate(endDate, extraBlockUpToHour);
+                                                                    }}
+                                                                />
+                                                            </Form.Item>
+                                                        </div>
+
+                                                        {availabilityError && (
+                                                            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                                                                <p className="text-sm text-yellow-800 font-medium">⚠️ Availability Notice</p>
+                                                                <p className="text-sm text-yellow-700 mt-1">{availabilityError}</p>
+                                                            </div>
+                                                        )}
+
+                                                        {checkingAvailability && (
+                                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                                                                <div className="flex items-center gap-2">
+                                                                    <Spin size="small" />
+                                                                    <p className="text-sm text-blue-800">Checking availability...</p>
+                                                                </div>
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex justify-end gap-2 pt-2">
+                                                            <Button onClick={handleCancelEdit} size="small">
+                                                                Cancel
+                                                            </Button>
+                                                            <Button
+                                                                type="primary"
+                                                                icon={<SaveOutlined />}
+                                                                onClick={handleSaveEdit}
+                                                                loading={isUpdating}
+                                                                size="small"
+                                                            >
+                                                                Save
+                                                            </Button>
+                                                        </div>
+                                                    </Form>
+                                                ) : (
+                                                    <>
+                                                        <div>
+                                                            <p className="text-sm text-gray-500">Title</p>
+                                                            <p className="font-medium">{reservationDetails.reservation_title}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm text-gray-500">Description</p>
+                                                            <p className="font-medium">{reservationDetails.reservation_description}</p>
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-sm text-gray-500">Date & Time</p>
+                                                            <p className="font-medium">{formatDateRange(
+                                                                startDateStr,
+                                                                endDateStr
+                                                            )}</p>
+                                                        </div>
+                                                    </>
+                                                )}
                                                 {/* Show decline reason if available */}
                                                 {reservationDetails.decline_reason && (
                                                     <div className="bg-red-50 border border-red-200 rounded-lg p-3">
@@ -282,6 +893,20 @@ const ReservationDetails = ({
                                         </div>
                                     </div>
                                 </div>
+
+                                {/* Mobile actions */}
+                                {isMobile && allowsCancellation && (
+                                    <div className="mt-4">
+                                        <Button
+                                            danger
+                                            block
+                                            size="large"
+                                            onClick={() => setShowCancelModal(true)}
+                                        >
+                                            Cancel Reservation
+                                        </Button>
+                                    </div>
+                                )}
 
                                 {/* Reschedule Proposed Section */}
                                 {showReschedulePendingCard && (
@@ -723,6 +1348,15 @@ const ReservationDetails = ({
                     onCancel={onClose}
                     width={isTablet ? 700 : 800}
                     footer={[
+                        allowsCancellation ? (
+                            <Button
+                                key="cancel"
+                                danger
+                                onClick={() => setShowCancelModal(true)}
+                            >
+                                Cancel Reservation
+                            </Button>
+                        ) : null,
                         <button key="close" onClick={onClose} className="px-4 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200">
                             Close
                         </button>
@@ -735,6 +1369,18 @@ const ReservationDetails = ({
                     {modalContent}
                 </Modal>
             )}
+
+            <Modal
+                visible={showCancelModal}
+                title="Cancel Reservation"
+                onCancel={() => setShowCancelModal(false)}
+                onOk={handleCancelReservation}
+                okText="Yes, Cancel"
+                okButtonProps={{ danger: true }}
+                maskClosable={false}
+            >
+                <p>Are you sure you want to cancel this reservation?</p>
+            </Modal>
             {/* Trip Ticket Preview Modal */}
             <Modal
                 title="Trip Ticket Preview"

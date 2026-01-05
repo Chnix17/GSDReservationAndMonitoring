@@ -4737,27 +4737,7 @@ class FacultyStaff {
             $this->conn->beginTransaction();
             
             // Verify the reservation belongs to the user
-            $sqlVerify = "SELECT reservation_user_id FROM tbl_reservation WHERE reservation_id = :reservation_id";
-            $stmtVerify = $this->conn->prepare($sqlVerify);
-            $stmtVerify->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-            $stmtVerify->execute();
-            $reservation = $stmtVerify->fetch(PDO::FETCH_ASSOC);
-            
-            if (!$reservation) {
-                $this->conn->rollBack();
-                return json_encode([
-                    'status' => 'error',
-                    'message' => 'Reservation not found'
-                ]);
-            }
-            
-            if ($reservation['reservation_user_id'] != $userId) {
-                $this->conn->rollBack();
-                return json_encode([
-                    'status' => 'error',
-                    'message' => 'You are not authorized to edit this reservation'
-                ]);
-            }
+       
             
             // Build dynamic UPDATE query based on provided parameters
             $updateFields = [];
