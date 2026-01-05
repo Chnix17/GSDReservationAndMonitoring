@@ -1249,7 +1249,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="Complaint Report" 
+                text="Work Request Report" 
                 link="/Admin/ComplaintReport" 
                 active={activeItem === '/Admin/ComplaintReport'}
                 isExpanded={isDesktopSidebarOpen}
@@ -1440,7 +1440,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaFileAlt} 
-                text="Complaint Report" 
+                text="Work Request Report" 
                 link="/Admin/ComplaintReport" 
                 active={activeItem === '/Admin/ComplaintReport'}
                 isExpanded={true}

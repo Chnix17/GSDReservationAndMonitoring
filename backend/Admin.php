@@ -5346,16 +5346,16 @@ public function archiveUser($userType, $userId) {
             $userId = [$userId];
         }
 
-        // Check for active transactions before archiving (only for users, not drivers)
-        if ($userType === 'user') {
-            $activeTransactionCheck = $this->checkActiveTransactions('user', $userId);
-            if ($activeTransactionCheck['hasActive']) {
-                return json_encode([
-                    'status' => 'error', 
-                    'message' => 'Cannot archive user(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
-                ]);
-            }
-        }
+        // Check for active transactions before archiving (only for users, not drivers) - DISABLED
+        // if ($userType === 'user') {
+        //     $activeTransactionCheck = $this->checkActiveTransactions('user', $userId);
+        //     if ($activeTransactionCheck['hasActive']) {
+        //         return json_encode([
+        //             'status' => 'error', 
+        //             'message' => 'Cannot archive user(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+        //         ]);
+        //     }
+        // }
 
         // Create placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($userId), '?'));
@@ -5456,14 +5456,14 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
             $resourceId = [$resourceId];
         }
 
-        // Check for active transactions before archiving
-        $activeTransactionCheck = $this->checkActiveTransactions($resourceType, $resourceId);
-        if ($activeTransactionCheck['hasActive']) {
-            return json_encode([
-                'status' => 'error', 
-                'message' => 'Cannot archive resource(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
-            ]);
-        }
+        // Check for active transactions before archiving - DISABLED
+        // $activeTransactionCheck = $this->checkActiveTransactions($resourceType, $resourceId);
+        // if ($activeTransactionCheck['hasActive']) {
+        //     return json_encode([
+        //         'status' => 'error', 
+        //         'message' => 'Cannot archive resource(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+        //     ]);
+        // }
 
         $query = "";
 
@@ -5554,14 +5554,14 @@ public function archiveResource($resourceType, $resourceId, $is_serialize = fals
             $resourceId = [$resourceId];
         }
 
-        // Check for active transactions before unarchiving
-        $activeTransactionCheck = $this->checkActiveTransactions($resourceType, $resourceId);
-        if ($activeTransactionCheck['hasActive']) {
-            return json_encode([
-                'status' => 'error', 
-                'message' => 'Cannot unarchive resource(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
-            ]);
-        }
+        // Check for active transactions before unarchiving - DISABLED
+        // $activeTransactionCheck = $this->checkActiveTransactions($resourceType, $resourceId);
+        // if ($activeTransactionCheck['hasActive']) {
+        //     return json_encode([
+        //         'status' => 'error', 
+        //         'message' => 'Cannot unarchive resource(s) with active reservations: ' . implode(', ', $activeTransactionCheck['resourcesWithTransactions'])
+        //     ]);
+        // }
 
         // Create placeholders for IN clause
         $placeholders = implode(',', array_fill(0, count($resourceId), '?'));

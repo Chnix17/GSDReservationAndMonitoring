@@ -301,7 +301,10 @@ const Locations = () => {
                   type="primary"
                   icon={<PlusOutlined />}
                   size={isMobile ? 'middle' : 'large'}
-                  onClick={() => setIsCreateOpen(true)}
+                  onClick={() => {
+                    resetCreate();
+                    setIsCreateOpen(true);
+                  }}
                   className={`bg-green-900 hover:bg-lime-900 ${isMobile ? 'w-full' : ''}`}
                 >
                   {isMobile ? 'Add' : 'Add Location'}

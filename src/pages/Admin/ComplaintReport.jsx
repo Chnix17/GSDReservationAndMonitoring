@@ -114,7 +114,7 @@ const ComplaintReport = () => {
       const client = String(r.client_name ?? '').toLowerCase();
       const location = String(r.location_name ?? '').toLowerCase();
       const equipment = String(r.equipments_used ?? '').toLowerCase();
-      const personnel = String(r.personnel_ids ?? '').toLowerCase();
+      const personnel = String(r.submitted_by ?? '').toLowerCase();
       const status = String(r.latest_status ?? '').toLowerCase();
       return (
         subject.includes(q) ||
@@ -225,8 +225,8 @@ const ComplaintReport = () => {
     },
     {
       title: 'Assigned Personnel',
-      dataIndex: 'personnel_ids',
-      key: 'personnel_ids',
+      dataIndex: 'submitted_by',
+      key: 'submitted_by',
       render: (v) => <span className="text-gray-700">{v || '-'}</span>
     },
     {
@@ -273,8 +273,8 @@ const ComplaintReport = () => {
             className={`${isMobile ? 'mb-3' : 'mb-4'}`}
           >
             <div className="mb-2 sm:mb-4">
-              <h2 className="text-2xl font-bold text-green-900 mt-5">Complaint Report</h2>
-              <p className="text-sm text-gray-600 mt-1">View and manage complaint reports</p>
+              <h2 className="text-2xl font-bold text-green-900 mt-5">Work Request Report</h2>
+              <p className="text-sm text-gray-600 mt-1">View and manage work request reports</p>
             </div>
           </motion.div>
 
