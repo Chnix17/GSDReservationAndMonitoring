@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Modal, Tag, Tabs, Spin, Collapse, Button, Drawer, Form, Input, DatePicker, TimePicker } from 'antd';
 import { 
     UserOutlined, 
@@ -73,6 +73,16 @@ const ReservationDetails = ({
     const [availabilityError, setAvailabilityError] = useState(null);
     const [availabilityBlocks, setAvailabilityBlocks] = useState([]);
     const [dayStatuses, setDayStatuses] = useState({});
+    const availabilityDebounceRef = useRef(null);
+    const isAutoAdjustingScheduleRef = useRef(false);
+
+    useEffect(() => {
+        return () => {
+            if (availabilityDebounceRef.current) {
+                clearTimeout(availabilityDebounceRef.current);
+            }
+        };
+    }, []);
 
     useEffect(() => {
         setLocalReservationDetails(reservationDetails);
@@ -361,6 +371,7 @@ const ReservationDetails = ({
             const allBlocks = [];
             const start = dayjs(startDateTime);
             const end = dayjs(endDateTime);
+            let conflictMessage = null;
 
             if (venueIds.length > 0) {
                 const venueResp = await axios.post(`${baseUrl}reservation.php`, {
@@ -401,7 +412,8 @@ const ReservationDetails = ({
                             const origOverlap = start.isBefore(origEnd) && end.isAfter(origStart);
                             const reschedOverlap = start.isBefore(reschedEnd) && end.isAfter(reschedStart);
                             if (origOverlap || reschedOverlap) {
-                                setAvailabilityError(`Venue conflict detected`);
+                                conflictMessage = 'Venue conflict detected';
+                                setAvailabilityError('Venue conflict detected');
                             }
                             return;
                         } else if (res.reservation_start_date && res.reservation_end_date) {
@@ -410,7 +422,8 @@ const ReservationDetails = ({
                         }
 
                         if (resStart && resEnd && start.isBefore(resEnd) && end.isAfter(resStart)) {
-                            setAvailabilityError(`Venue conflict detected`);
+                            conflictMessage = 'Venue conflict detected';
+                            setAvailabilityError('Venue conflict detected');
                         }
                     });
                 }
@@ -455,7 +468,8 @@ const ReservationDetails = ({
                             const origOverlap = start.isBefore(origEnd) && end.isAfter(origStart);
                             const reschedOverlap = start.isBefore(reschedEnd) && end.isAfter(reschedStart);
                             if (origOverlap || reschedOverlap) {
-                                setAvailabilityError(`Vehicle conflict detected`);
+                                conflictMessage = 'Vehicle conflict detected';
+                                setAvailabilityError('Vehicle conflict detected');
                             }
                             return;
                         } else if (res.reservation_start_date && res.reservation_end_date) {
@@ -464,19 +478,25 @@ const ReservationDetails = ({
                         }
 
                         if (resStart && resEnd && start.isBefore(resEnd) && end.isAfter(resStart)) {
-                            setAvailabilityError(`Vehicle conflict detected`);
+                            conflictMessage = 'Vehicle conflict detected';
+                            setAvailabilityError('Vehicle conflict detected');
                         }
                     });
                 }
             }
 
             setAvailabilityBlocks(allBlocks);
-            return true;
+            return {
+                ok: true,
+                hasConflict: !!conflictMessage,
+                message: conflictMessage,
+                blocks: allBlocks
+            };
         } catch (error) {
             if (!error?.response || error?.message === 'Network Error' || error?.name === 'TypeError' || !navigator.onLine) {
                 toast.error('Network connection lost. Unable to check availability.');
             }
-            return false;
+            return { ok: false, hasConflict: false, message: null, blocks: [] };
         } finally {
             setCheckingAvailability(false);
         }
@@ -514,6 +534,54 @@ const ReservationDetails = ({
         editForm.resetFields();
         setAvailabilityError(null);
         setAvailabilityBlocks([]);
+
+        if (availabilityDebounceRef.current) {
+            clearTimeout(availabilityDebounceRef.current);
+            availabilityDebounceRef.current = null;
+        }
+    };
+
+    const handleEditFormValuesChange = (changedValues, allValues) => {
+        if (!isEditMode) return;
+        if (isAutoAdjustingScheduleRef.current) return;
+
+        // Requirement: when user selects a new Start Date, clear the dependent fields
+        // so user is forced to reselect Start Time, End Date, and End Time.
+        if (Object.prototype.hasOwnProperty.call(changedValues, 'startDate')) {
+            isAutoAdjustingScheduleRef.current = true;
+            editForm.setFieldsValue({
+                startTime: null,
+                endDate: null,
+                endTime: null
+            });
+            setAvailabilityError(null);
+            setTimeout(() => {
+                isAutoAdjustingScheduleRef.current = false;
+            }, 0);
+            return;
+        }
+
+        const affectsSchedule = Object.prototype.hasOwnProperty.call(changedValues, 'startDate')
+            || Object.prototype.hasOwnProperty.call(changedValues, 'startTime')
+            || Object.prototype.hasOwnProperty.call(changedValues, 'endDate')
+            || Object.prototype.hasOwnProperty.call(changedValues, 'endTime');
+
+        if (!affectsSchedule) return;
+
+        const { startDate, startTime, endDate, endTime } = allValues || {};
+        if (!startDate || !startTime || !endDate || !endTime) return;
+
+        const start = dayjs(startDate).hour(dayjs(startTime).hour()).minute(0).second(0);
+        const end = dayjs(endDate).hour(dayjs(endTime).hour()).minute(0).second(0);
+        if (!end.isAfter(start)) return;
+
+        if (availabilityDebounceRef.current) {
+            clearTimeout(availabilityDebounceRef.current);
+        }
+
+        availabilityDebounceRef.current = setTimeout(() => {
+            checkAvailability(start.format('YYYY-MM-DD HH:mm:ss'), end.format('YYYY-MM-DD HH:mm:ss'));
+        }, 350);
     };
 
     const handleSaveEdit = async () => {
@@ -538,6 +606,16 @@ const ReservationDetails = ({
                 .minute(0)
                 .second(0)
                 .format('YYYY-MM-DD HH:mm:ss');
+
+            const availabilityResult = await checkAvailability(startDateTime, endDateTime);
+            if (!availabilityResult?.ok) {
+                toast.error('Unable to check availability. Please try again.');
+                return;
+            }
+            if (availabilityResult?.hasConflict) {
+                toast.error(availabilityResult.message || 'Schedule conflict detected');
+                return;
+            }
 
             const response = await axios.post(`${baseUrl}faculty&staff.php`, {
                 operation: 'updateReservationDetails',
@@ -622,7 +700,7 @@ const ReservationDetails = ({
         <div className={`${isMobile ? 'h-full' : ''}`}>
             <div className={`${isMobile ? 'p-0 h-full flex flex-col' : 'p-0'}`}>
                 {/* Header Section */}
-                <div className={`bg-gradient-to-r from-green-700 to-lime-500 ${isMobile ? 'p-3 relative' : 'p-4'} ${isMobile ? 'rounded-none' : 'rounded-t-lg'}`}>
+                <div className={`bg-gradient-to-r from-green-700 to-lime-500 ${isMobile ? 'px-4 py-3 relative' : 'px-6 py-4'} ${isMobile ? 'rounded-none' : 'rounded-t-2xl'} shadow-md`}>
                     {/* Close button for mobile */}
                     {isMobile && (
                         <button 
@@ -635,11 +713,11 @@ const ReservationDetails = ({
                     
                     <div className={`${isMobile ? 'flex items-center justify-between pr-8' : 'flex justify-between items-center'}`}>
                         <div>
-                            <h2 className={`text-white font-bold ${isMobile ? 'text-base' : 'text-lg'}`}>
+                            <h2 className={`text-white font-bold tracking-wide ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                                 Reservation Details
                             </h2>
                             {isMobile && (
-                                <p className="text-white/80 text-xs mt-0.5">
+                                <p className="text-white/90 text-xs mt-1">
                                     {new Date(reservationDetails.reservation_created_at).toLocaleDateString()}
                                 </p>
                             )}
@@ -647,13 +725,17 @@ const ReservationDetails = ({
                         
                         {!isMobile && (
                             <div className="text-white text-right">
-                                <p className="text-white opacity-90 text-sm">Created on</p>
-                                <p className="font-semibold">{new Date(reservationDetails.reservation_created_at).toLocaleString()}</p>
+                                <p className="text-white/90 text-sm font-medium">Created on</p>
+                                <p className="font-semibold text-base mt-1">
+                                    {new Date(reservationDetails.reservation_created_at).toLocaleString()}
+                                </p>
                                 {canShowTripTicket && (reservationDetails.vehicles?.length || 0) > 0 && (
                                     <div className="mt-3">
                                         <Button 
                                             onClick={() => setShowTripTicketPreview(true)}
                                             loading={isExporting}
+                                            type="primary"
+                                            className="bg-white text-green-700 border-none font-semibold shadow-sm hover:bg-white hover:text-green-800"
                                         >
                                             {isExporting ? 'Preparing Ticket...' : 'Generate Trip Ticket'}
                                         </Button>
@@ -665,12 +747,13 @@ const ReservationDetails = ({
                     
                     {/* Trip Ticket button for mobile - moved to bottom of header */}
                     {isMobile && canShowTripTicket && (reservationDetails.vehicles?.length || 0) > 0 && (
-                        <div className="mt-2 flex justify-center">
+                        <div className="mt-3 flex justify-center">
                             <Button 
                                 onClick={() => setShowTripTicketPreview(true)}
                                 loading={isExporting}
                                 size="small"
-                                className="bg-white/20 border-white/30 text-white hover:bg-white/30"
+                                type="primary"
+                                className="bg-white text-green-700 border-none font-semibold hover:bg-white hover:text-green-800 px-4"
                             >
                                 {isExporting ? 'Preparing...' : 'Trip Ticket'}
                             </Button>
@@ -679,39 +762,50 @@ const ReservationDetails = ({
                 </div>
 
                 {/* Main Content */}
-                <div className={`${isMobile ? 'p-4 flex-1 overflow-auto' : 'p-6'}`}>
-                    <Tabs defaultActiveKey="1" type="card" size={isMobile ? 'small' : 'default'}>
+                <div className={`${isMobile ? 'p-4 flex-1 overflow-auto' : 'p-6'} bg-gray-50 ${isMobile ? '' : 'rounded-b-2xl'}`}>
+                    <Tabs 
+                        defaultActiveKey="1" 
+                        type="card" 
+                        size={isMobile ? 'middle' : 'large'}
+                        className="advanced-reservation-tabs"
+                    >
                         <Tabs.TabPane tab="Reservation Details" key="1">
                             <div className="space-y-6">
                                 {/* Basic Details Section */}
-                                <div className={`bg-white ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-blue-200 shadow-sm mb-6`}>
-                                    <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-1 gap-5' : 'grid-cols-2 gap-6'}`}>
-                                        {/* Requester Information */}
-                                        <div className="space-y-4">
-                                            <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 flex items-center gap-2`}>
+                                <div className={`bg-white ${isMobile ? 'p-4' : 'p-6'} rounded-2xl border border-blue-100 shadow-sm mb-6`}>
+                                     <div
+                                        style={{
+                                            display: 'flex',
+                                            flexDirection: isMobile ? 'column' : 'row',
+                                            gap: isMobile ? 16 : 40
+                                        }}
+                                     >
+                                        {/* Requester Information - always on the left on larger screens */}
+                                        <div className="space-y-4" style={{ flex: 1, minWidth: 0 }}>
+                                            <h3 className={`${isMobile ? 'text-base' : 'text-xl'} font-semibold text-gray-800 flex items-center gap-2`}>
                                                 <UserOutlined className="text-blue-500" />
                                                 Requester Details
                                             </h3>
                                             <div className="space-y-3">
                                                 <div>
-                                                    <p className="text-sm text-gray-500">Name</p>
-                                                    <p className="font-medium">{reservationDetails.requester_name}</p>
+                                                    <p className="text-sm md:text-base text-gray-500">Name</p>
+                                                    <p className="font-medium text-gray-900 text-base md:text-lg">{reservationDetails.requester_name}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-gray-500">Role</p>
-                                                    <p className="font-medium">{reservationDetails.user_level_name}</p>
+                                                    <p className="text-sm md:text-base text-gray-500">Role</p>
+                                                    <p className="font-medium text-gray-900 text-base md:text-lg">{reservationDetails.user_level_name}</p>
                                                 </div>
                                                 <div>
-                                                    <p className="text-sm text-gray-500">Department</p>
-                                                    <p className="font-medium">{reservationDetails.department_name}</p>
+                                                    <p className="text-sm md:text-base text-gray-500">Department</p>
+                                                    <p className="font-medium text-gray-900 text-base md:text-lg">{reservationDetails.department_name}</p>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        {/* Schedule and Details */}
-                                        <div className="space-y-4">
+                                        {/* Schedule and Details - always on the right on larger screens */}
+                                         <div className="space-y-4" style={{ flex: 1, minWidth: 0 }}>
                                             <div className="flex items-center justify-between gap-2">
-                                                <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 flex items-center gap-2`}>
+                                                <h3 className={`${isMobile ? 'text-base' : 'text-xl'} font-semibold text-gray-800 flex items-center gap-2`}>
                                                     <CalendarOutlined className="text-orange-500" />
                                                     Schedule & Details
                                                 </h3>
@@ -723,13 +817,13 @@ const ReservationDetails = ({
                                                         size="small"
                                                         className="text-blue-600 hover:text-blue-800"
                                                     >
-                                                        Edit
+                                                        Reschedule
                                                     </Button>
                                                 )}
                                             </div>
                                             <div className="space-y-3">
                                                 {isEditMode ? (
-                                                    <Form form={editForm} layout="vertical" className="space-y-3">
+                                                    <Form form={editForm} layout="vertical" className="space-y-3" onValuesChange={handleEditFormValuesChange}>
                                                         <Form.Item
                                                             name="title"
                                                             label={<span className="text-sm text-gray-500">Title</span>}
@@ -857,6 +951,7 @@ const ReservationDetails = ({
                                                                 icon={<SaveOutlined />}
                                                                 onClick={handleSaveEdit}
                                                                 loading={isUpdating}
+                                                                disabled={!!availabilityError}
                                                                 size="small"
                                                             >
                                                                 Save
@@ -867,18 +962,22 @@ const ReservationDetails = ({
                                                     <>
                                                         <div>
                                                             <p className="text-sm text-gray-500">Title</p>
-                                                            <p className="font-medium">{reservationDetails.reservation_title}</p>
+                                                            <p className="font-semibold text-gray-900 text-base md:text-lg">{reservationDetails.reservation_title}</p>
                                                         </div>
                                                         <div>
                                                             <p className="text-sm text-gray-500">Description</p>
-                                                            <p className="font-medium">{reservationDetails.reservation_description}</p>
+                                                            <p className="font-medium text-gray-900 text-sm md:text-base leading-relaxed">
+                                                                {reservationDetails.reservation_description}
+                                                            </p>
                                                         </div>
                                                         <div>
                                                             <p className="text-sm text-gray-500">Date & Time</p>
-                                                            <p className="font-medium">{formatDateRange(
-                                                                startDateStr,
-                                                                endDateStr
-                                                            )}</p>
+                                                            <p className="font-semibold text-gray-900 text-base md:text-lg">
+                                                                {formatDateRange(
+                                                                    startDateStr,
+                                                                    endDateStr
+                                                                )}
+                                                            </p>
                                                         </div>
                                                     </>
                                                 )}
@@ -895,16 +994,27 @@ const ReservationDetails = ({
                                 </div>
 
                                 {/* Mobile actions */}
-                                {isMobile && allowsCancellation && (
-                                    <div className="mt-4">
-                                        <Button
-                                            danger
-                                            block
-                                            size="large"
-                                            onClick={() => setShowCancelModal(true)}
-                                        >
-                                            Cancel Reservation
-                                        </Button>
+                                {isMobile && !isEditMode && (allowsCancellation || allowsEditSchedule) && (
+                                    <div className="mt-4 space-y-2">
+                                        {allowsEditSchedule && (
+                                            <Button
+                                                block
+                                                size="large"
+                                                onClick={handleEditClick}
+                                            >
+                                                Reschedule
+                                            </Button>
+                                        )}
+                                        {allowsCancellation && (
+                                            <Button
+                                                danger
+                                                block
+                                                size="large"
+                                                onClick={() => setShowCancelModal(true)}
+                                            >
+                                                Cancel Reservation
+                                            </Button>
+                                        )}
                                     </div>
                                 )}
 
@@ -1346,9 +1456,18 @@ const ReservationDetails = ({
                     title={null}
                     visible={visible}
                     onCancel={onClose}
-                    width={isTablet ? 700 : 800}
+                    width={isTablet ? 900 : 1150}
+                    style={{ top: 20 }}
                     footer={[
-                        allowsCancellation ? (
+                        (!isEditMode && allowsEditSchedule) ? (
+                            <Button
+                                key="reschedule"
+                                onClick={handleEditClick}
+                            >
+                                Reschedule
+                            </Button>
+                        ) : null,
+                        (!isEditMode && allowsCancellation) ? (
                             <Button
                                 key="cancel"
                                 danger

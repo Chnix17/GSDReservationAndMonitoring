@@ -66,6 +66,9 @@ const Sidebar = () => {
   const [repairReason, setRepairReason] = useState('');
   const [userDetails, setUserDetails] = useState(null);
 
+  const [reservationRequestCount, setReservationRequestCount] = useState(0);
+  const [jobOrderCount, setJobOrderCount] = useState(0);
+
   const name = SecureStorage.getLocalItem('name') || 'Admin User';
   const userLevelName = SecureStorage.getLocalItem('user_level') || SecureStorage.getLocalItem('user_level');
   // const departmentName = SecureStorage.getLocalItem('Department Name') || SecureStorage.getLocalItem('Department Name');
@@ -116,6 +119,11 @@ const Sidebar = () => {
   useEffect(() => {
     fetchUserDetails();
   }, [fetchUserDetails]);
+
+  const isCompletedStatus = useCallback((status) => {
+    const s = String(status || '').toLowerCase();
+    return s.includes('complete') || s.includes('done');
+  }, []);
 
   useEffect(() => {
     setActiveItem(location.pathname);
@@ -867,6 +875,59 @@ const Sidebar = () => {
     return 'user';
   })();
 
+  const fetchSidebarCounts = useCallback(async () => {
+    const baseUrl = SecureStorage.getLocalItem('url');
+    const userId = SecureStorage.getLocalItem('user_id');
+
+    setReservationRequestCount(0);
+    setJobOrderCount(0);
+
+    if (!baseUrl) return;
+
+    try {
+      if (roleKey === 'admin') {
+        const [resReservations, resTickets] = await Promise.all([
+          axios.post(
+            `${baseUrl}reservation.php`,
+            { operation: 'fetchRequestReservation' },
+            { headers: { 'Content-Type': 'application/json' } }
+          ),
+          axios.post(
+            `${baseUrl}/Admin.php`,
+            { operation: 'getAllTickets' },
+            { headers: { 'Content-Type': 'application/json' } }
+          )
+        ]);
+
+        const reservations = Array.isArray(resReservations?.data?.data) ? resReservations.data.data : [];
+        setReservationRequestCount(resReservations?.data?.status === 'success' ? reservations.length : 0);
+
+        const tickets = Array.isArray(resTickets?.data?.data) ? resTickets.data.data : [];
+        const openTickets = tickets.filter((t) => !isCompletedStatus(t?.comp_status));
+        setJobOrderCount(resTickets?.data?.status === 'success' ? openTickets.length : 0);
+      }
+
+      if (roleKey === 'personnel' && userId) {
+        const resTasks = await axios.post(
+          `${baseUrl}personnel.php`,
+          { operation: 'fetchJoborderTask', personnel_id: userId },
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+
+        const tasks = Array.isArray(resTasks?.data?.data) ? resTasks.data.data : [];
+        const openTasks = tasks.filter((t) => !isCompletedStatus(t?.comp_status));
+        setJobOrderCount(resTasks?.data?.status === 'success' ? openTasks.length : 0);
+      }
+    } catch (e) {
+      setReservationRequestCount(0);
+      setJobOrderCount(0);
+    }
+  }, [isCompletedStatus, roleKey]);
+
+  useEffect(() => {
+    fetchSidebarCounts();
+  }, [fetchSidebarCounts]);
+
   const menus = {
     admin: [], // use existing static admin menu below
     user: [
@@ -891,7 +952,7 @@ const Sidebar = () => {
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Personnel/Dashboard' },
       { type: 'link', icon: FaComments, text: 'Chat', link: '/Personnel/Chat' },
       { type: 'link', icon: FaFileAlt, text: 'View Task', link: '/Personnel/ViewTask' },
-      { type: 'link', icon: FaFileAlt, text: 'Job Order Task', link: '/Personnel/JobOrderTask' },
+      { type: 'link', icon: FaFileAlt, text: 'Job Order Task', link: '/Personnel/JobOrderTask', badgeKey: 'jobOrder' },
       { type: 'section', text: 'Reports' },
       { type: 'link', icon: FaFileAlt, text: 'Submit Report', link: '/Personnel/SubmitReport' },
     ],
@@ -930,6 +991,11 @@ const Sidebar = () => {
             active={activeItem === item.link}
             isExpanded={isExpanded}
             onMobileClick={handleMobileNavClick}
+            badge={
+              item.badgeKey === 'jobOrder'
+                ? (jobOrderCount > 0 ? jobOrderCount : undefined)
+                : undefined
+            }
           />
         );
       })}
@@ -1211,6 +1277,7 @@ const Sidebar = () => {
                 link="/Admin/ViewRequest" 
                 active={activeItem === '/Admin/ViewRequest'}
                 isExpanded={isDesktopSidebarOpen}
+                badge={reservationRequestCount > 0 ? reservationRequestCount : undefined}
               />
 
               <MiniSidebarItem 
@@ -1219,6 +1286,7 @@ const Sidebar = () => {
                 link="/Admin/AllJobOrders" 
                 active={activeItem === '/Admin/AllJobOrders'}
                 isExpanded={isDesktopSidebarOpen}
+                badge={jobOrderCount > 0 ? jobOrderCount : undefined}
               />
 
               <SectionLabel text="REPORTS & LOGS" isExpanded={isDesktopSidebarOpen} />
@@ -1402,6 +1470,7 @@ const Sidebar = () => {
                 link="/Admin/ViewRequest" 
                 active={activeItem === '/Admin/ViewRequest'}
                 isExpanded={true}
+                badge={reservationRequestCount > 0 ? reservationRequestCount : undefined}
               />
 
               <MiniSidebarItem 
@@ -1410,6 +1479,7 @@ const Sidebar = () => {
                 link="/Admin/AllJobOrders" 
                 active={activeItem === '/Admin/AllJobOrders'}
                 isExpanded={true}
+                badge={jobOrderCount > 0 ? jobOrderCount : undefined}
               />
 
               <SectionLabel text="REPORTS & LOGS" isExpanded={true} />

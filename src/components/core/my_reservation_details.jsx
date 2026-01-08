@@ -1730,8 +1730,8 @@ const ReservationDetails = ({
     const modalContent = (
         <div className={`${isMobile ? 'h-full' : ''}`}>
             <div className={`${isMobile ? 'p-0 h-full flex flex-col' : 'p-0'}`}>
-                {/* Enhanced Header Section */}
-                <div className={`bg-gradient-to-r from-green-700 to-lime-500 ${isMobile ? 'p-3 relative' : 'p-3 sm:p-6'} ${isMobile ? 'rounded-none' : 'rounded-t-lg'}`}>
+                {/* Enhanced Header Section - aligned with main reservation_details modal */}
+                <div className={`bg-gradient-to-r from-green-700 to-lime-500 ${isMobile ? 'px-4 py-3 relative' : 'px-6 py-4'} ${isMobile ? 'rounded-none' : 'rounded-t-2xl'} shadow-md`}>
                     {/* Close button for mobile */}
                     {isMobile && (
                         <button
@@ -1741,21 +1741,20 @@ const ReservationDetails = ({
                             <CloseOutlined className="text-white text-sm" />
                         </button>
                     )}
-                    <div className="flex flex-col gap-3">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                         <div className="flex items-center gap-3">
                             <div className="bg-white/20 p-2 rounded-lg">
                                 <UserOutlined className={`text-white ${isMobile ? 'text-base' : 'text-lg sm:text-xl'}`} />
                             </div>
                             <div>
-                                <h1 className={`text-white font-bold ${isMobile ? 'text-base' : 'text-base sm:text-xl'}`}>
+                                <h1 className={`text-white font-bold tracking-wide ${isMobile ? 'text-lg' : 'text-2xl'}`}>
                                     Reservation Details
                                 </h1>
-
                             </div>
                         </div>
-                        <div className="text-white">
-                            <p className="text-white/80 text-xs">Created on</p>
-                            <p className={`font-semibold break-words ${isMobile ? 'text-xs' : 'text-xs sm:text-sm'}`}>
+                        <div className="text-white text-left sm:text-right">
+                            <p className="text-white/90 text-xs sm:text-sm font-medium">Created on</p>
+                            <p className={`font-semibold break-words ${isMobile ? 'text-xs' : 'text-sm mt-1'}`}>
                                 {new Date(reservationDetails.reservation_created_at).toLocaleString()}
                             </p>
                         </div>
@@ -1763,7 +1762,7 @@ const ReservationDetails = ({
                 </div>
 
                 {/* Enhanced Main Content */}
-                <div className={`${isMobile ? 'p-3 pb-4 flex-1 overflow-auto' : 'p-3 sm:p-6'}`}>
+                <div className={`${isMobile ? 'p-3 pb-4 flex-1 overflow-auto' : 'p-6'} bg-gray-50 ${isMobile ? '' : 'rounded-b-2xl'}`}>
                     {/* Tabs Section */}
                     <Tabs defaultActiveKey="1" className="reservation-tabs" size={isMobile ? 'small' : 'default'}>
                         <TabPane tab={<span><InfoCircleOutlined /> {isMobile ? 'Info' : 'Details'}</span>} key="1">
@@ -3147,8 +3146,8 @@ const ReservationDetails = ({
                     title={null}
                     open={visible}
                     onCancel={onClose}
-                    width={isTablet ? '95%' : '95%'}
-                    style={{ maxWidth: '900px', top: '20px' }}
+                    width={isTablet ? 900 : 1150}
+                    style={{ top: 20 }}
                     footer={[
                         !isDeclined && (
                             <Button key="close" onClick={onClose} size="large">

@@ -8053,7 +8053,9 @@ public function reactivateEquipmentUnits($unitIds, $userId = null) {
                     CONCAT_WS(' ', lastUser.users_fname, lastUser.users_mname, lastUser.users_lname) as last_user_full_name,
                     joAgg.priority_name,
                     joAgg.assigned_personnel,
-                    joAgg.job_image
+                    joAgg.job_image,
+                    commentAgg.comment,
+                    commentAgg.comment_date
                     FROM tblcomplaints as a 
                     LEFT JOIN (
                         SELECT h1.*
@@ -8084,6 +8086,19 @@ public function reactivateEquipmentUnits($unitIds, $userId = null) {
                         LEFT JOIN tbl_users u ON u.users_id = jop.joPersonnel_userId
                         GROUP BY jo.job_complaintId
                     ) joAgg ON joAgg.comp_id = a.comp_id
+                    LEFT JOIN (
+                        SELECT 
+                            t.comment_complaintId AS comp_id,
+                            t.comment_commentText AS comment,
+                            t.comment_date AS comment_date
+                        FROM tblcomments t
+                        INNER JOIN (
+                            SELECT comment_complaintId, MAX(comment_id) AS max_comment_id
+                            FROM tblcomments
+                            GROUP BY comment_complaintId
+                        ) tmax ON t.comment_complaintId = tmax.comment_complaintId
+                        AND t.comment_id = tmax.max_comment_id
+                    ) commentAgg ON commentAgg.comp_id = a.comp_id
                     ORDER BY a.comp_id DESC";
 
             $stmt = $this->conn->prepare($sql);

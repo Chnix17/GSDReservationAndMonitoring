@@ -67,7 +67,7 @@ const DriversTicket = ({ initialData = {}, autoExport = false, onExported, onDow
   }, [initialData]);
 
   const [tripDetails, setTripDetails] = useState(
-    Array(12).fill(null).map(() => ({ date: "", stopOver: "", purpose: "", odometer: "" }))
+    Array(15).fill(null).map(() => ({ date: "", stopOver: "", purpose: "", odometer: "" }))
   );
 
   const updateFormData = (field, value) => {
@@ -205,7 +205,7 @@ const DriversTicket = ({ initialData = {}, autoExport = false, onExported, onDow
         </div>
 
         {/* Main content - two columns */}
-        <div className="grid grid-cols-2 gap-8">
+        <div className="grid grid-cols-2 gap-8 items-stretch">
           {/* Left Column */}
           <div className="space-y-6">
             {/* Date */}
@@ -334,11 +334,11 @@ const DriversTicket = ({ initialData = {}, autoExport = false, onExported, onDow
           </div>
 
           {/* Right Column - Trip Details Table */}
-          <div className="ml-4">
+          <div className="ml-4 flex flex-col h-full">
             <h3 className="text-document-header font-bold text-sm mb-4 text-center" style={{ color: '#000000' }}>
               TRIP DETAILS
             </h3>
-            <div className="border border-document-line w-full">
+            <div className="border border-document-line w-full flex-1 flex flex-col">
               {/* Table Header */}
               <div className="grid grid-cols-12 border-b border-document-line bg-form-field">
                 <div className="p-2 border-r border-document-line text-center col-span-2 whitespace-nowrap">
@@ -356,81 +356,83 @@ const DriversTicket = ({ initialData = {}, autoExport = false, onExported, onDow
               </div>
 
               {/* Table Rows */}
-              {tripDetails.map((detail, index) => {
-                // Safely handle null/undefined values
-                const safeDate = (detail.date !== null && detail.date !== undefined && detail.date !== '') ? String(detail.date) : '\u00A0';
-                const safeStopOver = (detail.stopOver !== null && detail.stopOver !== undefined && detail.stopOver !== '') ? String(detail.stopOver) : '\u00A0';
-                const safePurpose = (detail.purpose !== null && detail.purpose !== undefined && detail.purpose !== '') ? String(detail.purpose) : '\u00A0';
-                const safeOdometer = (detail.odometer !== null && detail.odometer !== undefined && detail.odometer !== '') ? String(detail.odometer) : '\u00A0';
-                
-                return (
-                  <div
-                    key={index}
-                    className="grid grid-cols-12 border-b border-document-line last:border-b-0"
-                  >
-                    <div className="p-1 border-r border-document-line col-span-2">
-                      {autoExport ? (
-                        <span className="w-full text-xs text-center block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
-                          {safeDate}
-                        </span>
-                      ) : (
-                        <input
-                          type="text"
-                          value={detail.date || ''}
-                          onChange={(e) => updateTripDetail(index, "date", e.target.value)}
-                          className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1 text-center"
-                          style={{ color: '#000000' }}
-                        />
-                      )}
+              <div className="flex flex-col flex-1">
+                {tripDetails.map((detail, index) => {
+                  // Safely handle null/undefined values
+                  const safeDate = (detail.date !== null && detail.date !== undefined && detail.date !== '') ? String(detail.date) : '\u00A0';
+                  const safeStopOver = (detail.stopOver !== null && detail.stopOver !== undefined && detail.stopOver !== '') ? String(detail.stopOver) : '\u00A0';
+                  const safePurpose = (detail.purpose !== null && detail.purpose !== undefined && detail.purpose !== '') ? String(detail.purpose) : '\u00A0';
+                  const safeOdometer = (detail.odometer !== null && detail.odometer !== undefined && detail.odometer !== '') ? String(detail.odometer) : '\u00A0';
+                  
+                  return (
+                    <div
+                      key={index}
+                      className="grid grid-cols-12 border-b border-document-line last:border-b-0 flex-1 min-h-[24px]"
+                    >
+                      <div className="p-1 border-r border-document-line col-span-2">
+                        {autoExport ? (
+                          <span className="w-full text-xs text-center block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
+                            {safeDate}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            value={detail.date || ''}
+                            onChange={(e) => updateTripDetail(index, "date", e.target.value)}
+                            className="w-full h-full text-xs bg-transparent text-document-text focus:outline-none p-1 text-center"
+                            style={{ color: '#000000' }}
+                          />
+                        )}
+                      </div>
+                      <div className="p-1 border-r border-document-line col-span-3">
+                        {autoExport ? (
+                          <span className="w-full text-xs block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
+                            {safeStopOver}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            value={detail.stopOver || ''}
+                            onChange={(e) => updateTripDetail(index, "stopOver", e.target.value)}
+                            className="w-full h-full text-xs bg-transparent text-document-text focus:outline-none p-1"
+                            style={{ color: '#000000' }}
+                          />
+                        )}
+                      </div>
+                      <div className="p-1 border-r border-document-line col-span-5">
+                        {autoExport ? (
+                          <span className="w-full text-xs block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
+                            {safePurpose}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            value={detail.purpose || ''}
+                            onChange={(e) => updateTripDetail(index, "purpose", e.target.value)}
+                            className="w-full h-full text-xs bg-transparent text-document-text focus:outline-none p-1"
+                            style={{ color: '#000000' }}
+                          />
+                        )}
+                      </div>
+                      <div className="p-1 col-span-2">
+                        {autoExport ? (
+                          <span className="w-full text-xs block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
+                            {safeOdometer}
+                          </span>
+                        ) : (
+                          <input
+                            type="text"
+                            value={detail.odometer || ''}
+                            onChange={(e) => updateTripDetail(index, "odometer", e.target.value)}
+                            className="w-full h-full text-xs bg-transparent text-document-text focus:outline-none p-1"
+                            style={{ color: '#000000' }}
+                          />
+                        )}
+                      </div>
                     </div>
-                    <div className="p-1 border-r border-document-line col-span-3">
-                      {autoExport ? (
-                        <span className="w-full text-xs block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
-                          {safeStopOver}
-                        </span>
-                      ) : (
-                        <input
-                          type="text"
-                          value={detail.stopOver || ''}
-                          onChange={(e) => updateTripDetail(index, "stopOver", e.target.value)}
-                          className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1"
-                          style={{ color: '#000000' }}
-                        />
-                      )}
-                    </div>
-                    <div className="p-1 border-r border-document-line col-span-5">
-                      {autoExport ? (
-                        <span className="w-full text-xs block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
-                          {safePurpose}
-                        </span>
-                      ) : (
-                        <input
-                          type="text"
-                          value={detail.purpose || ''}
-                          onChange={(e) => updateTripDetail(index, "purpose", e.target.value)}
-                          className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1"
-                          style={{ color: '#000000' }}
-                        />
-                      )}
-                    </div>
-                    <div className="p-1 col-span-2">
-                      {autoExport ? (
-                        <span className="w-full text-xs block" style={{ color: '#000000', fontFamily: 'Arial, sans-serif' }}>
-                          {safeOdometer}
-                        </span>
-                      ) : (
-                        <input
-                          type="text"
-                          value={detail.odometer || ''}
-                          onChange={(e) => updateTripDetail(index, "odometer", e.target.value)}
-                          className="w-full text-xs bg-transparent text-document-text focus:outline-none p-1"
-                          style={{ color: '#000000' }}
-                        />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

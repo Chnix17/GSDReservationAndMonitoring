@@ -2006,7 +2006,7 @@ const DetailModal = ({
     // Handler for driver assignment change
     const handleDriverAssign = (vehicleId, driverId) => {
         // Handle empty string (unselect) by removing the assignment
-        if (driverId === '') {
+        if (driverId === '' || driverId === 'existing_custom') {
             setVehicleDriverAssignments(prev => {
                 const newState = { ...prev };
                 delete newState[vehicleId];
@@ -2041,32 +2041,17 @@ const DetailModal = ({
     };
 
     // Handler for custom driver name input
-    // const handleCustomDriverName = (vehicleId, driverName) => {
-    //     // Prevent whitespace-only input
-    //     if (driverName && driverName.trim() === '') {
-    //         toast.error('Driver name cannot contain only whitespace!');
-    //         return;
-    //     }
-        
-    //     setCustomDriverNames(prev => ({ ...prev, [vehicleId]: driverName }));
-        
-    //     // Set assignment to 'custom' when entering custom name
-    //     if (driverName.trim()) {
-    //         setVehicleDriverAssignments(prev => ({ ...prev, [vehicleId]: 'custom' }));
-    //     } else {
-    //         // Clear assignment if name is empty
-    //         setVehicleDriverAssignments(prev => {
-    //             const newState = { ...prev };
-    //             delete newState[vehicleId];
-    //             return newState;
-    //         });
-    //     }
-        
-    //     // Clear driver error when assignment is made
-    //     if (driverError) {
-    //         setDriverError("");
-    //     }
-    // };
+    const handleCustomDriverName = (vehicleId, driverName) => {
+        setCustomDriverNames(prev => ({ ...prev, [vehicleId]: driverName }));
+
+        if (driverName && driverName.trim()) {
+            setVehicleDriverAssignments(prev => ({ ...prev, [vehicleId]: 'custom' }));
+        }
+
+        if (driverError) {
+            setDriverError("");
+        }
+    };
 
     // Modified Accept handler to check driver assignments and available drivers
     const handleAcceptWithDriverCheck = async () => {
@@ -4448,6 +4433,15 @@ const DetailModal = ({
                                     {driver.full_name}
                                 </option>
                             ))}
+                            <option value="custom" className="text-blue-600">
+                                Custom Driver Name
+                            </option>
+                            <option value="null" className="text-red-600">
+                                {(() => {
+                                    const vehicleIndex = reservationDetails.vehicles.findIndex(v => String(v.vehicle_id) === String(vehicle.vehicle_id));
+                                    return `driver ${vehicleIndex + 1}`;
+                                })()}
+                            </option>
                             {/* Temporarily commented out custom driver and numbered driver options */}
                             {/* <option value="custom" className="text-blue-600">
                                 Custom Driver Name
@@ -4461,6 +4455,18 @@ const DetailModal = ({
                         </select>
                         
                         {/* Custom Driver Name Input */}
+                        {vehicleDriverAssignments[vehicle.vehicle_id] === 'custom' && (
+                            <div className="mt-2">
+                                <input
+                                    type="text"
+                                    placeholder="Enter driver name"
+                                    value={customDriverNames[vehicle.vehicle_id] || ''}
+                                    onChange={e => handleCustomDriverName(vehicle.vehicle_id, e.target.value)}
+                                    className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                />
+                                <p className="text-xs text-gray-500 mt-1">Enter the name of the driver for this vehicle</p>
+                            </div>
+                        )}
                         {/* Temporarily commented out custom driver input */}
                         {/* {vehicleDriverAssignments[vehicle.vehicle_id] === 'custom' && (
                             <div className="mt-2">

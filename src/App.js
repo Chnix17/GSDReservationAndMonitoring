@@ -65,6 +65,7 @@ import LoginRedirect from './components/LoginRedirect';
 import { getApiBaseUrl } from './utils/apiConfig';
 import SubmitReport from './pages/common/SubmitReport';
 import ComplaintReport from './pages/Admin/ComplaintReport';
+import LandingPage from './pages/public/LandingPage';
 
 // Service worker registration is handled by pushNotificationManager.js
 
@@ -112,8 +113,9 @@ const App = () => {
                 <main className="main-content">
                     <Routes>
                         {/* Public Routes */}
-                        <Route path="/" element={<LoginRedirect />} />
-                        <Route index element={<LoginRedirect />} />
+                        <Route path="/" element={<LandingPage />} />
+                        <Route index element={<LandingPage />} />
+                        <Route path="/login" element={<LoginRedirect />} />
 
                         {/* New Nested Route Entrypoints */}
                         <Route path="/Admin/*" element={<ProtectedRoute allowedRoles={['Admin', 'Super Admin']}><AdminLayout /></ProtectedRoute>}>

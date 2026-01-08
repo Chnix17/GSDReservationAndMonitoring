@@ -145,33 +145,38 @@ const AllJobOrders = () => {
       title: 'Action',
       key: 'action',
       align: 'center',
-      render: (_, record) => (
-        <div className="flex items-center justify-center gap-2">
-          {String(record?.comp_status || '').toLowerCase().includes('pending') ? (
-            <Tooltip title="Assign & Create Job Order">
-              <Button
-                type="primary"
-                onClick={() => {
-                  setSelectedAssignTicket(record);
-                  setIsAssignModalOpen(true);
-                }}
-              >
-                Assign
-              </Button>
-            </Tooltip>
-          ) : null}
+      render: (_, record) => {
+        const isPending = String(record?.comp_status || '').toLowerCase().includes('pending');
 
-          <Tooltip title="View">
-            <Button
-              icon={<EyeOutlined />}
-              onClick={() => {
-                setSelectedTicket(record);
-                setIsModalOpen(true);
-              }}
-            />
-          </Tooltip>
-        </div>
-      )
+        return (
+          <div className="flex items-center justify-center gap-2">
+            {isPending ? (
+              <Tooltip title="Assign & Create Job Order">
+                <Button
+                  type="primary"
+                  className="bg-green-600 hover:!bg-green-700 border-green-600 hover:!border-green-700"
+                  onClick={() => {
+                    setSelectedAssignTicket(record);
+                    setIsAssignModalOpen(true);
+                  }}
+                >
+                  Assign
+                </Button>
+              </Tooltip>
+            ) : (
+              <Tooltip title="View">
+                <Button
+                  icon={<EyeOutlined />}
+                  onClick={() => {
+                    setSelectedTicket(record);
+                    setIsModalOpen(true);
+                  }}
+                />
+              </Tooltip>
+            )}
+          </div>
+        );
+      }
     }
   ], []);
 

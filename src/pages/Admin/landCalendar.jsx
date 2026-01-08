@@ -290,6 +290,35 @@ const Calendar = () => {
     }
   }, [encryptedUrl]);
 
+  const refreshCalendarData = useCallback(async () => {
+    await Promise.all([
+      fetchReservations(),
+      fetchTickets()
+    ]);
+
+    if (selectedReservation?.reservation_id) {
+      try {
+        const response = await axios({
+          method: 'POST',
+          url: `${encryptedUrl}/reservation.php`,
+          data: JSON.stringify({
+            operation: 'fetchRequestById',
+            reservation_id: selectedReservation.reservation_id
+          }),
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        });
+
+        if (response.data?.status === 'success' && response.data.data) {
+          setSelectedReservation(response.data.data);
+        }
+      } catch (error) {
+        console.error('Error refreshing selected reservation:', error);
+      }
+    }
+  }, [encryptedUrl, fetchReservations, fetchTickets, selectedReservation]);
+
   useEffect(() => {
     const encryptedUserLevel = SecureStorage.getLocalItem("user_level_id"); 
     const decryptedUserLevel = parseInt(encryptedUserLevel);
@@ -976,6 +1005,7 @@ const Calendar = () => {
           setSelectedReservation(null);
         }}
         reservationDetails={selectedReservation}
+        onRefresh={refreshCalendarData}
       />
 
       <JobOrderDetailsModal

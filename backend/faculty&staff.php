@@ -4819,6 +4819,17 @@ class FacultyStaff {
             }
             
             if ($stmtUpdate->execute()) {
+                // Insert new status 10 (Reschedule) row
+                $sqlInsertReschedule = "
+                    INSERT INTO tbl_reservation_status
+                        (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id)
+                    VALUES (:reservation_id, 10, 0, NOW(), :user_id)
+                ";
+                $stmtInsert = $this->conn->prepare($sqlInsertReschedule);
+                $stmtInsert->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtInsert->bindParam(':user_id', $userId, PDO::PARAM_INT);
+                $stmtInsert->execute();
+
                 $this->conn->commit();
                 return json_encode([
                     'status' => 'success',
