@@ -8609,7 +8609,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo $user->fetchInactiveBuilding();
             break;
         case "fetchBuildingById":
-            $id = $_POST['id'] ?? null;
+            $id = $input['id'] ?? ($input['building_id'] ?? ($_POST['id'] ?? ($_POST['building_id'] ?? null)));
             if ($id) {
                 echo $user->fetchBuildingById($id);
             } else {

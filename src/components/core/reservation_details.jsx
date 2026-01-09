@@ -181,10 +181,31 @@ const ReservationDetails = ({
                 const vehiclePlate = (vehicle.change_vehicle_license && String(vehicle.change_vehicle_license).trim() !== '') 
                     ? vehicle.change_vehicle_license 
                     : (vehicle.license || 'N/A');
+
+                // Build vehicle display name (MAKE MODEL - PLATE)
+                const makeName = (
+                    vehicle.make_name ||
+                    vehicle.vehicle_make_name ||
+                    vehicle.make ||
+                    vehicle.brand_name ||
+                    vehicle.brand ||
+                    ''
+                );
+                const modelName = (
+                    vehicle.change_vehicle_model ||
+                    vehicle.model_name ||
+                    vehicle.vehicle_model_name ||
+                    vehicle.model ||
+                    ''
+                );
+                const vehicleName = `${String(makeName || '').trim()} ${String(modelName || '').trim()}`.trim();
+                const vehicleDisplay = vehicleName
+                    ? `${vehicleName} - ${vehiclePlate}`
+                    : vehiclePlate;
                 
                 return {
                     driver: driverNameForVehicle,
-                    plate: vehiclePlate
+                    plate: vehicleDisplay
                 };
             });
             

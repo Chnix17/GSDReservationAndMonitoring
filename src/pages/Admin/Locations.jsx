@@ -102,8 +102,7 @@ const Locations = () => {
     return locations.filter((l) => {
       const name = String(l.location_name || '').toLowerCase();
       const cat = String(l.locCateg_name || l.location_categoryname || '').toLowerCase();
-      const id = String(l.location_id ?? '').toLowerCase();
-      return name.includes(q) || cat.includes(q) || id.includes(q);
+      return name.includes(q) || cat.includes(q);
     });
   }, [locations, searchTerm]);
 
@@ -217,12 +216,6 @@ const Locations = () => {
 
   const columns = useMemo(() => [
     {
-      title: 'ID',
-      dataIndex: 'location_id',
-      key: 'location_id',
-      width: 90
-    },
-    {
       title: 'Location Name',
       dataIndex: 'location_name',
       key: 'location_name'
@@ -273,7 +266,7 @@ const Locations = () => {
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder={isMobile ? 'Search locations...' : 'Search by ID, Location name, or Category'}
+                  placeholder={isMobile ? 'Search locations...' : 'Search by Location name or Category'}
                   prefix={<SearchOutlined />}
                   allowClear
                   size={isMobile ? 'middle' : 'large'}
@@ -364,7 +357,7 @@ const Locations = () => {
 
       <Modal
         open={isUpdateOpen}
-        title={updateId ? `Update Location #${updateId}` : 'Update Location'}
+        title="Update Location"
         onCancel={() => {
           setIsUpdateOpen(false);
           resetUpdate();
