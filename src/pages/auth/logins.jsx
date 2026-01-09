@@ -1593,7 +1593,7 @@ function Logins() {
         // Re-authenticate with the new password
         try {
             const apiUrl = SecureStorage.getLocalItem("url");
-            const userId = SecureStorage.getSessionitem("temp_user_id");
+            const userId = SecureStorage.getSessionItem("temp_user_id");
             
             // Get user details again to proceed with login
             const userResponse = await axios.post(`${apiUrl}Admin.php`, {
@@ -1657,7 +1657,7 @@ function Logins() {
                 switch(userLevel) {
                     case "Super Admin":
                         notify("Super Admin Login Successful");
-                        setTimeout(() => navigateTo("/adminDashboard"), 100);
+                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
                         break;
                     case "Personnel":
                         notify("Personnel Login Successful");
@@ -1665,7 +1665,7 @@ function Logins() {
                         break;
                     case "Admin":
                         notify("Admin Login Successful");
-                        setTimeout(() => navigateTo("/adminDashboard"), 100);
+                        setTimeout(() => navigateTo("/Admin/Dashboard"), 100);
                         break;
                     case "Dean":
                     case "Principal":

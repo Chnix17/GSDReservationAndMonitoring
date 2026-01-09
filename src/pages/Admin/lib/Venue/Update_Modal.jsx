@@ -23,6 +23,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
     const [eventType, setEventType] = useState('Big Event');
     const [areaType, setAreaType] = useState(null);
     const [buildingId, setBuildingId] = useState(null);
+    const [buildingName, setBuildingName] = useState('');
     const [buildings, setBuildings] = useState([]);
 
     const baseUrl = SecureStorage.getLocalItem("url");
@@ -110,6 +111,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 setEventType(venue.event_type || 'Big Event');
                 setAreaType(venue.area_type || null);
                 setBuildingId(venue.venue_building_id || null);
+                setBuildingName(venue.venue_building_name || '');
 
                 form.setFieldsValue({
                     name: venue.ven_name,
@@ -139,6 +141,20 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
             getVenueDetails();
         }
     }, [visible, venueId, getVenueDetails]);
+
+    useEffect(() => {
+        if (!visible) return;
+        if (buildingId) return;
+        if (!buildingName || !buildingName.trim()) return;
+        if (!Array.isArray(buildings) || buildings.length === 0) return;
+
+        const trimmedName = buildingName.trim();
+        const matchedBuilding = buildings.find(b => (b.venue_building_name || '').trim() === trimmedName);
+        if (!matchedBuilding) return;
+
+        setBuildingId(matchedBuilding.venue_building_id);
+        form.setFieldsValue({ building: matchedBuilding.venue_building_id });
+    }, [visible, buildingId, buildingName, buildings, form]);
 
     const handleVenueNameChange = (e) => {
         const sanitizedValue = sanitizeInput(e.target.value);
@@ -453,7 +469,7 @@ const Update_Modal = ({ visible, onCancel, onSuccess, venueId }) => {
                 </Form.Item>
                 <Form.Item 
                     label="Location"
-                    name="Location"
+                    name="building"
                     initialValue={buildingId}
                     rules={[
                         { required: true, message: 'Please select location!' }

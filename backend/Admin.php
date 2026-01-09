@@ -547,7 +547,7 @@ public function fetchEquipmentsWithStatus() {
                 ) AS total_quantity
             FROM
                 tbl_equipments AS te
-            INNER JOIN
+            LEFT JOIN
                 tbl_equipment_category AS tec ON te.equipments_category_id = tec.equipments_category_id
             WHERE
                 te.is_active = 1
