@@ -1,7 +1,0 @@
-[2025-10-29 01:54:19] [INFO] Auto-approve department cron started
-[2025-10-29 01:54:19] [INFO] Configuration: policy_days=3, trigger_hours=24, timezone=Asia/Manila
-[2025-10-29 01:54:19] [INFO] Eligibility window: 2025-10-31 01:54:19 to 2025-11-01 01:54:19
-[2025-10-29 01:54:19] [INFO] Checking reservations with events between 2025-10-31 01:54:19 and 2025-11-01 01:54:19
-[2025-10-29 01:54:19] [INFO] Found 0 eligible reservations
-[2025-10-29 01:54:19] [INFO] No eligible reservations found
-[2025-10-29 01:54:19] [INFO] Auto-approve department cron completed

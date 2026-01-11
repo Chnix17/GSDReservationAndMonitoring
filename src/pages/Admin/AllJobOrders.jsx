@@ -82,10 +82,9 @@ const AllJobOrders = () => {
     const q = String(searchTerm || '').trim().toLowerCase();
     if (!q) return tickets;
     return tickets.filter((t) => {
-      const id = String(t.comp_id ?? '').toLowerCase();
       const subj = String(t.comp_subject ?? '').toLowerCase();
       const stat = String(t.comp_status ?? '').toLowerCase();
-      return id.includes(q) || subj.includes(q) || stat.includes(q);
+      return subj.includes(q) || stat.includes(q);
     });
   }, [tickets, searchTerm]);
 
@@ -99,12 +98,6 @@ const AllJobOrders = () => {
   }, [searchTerm, pageSize]);
 
   const columns = useMemo(() => [
-    {
-      title: 'Ticket ID',
-      dataIndex: 'comp_id',
-      key: 'comp_id',
-      render: (v) => <Text className="text-gray-800">#{v}</Text>
-    },
     {
       title: 'Subject',
       dataIndex: 'comp_subject',
@@ -207,7 +200,7 @@ const AllJobOrders = () => {
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder={isMobile ? 'Search job orders...' : 'Search by Ticket ID, Subject, or Status'}
+                  placeholder={isMobile ? 'Search job orders...' : 'Search by Subject or Status'}
                   prefix={<SearchOutlined />}
                   allowClear
                   size={isMobile ? 'middle' : 'large'}

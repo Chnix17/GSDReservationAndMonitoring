@@ -11,7 +11,6 @@ import { generateComplaintReportPdf } from './core/complaint_report_pdf';
 import { generateComplaintReportExcel } from './core/complaint_report_excel';
 
 const { Text } = Typography;
-const { RangePicker } = DatePicker;
 
 const getStatusColor = (status) => {
   const s = String(status || '').toLowerCase();
@@ -44,7 +43,8 @@ const ComplaintReport = () => {
   const [offset, setOffset] = useState(0);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const [dateRange, setDateRange] = useState(null);
+  const [selectedMonth, setSelectedMonth] = useState(null);
+  const [isMonthFiltered, setIsMonthFiltered] = useState(false);
 
   const [selectedRecord, setSelectedRecord] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -55,10 +55,12 @@ const ComplaintReport = () => {
     else setLimit(10);
   }, [isMobile, isTablet]);
 
-  const fetchList = useCallback(async ({ nextOffset } = {}) => {
+  const fetchList = useCallback(async ({ nextOffset, monthOverride, monthFilteredOverride } = {}) => {
     if (!baseUrl) return;
 
     const effectiveOffset = typeof nextOffset === 'number' ? nextOffset : offset;
+    const effectiveMonthFiltered = typeof monthFilteredOverride === 'boolean' ? monthFilteredOverride : isMonthFiltered;
+    const effectiveMonth = monthOverride !== undefined ? monthOverride : selectedMonth;
 
     setLoading(true);
     try {
@@ -68,9 +70,9 @@ const ComplaintReport = () => {
         offset: effectiveOffset
       };
 
-      if (dateRange?.length === 2 && dateRange[0] && dateRange[1]) {
-        payload.start_date = dateRange[0].format('YYYY-MM-DD');
-        payload.end_date = dateRange[1].format('YYYY-MM-DD');
+      if (effectiveMonthFiltered && effectiveMonth) {
+        payload.start_date = effectiveMonth.startOf('month').format('YYYY-MM-DD');
+        payload.end_date = effectiveMonth.endOf('month').format('YYYY-MM-DD');
       }
 
       const res = await axios.post(
@@ -94,7 +96,7 @@ const ComplaintReport = () => {
     } finally {
       setLoading(false);
     }
-  }, [baseUrl, limit, offset, dateRange]);
+  }, [baseUrl, limit, offset, isMonthFiltered, selectedMonth]);
 
   useEffect(() => {
     fetchList({ nextOffset: 0 });
@@ -102,8 +104,14 @@ const ComplaintReport = () => {
 
   useEffect(() => {
     setOffset(0);
-    fetchList({ nextOffset: 0 });
-  }, [dateRange, fetchList]);
+    if (selectedMonth) {
+      setIsMonthFiltered(true);
+      fetchList({ nextOffset: 0, monthOverride: selectedMonth, monthFilteredOverride: true });
+    } else {
+      setIsMonthFiltered(false);
+      fetchList({ nextOffset: 0, monthOverride: null, monthFilteredOverride: false });
+    }
+  }, [selectedMonth, fetchList]);
 
   const filteredRows = useMemo(() => {
     const q = String(searchTerm || '').trim().toLowerCase();
@@ -171,27 +179,38 @@ const ComplaintReport = () => {
 
     setExporting(true);
     try {
-      const selectedId = Number(selectedRecord?.comp_id);
-      const fallbackId = Number(filteredRows[0]?.comp_id);
-      const complaintId = selectedId || fallbackId;
-      if (!complaintId) throw new Error('Missing complaint_id');
+      const ids = filteredRows
+        .map((r) => Number(r?.comp_id))
+        .filter((id) => Number.isFinite(id) && id > 0);
 
-      const [complaint, history] = await Promise.all([
-        fetchComplaintReportData(complaintId),
-        fetchComplaintStatusHistory(complaintId)
-      ]);
+      if (ids.length === 0) throw new Error('Missing complaint_id');
+
+      const items = await Promise.all(
+        ids.map(async (complaintId) => {
+          const [complaint, history] = await Promise.all([
+            fetchComplaintReportData(complaintId),
+            fetchComplaintStatusHistory(complaintId)
+          ]);
+          return { complaint, history };
+        })
+      );
+
+      const monthStr = selectedMonth ? selectedMonth.format('YYYY-MM') : '';
+      const fileName = monthStr
+        ? `Complaint_Reports_${monthStr}.${type === 'pdf' ? 'pdf' : 'xlsx'}`
+        : undefined;
 
       if (type === 'pdf') {
-        generateComplaintReportPdf({ complaint, history });
+        generateComplaintReportPdf({ items, fileName });
       } else {
-        generateComplaintReportExcel({ complaint, history });
+        generateComplaintReportExcel({ items, fileName });
       }
     } catch (e) {
       console.error('Export failed:', e);
     } finally {
       setExporting(false);
     }
-  }, [baseUrl, filteredRows, fetchComplaintReportData, fetchComplaintStatusHistory, selectedRecord]);
+  }, [baseUrl, filteredRows, fetchComplaintReportData, fetchComplaintStatusHistory, selectedMonth]);
 
   const columns = useMemo(() => [
     {
@@ -307,10 +326,14 @@ const ComplaintReport = () => {
           <div className={`bg-[#fafff4] ${isMobile ? 'p-3' : 'p-4'} rounded-lg shadow-sm ${isMobile ? 'mb-4' : 'mb-5'}`}>
             <div className={`${isMobile ? 'flex flex-col gap-3' : 'flex flex-row items-center justify-between gap-3'} w-full`}>
               <div className={`${isMobile ? 'w-full' : ''}`}>
-                <Text type="secondary" className="block mb-1">Filter by Date Range</Text>
-                <RangePicker
-                  value={dateRange}
-                  onChange={(v) => setDateRange(v)}
+                <Text type="secondary" className="block mb-1">Filter by Month</Text>
+                <DatePicker
+                  picker="month"
+                  format="YYYY-MM"
+                  value={selectedMonth}
+                  onChange={(v) => {
+                    setSelectedMonth(v);
+                  }}
                   size={isMobile ? 'middle' : 'large'}
                   className={isMobile ? 'w-full' : ''}
                 />
@@ -318,17 +341,8 @@ const ComplaintReport = () => {
 
               <div className={`flex ${isMobile ? 'flex-col gap-2' : 'items-center gap-2'}`}>
                 <Button
-                  type="primary"
-                  onClick={() => fetchList({ nextOffset: 0 })}
-                  className="bg-blue-600 hover:bg-blue-700"
-                  size={isMobile ? 'middle' : 'large'}
-                >
-                  Filter
-                </Button>
-
-                <Button
                   onClick={() => {
-                    setDateRange(null);
+                    setSelectedMonth(null);
                   }}
                   size={isMobile ? 'middle' : 'large'}
                 >
@@ -339,7 +353,7 @@ const ComplaintReport = () => {
                   icon={<FileExcelOutlined />}
                   onClick={() => exportCurrentPage('excel')}
                   loading={exporting}
-                  disabled={exporting || filteredRows.length === 0}
+                  disabled={exporting || filteredRows.length === 0 || !isMonthFiltered}
                   size={isMobile ? 'middle' : 'large'}
                 >
                   Excel
@@ -349,7 +363,7 @@ const ComplaintReport = () => {
                   icon={<FilePdfOutlined />}
                   onClick={() => exportCurrentPage('pdf')}
                   loading={exporting}
-                  disabled={exporting || filteredRows.length === 0}
+                  disabled={exporting || filteredRows.length === 0 || !isMonthFiltered}
                   size={isMobile ? 'middle' : 'large'}
                 >
                   PDF
