@@ -945,7 +945,7 @@ const Sidebar = () => {
       { type: 'link', icon: FaFileAlt, text: 'My Reservation', link: '/Department/MyReservations' },
       { type: 'link', icon: FaFileAlt, text: 'My Ticket Request', link: '/Department/MyTicketRequest' },
       { type: 'section', text: 'Reports' },
-      { type: 'link', icon: FaFileAlt, text: 'Submit Report', link: '/Department/SubmitReport' }
+      { type: 'link', icon: FaFileAlt, text: 'Submit Bugs/Issue', link: '/Department/SubmitReport' }
       
     ],
     personnel: [
@@ -954,7 +954,7 @@ const Sidebar = () => {
       { type: 'link', icon: FaFileAlt, text: 'View Task', link: '/Personnel/ViewTask' },
       { type: 'link', icon: FaFileAlt, text: 'Job Order Task', link: '/Personnel/JobOrderTask', badgeKey: 'jobOrder' },
       { type: 'section', text: 'Reports' },
-      { type: 'link', icon: FaFileAlt, text: 'Submit Report', link: '/Personnel/SubmitReport' },
+      { type: 'link', icon: FaFileAlt, text: 'Submit Issue', link: '/Personnel/SubmitReport' },
     ],
     driver: [
       { type: 'link', icon: FaTachometerAlt, text: 'Dashboard', link: '/Driver/Dashboard' },

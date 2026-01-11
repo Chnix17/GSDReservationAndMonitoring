@@ -291,7 +291,6 @@ const ProfileAdminModal = ({ isOpen, onClose, onProfileUpdate }) => {
           users_fname: editedData.users_fname,
           users_mname: editedData.users_mname,
           users_lname: editedData.users_lname,
-          users_email: editedData.users_email,
           users_contact_number: editedData.users_contact_number,
           users_suffix: editedData.users_suffix || '',
           title_id: titles.find(t => t.abbreviation === editedData.title_abbreviation)?.id || null,
@@ -300,10 +299,12 @@ const ProfileAdminModal = ({ isOpen, onClose, onProfileUpdate }) => {
         
         // Only include restricted fields if user is admin
         if (isAdmin) {
+          updateData.users_email = editedData.users_email;
           updateData.users_school_id = editedData.users_school_id;
           updateData.users_department_id = editedData.departments_id || editedData.users_department_id;
         } else {
           // For non-admin users, use original values for restricted fields
+          updateData.users_email = userData.users_email;
           updateData.users_school_id = userData.users_school_id;
           updateData.users_department_id = userData.users_department_id || userData.departments_id;
         }
@@ -1010,8 +1011,14 @@ const ProfileAdminModal = ({ isOpen, onClose, onProfileUpdate }) => {
                             <label className="flex items-center space-x-2 text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">
                               <FaEnvelope size={14} />
                               <span>Email</span>
+                              {!isAdmin && isEditing && (
+                                <div className="ml-2 text-gray-400 dark:text-gray-500 flex items-center text-xs">
+                                  <FaInfoCircle size={12} className="mr-1" />
+                                  <span>Admin only</span>
+                                </div>
+                              )}
                             </label>
-                            {isEditing ? (
+                            {isEditing && isAdmin ? (
                               <input
                                 type="email"
                                 name="users_email"
@@ -1020,7 +1027,13 @@ const ProfileAdminModal = ({ isOpen, onClose, onProfileUpdate }) => {
                                 className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-800 dark:text-white focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all"
                               />
                             ) : (
-                              <p className="text-gray-800 dark:text-white bg-white/70 dark:bg-gray-800/70 px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700">{userData.users_email || ''}</p>
+                              <p className={`text-gray-800 dark:text-white px-4 py-3 rounded-lg border ${
+                                !isAdmin && isEditing 
+                                  ? 'bg-gray-100 dark:bg-gray-700 cursor-not-allowed border-gray-300 dark:border-gray-600' 
+                                  : 'bg-white/70 dark:bg-gray-800/70 border-gray-200 dark:border-gray-700'
+                              }`}>
+                                {userData.users_email || ''}
+                              </p>
                             )}
                           </div>
                           
