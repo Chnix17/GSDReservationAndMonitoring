@@ -3,11 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { FiCalendar, 
   FiClock,
-  FiEye,
   FiAlertCircle,
   FiFileText
  } from 'react-icons/fi';
-import { Modal, Tabs, Empty, Pagination, Drawer } from 'antd';
+import { Modal, Tabs, Pagination, Drawer } from 'antd';
 import { InfoCircleOutlined, ToolOutlined, UserOutlined, TeamOutlined, CalendarOutlined } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { useMediaQuery } from 'react-responsive';
@@ -46,14 +45,14 @@ const Dashboard = () => {
     else setPageSize(3);
   }, [isMobile, isTablet]);
 
-  const calculateDuration = (startDate, endDate) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffMs = end - start;
-    const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-    return `${diffHrs}h ${diffMins}m`;
-  };
+  // const calculateDuration = (startDate, endDate) => {
+  //   const start = new Date(startDate);
+  //   const end = new Date(endDate);
+  //   const diffMs = end - start;
+  //   const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+  //   const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+  //   return `${diffHrs}h ${diffMins}m`;
+  // };
 
   const getTicketStatusStyle = (status) => {
     const normalizedStatus = String(status || '').toLowerCase();

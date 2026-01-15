@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Modal, Tag, Tabs, Spin, Collapse, Button, Drawer, Form, Input, DatePicker, TimePicker } from 'antd';
+import { Modal, Tag, Tabs, Spin, Collapse, Button, Drawer, Form, Input, DatePicker, TimePicker, Select } from 'antd';
 import { 
     UserOutlined, 
     CalendarOutlined,
@@ -73,6 +73,9 @@ const ReservationDetails = ({
     const [availabilityError, setAvailabilityError] = useState(null);
     const [availabilityBlocks, setAvailabilityBlocks] = useState([]);
     const [dayStatuses, setDayStatuses] = useState({});
+    const [venueOptions, setVenueOptions] = useState([]);
+    const [vehicleOptions, setVehicleOptions] = useState([]);
+    const [isLoadingResourceOptions, setIsLoadingResourceOptions] = useState(false);
     const availabilityDebounceRef = useRef(null);
     const isAutoAdjustingScheduleRef = useRef(false);
 
@@ -87,6 +90,45 @@ const ReservationDetails = ({
     useEffect(() => {
         setLocalReservationDetails(reservationDetails);
     }, [reservationDetails]);
+
+    useEffect(() => {
+        const fetchResourceOptions = async () => {
+            try {
+                setIsLoadingResourceOptions(true);
+                const [venueResp, vehicleResp] = await Promise.all([
+                    axios.post(`${baseUrl}Admin.php`, {
+                        operation: 'fetchVenue'
+                    }),
+                    axios.post(`${baseUrl}Admin.php`, {
+                        operation: 'fetchVehicles'
+                    })
+                ]);
+
+                if (venueResp?.data?.status === 'success' && Array.isArray(venueResp.data.data)) {
+                    setVenueOptions(venueResp.data.data);
+                } else {
+                    setVenueOptions([]);
+                }
+
+                if (vehicleResp?.data?.status === 'success' && Array.isArray(vehicleResp.data.data)) {
+                    setVehicleOptions(vehicleResp.data.data);
+                } else {
+                    setVehicleOptions([]);
+                }
+            } catch (error) {
+                if (!error?.response || error?.message === 'Network Error' || error?.name === 'TypeError' || !navigator.onLine) {
+                    toast.error('Network connection lost. Unable to fetch resources.');
+                }
+                setVenueOptions([]);
+                setVehicleOptions([]);
+            } finally {
+                setIsLoadingResourceOptions(false);
+            }
+        };
+
+        if (!isEditMode) return;
+        fetchResourceOptions();
+    }, [isEditMode, baseUrl]);
     useEffect(() => {
         if (!isEditMode) return;
 
@@ -268,7 +310,7 @@ const ReservationDetails = ({
     const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
     const hasRescheduleProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
     const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
-    const showReschedulePendingCard = hasRescheduleProposal && !isReservedActive && !isCancelledActive && !rescheduleConfirmedStatus;
+    const showReschedulePendingCard = hasRescheduleProposal && !isCancelledActive && !rescheduleConfirmedStatus && !hasActiveReschedule;
 
     // Effective dates
     const startDateStr = (hasActiveReschedule && reservationDetails.reschedule_start_date)
@@ -385,8 +427,15 @@ const ReservationDetails = ({
             setCheckingAvailability(true);
             setAvailabilityError(null);
 
-            const venueIds = (localReservationDetails?.venues || []).map(v => v.venue_id || v.ven_id).filter(Boolean);
-            const vehicleIds = (localReservationDetails?.vehicles || []).map(v => v.vehicle_id).filter(Boolean);
+            const selectedVenueIds = (isEditMode ? editForm.getFieldValue('venueIds') : null);
+            const selectedVehicleIds = (isEditMode ? editForm.getFieldValue('vehicleIds') : null);
+
+            const venueIds = (Array.isArray(selectedVenueIds) && selectedVenueIds.length)
+                ? selectedVenueIds.filter(Boolean)
+                : (localReservationDetails?.venues || []).map(v => v.venue_id || v.ven_id).filter(Boolean);
+            const vehicleIds = (Array.isArray(selectedVehicleIds) && selectedVehicleIds.length)
+                ? selectedVehicleIds.filter(Boolean)
+                : (localReservationDetails?.vehicles || []).map(v => v.vehicle_id).filter(Boolean);
             const reservationId = localReservationDetails?.reservation_id || reservationDetails?.reservation_id;
 
             const allBlocks = [];
@@ -541,7 +590,9 @@ const ReservationDetails = ({
             startDate: startDateTime,
             startTime: startDateTime,
             endDate: endDateTime,
-            endTime: endDateTime
+            endTime: endDateTime,
+            venueIds: (localReservationDetails?.venues || reservationDetails?.venues || []).map(v => v.venue_id || v.ven_id).filter(Boolean).map(v => String(v)),
+            vehicleIds: (localReservationDetails?.vehicles || reservationDetails?.vehicles || []).map(v => v.vehicle_id).filter(Boolean).map(v => String(v))
         });
 
         await checkAvailability(
@@ -585,7 +636,9 @@ const ReservationDetails = ({
         const affectsSchedule = Object.prototype.hasOwnProperty.call(changedValues, 'startDate')
             || Object.prototype.hasOwnProperty.call(changedValues, 'startTime')
             || Object.prototype.hasOwnProperty.call(changedValues, 'endDate')
-            || Object.prototype.hasOwnProperty.call(changedValues, 'endTime');
+            || Object.prototype.hasOwnProperty.call(changedValues, 'endTime')
+            || Object.prototype.hasOwnProperty.call(changedValues, 'venueIds')
+            || Object.prototype.hasOwnProperty.call(changedValues, 'vehicleIds');
 
         if (!affectsSchedule) return;
 
@@ -638,9 +691,11 @@ const ReservationDetails = ({
                 return;
             }
 
+            const reservationId = localReservationDetails?.reservation_id || reservationDetails?.reservation_id;
+
             const response = await axios.post(`${baseUrl}faculty&staff.php`, {
                 operation: 'updateReservationDetails',
-                reservation_id: localReservationDetails?.reservation_id || reservationDetails?.reservation_id,
+                reservation_id: reservationId,
                 title: values.title,
                 description: values.description,
                 start_date: startDateTime,
@@ -649,6 +704,71 @@ const ReservationDetails = ({
             });
 
             if (response.data?.status === 'success') {
+                const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+                const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+                const newVenueIds = Array.isArray(values?.venueIds) ? values.venueIds : [];
+                const newVehicleIds = Array.isArray(values?.vehicleIds) ? values.vehicleIds : [];
+
+                const venueChangesToApply = currentVenues
+                    .map((v, idx) => {
+                        const newId = newVenueIds[idx];
+                        if (newId == null || newId === undefined || String(newId) === String(v.venue_id || v.ven_id)) return null;
+                        return {
+                            reservation_venue_id: v.reservation_venue_id,
+                            reservation_change_venue_id: Number(newId)
+                        };
+                    })
+                    .filter(Boolean);
+
+                const vehicleChangesToApply = currentVehicles
+                    .map((v, idx) => {
+                        const newId = newVehicleIds[idx];
+                        if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
+                        return {
+                            reservation_vehicle_id: v.reservation_vehicle_id,
+                            reservation_change_vehicle_id: Number(newId)
+                        };
+                    })
+                    .filter(Boolean);
+
+                if (venueChangesToApply.length > 0) {
+                    const results = await Promise.allSettled(
+                        venueChangesToApply.map(change => axios.post(`${baseUrl}reservation.php`, {
+                            operation: 'updateVenueReschedule',
+                            reservation_venue_id: change.reservation_venue_id,
+                            reservation_change_venue_id: change.reservation_change_venue_id,
+                            reservation_id: reservationId
+                        }))
+                    );
+                    const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                    if (!allOk) {
+                        const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                            || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                            || 'Failed to update venue during reschedule';
+                        toast.error(firstError);
+                        return;
+                    }
+                }
+
+                if (vehicleChangesToApply.length > 0) {
+                    const results = await Promise.allSettled(
+                        vehicleChangesToApply.map(change => axios.post(`${baseUrl}reservation.php`, {
+                            operation: 'updateVehicleReschedule',
+                            reservation_vehicle_id: change.reservation_vehicle_id,
+                            reservation_change_vehicle_id: change.reservation_change_vehicle_id,
+                            reservation_id: reservationId
+                        }))
+                    );
+                    const allOk = results.every(r => r.status === 'fulfilled' && r.value?.data?.status === 'success');
+                    if (!allOk) {
+                        const firstError = results.find(r => r.status === 'rejected')?.reason?.message
+                            || results.find(r => r.status === 'fulfilled' && r.value?.data?.status !== 'success')?.value?.data?.message
+                            || 'Failed to update vehicle during reschedule';
+                        toast.error(firstError);
+                        return;
+                    }
+                }
+
                 toast.success('Reservation details updated successfully!');
                 setIsEditMode(false);
                 if (onRefresh) onRefresh();
@@ -879,6 +999,54 @@ const ReservationDetails = ({
                                                         >
                                                             <Input.TextArea rows={3} placeholder="Enter reservation description" />
                                                         </Form.Item>
+
+                                                        {(reservationDetails.venues?.length > 0) && (
+                                                            <div className="space-y-2">
+                                                                {reservationDetails.venues.map((v, idx) => (
+                                                                    <Form.Item
+                                                                        key={v.reservation_venue_id || v.venue_id || idx}
+                                                                        name={['venueIds', idx]}
+                                                                        label={<span className="text-sm text-gray-500">Venue {idx + 1}</span>}
+                                                                        rules={[{ required: true, message: 'Venue is required' }]}
+                                                                    >
+                                                                        <Select
+                                                                            showSearch
+                                                                            className="w-full"
+                                                                            loading={isLoadingResourceOptions}
+                                                                            optionFilterProp="label"
+                                                                            options={(venueOptions || []).map(opt => ({
+                                                                                value: String(opt.ven_id || opt.venue_id),
+                                                                                label: opt.ven_name || opt.venue_name
+                                                                            }))}
+                                                                        />
+                                                                    </Form.Item>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {(reservationDetails.vehicles?.length > 0) && (
+                                                            <div className="space-y-2">
+                                                                {reservationDetails.vehicles.map((v, idx) => (
+                                                                    <Form.Item
+                                                                        key={v.reservation_vehicle_id || v.vehicle_id || idx}
+                                                                        name={['vehicleIds', idx]}
+                                                                        label={<span className="text-sm text-gray-500">Vehicle {idx + 1}</span>}
+                                                                        rules={[{ required: true, message: 'Vehicle is required' }]}
+                                                                    >
+                                                                        <Select
+                                                                            showSearch
+                                                                            className="w-full"
+                                                                            loading={isLoadingResourceOptions}
+                                                                            optionFilterProp="label"
+                                                                            options={(vehicleOptions || []).map(opt => ({
+                                                                                value: String(opt.vehicle_id),
+                                                                                label: opt.vehicle_name || opt.vehicle_model_name || opt.model_name || opt.model || `Vehicle ${opt.vehicle_id}`
+                                                                            }))}
+                                                                        />
+                                                                    </Form.Item>
+                                                                ))}
+                                                            </div>
+                                                        )}
 
                                                         <div className={`grid ${isMobile ? 'grid-cols-1 gap-3' : 'grid-cols-2 gap-3'}`}>
                                                             <Form.Item

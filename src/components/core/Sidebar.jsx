@@ -1282,7 +1282,7 @@ const Sidebar = () => {
 
               <MiniSidebarItem 
                 icon={FaListAlt} 
-                text="All Job Orders" 
+                text="All Work Request" 
                 link="/Admin/AllJobOrders" 
                 active={activeItem === '/Admin/AllJobOrders'}
                 isExpanded={isDesktopSidebarOpen}
