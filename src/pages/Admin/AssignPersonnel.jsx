@@ -12,7 +12,7 @@ import dayjs from 'dayjs';
 import { toast } from 'sonner';
 import AssignModal from './core/Assign_Modal';
 import AllAssignedPersonnel from './core/allassigned_personnel';
-// import ReAssignModal from './core/ReAssignModal';
+import ReAssignModal from './core/ReAssignModal';
 import { SecureStorage } from '../../utils/encryption';
 import 'bootstrap/dist/css/bootstrap.min.css';
 import 'primereact/resources/themes/lara-light-indigo/theme.css';
@@ -33,7 +33,7 @@ const AssignPersonnel = () => {
   const [selectedReservation, setSelectedReservation] = useState(null);
   const [reservations, setReservations] = useState([]);
   const [isChecklistModalOpen, setIsChecklistModalOpen] = useState(false);
-  // const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
+  const [isReassignModalOpen, setIsReassignModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(false);
   const [pageSize, setPageSize] = useState(10);
@@ -386,6 +386,47 @@ const AssignPersonnel = () => {
   //     setLoading(false);
   //   }
   // }, []);
+  const fetchReassignReservations = useCallback(async () => {
+    setLoading(true);
+    try {
+      const encryptedUrl = SecureStorage.getLocalItem("url");
+      const response = await axios.post(`${encryptedUrl}Assigned&Records.php`, {
+        operation: 'fetchAllReassign'
+      }, {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (response.data.status === 'success' && Array.isArray(response.data.data)) {
+        const formattedData = response.data.data.map(item => ({
+          id: item.reservation_id,
+          title: item.reservation_title,
+          name: item.reservation_title,
+          requestor: item.requestor_name || 'Unknown',
+          startDate: item.reservation_start_date,
+          endDate: item.reservation_end_date,
+          personnel: item.assigned_personnel || 'Needs Reassignment',
+          status: 'Reassign',
+          rawData: item
+        }));
+        setReservations(formattedData);
+      }
+    } catch (error) {
+      console.error('Error fetching reassign reservations:', error);
+      if (!navigator.onLine || error.message === 'Network Error' || error.code === 'ERR_NETWORK') {
+        toast.error('Unable to connect to server. Please check your internet connection.');
+      } else if (error.response) {
+        toast.error(`Server error: ${error.response.status}`);
+      } else if (error.request) {
+        toast.error('Unable to reach the server. Please try again later.');
+      } else {
+        toast.error('Error fetching reassign reservations');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const handleSort = (field) => {
     if (sortField === field) {
@@ -402,10 +443,10 @@ const AssignPersonnel = () => {
     } else if (activeTab === 'Assigned') {
       fetchAssignedReservations();
     } 
-    // else if (activeTab === 'Reassign') {
-    //   fetchReassignReservations();
-    // }
-  }, [activeTab, fetchNotAssignedReservations, fetchAssignedReservations]);
+    else if (activeTab === 'Reassign') {
+      fetchReassignReservations();
+    }
+  }, [activeTab, fetchNotAssignedReservations, fetchAssignedReservations, fetchReassignReservations]);
 
   // Filter reservations based on search term and active tab
   const filteredReservations = reservations
@@ -541,10 +582,10 @@ const AssignPersonnel = () => {
                 setSelectedReservation(record);
                 setIsModalOpen(true);
               } 
-              // else if (activeTab === 'Reassign') {
-              //   setSelectedReservation(record);
-              //   setIsReassignModalOpen(true);
-              // } 
+              else if (activeTab === 'Reassign') {
+                setSelectedReservation(record);
+                setIsReassignModalOpen(true);
+              } 
               else {
                 setSelectedReservation(record.rawData);
                 setIsChecklistModalOpen(true);
@@ -571,9 +612,9 @@ const handleRefresh = useCallback(() => {
   } else if (activeTab === 'Assigned') {
     fetchAssignedReservations();
   } 
-  // else if (activeTab === 'Reassign') {
-  //   fetchReassignReservations();
-  // }
+  else if (activeTab === 'Reassign') {
+    fetchReassignReservations();
+  }
 }, [
   activeTab, 
   fetchNotAssignedReservations, 
@@ -751,14 +792,14 @@ const handleRefresh = useCallback(() => {
                     count: reservations.filter(r => r.status === 'Assigned').length,
                     color: 'amber'
                   },
-                  // {
-                  //   key: 'Reassign',
-                  //   label: 'Reassign',
-                  //   shortLabel: 'Reassign',
-                  //   icon: <FontAwesomeIcon icon={faUserPlus} />,
-                  //   count: reservations.filter(r => r.status === 'Reassign').length,
-                  //   color: 'red'
-                  // }
+                  {
+                    key: 'Reassign',
+                    label: 'Reassign',
+                    shortLabel: 'Reassign',
+                    icon: <FontAwesomeIcon icon={faUserPlus} />,
+                    count: reservations.filter(r => r.status === 'Reassign').length,
+                    color: 'red'
+                  }
                 ].map((tab) => (
                   <button
                     key={tab.key}
@@ -866,10 +907,10 @@ const handleRefresh = useCallback(() => {
                                       setSelectedReservation(record);
                                       setIsModalOpen(true);
                                     } 
-                                    // else if (activeTab === 'Reassign') {
-                                    //   setSelectedReservation(record);
-                                    //   setIsReassignModalOpen(true);
-                                    // } 
+                                    else if (activeTab === 'Reassign') {
+                                      setSelectedReservation(record);
+                                      setIsReassignModalOpen(true);
+                                    } 
                                     else {
                                       setSelectedReservation(record.rawData);
                                       setIsChecklistModalOpen(true);
@@ -1101,7 +1142,7 @@ const handleRefresh = useCallback(() => {
       />
 
       {/* Reassign Modal */}
-      {/* <ReAssignModal
+      <ReAssignModal
         isOpen={isReassignModalOpen}
         onClose={() => {
           setIsReassignModalOpen(false);
@@ -1112,7 +1153,7 @@ const handleRefresh = useCallback(() => {
           fetchReassignReservations();
           toast.success('Personnel reassigned successfully');
         }}
-      /> */}
+      />
     </div>
   );
 };

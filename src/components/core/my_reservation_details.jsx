@@ -80,6 +80,7 @@ const ReservationDetails = ({
     const [availabilityError, setAvailabilityError] = useState(null);
     const [availabilityBlocks, setAvailabilityBlocks] = useState([]); // [{start: dayjs, end: dayjs, ...}]
     const [dayStatuses, setDayStatuses] = useState({}); // { 'YYYY-MM-DD': 'available'|'partial'|'reserved' }
+    const [isSaveDisabled, setIsSaveDisabled] = useState(true);
 
     useEffect(() => {
         console.log("ReservationDetails mounted with props:", {
@@ -379,7 +380,7 @@ const ReservationDetails = ({
                         const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
 
                         // Add blocks based on status
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             allBlocks.push({
                                 start: dayjs(res.reschedule_start_date),
                                 end: dayjs(res.reschedule_end_date),
@@ -423,8 +424,8 @@ const ReservationDetails = ({
 
                         let resStart, resEnd;
 
-                        // Status 14 + active=1: Use ONLY reschedule dates (confirmed reschedule)
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        // Status 10 + active=1: Use ONLY reschedule dates (confirmed reschedule)
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             resStart = dayjs(res.reschedule_start_date);
                             resEnd = dayjs(res.reschedule_end_date);
                         }
@@ -480,7 +481,7 @@ const ReservationDetails = ({
                         const reservationActive = parseInt(res.reservation_active);
                         const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
 
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             allBlocks.push({
                                 start: dayjs(res.reschedule_start_date),
                                 end: dayjs(res.reschedule_end_date),
@@ -523,8 +524,8 @@ const ReservationDetails = ({
 
                         let resStart, resEnd;
 
-                        // Status 14 + active=1: Use ONLY reschedule dates
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        // Status 10 + active=1: Use ONLY reschedule dates
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             resStart = dayjs(res.reschedule_start_date);
                             resEnd = dayjs(res.reschedule_end_date);
                         }
@@ -590,8 +591,8 @@ const ReservationDetails = ({
                             const reservationActive = parseInt(reservation.reservation_active);
                             const hasReschedule = reservation.reschedule_start_date && reservation.reschedule_end_date;
 
-                            // Status 14 + active=1: Use ONLY reschedule dates
-                            if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                            // Status 10 + active=1: Use ONLY reschedule dates
+                            if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                                 const rescheduleRangeKey = `${reservation.reschedule_start_date}_${reservation.reschedule_end_date}`;
 
                                 if (!dateRangeMap[rescheduleRangeKey]) {
@@ -1072,9 +1073,8 @@ const ReservationDetails = ({
     // Detect reschedule confirmed status from status history
     const statusArr = localReservationDetails.status_history || localReservationDetails.statusHistory || [];
     const rescheduleConfirmedStatus = statusArr.find(s => {
-        const name = (s.status_name || '').toLowerCase();
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
-        return (name === 'reschedule confirmed' || String(s.status_id) === '14') && activeVal === 1;
+        return String(s.status_id) === '10' && activeVal === 1;
     });
     const pendingRescheduleStatus = statusArr.find(s => {
         const name = (s.status_name || '').toLowerCase();
@@ -1122,29 +1122,7 @@ const ReservationDetails = ({
     );
 
     // If there's a pending reschedule, check if there's any newer status that would override it
-    let showReschedulePendingCard = false;
-    if (pendingRescheduleEntry) {
-        // Get the timestamp of the pending reschedule
-        const pendingRescheduleTime = new Date(pendingRescheduleEntry.reservation_updated_at || pendingRescheduleEntry.updated_at || 0);
-
-        // Check if there's any newer active status (cancelled, declined, reserved, completed) after the pending reschedule
-        const hasNewerFinalizedStatus = normalizedStatusHistory.some(s => {
-            if (Number(s.reservation_active) !== 1) return false;
-
-            const statusTime = new Date(s.reservation_updated_at || s.updated_at || 0);
-            const statusName = String(s.status_name).toLowerCase();
-            const statusId = Number(s.status_id);
-
-            // Check if this is a finalized status that came after the pending reschedule
-            const isFinalizedStatus = statusName === 'cancelled' || statusName === 'decline' || statusName === 'reserved' || statusName === 'completed' ||
-                statusId === 5 || statusId === 2 || statusId === 4 || statusId === 6;
-
-            return isFinalizedStatus && statusTime > pendingRescheduleTime;
-        });
-
-        // Only show the card if there's no newer finalized status
-        showReschedulePendingCard = !hasNewerFinalizedStatus;
-    }
+    const showReschedulePendingCard = false;
 
     // Effective schedule window: if there's an active reschedule, use reschedule dates; otherwise use original
     const startDateStr = (hasActiveReschedule && localReservationDetails.reschedule_start_date)
@@ -1191,42 +1169,8 @@ const ReservationDetails = ({
     // Hide buttons completely if reservation is past end date
     const hideButtons = isPastEndDate;
 
-    const handleRespondReschedule = async (isAccept) => {
-        try {
-            const userId = SecureStorage.getLocalItem('user_id');
-            if (!userId) {
-                toast.error('User session expired');
-                return;
-            }
-            setIsProcessingReschedule(true);
-            const response = await axios.post(`${baseUrl}faculty&staff.php`, {
-                operation: 'updateReschedule',
-                reservationId: reservationDetails.reservation_id,
-                confirm: !!isAccept,
-                userId: Number(userId)
-            }, {
-                headers: { 'Content-Type': 'application/json' }
-            });
-
-            if (response.data?.status === 'success') {
-                toast.success(isAccept ? 'Reschedule confirmed.' : 'Reschedule declined.');
-                if (onRefresh) {
-                    await onRefresh();
-                }
-                onClose();
-            } else {
-                toast.error(response.data?.message || 'Failed to process reschedule.');
-            }
-        } catch (error) {
-            console.error('Error processing reschedule response:', error);
-            if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
-                toast.error('Network connection lost. Unable to process reschedule.');
-            } else {
-                toast.error('Error processing reschedule. Please try again.');
-            }
-        } finally {
-            setIsProcessingReschedule(false);
-        }
+    const handleRespondReschedule = async () => {
+        toast.error('Reschedule confirmation is no longer required. Reschedules are applied automatically.');
     };
 
     // const handleRequestReschedule = () => {
@@ -1641,17 +1585,39 @@ const ReservationDetails = ({
                     onRefresh();
                 }
             } else {
-                toast.error(response.data.message || 'Failed to update reservation details');
+                // Show backend-provided error message if available and block further flow
+                const msg = response?.data?.message || 'Failed to update reservation details';
+                try { toast.dismiss(); } catch (e) {}
+                toast.error(msg);
+                Modal.error({
+                    title: 'Update Blocked',
+                    content: msg,
+                });
+                return;
             }
         } catch (error) {
             console.error('Error updating reservation details:', error);
             if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+                try { toast.dismiss(); } catch (e) {}
                 toast.error('Network connection lost. Unable to update details.');
+                Modal.error({
+                    title: 'Network Error',
+                    content: 'Network connection lost. Unable to update details.',
+                });
             } else if (error.errorFields) {
                 // Form validation errors
+                try { toast.dismiss(); } catch (e) {}
                 toast.error('Please fix the form errors');
             } else {
-                toast.error('Failed to update reservation details');
+                // Surface server error message when available
+                const serverMsg = error.response?.data?.message;
+                const msg = serverMsg || 'Failed to update reservation details';
+                try { toast.dismiss(); } catch (e) {}
+                toast.error(msg);
+                Modal.error({
+                    title: 'Update Failed',
+                    content: msg,
+                });
             }
         } finally {
             setIsUpdating(false);
@@ -1818,7 +1784,43 @@ const ReservationDetails = ({
                                             </div>
 
                                             {isEditMode ? (
-                                                <Form form={editForm} layout="vertical" className="space-y-3">
+                                                <Form
+                                                    form={editForm}
+                                                    layout="vertical"
+                                                    className="space-y-3"
+                                                    onValuesChange={() => {
+                                                        try {
+                                                            const values = editForm.getFieldsValue();
+                                                            const titleChanged = (values.title ?? '').trim() !== (localReservationDetails?.reservation_title ?? '').trim();
+                                                            const descChanged = (values.description ?? '').trim() !== (localReservationDetails?.reservation_description ?? '').trim();
+
+                                                            const originalStart = dayjs(localReservationDetails?.reservation_start_date).format('YYYY-MM-DD HH:mm:ss');
+                                                            const originalEnd = dayjs(localReservationDetails?.reservation_end_date).format('YYYY-MM-DD HH:mm:ss');
+
+                                                            const composedStart = values.startDate && values.startTime
+                                                                ? dayjs(values.startDate)
+                                                                    .hour(dayjs(values.startTime).hour())
+                                                                    .minute(0)
+                                                                    .second(0)
+                                                                    .format('YYYY-MM-DD HH:mm:ss')
+                                                                : originalStart;
+
+                                                            const composedEnd = values.endDate && values.endTime
+                                                                ? dayjs(values.endDate)
+                                                                    .hour(dayjs(values.endTime).hour())
+                                                                    .minute(0)
+                                                                    .second(0)
+                                                                    .format('YYYY-MM-DD HH:mm:ss')
+                                                                : originalEnd;
+
+                                                            const datesChanged = composedStart !== originalStart || composedEnd !== originalEnd;
+                                                            const dirty = titleChanged || descChanged || datesChanged;
+                                                            setIsSaveDisabled(!dirty);
+                                                        } catch (e) {
+                                                            setIsSaveDisabled(true);
+                                                        }
+                                                    }}
+                                                >
                                                     <Form.Item
                                                         name="title"
                                                         label={<span className="text-sm text-gray-500">Title</span>}
@@ -2068,6 +2070,7 @@ const ReservationDetails = ({
                                                             icon={<SaveOutlined />}
                                                             onClick={handleSaveEdit}
                                                             loading={isUpdating}
+                                                            disabled={isSaveDisabled || isUpdating}
                                                             size="small"
                                                         >
                                                             Save

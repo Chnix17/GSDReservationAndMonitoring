@@ -2755,6 +2755,8 @@ const DetailModal = ({
                         visible={isRescheduleModalOpen}
                         onCancel={() => setIsRescheduleModalOpen(false)}
                         reservation={reservationDetails}
+                        originalStart={reservationDetails?.reservation_start_date}
+                        originalEnd={reservationDetails?.reservation_end_date}
                         resources={rescheduleResources}
                         onReschedule={async (newDates) => {
                             try {
@@ -2914,6 +2916,8 @@ const DetailModal = ({
                         visible={isRescheduleModalOpen}
                         onCancel={() => setIsRescheduleModalOpen(false)}
                         reservation={reservationDetails}
+                        originalStart={reservationDetails?.reservation_start_date}
+                        originalEnd={reservationDetails?.reservation_end_date}
                         resources={rescheduleResources}
                         onReschedule={async (newDates) => {
                             try {

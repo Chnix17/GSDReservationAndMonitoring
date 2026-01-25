@@ -78,7 +78,7 @@ class Reservation {
                     LEFT JOIN (
                         SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                         FROM tbl_reservation_status
-                        WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
+                        WHERE reservation_status_status_id IN (10, 11) AND reservation_active IN (0, 1)
                         GROUP BY reservation_reservation_id
                     ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
                     LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
@@ -143,14 +143,14 @@ class Reservation {
                     LEFT JOIN (
                         SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                         FROM tbl_reservation_status
-                        WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
+                        WHERE reservation_status_status_id IN (10, 11) AND reservation_active IN (0, 1)
                         GROUP BY reservation_reservation_id
                     ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
                     LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
                     LEFT JOIN tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
                     LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
                     WHERE v.ven_id IN ($placeholders)
-                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11, 14)
+                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11)
                       AND rv.reservation_change_venue_id IS NULL
                       AND r.reschedule_start_date IS NOT NULL
                       AND r.reschedule_end_date IS NOT NULL
@@ -172,13 +172,15 @@ class Reservation {
                         ul.user_level_name AS user_level_name,
                         d.departments_name AS department_name,
                         CASE 
-                            WHEN latest_status.reservation_status_status_id = 14 
+                            WHEN latest_status.reservation_status_status_id = 10 
+                                 AND latest_status.reservation_active = 1
                                  AND r.reschedule_start_date IS NOT NULL 
                             THEN r.reschedule_start_date 
                             ELSE r.reservation_start_date 
                         END AS reservation_start_date,
                         CASE 
-                            WHEN latest_status.reservation_status_status_id = 14 
+                            WHEN latest_status.reservation_status_status_id = 10 
+                                 AND latest_status.reservation_active = 1
                                  AND r.reschedule_end_date IS NOT NULL 
                             THEN r.reschedule_end_date 
                             ELSE r.reservation_end_date 
@@ -221,7 +223,7 @@ class Reservation {
                     LEFT JOIN (
                         SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                         FROM tbl_reservation_status
-                        WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
+                        WHERE reservation_status_status_id IN (10, 11) AND reservation_active IN (0, 1)
                         GROUP BY reservation_reservation_id
                     ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
                     LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
@@ -229,7 +231,7 @@ class Reservation {
                     LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
                     WHERE cv.ven_id IN ($placeholders)
                       AND rv.reservation_change_venue_id IS NOT NULL
-                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11, 14)
+                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11)
                       AND r.reservation_id NOT IN (
                           SELECT DISTINCT reservation_reservation_id 
                           FROM tbl_reservation_status 
@@ -242,14 +244,14 @@ class Reservation {
                     $dateFilter = " AND (
                         (
                             (CASE
-                                WHEN latest_status.reservation_status_status_id IN (10, 11, 14)
+                                WHEN latest_status.reservation_status_status_id IN (10, 11)
                                      AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL
                                 THEN r.reschedule_start_date ELSE r.reservation_start_date END)
                             BETWEEN :startDateTime AND :endDateTime
                         )
                         OR (
                             (CASE
-                                WHEN latest_status.reservation_status_status_id IN (10, 11, 14)
+                                WHEN latest_status.reservation_status_status_id IN (10, 11)
                                      AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL
                                 THEN r.reschedule_end_date ELSE r.reservation_end_date END)
                             BETWEEN :startDateTime AND :endDateTime
@@ -257,24 +259,24 @@ class Reservation {
                         OR (
                             :startDateTime BETWEEN 
                                 (CASE
-                                    WHEN latest_status.reservation_status_status_id IN (10, 11, 14)
+                                    WHEN latest_status.reservation_status_status_id IN (10, 11)
                                          AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL
                                     THEN r.reschedule_start_date ELSE r.reservation_start_date END)
                                 AND 
                                 (CASE
-                                    WHEN latest_status.reservation_status_status_id IN (10, 11, 14)
+                                    WHEN latest_status.reservation_status_status_id IN (10, 11)
                                          AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL
                                     THEN r.reschedule_end_date ELSE r.reservation_end_date END)
                         )
                         OR (
                             :endDateTime BETWEEN 
                                 (CASE
-                                    WHEN latest_status.reservation_status_status_id IN (10, 11, 14)
+                                    WHEN latest_status.reservation_status_status_id IN (10, 11)
                                          AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL
                                     THEN r.reschedule_start_date ELSE r.reservation_start_date END)
                                 AND 
                                 (CASE
-                                    WHEN latest_status.reservation_status_status_id IN (10, 11, 14)
+                                    WHEN latest_status.reservation_status_status_id IN (10, 11)
                                          AND r.reschedule_start_date IS NOT NULL AND r.reschedule_end_date IS NOT NULL
                                     THEN r.reschedule_end_date ELSE r.reservation_end_date END)
                         )
@@ -308,9 +310,45 @@ class Reservation {
                     $statusId = (int)$result['reservation_status_status_id'];
                     $reservationActive = (int)$result['reservation_active'];
                     $venueType = $result['venue_type'];
+
+                    if ($statusId === 10 && $reservationActive === 1) {
+                        $hasVenueChange = !empty($result['reservation_change_venue_id']);
+                        $hasRescheduleDates = !empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date']);
+                        $datesChanged = $hasRescheduleDates
+                            && (
+                                strval($result['reschedule_start_date']) !== strval($result['reservation_start_date'])
+                                || strval($result['reschedule_end_date']) !== strval($result['reservation_end_date'])
+                            );
+
+                        // If venue was changed, only reflect the changed venue row
+                        if ($hasVenueChange && $venueType !== 'change') {
+                            continue;
+                        }
+
+                        // If venue was NOT changed, ignore the "change" row (if any)
+                        if (!$hasVenueChange && $venueType === 'change') {
+                            continue;
+                        }
+
+                        if ($datesChanged) {
+                            $result['original_start_date'] = $result['reservation_start_date'];
+                            $result['original_end_date'] = $result['reservation_end_date'];
+                            $result['reservation_start_date'] = $result['reschedule_start_date'];
+                            $result['reservation_end_date'] = $result['reschedule_end_date'];
+                        }
+
+                        unset($result['venue_type']);
+                        unset($result['has_active_reschedule']);
+                        unset($result['reservation_change_venue_id']);
+
+                        $result['is_available'] = false;
+                        $result['reservation_status'] = 'Rescheduled';
+                        $filteredResults[] = $result;
+                        continue;
+                    }
                     
                     // Handle the logic for displaying reservations based on status and venue type
-                    if ($statusId === 10 || $statusId === 11 || $statusId === 14) {
+                    if ($statusId === 10 || $statusId === 11) {
                         // Special handling for status 11 - always display 2 entries
                         if ($statusId === 11) {
                             // Check if change_venue_id exists
@@ -394,69 +432,7 @@ class Reservation {
                                 }
                             }
                         }
-                        // Special handling for status 14 with active=1
-                        else if ($statusId === 14 && $reservationActive === 1) {
-                            // Check if change_venue_id exists
-                            if (!empty($result['reservation_change_venue_id'])) {
-                                // Only display one entry (prioritize change venue)
-                                if ($venueType === 'change' && !in_array($reservationId, $processedReservations)) {
-                                    // For status 14 change venues, keep both original and reschedule dates
-                                    // Store original dates for reference
-                                    $result['original_start_date'] = $result['reservation_start_date'];
-                                    $result['original_end_date'] = $result['reservation_end_date'];
-                                    
-                                    // Clean up helper fields only
-                                    unset($result['venue_type']);
-                                    unset($result['has_active_reschedule']);
-                                    unset($result['reservation_change_venue_id']);
-                                    
-                                    // Set availability based on status
-                                    $result['is_available'] = false;
-                                    
-                                    // Set reservation status text
-                                    $result['reservation_status'] = 'Rescheduled';
-                                    
-                                    $filteredResults[] = $result;
-                                    $processedReservations[] = $reservationId;
-                                }
-                            } else {
-                                // Display reschedule dates when change_venue_id is null
-                                if (!in_array($reservationId, $processedReservations)) {
-                                    if ($venueType === 'reschedule_original') {
-                                        // For status 14 original venues, reschedule dates are already set as reservation dates
-                                        // Keep both for display
-                                    } else if ($venueType === 'original') {
-                                        // For status 14 original venues, store original dates before updating
-                                        $result['original_start_date'] = $result['reservation_start_date'];
-                                        $result['original_end_date'] = $result['reservation_end_date'];
-                                        
-                                        // Use reschedule dates as main dates
-                                        if (!empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date'])) {
-                                            $result['reservation_start_date'] = $result['reschedule_start_date'];
-                                            $result['reservation_end_date'] = $result['reschedule_end_date'];
-                                        }
-                                    }
-                                    
-                                    // Clean up helper fields only
-                                    unset($result['venue_type']);
-                                    unset($result['has_active_reschedule']);
-                                    unset($result['reservation_change_venue_id']);
-                                    
-                                    // Set availability based on status
-                                    $result['is_available'] = false;
-                                    
-                                    // Set reservation status text
-                                    $result['reservation_status'] = 'Rescheduled';
-                                    
-                                    $filteredResults[] = $result;
-                                    
-                                    // Mark as processed only after handling all venue types for this reservation
-                                    if ($venueType === 'reschedule_original' || ($venueType === 'original' && empty($result['reservation_change_venue_id']))) {
-                                        $processedReservations[] = $reservationId;
-                                    }
-                                }
-                            }
-                        } else {
+                        else {
                             // For other statuses (10, 11, or 14 with active=0), handle based on venue type
                             if ($venueType === 'change') {
                                 // For change venues, store original dates and use reschedule dates
@@ -473,8 +449,8 @@ class Reservation {
                                 $result['original_start_date'] = $result['reservation_start_date'];
                                 $result['original_end_date'] = $result['reservation_end_date'];
                                 
-                                // For status 10, 11, and 14 original venues, use reschedule dates when available
-                                if (($statusId === 10 || $statusId === 11 || $statusId === 14) && !empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date'])) {
+                                // For status 10 and 11 original venues, use reschedule dates when available
+                                if (($statusId === 10 || $statusId === 11) && !empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date'])) {
                                     $result['reservation_start_date'] = $result['reschedule_start_date'];
                                     $result['reservation_end_date'] = $result['reschedule_end_date'];
                                 }
@@ -521,7 +497,6 @@ class Reservation {
                                 break;
                             case 10:
                             case 11:
-                            case 14:
                                 $result['reservation_status'] = 'Rescheduled';
                                 break;
                             default:
@@ -597,7 +572,7 @@ class Reservation {
                     LEFT JOIN (
                         SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                         FROM tbl_reservation_status
-                        WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
+                        WHERE reservation_status_status_id IN (10, 11) AND reservation_active IN (0, 1)
                         GROUP BY reservation_reservation_id
                     ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
                     LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
@@ -673,14 +648,14 @@ class Reservation {
                     LEFT JOIN (
                         SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                         FROM tbl_reservation_status
-                        WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
+                        WHERE reservation_status_status_id IN (10, 11) AND reservation_active IN (0, 1)
                         GROUP BY reservation_reservation_id
                     ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
                     LEFT JOIN tbl_users u ON r.reservation_user_id = u.users_id
                     LEFT JOIN tbl_user_level ul ON u.users_user_level_id = ul.user_level_id
                     LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
                     WHERE v.vehicle_id IN ($placeholders)
-                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11, 14)
+                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11)
                       AND rv.reservation_change_vehicle_id IS NULL
                       AND r.reschedule_start_date IS NOT NULL
                       AND r.reschedule_end_date IS NOT NULL
@@ -703,13 +678,15 @@ class Reservation {
                         ul.user_level_name AS user_level_name,
                         d.departments_name AS department_name,
                         CASE 
-                            WHEN latest_status.reservation_status_status_id = 14 
+                            WHEN latest_status.reservation_status_status_id = 10 
+                                 AND latest_status.reservation_active = 1
                                  AND r.reschedule_start_date IS NOT NULL 
                             THEN r.reschedule_start_date 
                             ELSE r.reservation_start_date 
                         END AS reservation_start_date,
                         CASE 
-                            WHEN latest_status.reservation_status_status_id = 14 
+                            WHEN latest_status.reservation_status_status_id = 10 
+                                 AND latest_status.reservation_active = 1
                                  AND r.reschedule_end_date IS NOT NULL 
                             THEN r.reschedule_end_date 
                             ELSE r.reservation_end_date 
@@ -770,7 +747,7 @@ class Reservation {
                     LEFT JOIN tbl_departments d ON u.users_department_id = d.departments_id
                     WHERE cv.vehicle_id IN ($placeholders)
                       AND rv.reservation_change_vehicle_id IS NOT NULL
-                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11, 14)
+                      AND latest_status.reservation_status_status_id IN (1, 6, 8, 9, 10, 11)
                       AND r.reservation_id NOT IN (
                           SELECT DISTINCT reservation_reservation_id 
                           FROM tbl_reservation_status 
@@ -793,9 +770,45 @@ class Reservation {
                     $statusId = (int)$result['reservation_status_status_id'];
                     $reservationActive = (int)$result['reservation_active'];
                     $vehicleType = $result['vehicle_type'];
+
+                    if ($statusId === 10 && $reservationActive === 1) {
+                        $hasVehicleChange = !empty($result['reservation_change_vehicle_id']);
+                        $hasRescheduleDates = !empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date']);
+                        $datesChanged = $hasRescheduleDates
+                            && (
+                                strval($result['reschedule_start_date']) !== strval($result['reservation_start_date'])
+                                || strval($result['reschedule_end_date']) !== strval($result['reservation_end_date'])
+                            );
+
+                        // If vehicle was changed, only reflect the changed vehicle row
+                        if ($hasVehicleChange && $vehicleType !== 'change') {
+                            continue;
+                        }
+
+                        // If vehicle was NOT changed, ignore the "change" row (if any)
+                        if (!$hasVehicleChange && $vehicleType === 'change') {
+                            continue;
+                        }
+
+                        if ($datesChanged) {
+                            $result['original_start_date'] = $result['reservation_start_date'];
+                            $result['original_end_date'] = $result['reservation_end_date'];
+                            $result['reservation_start_date'] = $result['reschedule_start_date'];
+                            $result['reservation_end_date'] = $result['reschedule_end_date'];
+                        }
+
+                        unset($result['vehicle_type']);
+                        unset($result['has_active_reschedule']);
+                        unset($result['reservation_change_vehicle_id']);
+
+                        $result['is_available'] = false;
+                        $result['reservation_status'] = 'Rescheduled';
+                        $filteredResults[] = $result;
+                        continue;
+                    }
                     
                     // Handle the logic for displaying reservations based on status and vehicle type
-                    if ($statusId === 10 || $statusId === 11 || $statusId === 14) {
+                    if ($statusId === 10 || $statusId === 11) {
                         // Special handling for status 11 - always display 2 entries
                         if ($statusId === 11) {
                             // Check if change_vehicle_id exists
@@ -880,12 +893,12 @@ class Reservation {
                             }
                         }
                         // Special handling for status 14 with active=1
-                        else if ($statusId === 14 && $reservationActive === 1) {
+                        else if ($statusId === 10 && $reservationActive === 1) {
                             // Check if change_vehicle_id exists
                             if (!empty($result['reservation_change_vehicle_id'])) {
                                 // Only display one entry (prioritize change vehicle)
                                 if ($vehicleType === 'change' && !in_array($reservationId, $processedReservations)) {
-                                    // For status 14 change vehicles, keep both original and reschedule dates
+                                    // For status 10 change vehicles, keep both original and reschedule dates
                                     // Store original dates for reference
                                     $result['original_start_date'] = $result['reservation_start_date'];
                                     $result['original_end_date'] = $result['reservation_end_date'];
@@ -908,10 +921,10 @@ class Reservation {
                                 // Display reschedule dates when change_vehicle_id is null
                                 if (!in_array($reservationId, $processedReservations)) {
                                     if ($vehicleType === 'reschedule_original') {
-                                        // For status 14 original vehicles, reschedule dates are already set as reservation dates
+                                        // For status 10 original vehicles, reschedule dates are already set as reservation dates
                                         // Keep both for display
                                     } else if ($vehicleType === 'original') {
-                                        // For status 14 original vehicles, store original dates before updating
+                                        // For status 10 original vehicles, store original dates before updating
                                         $result['original_start_date'] = $result['reservation_start_date'];
                                         $result['original_end_date'] = $result['reservation_end_date'];
                                         
@@ -942,7 +955,7 @@ class Reservation {
                                 }
                             }
                         } else {
-                            // For other statuses (10, 11, or 14 with active=0), handle based on vehicle type
+                            // For other statuses (10, 11), handle based on vehicle type
                             if ($vehicleType === 'change') {
                                 // For change vehicles, store original dates and use reschedule dates
                                 $result['original_start_date'] = $result['reservation_start_date'];
@@ -958,8 +971,8 @@ class Reservation {
                                 $result['original_start_date'] = $result['reservation_start_date'];
                                 $result['original_end_date'] = $result['reservation_end_date'];
                                 
-                                // For status 10, 11, and 14 original vehicles, use reschedule dates when available
-                                if (($statusId === 10 || $statusId === 11 || $statusId === 14) && !empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date'])) {
+                                // For status 10 and 11 original vehicles, use reschedule dates when available
+                                if (($statusId === 10 || $statusId === 11) && !empty($result['reschedule_start_date']) && !empty($result['reschedule_end_date'])) {
                                     $result['reservation_start_date'] = $result['reschedule_start_date'];
                                     $result['reservation_end_date'] = $result['reschedule_end_date'];
                                 }
@@ -1246,12 +1259,12 @@ class Reservation {
                     CASE WHEN active_resched.max_reschedule_status_id IS NULL THEN 0 ELSE 1 END AS has_active_reschedule,
                     CASE 
                         WHEN latest_status.reservation_status_status_id = 6 AND latest_status.reservation_active = 1 THEN 'Reserved'
-                        WHEN latest_status.reservation_status_status_id IN (10, 11, 14) AND latest_status.reservation_active = 1 THEN 'Rescheduled'
+                        WHEN latest_status.reservation_status_status_id = 10 AND latest_status.reservation_active = 1 THEN 'Rescheduled'
                         WHEN latest_status.reservation_status_status_id = 11 AND latest_status.reservation_active = 0 THEN 'Pending Reschedule'
                         ELSE 'Available'
                     END AS availability_status,
                     CASE 
-                        WHEN latest_status.reservation_status_status_id IN (1,3,6,7,9, 10, 11, 14) AND latest_status.reservation_active = 1 THEN 0
+                        WHEN latest_status.reservation_status_status_id IN (1,3,6,7,9, 10, 11) AND latest_status.reservation_active = 1 THEN 0
                         WHEN latest_status.reservation_status_status_id = 11 AND latest_status.reservation_active = 0 THEN 0
                         ELSE 1
                     END AS is_available
@@ -1288,7 +1301,7 @@ class Reservation {
                 LEFT JOIN (
                     SELECT reservation_reservation_id, MAX(reservation_status_id) AS max_reschedule_status_id
                     FROM tbl_reservation_status
-                    WHERE reservation_status_status_id IN (10, 11, 14) AND reservation_active IN (0, 1)
+                    WHERE reservation_status_status_id IN (10, 11) AND reservation_active IN (0, 1)
                     GROUP BY reservation_reservation_id
                 ) active_resched ON active_resched.reservation_reservation_id = r.reservation_id
                 WHERE 
@@ -3775,14 +3788,7 @@ class Reservation {
                 ]);
             }
 
-            // Check if reservation is already rescheduled (status 10)
-            if ($currentStatusId === 10) {
-                return json_encode([
-                    'status' => 'error', 
-                    'message' => 'Cannot update reschedule dates: Reservation has already been rescheduled',
-                    'current_status' => $currentStatus['status_master_name']
-                ]);
-            }
+            
 
             // ===== CHECK FOR CONFLICTS BEFORE UPDATING =====
             // Fetch requested resources and check for conflicts FIRST
@@ -3926,35 +3932,18 @@ class Reservation {
             $stmt->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
             $stmt->execute();
 
-            // 2) Check if status_id 7 (Admin Approved) exists for this reservation
+            // 2) Check if status_id 7 (Admin Approved/Processed) exists for this reservation
             $checkStatus7Sql = "SELECT COUNT(*) as count FROM tbl_reservation_status 
                                 WHERE reservation_reservation_id = :reservation_id 
-                                AND reservation_status_status_id = 7";
+                                AND reservation_status_status_id = 7
+                                AND reservation_active = 1";
             $checkStatus7Stmt = $this->conn->prepare($checkStatus7Sql);
             $checkStatus7Stmt->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
             $checkStatus7Stmt->execute();
             $status7Exists = $checkStatus7Stmt->fetch(PDO::FETCH_ASSOC);
-
-            // If status_id 7 doesn't exist, insert it first
-            if ($status7Exists['count'] == 0) {
-               
-                $insertStatus7Sql = "INSERT INTO tbl_reservation_status
-                    (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
-                    VALUES (7, :reservation_id, 1, NOW(), :user_admin_id)";
-                $insertStatus7Stmt = $this->conn->prepare($insertStatus7Sql);
-                $insertStatus7Stmt->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
-                if ($user_admin_id === null || $user_admin_id === '') {
-                    $insertStatus7Stmt->bindValue(':user_admin_id', null, PDO::PARAM_NULL);
-                } else {
-                    $insertStatus7Stmt->bindValue(':user_admin_id', (int)$user_admin_id, PDO::PARAM_INT);
-                }
-                $insertStatus7Stmt->execute();
-            } else {
-               
-            }
+            $hasProcessed = ((int)($status7Exists['count'] ?? 0)) > 0;
 
             // 3) Insert status_id 3 with active=1
-           
             $insertStatus3Sql = "INSERT INTO tbl_reservation_status
                 (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
                 VALUES (3, :reservation_id, 1, NOW(), :user_admin_id)";
@@ -3983,18 +3972,46 @@ class Reservation {
             }
             $updateStmt->execute();
     
-            // 5) Insert a new status row with reservation_active = 0 and status_id 10
-            $ins = $this->conn->prepare("INSERT INTO tbl_reservation_status
-                (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
-                VALUES (:status_id, :reservation_id, 0, NOW(), :user_admin_id)");
-            $ins->bindValue(':status_id', 10, PDO::PARAM_INT);
-            $ins->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
-            if ($user_admin_id === null || $user_admin_id === '') {
-                $ins->bindValue(':user_admin_id', null, PDO::PARAM_NULL);
-            } else {
-                $ins->bindValue(':user_admin_id', (int)$user_admin_id, PDO::PARAM_INT);
+            // 5) Ensure a status_id 10 exists and is active ONLY if already processed (status 7 exists)
+            if ($hasProcessed) {
+                $checkStatus10Sql = "SELECT COUNT(*) as count FROM tbl_reservation_status 
+                                    WHERE reservation_reservation_id = :reservation_id 
+                                    AND reservation_status_status_id = 10";
+                $checkStatus10Stmt = $this->conn->prepare($checkStatus10Sql);
+                $checkStatus10Stmt->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
+                $checkStatus10Stmt->execute();
+                $status10Exists = $checkStatus10Stmt->fetch(PDO::FETCH_ASSOC);
+
+                if ($status10Exists['count'] == 0) {
+                    $ins = $this->conn->prepare("INSERT INTO tbl_reservation_status
+                        (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
+                        VALUES (:status_id, :reservation_id, 1, NOW(), :user_admin_id)");
+                    $ins->bindValue(':status_id', 10, PDO::PARAM_INT);
+                    $ins->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
+                    if ($user_admin_id === null || $user_admin_id === '') {
+                        $ins->bindValue(':user_admin_id', null, PDO::PARAM_NULL);
+                    } else {
+                        $ins->bindValue(':user_admin_id', (int)$user_admin_id, PDO::PARAM_INT);
+                    }
+                    $ins->execute();
+                } else {
+                    // Update existing status 10 to active and refresh timestamp/user
+                    $updateStatus10Sql = "UPDATE tbl_reservation_status 
+                                          SET reservation_active = 1, 
+                                              reservation_updated_at = NOW(),
+                                              reservation_users_id = :user_admin_id
+                                          WHERE reservation_reservation_id = :reservation_id 
+                                          AND reservation_status_status_id = 10";
+                    $upd10 = $this->conn->prepare($updateStatus10Sql);
+                    $upd10->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
+                    if ($user_admin_id === null || $user_admin_id === '') {
+                        $upd10->bindValue(':user_admin_id', null, PDO::PARAM_NULL);
+                    } else {
+                        $upd10->bindValue(':user_admin_id', (int)$user_admin_id, PDO::PARAM_INT);
+                    }
+                    $upd10->execute();
+                }
             }
-            $ins->execute();
     
             $this->conn->commit();
     
@@ -4784,7 +4801,7 @@ class Reservation {
                 WHERE
                     (
                         -- Show status 1, 3, 7, 8 (Pending, Approved, Admin Approved, Department Approval)
-                        latest_status.reservation_status_status_id IN (1, 3, 7, 8, 10) 
+                        latest_status.reservation_status_status_id IN (1, 3, 7, 8) 
                         AND latest_status.reservation_active IN (0, 1)
                     )
                     OR 

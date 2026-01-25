@@ -1175,99 +1175,34 @@ class FacultyStaff {
     public function updateReschedule(int $reservationId, int $active, ?int $actingUserId = null) {
         try {
             if (!in_array($active, [1, -1], true)) {
-                return json_encode(['status' => 'error', 'message' => 'Invalid active value. Use 1 for confirm or -1 for decline.']);
+                return json_encode(['status' => 'error', 'message' => 'Invalid active value. Use 1 or -1.']);
+            }
+
+            if ($active !== 1) {
+                return json_encode(['status' => 'error', 'message' => 'Reschedule confirmation/decline is no longer supported. Reschedules are applied automatically.']);
             }
 
             $this->conn->beginTransaction();
 
-            // 1) Update the latest pending status (status 10 with active = 0)
+            // Activate the latest reschedule status (status 10)
             $updSql = "
                 UPDATE tbl_reservation_status
-                SET reservation_active = :active,
+                SET reservation_active = 1,
                     reservation_updated_at = NOW(),
                     reservation_users_id = :user_id
                 WHERE reservation_reservation_id = :rid
                   AND reservation_status_status_id = 10
-                  AND reservation_active = 0
                 ORDER BY reservation_status_id DESC
                 LIMIT 1
             ";
             $upd = $this->conn->prepare($updSql);
-            $upd->bindValue(':active', $active, PDO::PARAM_INT);
             $upd->bindValue(':user_id', $actingUserId !== null ? (int)$actingUserId : null, $actingUserId !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
             $upd->bindValue(':rid', (int)$reservationId, PDO::PARAM_INT);
             $upd->execute();
 
-            // 2) Handle status insertion based on active value
-            if ($active == 1) {
-                // For confirmed reschedule (active = 1), check if status 1 or 8 is active before inserting status 6
-                $checkSql = "
-                    SELECT COUNT(*) as count 
-                    FROM tbl_reservation_status 
-                    WHERE reservation_reservation_id = :rid 
-                    AND reservation_status_status_id IN (1, 8)
-                    AND reservation_active = 1
-                ";
-                $check = $this->conn->prepare($checkSql);
-                $check->bindValue(':rid', (int)$reservationId, PDO::PARAM_INT);
-                $check->execute();
-                $result = $check->fetch(PDO::FETCH_ASSOC);
-            
-                // Only insert status 6 if status 1 or 8 is active
-                if ($result['count'] > 0) {
-                    $checkExistingSql = "
-                        SELECT COUNT(*) as count 
-                        FROM tbl_reservation_status 
-                        WHERE reservation_reservation_id = :rid 
-                        AND reservation_status_status_id = 6
-                        AND reservation_active = 1
-                    ";
-                    $checkExisting = $this->conn->prepare($checkExistingSql);
-                    $checkExisting->bindValue(':rid', (int)$reservationId, PDO::PARAM_INT);
-                    $checkExisting->execute();
-                    $existingResult = $checkExisting->fetch(PDO::FETCH_ASSOC);
-            
-                    // Insert status 6 if it doesn't already exist
-                    if ($existingResult['count'] == 0) {
-                        $insSql = "
-                            INSERT INTO tbl_reservation_status
-                                (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
-                            VALUES (6, :rid, 1, NOW(), :user_id)
-                        ";
-                        $ins = $this->conn->prepare($insSql);
-                        $ins->bindValue(':rid', (int)$reservationId, PDO::PARAM_INT);
-                        $ins->bindValue(':user_id', $actingUserId !== null ? (int)$actingUserId : null, $actingUserId !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-                        $ins->execute();
-                    }
-                }
-            
-                // ✅ Always insert status 14 after confirming reschedule
-                $ins14Sql = "
-                    INSERT INTO tbl_reservation_status
-                        (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
-                    VALUES (14, :rid, 1, NOW(), :user_id)
-                ";
-                $ins14 = $this->conn->prepare($ins14Sql);
-                $ins14->bindValue(':rid', (int)$reservationId, PDO::PARAM_INT);
-                $ins14->bindValue(':user_id', $actingUserId !== null ? (int)$actingUserId : null, $actingUserId !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-                $ins14->execute();
-            }
-             else {
-                // For declined reschedule (active = -1), insert status 5
-                $insSql = "
-                    INSERT INTO tbl_reservation_status
-                        (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
-                    VALUES (5, :rid, -1, NOW(), :user_id)
-                ";
-                $ins = $this->conn->prepare($insSql);
-                $ins->bindValue(':rid', (int)$reservationId, PDO::PARAM_INT);
-                $ins->bindValue(':user_id', $actingUserId !== null ? (int)$actingUserId : null, $actingUserId !== null ? PDO::PARAM_INT : PDO::PARAM_NULL);
-                $ins->execute();
-            }
-
             $this->conn->commit();
 
-            return json_encode(['status' => 'success', 'message' => 'Reschedule status updated']);
+            return json_encode(['status' => 'success', 'message' => 'Reschedule applied']);
         } catch (PDOException $e) {
             if ($this->conn->inTransaction()) {
                 $this->conn->rollBack();
@@ -4736,6 +4671,23 @@ class FacultyStaff {
         try {
             $this->conn->beginTransaction();
             
+            // Block updates if reservation is already being processed (status 7 active)
+            $checkProcessedSql = "SELECT COUNT(*) AS count FROM tbl_reservation_status 
+                                  WHERE reservation_reservation_id = :reservation_id 
+                                    AND reservation_status_status_id = 7
+                                    AND reservation_active = 1";
+            $stmtProcessed = $this->conn->prepare($checkProcessedSql);
+            $stmtProcessed->bindValue(':reservation_id', $reservationId, PDO::PARAM_INT);
+            $stmtProcessed->execute();
+            $rowProc = $stmtProcessed->fetch(PDO::FETCH_ASSOC);
+            if (((int)($rowProc['count'] ?? 0)) > 0) {
+                $this->conn->rollBack();
+                return json_encode([
+                    'status' => 'error',
+                    'message' => 'Reservation is already being processed by admin. Updates (including dates) are not allowed.'
+                ]);
+            }
+            
             // Verify the reservation belongs to the user
        
             
@@ -4819,16 +4771,29 @@ class FacultyStaff {
             }
             
             if ($stmtUpdate->execute()) {
-                // Insert new status 10 (Reschedule) row
-                $sqlInsertReschedule = "
-                    INSERT INTO tbl_reservation_status
-                        (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id)
-                    VALUES (:reservation_id, 10, 0, NOW(), :user_id)
-                ";
-                $stmtInsert = $this->conn->prepare($sqlInsertReschedule);
-                $stmtInsert->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
-                $stmtInsert->bindParam(':user_id', $userId, PDO::PARAM_INT);
-                $stmtInsert->execute();
+                // Prevent any insertions when being processed (status 7 active)
+                $checkStatus7Sql = "SELECT COUNT(*) AS count FROM tbl_reservation_status 
+                                    WHERE reservation_reservation_id = :reservation_id 
+                                      AND reservation_status_status_id = 7
+                                      AND reservation_active = 1";
+                $stmtCheck7 = $this->conn->prepare($checkStatus7Sql);
+                $stmtCheck7->bindValue(':reservation_id', $reservationId, PDO::PARAM_INT);
+                $stmtCheck7->execute();
+                $row7 = $stmtCheck7->fetch(PDO::FETCH_ASSOC);
+                $hasProcessed = ((int)($row7['count'] ?? 0)) > 0;
+
+                if (!$hasProcessed) {
+                    // Not being processed yet: allow inserting status 10 (Reschedule)
+                    $sqlInsertReschedule = "
+                        INSERT INTO tbl_reservation_status
+                            (reservation_reservation_id, reservation_status_status_id, reservation_active, reservation_updated_at, reservation_users_id)
+                        VALUES (:reservation_id, 10, 1, NOW(), :user_id)
+                    ";
+                    $stmtInsert = $this->conn->prepare($sqlInsertReschedule);
+                    $stmtInsert->bindParam(':reservation_id', $reservationId, PDO::PARAM_INT);
+                    $stmtInsert->bindParam(':user_id', $userId, PDO::PARAM_INT);
+                    $stmtInsert->execute();
+                }
 
                 $this->conn->commit();
                 return json_encode([

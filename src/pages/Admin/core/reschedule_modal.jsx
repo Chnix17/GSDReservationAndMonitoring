@@ -107,6 +107,24 @@ const RescheduleModal = ({
   const startTimeVal = Form.useWatch('startTime', form);
   const endDateVal = Form.useWatch('endDate', form);
   const endTimeVal = Form.useWatch('endTime', form);
+  const isOriginalDate = useCallback((curDay) => {
+    try {
+      if (!curDay) return false;
+      const d = dayjs(curDay);
+      if (!d.isValid()) return false;
+      // Fallback to reservation's original dates when explicit props are not provided
+      const startRaw = originalStart || reservation?.reservation_start_date;
+      const endRaw = originalEnd || reservation?.reservation_end_date;
+      const oStart = dayjs(startRaw);
+      const oEnd = dayjs(endRaw);
+      if (!oStart.isValid() || !oEnd.isValid()) return false;
+      // Normalize to day boundaries and allow any day inside the original range
+      const curDay = d.startOf('day');
+      const startDay = oStart.startOf('day');
+      const endDay = oEnd.startOf('day');
+      return curDay.isSame(startDay) || curDay.isSame(endDay) || (curDay.isAfter(startDay) && curDay.isBefore(endDay));
+    } catch (_) { return false; }
+  }, [originalStart, originalEnd, reservation]);
   
   // Get user info for advance booking rules
   const userLevel = SecureStorage.getLocalItem('user_level');
@@ -233,8 +251,8 @@ const RescheduleModal = ({
             const reservationActive = parseInt(reservation.reservation_active);
             const hasReschedule = reservation.reschedule_start_date && reservation.reschedule_end_date;
             
-            // Status 14 + active=1: Use ONLY reschedule dates (confirmed reschedule)
-            if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+            // Status 10 + active=1: Use ONLY reschedule dates (confirmed reschedule)
+            if (statusId === 10 && reservationActive === 1 && hasReschedule) {
               equipmentBlocks.push({
                 start: dayjs(reservation.reschedule_start_date),
                 end: dayjs(reservation.reschedule_end_date),
@@ -573,13 +591,14 @@ const RescheduleModal = ({
         equipmentBlocks: eqBlocks.length
       });
 
-      // Use ALL blocks from fetchAvailability - no filtering based on reservation ID
-      // This will block all hours/days that have any existing reservations
+      // Combine all blocks and remove this reservation's own blocks so we don't self-block original dates
       const allBlocks = [...(venBlocks || []), ...(vehBlocks || []), ...(eqBlocks || [])];
-      const filtered = allBlocks;
+      const selfResId = reservation?.reservation_id != null ? String(reservation.reservation_id) : null;
+      const filtered = selfResId ? allBlocks.filter(b => String(b.reservation_id) !== selfResId) : allBlocks;
       
-      console.log('[RescheduleModal] All availability blocks (no filtering):', {
+      console.log('[RescheduleModal] Availability blocks (self-filtered):', {
         totalBlocks: allBlocks.length,
+        afterSelfFilter: filtered.length,
         blockedPeriods: filtered.map(b => ({
           start: b.start.format('YYYY-MM-DD HH:mm:ss'),
           end: b.end.format('YYYY-MM-DD HH:mm:ss'),
@@ -1224,12 +1243,13 @@ const RescheduleModal = ({
       });
       
       const overlappingBlocks = blocks.filter(b => start.isBefore(b.end) && end.isAfter(b.start));
+      const selfFilteredOverlaps = overlappingBlocks.filter(b => String(b.reservation_id) !== String(reservation?.reservation_id));
       
-      if (overlappingBlocks.length > 0) {
+      if (selfFilteredOverlaps.length > 0) {
         console.log('[RescheduleModal] ⚠️ OVERLAPS DETECTED:', {
           selectedStart: start.format('YYYY-MM-DD HH:mm:ss'),
           selectedEnd: end.format('YYYY-MM-DD HH:mm:ss'),
-          conflictingBlocks: overlappingBlocks.map(b => ({
+          conflictingBlocks: selfFilteredOverlaps.map(b => ({
             start: b.start.format('YYYY-MM-DD HH:mm:ss'),
             end: b.end.format('YYYY-MM-DD HH:mm:ss'),
             reservation_id: b.reservation_id,
@@ -1238,8 +1258,8 @@ const RescheduleModal = ({
         });
         
         // Separate equipment from venue/vehicle conflicts
-        const equipmentConflicts = overlappingBlocks.filter(b => b.equip_id);
-        const nonEquipmentConflicts = overlappingBlocks.filter(b => !b.equip_id);
+        const equipmentConflicts = selfFilteredOverlaps.filter(b => b.equip_id);
+        const nonEquipmentConflicts = selfFilteredOverlaps.filter(b => !b.equip_id);
         
         // If there are venue/vehicle conflicts, show error
         if (nonEquipmentConflicts.length > 0) {
@@ -1423,7 +1443,7 @@ const RescheduleModal = ({
     // Apply advance booking rules
     const minSelectableDate = getMinSelectableDate();
     const isBeforeMinDate = cur.isBefore(dayjs(minSelectableDate).startOf('day'));
-    
+    if (isOriginalDate(cur)) return false;
     return isBeforeMinDate || isFull;
   };
 
@@ -1434,7 +1454,7 @@ const RescheduleModal = ({
     const start = form.getFieldValue('startDate');
     const key = cur.format('YYYY-MM-DD');
     const isFull = dayStatuses[key] === 'reserved';
-    if (isFull) return true;
+    if (!isOriginalDate(cur) && isFull) return true;
     if (!start) return cur.isBefore(dayjs().startOf('day'));
     return cur.startOf('day').isBefore(dayjs(start).startOf('day'));
   };
@@ -1446,21 +1466,27 @@ const RescheduleModal = ({
   const disabledHoursForDate = (dateValue, extraBlockAfterHour = null) => {
     const date = dateValue ? dayjs(dateValue) : null;
     const toLabel = (h) => dayjs().hour(h).minute(0).second(0).format('h A');
+    const selfResId = reservation?.reservation_id != null ? String(reservation.reservation_id) : null;
+    const nonSelfBlocks = selfResId
+      ? availabilityBlocks.filter(b => String(b.reservation_id) !== selfResId)
+      : availabilityBlocks;
     const blocksForDate = date
-      ? availabilityBlocks.filter(b =>
+      ? nonSelfBlocks.filter(b =>
           dayjs(date).endOf('day').isAfter(b.start) && dayjs(date).startOf('day').isBefore(b.end)
         )
       : [];
+    const isOrigDay = date ? isOriginalDate(date) : false;
     const isHourBlocked = (hour) => {
       if (!date) return false;
+      if (isOrigDay) return false;
       const startOfHour = dayjs(date).hour(hour).minute(0).second(0);
       const endOfHour = startOfHour.add(1, 'hour');
       // Default: block if the hour slot [startOfHour, endOfHour) overlaps any block
-      const overlaps = availabilityBlocks.some(b => startOfHour.isBefore(b.end) && endOfHour.isAfter(b.start));
+      const overlaps = nonSelfBlocks.some(b => startOfHour.isBefore(b.end) && endOfHour.isAfter(b.start));
       if (overlaps) return true;
       // Inclusive end-hour rule: if a block ends exactly at the top of an hour (e.g., 17:00),
       // also disable that hour (e.g., 5 PM) so 13:00–17:00 blocks 1 PM through 5 PM (5 hours).
-      const inclusiveEndHit = availabilityBlocks.some(b =>
+      const inclusiveEndHit = nonSelfBlocks.some(b =>
         b.end.minute() === 0 && b.end.second() === 0 && startOfHour.isSame(b.end, 'hour')
       );
       return inclusiveEndHit;
@@ -1503,9 +1529,14 @@ const RescheduleModal = ({
     const key = cur.format('YYYY-MM-DD');
     const status = dayStatuses[key];
     let bg = null;
-    if (status === 'available') bg = '#ECFDF5'; // green-50
-    else if (status === 'partial') bg = '#FEF3C7'; // amber-100
-    else if (status === 'reserved') bg = '#E5E7EB'; // gray-200
+    // Do not visually reflect block styling on original start/end days (or any day inside the original range)
+    if (isOriginalDate(cur)) {
+      bg = '#E0F2FE'; // light-blue highlight to indicate selectable original day
+    } else {
+      if (status === 'available') bg = '#ECFDF5'; // green-50
+      else if (status === 'partial') bg = '#FEF3C7'; // amber-100
+      else if (status === 'reserved') bg = '#E5E7EB'; // gray-200
+    }
     const style = bg ? { backgroundColor: bg, borderRadius: 6 } : undefined;
     return (
       <div className="ant-picker-cell-inner" style={style}>{cur.date()}</div>

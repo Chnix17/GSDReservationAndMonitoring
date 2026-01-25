@@ -771,9 +771,25 @@ class Assigned {
             }
             unset($res); // Unset the last reference
     
-            // Filter reservations that have associated items
+            // Filter reservations: must have at least one checklist item with assigned personnel
             $filteredReservations = array_filter($reservations, function($res) {
-                return !empty($res['venues']) || !empty($res['vehicles']) || !empty($res['equipments']);
+                $hasChecklistWithPersonnel = function($items) {
+                    if (empty($items) || !is_array($items)) return false;
+                    foreach ($items as $item) {
+                        if (!empty($item['checklists']) && is_array($item['checklists'])) {
+                            foreach ($item['checklists'] as $cl) {
+                                if (!empty($cl['personnel_id'])) {
+                                    return true;
+                                }
+                            }
+                        }
+                    }
+                    return false;
+                };
+
+                return $hasChecklistWithPersonnel($res['venues'] ?? [])
+                    || $hasChecklistWithPersonnel($res['vehicles'] ?? [])
+                    || $hasChecklistWithPersonnel($res['equipments'] ?? []);
             });
     
             // Final return

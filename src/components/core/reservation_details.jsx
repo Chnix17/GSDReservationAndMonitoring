@@ -283,7 +283,7 @@ const ReservationDetails = ({
     const rescheduleConfirmedStatus = statusArr.find(s => {
         const name = (s.status_name || '').toLowerCase();
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
-        return (name === 'reschedule confirmed' || String(s.status_id) === '14') && activeVal === 1;
+        return (name === 'Reschedule' || String(s.status_id) === '10') && activeVal === 1;
     });
     const venueChanges = Array.isArray(reservationDetails.venues)
         ? reservationDetails.venues.filter(v => (
@@ -308,9 +308,9 @@ const ReservationDetails = ({
     const isCompleted = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'completed' && Number(s.reservation_active) === 1);
     const canShowTripTicket = isReservedActive || isOnGoing || isCompleted;
     const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
-    const hasRescheduleProposal = !!pendingRescheduleStatus || !!(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) || hasVenueChange || hasVehicleChange;
+    const hasRescheduleProposal = false;
     const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
-    const showReschedulePendingCard = hasRescheduleProposal && !isCancelledActive && !rescheduleConfirmedStatus && !hasActiveReschedule;
+    const showReschedulePendingCard = false;
 
     // Effective dates
     const startDateStr = (hasActiveReschedule && reservationDetails.reschedule_start_date)
@@ -322,7 +322,7 @@ const ReservationDetails = ({
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
     const currentStatusName = String(localReservationDetails?.status_name || reservationDetails?.status_name || '').toLowerCase();
-    const allowsCancellation = currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'reschedule confirmed';
+    const allowsCancellation = currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'rescheduled';
     const allowsEditSchedule = currentStatusName === 'reserved' || isReservedActive;
 
     const cellRender = (current, info) => {
@@ -458,7 +458,7 @@ const ReservationDetails = ({
                         const reservationActive = parseInt(res.reservation_active);
                         const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
 
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             allBlocks.push({ start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) });
                         } else if (statusId === 10 && hasReschedule) {
                             allBlocks.push(
@@ -471,7 +471,7 @@ const ReservationDetails = ({
 
                         let resStart;
                         let resEnd;
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             resStart = dayjs(res.reschedule_start_date);
                             resEnd = dayjs(res.reschedule_end_date);
                         } else if (statusId === 10 && hasReschedule) {
@@ -514,7 +514,7 @@ const ReservationDetails = ({
                         const reservationActive = parseInt(res.reservation_active);
                         const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
 
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             allBlocks.push({ start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) });
                         } else if (statusId === 10 && hasReschedule) {
                             allBlocks.push(
@@ -527,7 +527,7 @@ const ReservationDetails = ({
 
                         let resStart;
                         let resEnd;
-                        if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
                             resStart = dayjs(res.reschedule_start_date);
                             resEnd = dayjs(res.reschedule_end_date);
                         } else if (statusId === 10 && hasReschedule) {
@@ -693,21 +693,37 @@ const ReservationDetails = ({
 
             const reservationId = localReservationDetails?.reservation_id || reservationDetails?.reservation_id;
 
-            const response = await axios.post(`${baseUrl}faculty&staff.php`, {
-                operation: 'updateReservationDetails',
+            // Determine which venue/vehicle IDs to include for conflict checking on backend
+            const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+            const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+            const newVenueIds = Array.isArray(values?.venueIds) ? values.venueIds : [];
+            const newVehicleIds = Array.isArray(values?.vehicleIds) ? values.vehicleIds : [];
+            const venueIdsForCheck = (newVenueIds && newVenueIds.length > 0)
+                ? newVenueIds
+                : currentVenues.map(v => v.venue_id || v.ven_id).filter(Boolean);
+            const vehicleIdsForCheck = (newVehicleIds && newVehicleIds.length > 0)
+                ? newVehicleIds
+                : currentVehicles.map(v => v.vehicle_id).filter(Boolean);
+
+            // Update only reschedule dates, do not overwrite original reservation_start_date/end_date
+            const response = await axios.post(`${baseUrl}reservation.php`, {
+                operation: 'updateReservationReschedule',
                 reservation_id: reservationId,
-                title: values.title,
-                description: values.description,
-                start_date: startDateTime,
-                end_date: endDateTime,
-                userId: parseInt(userId)
+                reschedule_start_date: startDateTime,
+                reschedule_end_date: endDateTime,
+                user_admin_id: SecureStorage.getLocalItem('user_id'),
+                venue_ids: venueIdsForCheck,
+                vehicle_ids: vehicleIdsForCheck
             });
 
             if (response.data?.status === 'success') {
-                const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
-                const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
-                const newVenueIds = Array.isArray(values?.venueIds) ? values.venueIds : [];
-                const newVehicleIds = Array.isArray(values?.vehicleIds) ? values.vehicleIds : [];
+
+                // Optimistically update local details so UI reflects new reschedule dates
+                setLocalReservationDetails(prev => ({
+                    ...(prev || {}),
+                    reschedule_start_date: startDateTime,
+                    reschedule_end_date: endDateTime
+                }));
 
                 const venueChangesToApply = currentVenues
                     .map((v, idx) => {
@@ -769,9 +785,11 @@ const ReservationDetails = ({
                     }
                 }
 
-                toast.success('Reservation details updated successfully!');
+                toast.success('Reservation rescheduled successfully!');
                 setIsEditMode(false);
-                if (onRefresh) onRefresh();
+                if (onRefresh) {
+                    try { await onRefresh(); } catch (_) { /* noop */ }
+                }
             } else {
                 toast.error(response.data?.message || 'Failed to update reservation details');
             }

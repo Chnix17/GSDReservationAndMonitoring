@@ -1,7 +1,7 @@
 import React from 'react';
 import { Form, Input, Button, Card, Empty, Typography } from 'antd';
 import { UserOutlined, InfoCircleOutlined, PlusOutlined } from '@ant-design/icons';
-import { FaTools, FaTimes } from 'react-icons/fa';
+import { FaTimes } from 'react-icons/fa';
 // removed framer-motion wrapper to avoid double container
 
 const { TextArea } = Input;
@@ -11,11 +11,11 @@ const BasicInformationForm = ({
   formData,
   handleInputChange,
   isMobile,
-  showEquipmentModal,
-  setShowEquipmentModal,
+  // showEquipmentModal,
+  // setShowEquipmentModal,
   selectedVenueEquipment,
   equipment,
-  showPassengerModal,
+  // showPassengerModal,
   setShowPassengerModal,
   handleRemovePassenger,
   renderDriverDropdown,
@@ -233,60 +233,7 @@ const BasicInformationForm = ({
               )}
             </Form.Item>
 
-            <Form.Item
-              label={
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Equipment</span>
-                  {/* Hide Add Equipment button for venue */}
-                </div>
-              }
-            >
-              {Object.keys(selectedVenueEquipment).length > 0 ? (
-                <div className="max-h-[300px] overflow-y-auto rounded-lg border border-gray-200 shadow-inner">
-                  <ul className="divide-y divide-gray-200">
-                    {Object.entries(selectedVenueEquipment).map(([equipId, quantity]) => {
-                      const equip = equipment?.find(e => String(e?.equip_id) === String(equipId) || String(e?.equipment_id) === String(equipId));
-                      if (!equip || quantity <= 0) return null;
-                      
-                      return (
-                        <li 
-                          key={equipId} 
-                          className="p-3 hover:bg-gray-50 transition-colors flex items-center justify-between group"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 bg-green-50 rounded-lg group-hover:bg-green-100 transition-colors">
-                              <FaTools className="text-green-600" />
-                            </div>
-                            <div className="flex flex-col">
-                              <span className="font-medium text-gray-900">
-                                {equip.equipment_name || equip.equip_name || 'Unknown Equipment'}
-                              </span>
-                              <span className="text-sm text-gray-500">
-                                {equip.equipment_category_name || equip.category_name || 'No Category'}
-                              </span>
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">
-                              Qty: {quantity}
-                            </span>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                </div>
-              ) : (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description={
-                    <span className="text-gray-500">
-                      No equipment added yet. Click "Add Equipment" to begin.
-                    </span>
-                  }
-                />
-              )}
-            </Form.Item>
+          
             <Form.Item
               label={<span className="text-sm">Additional Note</span>}
             >
