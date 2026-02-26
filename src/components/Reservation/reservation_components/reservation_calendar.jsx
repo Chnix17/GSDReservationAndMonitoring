@@ -86,6 +86,9 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
   const [errorToastShown, setErrorToastShown] = useState(false); // Prevent duplicate error toasts
   const [loadingTimeout, setLoadingTimeout] = useState(false); // Track if loading took too long
   const [isCalendarReady, setIsCalendarReady] = useState(false); // Track if calendar is ready to use
+  const [showReservationsListModal, setShowReservationsListModal] = useState(false);
+  const [reservationsListPage, setReservationsListPage] = useState(1);
+  const reservationsPerPage = 10;
 
   // Helper function to handle network errors (show toast only once) - MUST BE DEFINED BEFORE USEEFFECTS
   const handleNetworkError = useCallback(() => {
@@ -4641,6 +4644,112 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
   );
 };
 
+  const renderReservationsListModal = () => {
+    // Sort reservations by start date (newest first)
+    const sortedReservations = [...reservations].sort((a, b) => 
+      new Date(b.startDate) - new Date(a.startDate)
+    );
+
+    // Calculate pagination
+    const totalPages = Math.ceil(sortedReservations.length / reservationsPerPage);
+    const startIndex = (reservationsListPage - 1) * reservationsPerPage;
+    const endIndex = startIndex + reservationsPerPage;
+    const currentReservations = sortedReservations.slice(startIndex, endIndex);
+
+    const handlePageChange = (newPage) => {
+      if (newPage >= 1 && newPage <= totalPages) {
+        setReservationsListPage(newPage);
+      }
+    };
+
+    return (
+      <Dialog
+        open={showReservationsListModal}
+        onClose={() => setShowReservationsListModal(false)}
+        className="relative z-50"
+      >
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm" aria-hidden="true" />
+        <div className="fixed inset-0 flex items-center justify-center p-2 sm:p-4">
+          <Dialog.Panel className="bg-white dark:bg-gray-800 rounded-xl shadow-xl p-4 sm:p-6 w-full max-w-4xl max-h-[90vh] overflow-hidden border border-gray-200 dark:border-gray-700/30">
+            <div className="flex items-center justify-between mb-4">
+              <Dialog.Title className="text-lg sm:text-xl font-semibold text-gray-900 dark:text-gray-100">
+                Existing Reservations ({sortedReservations.length})
+              </Dialog.Title>
+              <button
+                onClick={() => setShowReservationsListModal(false)}
+                className="p-1.5 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700 text-gray-500 dark:text-gray-400"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {currentReservations.map((reservation, index) => {
+                const startDate = new Date(reservation.startDate);
+                const endDate = new Date(reservation.endDate);
+                const isSameDay = startDate.toDateString() === endDate.toDateString();
+                
+                return (
+                  <div key={reservation.reservation_id || index} className="p-3 bg-gray-50 dark:bg-gray-700/50 rounded-lg border border-gray-200 dark:border-gray-600">
+                    {isSameDay ? (
+                      // Single day reservation - show date and duration
+                      <div className="text-sm text-gray-900 dark:text-gray-100">
+                        <span className="font-medium">{format(startDate, 'MMM dd, yyyy')}</span> - 
+                        <span className="ml-2">{format(startDate, 'h:mm a')} to {format(endDate, 'h:mm a')}</span>
+                      </div>
+                    ) : (
+                      // Multi-day reservation - show start date/time and end date/time
+                      <div className="text-sm text-gray-900 dark:text-gray-100">
+                        <div>{format(startDate, 'MMM dd, h:mm a')}</div>
+                        <div className="text-gray-600 dark:text-gray-400">until {format(endDate, 'MMM dd, h:mm a')}</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            {sortedReservations.length === 0 && (
+              <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                No reservations found
+              </div>
+            )}
+
+            {/* Pagination */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-200 dark:border-gray-700">
+                <div className="text-sm text-gray-600 dark:text-gray-400">
+                  Showing {startIndex + 1} to {Math.min(endIndex, sortedReservations.length)} of {sortedReservations.length} reservations
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => handlePageChange(reservationsListPage - 1)}
+                    disabled={reservationsListPage === 1}
+                    className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-600 dark:text-gray-400">
+                    Page {reservationsListPage} of {totalPages}
+                  </span>
+                  <button
+                    onClick={() => handlePageChange(reservationsListPage + 1)}
+                    disabled={reservationsListPage === totalPages}
+                    className="px-3 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed text-gray-700 dark:text-gray-300"
+                  >
+                    Next
+                  </button>
+                </div>
+              </div>
+            )}
+          </Dialog.Panel>
+        </div>
+      </Dialog>
+    );
+  };
+
   // Add this new function to render the driver warning modal
   const renderDriverWarningModal = () => {
     // Check driver sufficiency for the pending selection
@@ -5509,6 +5618,18 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                 →
               </button>
             </div>
+            <button
+              onClick={() => {
+                setShowReservationsListModal(true);
+                setReservationsListPage(1);
+              }}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-medium rounded-lg transition-colors shadow-sm flex items-center gap-1"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clipRule="evenodd" />
+              </svg>
+              View Reservations
+            </button>
           </div>
         </div>
 
@@ -5530,6 +5651,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
         {renderTimeSelectionModal()}
         {renderConflictModal()}
         {renderDateTimeSelectionModal()}
+        {renderReservationsListModal()}
         <DayDetailsModal />
         {renderDriverWarningModal()}
       </div>

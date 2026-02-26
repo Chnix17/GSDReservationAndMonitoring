@@ -8,7 +8,7 @@
 // define('PUSH_NOTIFICATION_URL', 'https://peachpuff-alligator-715719.hostingersite.com/gsd/api/server/send-push-notification.php');
 
 // Alternative URLs for different environments (if needed)
-define('PUSH_NOTIFICATION_URL', 'http://localhost/gsd-reservation-main1/gsd-reservation-main/backend/server/send-push-notification.php');
+define('PUSH_NOTIFICATION_URL', 'http://localhost/gsd-reservation-main/send-push-notification.php');
 // define('PUSH_NOTIFICATION_URL', 'http://coc-studentinfo.net/gsd/grms/backend/server/send-push-notification.php');
 // define('PUSH_NOTIFICATION_URL_STAGING', 'https://staging.example.com/gsd/api/server/send-push-notification.php');
 

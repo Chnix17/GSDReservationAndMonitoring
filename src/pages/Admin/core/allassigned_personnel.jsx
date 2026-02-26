@@ -138,7 +138,7 @@ const AllAssignedPersonnel = ({ isOpen, onClose, reservationData, onStatusUpdate
         <Button key="close" onClick={onClose}>
           Close
         </Button>,
-        canMarkAsDone && (
+        (
           <Button 
             key="markAsDone" 
             type="primary"
@@ -146,6 +146,7 @@ const AllAssignedPersonnel = ({ isOpen, onClose, reservationData, onStatusUpdate
             icon={<CheckCircleOutlined />}
             onClick={handleMarkAsDone}
             loading={isMarkingAsDone}
+            disabled={isAlreadyCompleted}
           >
             Mark Reservation as Done
           </Button>
