@@ -3946,7 +3946,7 @@ class Reservation {
             // 3) Insert status_id 3 with active=1
             $insertStatus3Sql = "INSERT INTO tbl_reservation_status
                 (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id)
-                VALUES (3, :reservation_id, 1, NOW(), :user_admin_id)";
+                VALUES (10, :reservation_id, 1, NOW(), :user_admin_id)";
             $insertStatus3Stmt = $this->conn->prepare($insertStatus3Sql);
             $insertStatus3Stmt->bindValue(':reservation_id', (int)$reservation_id, PDO::PARAM_INT);
             if ($user_admin_id === null || $user_admin_id === '') {

@@ -118,6 +118,22 @@ const Record = () => {
     fetchReservations(url);
   }, [fetchReservations]);
 
+  // Listen for reservation data changes and refresh
+  useEffect(() => {
+    const handleReservationDataChange = (event) => {
+      console.log('Reservation data changed:', event.detail);
+      if (baseUrl) {
+        fetchReservations(baseUrl);
+      }
+    };
+
+    window.addEventListener('reservation-data-changed', handleReservationDataChange);
+    
+    return () => {
+      window.removeEventListener('reservation-data-changed', handleReservationDataChange);
+    };
+  }, [fetchReservations, baseUrl]);
+
   const consolidateReservations = (data) => {
     return data.map((item) => ({
       key: item.reservation_id,
@@ -254,10 +270,10 @@ const Record = () => {
 
   // Compact human-friendly date range for table/cards
   const formatDateRange = (record) => {
-    // Use reschedule dates if status is "Reschedule Confirmed" and reschedule dates exist
-    const isRescheduleConfirmed = record.status === 'Reschedule Confirmed';
-    const start = isRescheduleConfirmed && record.reschedule_start_date ? record.reschedule_start_date : record.start_date;
-    const end = isRescheduleConfirmed && record.reschedule_end_date ? record.reschedule_end_date : record.end_date;
+    // Use reschedule dates if they exist, regardless of status
+    const hasRescheduleDates = record.reschedule_start_date && record.reschedule_end_date;
+    const start = hasRescheduleDates ? record.reschedule_start_date : record.start_date;
+    const end = hasRescheduleDates ? record.reschedule_end_date : record.end_date;
     
     if (!start || !end) return "-";
     const s = moment(start);

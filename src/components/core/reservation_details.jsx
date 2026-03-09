@@ -9,7 +9,7 @@ import {
     DownOutlined,
     RightOutlined,
     CloseOutlined,
-    EditOutlined,
+    // EditOutlined,
     SaveOutlined
 } from '@ant-design/icons';
 import { useMediaQuery } from 'react-responsive';
@@ -275,11 +275,11 @@ const ReservationDetails = ({
 
     // Detect reschedule and resource changes
     const statusArr = reservationDetails.status_history || reservationDetails.statusHistory || [];
-    const pendingRescheduleStatus = statusArr.find(s => {
-        const name = (s.status_name || '').toLowerCase();
-        const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
-        return (name.includes('reschedule') || String(s.status_id) === '10') && activeVal === 0;
-    });
+    // const pendingRescheduleStatus = statusArr.find(s => {
+    //     const name = (s.status_name || '').toLowerCase();
+    //     const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
+    //     return (name.includes('reschedule') || String(s.status_id) === '10') && activeVal === 0;
+    // });
     const rescheduleConfirmedStatus = statusArr.find(s => {
         const name = (s.status_name || '').toLowerCase();
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
@@ -307,23 +307,25 @@ const ReservationDetails = ({
     const isOnGoing = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'on going' && Number(s.reservation_active) === 1);
     const isCompleted = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'completed' && Number(s.reservation_active) === 1);
     const canShowTripTicket = isReservedActive || isOnGoing || isCompleted;
-    const hasActiveReschedule = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1);
-    const hasRescheduleProposal = false;
-    const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
+    const hasActiveReschedule = normalizedStatusHistory.some(s => 
+        String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 1
+    ) || (String(localReservationDetails?.status_name || '').toLowerCase() === 'reschedule' && Number(localReservationDetails?.active) === 1);
+    // const hasRescheduleProposal = false;
+    // const isCancelledActive = normalizedStatusHistory.some(s => String(s.status_name).toLowerCase() === 'cancelled' && Number(s.reservation_active) === 1);
     const showReschedulePendingCard = false;
 
-    // Effective dates
-    const startDateStr = (hasActiveReschedule && reservationDetails.reschedule_start_date)
-        ? reservationDetails.reschedule_start_date
-        : reservationDetails.reservation_start_date;
-    const endDateStr = (hasActiveReschedule && reservationDetails.reschedule_end_date)
-        ? reservationDetails.reschedule_end_date
-        : reservationDetails.reservation_end_date;
+    // Effective dates - use localReservationDetails for latest data
+    const startDateStr = (hasActiveReschedule && localReservationDetails.reschedule_start_date)
+        ? localReservationDetails.reschedule_start_date
+        : localReservationDetails.reservation_start_date;
+    const endDateStr = (hasActiveReschedule && localReservationDetails.reschedule_end_date)
+        ? localReservationDetails.reschedule_end_date
+        : localReservationDetails.reservation_end_date;
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
     const currentStatusName = String(localReservationDetails?.status_name || reservationDetails?.status_name || '').toLowerCase();
-    const allowsCancellation = currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'rescheduled';
-    const allowsEditSchedule = currentStatusName === 'reserved' || isReservedActive;
+    const allowsCancellation = currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'reschedule' || currentStatusName === 'rescheduled';
+    const allowsEditSchedule = currentStatusName === 'reserved' || currentStatusName === 'reschedule' || currentStatusName === 'reschedule confirmed' || isReservedActive;
 
     const cellRender = (current, info) => {
         if (info?.type !== 'date') return info?.originNode;
@@ -358,6 +360,22 @@ const ReservationDetails = ({
     const disabledDate = (current) => {
         if (!current) return false;
         return isRedDay(current);
+    };
+
+    const disabledEndDate = (current) => {
+        if (!current) return false;
+        
+        // First check if it's a red day
+        if (isRedDay(current)) return true;
+        
+        // Get the start date from the form
+        const startDate = editForm.getFieldValue('startDate');
+        if (startDate) {
+            // Disable dates before the start date
+            return current.isBefore(dayjs(startDate), 'day');
+        }
+        
+        return false;
     };
 
     const getBlockedHoursForDate = (date) => {
@@ -787,9 +805,44 @@ const ReservationDetails = ({
 
                 toast.success('Reservation rescheduled successfully!');
                 setIsEditMode(false);
+                
+                // Refresh the reservation details from server to get latest data
+                console.log('Starting refresh after reschedule, baseUrl:', baseUrl, 'reservationId:', reservationId);
+                try {
+                    if (!baseUrl || !reservationId) {
+                        console.error('Missing baseUrl or reservationId for refresh');
+                        return;
+                    }
+                    
+                    const refreshResponse = await axios.post(`${baseUrl}reservation.php`, {
+                        operation: 'fetchRequestById',
+                        reservation_id: reservationId,
+                    }, {
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                    });
+
+                    console.log('Refresh response:', refreshResponse.data);
+                    if (refreshResponse.data?.status === 'success' && refreshResponse.data.data) {
+                        setLocalReservationDetails(refreshResponse.data.data);
+                        console.log('Successfully updated local reservation details');
+                    } else {
+                        console.error('Refresh failed:', refreshResponse.data?.message);
+                    }
+                } catch (error) {
+                    console.error('Error refreshing reservation details:', error);
+                }
+                
                 if (onRefresh) {
                     try { await onRefresh(); } catch (_) { /* noop */ }
                 }
+                
+                // Dispatch custom event to refresh data in other components
+                const refreshEvent = new CustomEvent('reservation-data-changed', { 
+                    detail: { action: 'rescheduled', reservationId } 
+                });
+                window.dispatchEvent(refreshEvent);
             } else {
                 toast.error(response.data?.message || 'Failed to update reservation details');
             }
@@ -842,6 +895,12 @@ const ReservationDetails = ({
                 setShowCancelModal(false);
                 onClose();
                 if (onRefresh) onRefresh();
+                
+                // Dispatch custom event to refresh data in other components
+                const refreshEvent = new CustomEvent('reservation-data-changed', { 
+                    detail: { action: 'cancelled', reservationId } 
+                });
+                window.dispatchEvent(refreshEvent);
             } else {
                 toast.error(result?.message || 'Failed to cancel reservation');
             }
@@ -968,7 +1027,7 @@ const ReservationDetails = ({
                                                     <CalendarOutlined className="text-orange-500" />
                                                     Schedule & Details
                                                 </h3>
-                                                {!isEditMode && allowsEditSchedule && (
+                                                {/* {!isEditMode && allowsEditSchedule && (
                                                     <Button
                                                         type="text"
                                                         icon={<EditOutlined />}
@@ -978,7 +1037,7 @@ const ReservationDetails = ({
                                                     >
                                                         Reschedule
                                                     </Button>
-                                                )}
+                                                )} */}
                                             </div>
                                             <div className="space-y-3">
                                                 {isEditMode ? (
@@ -1104,7 +1163,7 @@ const ReservationDetails = ({
                                                                     format="YYYY-MM-DD"
                                                                     className="w-full"
                                                                     cellRender={cellRender}
-                                                                    disabledDate={disabledDate}
+                                                                    disabledDate={disabledEndDate}
                                                                 />
                                                             </Form.Item>
                                                             <Form.Item

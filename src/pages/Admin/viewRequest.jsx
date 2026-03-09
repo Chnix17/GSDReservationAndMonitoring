@@ -2565,18 +2565,11 @@ const DetailModal = ({
                 toast.info('No changes to update.');
             } else {
                 toast.success('Reservation rescheduled successfully');
-                // Refresh the reservations data to show updated status
-                await fetchReservations();
+                 onClose();
+             
             }
 
-            try {
-                await fetchReservationDetails(currentRequest?.reservation_id || reservationDetails?.reservation_id);
-            } catch (refreshErr) {
-                console.error('Error refreshing details after reschedule:', refreshErr);
-                if (!refreshErr.response) {
-                    toast.error('Network error: Unable to connect to server. Please check your internet connection.');
-                }
-            }
+         
         } catch (error) {
             console.error('[ViewRequest] Error in handleReschedule:', error);
             if (!error.response) {
@@ -3616,7 +3609,7 @@ const DetailModal = ({
                                             toast.error(firstError);
                                             return;
                                         }
-                                        didUpdateSomething = true;
+                                        didUpdateSomething = false;
                                     }
                                 }
 
@@ -3626,8 +3619,7 @@ const DetailModal = ({
                                         icon: '✅',
                                         duration: 3000,
                                     });
-                                    setIsRescheduleModalOpen(false);
-                                    await fetchReservationDetails(reservationDetails?.reservation_id);
+                                  
                                 } else {
                                     console.log('[ViewRequest] No changes were made during reschedule');
                                     toast.info('No changes were made to the reservation.');
@@ -4063,12 +4055,7 @@ const DetailModal = ({
 
                                         // Success path
                                         toast.success('Reservation rescheduled successfully');
-                                        setIsRescheduleModalOpen(false);
-                                        try {
-                                            await fetchReservationDetails(currentRequest?.reservation_id || reservationDetails?.reservation_id);
-                                        } catch (refreshErr) {
-                                            console.error('Error refreshing details after reschedule:', refreshErr);
-                                        }
+                                        
                                     } catch (error) {
                                         console.error('[ViewRequest] ===== ERROR IN onReschedule =====');
                                         console.error('[ViewRequest] Error during reschedule:', error);

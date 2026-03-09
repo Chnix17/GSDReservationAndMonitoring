@@ -334,6 +334,20 @@ const Calendar = () => {
     fetchTickets();
   }, [fetchReservations, fetchTickets]);
 
+  // Listen for reservation data changes and refresh
+  useEffect(() => {
+    const handleReservationDataChange = (event) => {
+      console.log('Calendar: Reservation data changed:', event.detail);
+      refreshCalendarData();
+    };
+
+    window.addEventListener('reservation-data-changed', handleReservationDataChange);
+    
+    return () => {
+      window.removeEventListener('reservation-data-changed', handleReservationDataChange);
+    };
+  }, [refreshCalendarData]);
+
   const isDateInRange = (date, startDate, endDate) => {
     const compareDate = new Date(date);
     compareDate.setHours(0, 0, 0, 0);

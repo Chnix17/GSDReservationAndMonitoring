@@ -271,34 +271,14 @@ class FacultyStaff {
             ]);
         }
 
-        // Prevent cancellation if Admin Approved/Processing (status 7) is active
-        $sqlCheckStatus = "
-            SELECT COUNT(*) as status_count 
-            FROM tbl_reservation_status 
-            WHERE reservation_reservation_id = :reservation_id 
-            AND reservation_status_status_id = 7 
-            AND reservation_active = 1
-        ";
-        $stmtCheckStatus = $this->conn->prepare($sqlCheckStatus);
-        $stmtCheckStatus->bindValue(':reservation_id', $reservationId, PDO::PARAM_INT);
-        $stmtCheckStatus->execute();
-        $statusCheck = $stmtCheckStatus->fetch(PDO::FETCH_ASSOC);
-
-        if (!empty($statusCheck['status_count']) && $statusCheck['status_count'] > 0) {
-            $this->conn->rollBack();
-            return json_encode([
-                'status' => 'error',
-                'message' => 'Reservation cannot be cancelled. It is already being processed by admin.',
-                'reservation_id' => $reservationId
-            ]);
-        }
+    
 
         // Prevent cancellation if Ongoing (status 9) is active
         $sqlCheckOngoing = "
             SELECT COUNT(*) as status_count 
             FROM tbl_reservation_status 
             WHERE reservation_reservation_id = :reservation_id 
-            AND reservation_status_status_id = 9 
+            AND reservation_status_status_id = 9
             AND reservation_active = 1
         ";
         $stmtCheckOngoing = $this->conn->prepare($sqlCheckOngoing);

@@ -633,9 +633,9 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         const advDays = getVenueAdvanceDays();
         minDate.setDate(minDate.getDate() + advDays);
       } else if (selectedResource?.type === 'equipment' || selectedResource?.type === 'vehicle') {
-        minDate.setDate(minDate.getDate() + 3); // 3 days (same as venues)
+        minDate.setDate(minDate.getDate() + 2); // 3 days (same as venues)
       } else {
-        minDate.setDate(minDate.getDate() + 3); // Default fallback (same as venues)
+        minDate.setDate(minDate.getDate() + 2); // Default fallback (same as venues)
       }
     // }
     return minDate;
@@ -4339,7 +4339,7 @@ const getDriverAvailabilityForTimeSlot = (date, hour) => {
                     return true;
                   }
                   // Limit end date to maximum 3 days from start date
-                  const maxEndDate = dayjs(dateRange.start).add(3, 'day').startOf('day');
+                  const maxEndDate = dayjs(dateRange.start).add(2, 'day').startOf('day');
                   if (current > maxEndDate) {
                     return true;
                   }

@@ -1117,9 +1117,9 @@ const ReservationDetails = ({
 
     // New approach: Only show reschedule card if there's an active pending reschedule that needs user response
     // Check if there's a pending Reschedule status (active: 0) AND no newer finalized status after it
-    const pendingRescheduleEntry = normalizedStatusHistory.find(s =>
-        String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 0
-    );
+    // const pendingRescheduleEntry = normalizedStatusHistory.find(s =>
+    //     String(s.status_name).toLowerCase() === 'reschedule' && Number(s.reservation_active) === 0
+    // );
 
     // If there's a pending reschedule, check if there's any newer status that would override it
     const showReschedulePendingCard = false;
@@ -1141,7 +1141,7 @@ const ReservationDetails = ({
     // Status-based button logic based on requirements:
     // - If status is "Proccessed" (status_id 7): disable both Request Reschedule and Cancel Reservation
     // - Enable Request Reschedule if status is "Reschedule" or "Reserved" (but NOT "Reschedule Confirmed")
-    // - Enable Cancel Reservation if status is "Pending" or "Reserved" or "Reschedule Confirmed"
+    // - Enable Cancel Reservation if status is "Pending" or "Reserved" or "Reschedule" or "Reschedule Confirmed"
 
     const currentStatusId = localReservationDetails.status_id;
     const currentStatusName = localReservationDetails.status_name?.toLowerCase();
@@ -1152,8 +1152,8 @@ const ReservationDetails = ({
     // Check if status allows reschedule (Reschedule or Reserved, but not Processed, and NOT Reschedule Confirmed)
     // const allowsReschedule = (currentStatusName === 'reschedule' || currentStatusName === 'reserved') && !isBeingProcessed && !rescheduleConfirmedStatus;
 
-    // Check if status allows cancellation (Pending or Reserved, but not Processed, OR Reschedule Confirmed)
-    const allowsCancellation = ((currentStatusName === 'pending' || currentStatusName === 'reserved') && !isBeingProcessed) || !!rescheduleConfirmedStatus;
+    // Check if status allows cancellation (Pending, Reserved, Reschedule, but not Processed, OR Reschedule Confirmed)
+    const allowsCancellation = ((currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'reschedule') && !isBeingProcessed) || !!rescheduleConfirmedStatus;
 
     // Final disable logic for Cancel and Reschedule buttons
     // For Pending status, allow cancellation even if active is 0 (not yet processed)
