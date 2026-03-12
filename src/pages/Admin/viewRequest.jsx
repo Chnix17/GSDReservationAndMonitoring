@@ -48,6 +48,9 @@ const ReservationRequests = () => {
     const [errorMessage, setErrorMessage] = useState('');
     const [isRescheduleErrorModalOpen, setIsRescheduleErrorModalOpen] = useState(false);
     const [rescheduleErrorMessage, setRescheduleErrorMessage] = useState('');
+    const [isRescheduleDecisionModalOpen, setIsRescheduleDecisionModalOpen] = useState(false);
+    const [rescheduleDecisionAction, setRescheduleDecisionAction] = useState(null);
+    const [rescheduleDecisionReason, setRescheduleDecisionReason] = useState('');
     const [currentRequest, setCurrentRequest] = useState(null);
     const [reservationDetails, setReservationDetails] = useState(null);
     const [filter] = useState('All');
@@ -554,14 +557,14 @@ const ReservationRequests = () => {
     const handlePriorityCheck = async (reservationId) => {
         try {
             // Prefer reschedule dates when present or when status is Change Request
-            const hasRescheduleDates = !!(reservationDetails.reschedule_start_date && reservationDetails.reschedule_end_date);
-            const isChangeRequest = reservationDetails.status_name === "Change Request";
-            const startDateTime = (hasRescheduleDates || isChangeRequest) && reservationDetails.reschedule_start_date
+            const hasRescheduleDates = !!(reservationDetails?.reschedule_start_date && reservationDetails?.reschedule_end_date);
+            const isChangeRequest = reservationDetails?.status_name === "Change Request";
+            const startDateTime = (hasRescheduleDates || isChangeRequest) && reservationDetails?.reschedule_start_date
                 ? reservationDetails.reschedule_start_date
-                : reservationDetails.reservation_start_date;
-            const endDateTime = (hasRescheduleDates || isChangeRequest) && reservationDetails.reschedule_end_date
+                : reservationDetails?.reservation_start_date;
+            const endDateTime = (hasRescheduleDates || isChangeRequest) && reservationDetails?.reschedule_end_date
                 ? reservationDetails.reschedule_end_date
-                : reservationDetails.reservation_end_date;
+                : reservationDetails?.reservation_end_date;
 
             const checkResponse = await axios.post(`${encryptedUrl}reservation.php`, {
                 operation: 'doubleCheckAvailability',
@@ -575,19 +578,19 @@ const ReservationRequests = () => {
                 const conflictingUsers = data.reservation_users || [];
                 
                 // Check if any of the requested resources are actually in conflict
-                const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
+                const hasVenueConflict = reservationDetails?.venues?.some(requestedVenue => 
                     data.unavailable_venues?.some(unavailableVenue => 
                         String(requestedVenue.venue_id) === String(unavailableVenue.ven_id)
                     )
                 );
 
-                const hasVehicleConflict = reservationDetails.vehicles?.some(requestedVehicle => 
+                const hasVehicleConflict = reservationDetails?.vehicles?.some(requestedVehicle => 
                     data.unavailable_vehicles?.some(unavailableVehicle => 
                         String(requestedVehicle.vehicle_id) === String(unavailableVehicle.vehicle_id)
                     )
                 );
 
-                const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
+                const hasEquipmentConflict = reservationDetails?.equipment?.some(requestedEquipment => {
                     const unavailableEquipment = data.unavailable_equipment?.find(
                         e => String(e.equip_id) === String(requestedEquipment.equipment_id)
                     );
@@ -617,8 +620,8 @@ const ReservationRequests = () => {
                 // If there are conflicts, check priority
                 if (hasAnyConflict && conflictingUsers.length > 0) {
                     // Get current user's level and department from reservation details
-                    const currentUserLevel = reservationDetails.user_level_name;
-                    const currentUserDepartment = reservationDetails.department_name;
+                    const currentUserLevel = reservationDetails?.user_level_name || '';
+                    const currentUserDepartment = reservationDetails?.department_name || '';
 
                     console.log("This is the current user level and department", currentUserLevel, currentUserDepartment);
 
@@ -690,10 +693,9 @@ const ReservationRequests = () => {
         setIsAccepting(true);
         try {
             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
-   
             if (reservationDetails?.status_name === "Change Request") {
                 const isFinalApproverForChange = Boolean(reservationDetails?.approval_sequence) && (() => {
-                    const approvers = reservationDetails.approval_sequence;
+                    const approvers = reservationDetails?.approval_sequence;
                     if (!Array.isArray(approvers) || approvers.length === 0) return false;
                     const sequences = approvers.map(a => parseInt(a.approval_sequence, 10)).filter(n => !Number.isNaN(n));
                     const maxSequence = Math.max(...sequences);
@@ -740,7 +742,7 @@ const ReservationRequests = () => {
 
             // Determine if current user is the FINAL approver in the approval sequence
             const isFinalApprover = reservationDetails?.approval_sequence && (() => {
-                const approvers = reservationDetails.approval_sequence;
+                const approvers = reservationDetails?.approval_sequence;
                 if (!approvers || approvers.length === 0) return true;
                 const maxSequence = Math.max(...approvers.map(a => a.approval_sequence));
                 const finalApprover = approvers.find(a => a.approval_sequence === maxSequence);
@@ -773,15 +775,15 @@ const ReservationRequests = () => {
                 // If there are conflicts, determine how to handle them
                 if (priorityCheckResult.needsOverride && priorityCheckResult.conflictingUsers && priorityCheckResult.conflictingUsers.length > 0) {
                     // Check if user is Department Head COO or Secretary GSD who can bypass completely
-                    const currentUserLevel = reservationDetails.user_level_name;
-                    const currentUserDepartment = reservationDetails.department_name;
+                    const currentUserLevel = reservationDetails?.user_level_name || '';
+                    const currentUserDepartment = reservationDetails?.department_name || '';
                     const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
                     const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
                     
                     // Check if current user is the final approver
                     const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
                     const isCurrentUserFinalApprover = reservationDetails?.approval_sequence && (() => {
-                        const approvers = reservationDetails.approval_sequence;
+                        const approvers = reservationDetails?.approval_sequence;
                         if (!approvers || approvers.length === 0) return true;
                         const maxSequence = Math.max(...approvers.map(a => a.approval_sequence));
                         const finalApprover = approvers.find(a => a.approval_sequence === maxSequence);
@@ -818,8 +820,8 @@ const ReservationRequests = () => {
             // const isDeptApprovalPending = departmentApproval?.reservation_active === 0;
 
             // Check if user can bypass conflicts for override parameter
-            const currentUserLevel = reservationDetails.user_level_name;
-            const currentUserDepartment = reservationDetails.department_name;
+            const currentUserLevel = reservationDetails?.user_level_name || '';
+            const currentUserDepartment = reservationDetails?.department_name || '';
             const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
             const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
             const canBypassConflicts = isDepartmentHeadFromCOO || isSecretaryFromGSD;
@@ -831,7 +833,7 @@ const ReservationRequests = () => {
                 user_id: SecureStorage.getLocalItem("user_id"),
                 override_lower_priority: canBypassConflicts,
                 notification_message: "Your Reservation Request Has Been Approved By GSD",
-                notification_user_id: reservationDetails.reservation_user_id,
+                notification_user_id: reservationDetails?.reservation_user_id || reservationDetails?.user_id,
                 driver_assignments: vehicleDriverAssignments
             });
 
@@ -846,7 +848,7 @@ const ReservationRequests = () => {
                 
                 // Check if current user is the final approver in sequence
                 const isFinalApprover = reservationDetails?.approval_sequence && (() => {
-                    const approvers = reservationDetails.approval_sequence;
+                    const approvers = reservationDetails?.approval_sequence;
                     if (!approvers || approvers.length === 0) return true;
                     
                     // Find the highest sequence number
@@ -929,7 +931,7 @@ const ReservationRequests = () => {
                 
                 // Check if current user is the final approver in sequence
                 const isFinalApprover = reservationDetails?.approval_sequence && (() => {
-                    const approvers = reservationDetails.approval_sequence;
+                    const approvers = reservationDetails?.approval_sequence;
                     if (!approvers || approvers.length === 0) return true;
                     
                     // Find the highest sequence number
@@ -1009,7 +1011,7 @@ const ReservationRequests = () => {
             const finalReason = declineReason.trim();
 
             // Use user_id or reservation_user_id as fallback
-            const notificationUserId = reservationDetails.user_id || reservationDetails.reservation_user_id;
+            const notificationUserId = reservationDetails?.user_id || reservationDetails?.reservation_user_id;
             console.log('Declining reservation:', {
                 reservation_id: currentRequest.reservation_id,
                 notification_user_id: notificationUserId,
@@ -1052,6 +1054,48 @@ const ReservationRequests = () => {
             }
         } finally {
             setIsDeclining(false);
+        }
+    };
+
+    // Reschedule decision handlers for parent component
+    const openRescheduleDecisionModal = (action) => {
+        setRescheduleDecisionAction(action);
+        setRescheduleDecisionReason('');
+        setIsRescheduleDecisionModalOpen(true);
+    };
+
+    const submitRescheduleDecision = async () => {
+        try {
+            const userId = SecureStorage.getLocalItem('user_id');
+            if (!userId) {
+                toast.error('User session expired');
+                return;
+            }
+
+            const isAccepted = rescheduleDecisionAction === 'accept';
+            const reasonToSend = isAccepted ? null : (rescheduleDecisionReason && rescheduleDecisionReason.trim() ? rescheduleDecisionReason.trim() : null);
+            const resp = await axios.post(`${encryptedUrl}reservation.php`, {
+                operation: 'respondToRescheduleRequest',
+                reservation_id: currentRequest?.reservation_id,
+                is_accepted: isAccepted,
+                user_id: Number(userId),
+                reason: reasonToSend
+            }, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (resp.data?.status === 'success') {
+                toast.success(resp.data?.message || 'Response submitted');
+                setIsRescheduleDecisionModalOpen(false);
+                setRescheduleDecisionReason('');
+                await fetchReservations();
+                setIsDetailModalOpen(false);
+            } else {
+                toast.error(resp.data?.message || 'Failed to submit response');
+            }
+        } catch (error) {
+            console.error('Error submitting reschedule decision:', error);
+            toast.error('Failed to submit response. Please try again.');
         }
     };
 
@@ -1574,7 +1618,47 @@ const ReservationRequests = () => {
                         setIsErrorModalOpen={setIsErrorModalOpen}
                         fetchReservations={fetchReservations}
                         handleRescheduleError={handleRescheduleError}
+                        openRescheduleDecisionModal={openRescheduleDecisionModal}
                     />
+
+                    {/* Reschedule Decision Modal */}
+                    <Modal
+                        title={rescheduleDecisionAction === 'accept' ? 'Accept Reschedule Request' : 'Reject Reschedule Request'}
+                        open={isRescheduleDecisionModalOpen}
+                        onCancel={() => {
+                            setIsRescheduleDecisionModalOpen(false);
+                            setRescheduleDecisionReason('');
+                        }}
+                        footer={[
+                            <Button key="cancel" onClick={() => {
+                                setIsRescheduleDecisionModalOpen(false);
+                                setRescheduleDecisionReason('');
+                            }}>
+                                Cancel
+                            </Button>,
+                            <Button
+                                key="submit"
+                                type="primary"
+                                danger={rescheduleDecisionAction !== 'accept'}
+                                onClick={submitRescheduleDecision}
+                            >
+                                {rescheduleDecisionAction === 'accept' ? 'Accept' : 'Reject'}
+                            </Button>
+                        ]}
+                    >
+                        {rescheduleDecisionAction === 'accept' ? (
+                            <div>
+                                Are you sure you want to accept this reschedule request?
+                            </div>
+                        ) : (
+                            <Input.TextArea
+                                rows={4}
+                                value={rescheduleDecisionReason}
+                                onChange={(e) => setRescheduleDecisionReason(e.target.value)}
+                                placeholder="Reason (optional)"
+                            />
+                        )}
+                    </Modal>
 
                     {/* Decline Reason Modal */}
                     <Modal
@@ -1690,8 +1774,6 @@ const ReservationRequests = () => {
     );
 };
 
-// Add this utility function before the DetailModal component
-// Utility function to format time as '8am' or '10:30pm'
 function formatTime(dateInput) {
     const date = new Date(dateInput);
     let hours = date.getHours();
@@ -1739,7 +1821,8 @@ const DetailModal = ({
     setErrorMessage, 
     setIsErrorModalOpen, 
     fetchReservations,
-    handleRescheduleError
+    handleRescheduleError,
+    openRescheduleDecisionModal
 }) => {
     // Responsive breakpoints
     const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -1747,22 +1830,11 @@ const DetailModal = ({
     // const isDesktop = useMediaQuery({ minWidth: 1024 });
     
     const [deansApproval, setDeansApproval] = useState([]);
-    const [isApproverListVisible, setIsApproverListVisible] = useState(false);
     const [isLoadingDeans, setIsLoadingDeans] = useState(false);
+    const [isApproverListVisible, setIsApproverListVisible] = useState(false);
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
     const [rescheduleResources, setRescheduleResources] = useState(null);
-
     const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
-    
-    // Debug logging for Change Request - at component level
-    if (reservationDetails?.status_name === "Change Request") {
-        console.log('=== CHANGE REQUEST MODAL DEBUG ===');
-        console.log('Modal opened with reservation details:', reservationDetails);
-        console.log('Current User ID:', currentUserId);
-        console.log('Approval Sequence:', reservationDetails?.approval_sequence);
-        console.log('Status Name:', reservationDetails?.status_name);
-        console.log('===================================');
-    }
     
     // Find the current approver from approval sequence
     // const currentApprover = reservationDetails?.approval_sequence?.find(approver => !approver.has_approved);
@@ -1791,7 +1863,7 @@ const DetailModal = ({
             try {
                 const response = await axios.post(`${encryptedUrl}/Admin.php`, {
                     operation: 'fetchDeansApproval',
-                    reservation_id: reservationDetails.reservation_id
+                    reservation_id: reservationDetails?.reservation_id
                 });
                 if (response.data?.status === 'success' && Array.isArray(response.data.data)) {
                     setDeansApproval(response.data.data);
@@ -1844,7 +1916,7 @@ const DetailModal = ({
     useEffect(() => {
         setDriverError(""); // Reset driver error when modal opens or reservation changes
         const fetchDrivers = async () => {
-            if (!reservationDetails || !reservationDetails.reservation_start_date || !reservationDetails.reservation_end_date) {
+            if (!reservationDetails || !reservationDetails?.reservation_start_date || !reservationDetails?.reservation_end_date) {
                 console.log('Missing reservation details or dates:', {
                     hasReservationDetails: !!reservationDetails,
                     startDate: reservationDetails?.reservation_start_date,
@@ -1854,29 +1926,29 @@ const DetailModal = ({
             }
             try {
                 // Extract unique restriction IDs from vehicles
-                const restrictionIds = reservationDetails.vehicles && reservationDetails.vehicles.length > 0
+                const restrictionIds = reservationDetails?.vehicles && reservationDetails?.vehicles.length > 0
                     ? [...new Set(
-                        reservationDetails.vehicles
+                        reservationDetails?.vehicles
                             .map(v => v.restriction_id)
                             .filter(id => id !== null && id !== undefined)
                     )]
-                    : null;
+                    : [];
                 
                 const requestPayload = {
                     operation: 'fetchDriver',
-                    startDateTime: reservationDetails.reservation_start_date,
-                    endDateTime: reservationDetails.reservation_end_date,
-                    userId: reservationDetails.reservation_user_id || reservationDetails.user_id,
-                    reservationId: reservationDetails.reservation_id,
+                    startDateTime: reservationDetails?.reservation_start_date,
+                    endDateTime: reservationDetails?.reservation_end_date,
+                    userId: reservationDetails?.reservation_user_id || reservationDetails?.user_id,
+                    reservationId: reservationDetails?.reservation_id,
                     restrictionIds: restrictionIds
                 };
                 
                 console.log('Fetching drivers with params:', requestPayload);
                 console.log('Date format check:', {
-                    startDateTime: reservationDetails.reservation_start_date,
-                    endDateTime: reservationDetails.reservation_end_date,
-                    startType: typeof reservationDetails.reservation_start_date,
-                    endType: typeof reservationDetails.reservation_end_date
+                    startDateTime: reservationDetails?.reservation_start_date,
+                    endDateTime: reservationDetails?.reservation_end_date,
+                    startType: typeof reservationDetails?.reservation_start_date,
+                    endType: typeof reservationDetails?.reservation_end_date
                 });
                 console.log('Restriction IDs from vehicles:', restrictionIds);
                 
@@ -1918,11 +1990,11 @@ const DetailModal = ({
         if (visible) {
             fetchDrivers();
             // Initialize assignments from reservationDetails
-            if (reservationDetails && reservationDetails.vehicles) {
+            if (reservationDetails && reservationDetails?.vehicles) {
                 const assignments = {};
-                (reservationDetails.vehicles || []).forEach(vehicle => {
+                (reservationDetails?.vehicles || []).forEach(vehicle => {
                     // Try to find assigned driver for this vehicle
-                    const assignedDriver = (reservationDetails.drivers || []).find(driver => 
+                    const assignedDriver = (reservationDetails?.drivers || [])?.find(driver => 
                         driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
                     );
                     if (assignedDriver && assignedDriver.driver_id) {
@@ -1932,7 +2004,7 @@ const DetailModal = ({
                 setVehicleDriverAssignments(assignments);
             }
             // Check for sufficient drivers immediately
-            if (reservationDetails && reservationDetails.vehicles && reservationDetails.vehicles.length > 0) {
+            if (reservationDetails && reservationDetails?.vehicles && reservationDetails?.vehicles?.length > 0) {
                 setTimeout(() => {
                     setDriverError("");
                 }, 200); // slight delay to ensure availableDrivers is set
@@ -1965,14 +2037,22 @@ const DetailModal = ({
     //     }
     // };
     
-    if (!reservationDetails) return null;
+    // if (!reservationDetails) return null;
 
 
 
     // Add priority checking logic
     const checkPriority = () => {
+        // First check if reservationDetails exists
+        if (!reservationDetails) {
+            return {
+                hasPriority: true,
+                message: ""
+            };
+        }
+        
         // First check if the reservation is expired
-        const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+        const isExpired = new Date(reservationDetails?.reservation_end_date) < new Date();
         if (isExpired) {
             return {
                 hasPriority: false,
@@ -1981,20 +2061,20 @@ const DetailModal = ({
         }
 
         // First check if there are any actual resource conflicts
-        const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
-            reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
+        const hasVenueConflict = reservationDetails?.venues?.some(requestedVenue => 
+            reservationDetails?.availabilityData?.unavailable_venues?.some(unavailableVenue => 
                 String(requestedVenue.venue_id) === String(unavailableVenue.ven_id)
             )
         );
 
-        const hasVehicleConflict = reservationDetails.vehicles?.some(requestedVehicle => 
-            reservationDetails.availabilityData?.unavailable_vehicles?.some(unavailableVehicle => 
+        const hasVehicleConflict = reservationDetails?.vehicles?.some(requestedVehicle => 
+            reservationDetails?.availabilityData?.unavailable_vehicles?.some(unavailableVehicle => 
                 String(requestedVehicle.vehicle_id) === String(unavailableVehicle.vehicle_id)
             )
         );
 
-        const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
-            const unavailableEquipment = reservationDetails.availabilityData?.unavailable_equipment?.find(
+        const hasEquipmentConflict = reservationDetails?.equipment?.some(requestedEquipment => {
+            const unavailableEquipment = reservationDetails?.availabilityData?.unavailable_equipment?.find(
                 e => String(e.equip_id) === String(requestedEquipment.equipment_id)
             );
             
@@ -2015,8 +2095,8 @@ const DetailModal = ({
         }
 
         // Get current user's level and department from reservation details
-        const currentUserLevel = reservationDetails.user_level_name;
-        const currentUserDepartment = reservationDetails.department_name;
+        const currentUserLevel = reservationDetails?.user_level_name || '';
+        const currentUserDepartment = reservationDetails?.department_name || '';
 
         console.log("This is the current user level and department", currentUserLevel, currentUserDepartment);
 
@@ -2034,7 +2114,7 @@ const DetailModal = ({
         }
 
         // Check against conflicting reservations
-        const hasConflicts = reservationDetails.availabilityData?.reservation_users?.length > 0;
+        const hasConflicts = reservationDetails?.availabilityData?.reservation_users?.length > 0;
         
         if (!hasConflicts) {
             return { 
@@ -2060,7 +2140,7 @@ const DetailModal = ({
 
             const currentPriority = userPriorities[currentUserLevel] || 0;
             
-            const canOverride = reservationDetails.availabilityData.reservation_users.every(conflictUser => {
+            const canOverride = reservationDetails?.availabilityData?.reservation_users?.every(conflictUser => {
                 const conflictingPriority = userPriorities[conflictUser.user_level_name] || 0;
                 return currentPriority > conflictingPriority;
             });
@@ -2179,15 +2259,76 @@ const DetailModal = ({
         }
     };
 
+    // Accept handler without driver checks (used by admin approvers)
+    const handleAcceptWithoutDriverCheck = async () => {
+        // For Admin stage: if any drivers are selected by Admin, insert them before approval, but do not require all
+        try {
+            if (reservationDetails?.vehicles && reservationDetails?.vehicles?.length > 0) {
+                for (const vehicle of reservationDetails?.vehicles || []) {
+                    const driverId = vehicleDriverAssignments[vehicle.vehicle_id];
+                    if (driverId !== undefined) {
+                        // Insert driver assignment (null for no driver available, or actual driver ID)
+                        let driverName = null;
+                        if (driverId === null) {
+                            // Calculate driver number for "No Driver Available" cases
+                            const vehicleIndex = reservationDetails?.vehicles?.findIndex(v => String(v.vehicle_id) === String(vehicle.vehicle_id));
+                            if (vehicleIndex !== -1) {
+                                driverName = `driver ${vehicleIndex + 1}`;
+                            } else {
+                                console.error('Failed to find vehicle index for "No Driver Available" case');
+                                continue;
+                            }
+                        } else if (driverId === 'custom') {
+                            // Use custom driver name
+                            driverName = customDriverNames[vehicle.vehicle_id] || null;
+                        }
+                        
+                        // Check if there's an existing driver assignment for this vehicle
+                        const existingDriver = (reservationDetails?.drivers || [])?.find(driver => 
+                            driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
+                        );
+                        
+                        // Prepare payload
+                        const payload = {
+                            operation: 'insertDriver',
+                            reservation_driver_user_id: driverId, // This can be null
+                            reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                            driver_name: driverName
+                        };
+                        
+                        // If there's an existing driver assignment, include the reservation_driver_id for update
+                        if (existingDriver && existingDriver.reservation_driver_id) {
+                            payload.reservation_driver_id = existingDriver.reservation_driver_id;
+                        }
+                        
+                        // Debug logging
+                        console.log('Frontend insertDriver payload (admin path):', payload);
+                        
+                        await axios.post(`${encryptedUrl}/Admin.php`, payload);
+                    }
+                }
+            }
+        } catch (error) {
+            // Soft-fail: still allow admin approval to proceed
+            console.error('Optional driver insert failed (admin stage):', error);
+            if (!error.response) {
+                toast.error('Network error: Unable to connect to server. Please check your internet connection.');
+            }
+        }
+        if (typeof onAccept === 'function') {
+            await onAccept(vehicleDriverAssignments);
+        }
+    };
+
     // Modified Accept handler to check driver assignments and available drivers
     const handleAcceptWithDriverCheck = async () => {
         setDriverError("");
         // If there are vehicles, check assignments
-        if (reservationDetails?.vehicles && reservationDetails.vehicles.length > 0) {
+        if (reservationDetails?.vehicles && reservationDetails?.vehicles?.length > 0) {
             // Check if all vehicles have a driver assigned (either existing, new assignment, or explicitly set to null)
-            const vehiclesWithoutDrivers = reservationDetails.vehicles.filter(vehicle => {
+            const vehiclesWithoutDrivers = reservationDetails?.vehicles?.filter(vehicle => {
                 // Check if there's an existing driver assignment with a name
-                const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                const existingDriver = (reservationDetails?.drivers || [])?.find(driver => 
                     driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) && driver.driver_name
                 );
                 
@@ -2209,8 +2350,8 @@ const DetailModal = ({
             
             // Insert/update driver assignments before approving reservation
             try {
-                for (const vehicle of reservationDetails.vehicles) {
-                    // const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                for (const vehicle of reservationDetails?.vehicles || []) {
+                    // const existingDriver = (reservationDetails?.drivers || [])?.find(driver => 
                     //     driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) && driver.driver_name
                     // );
                     
@@ -2223,15 +2364,20 @@ const DetailModal = ({
                         let driverName = null;
                         if (driverId === null) {
                             // Calculate driver number for "No Driver Available" cases
-                            const vehicleIndex = reservationDetails.vehicles.findIndex(v => String(v.vehicle_id) === String(vehicle.vehicle_id));
-                            driverName = `driver ${vehicleIndex + 1}`;
+                            const vehicleIndex = reservationDetails?.vehicles?.findIndex(v => String(v.vehicle_id) === String(vehicle.vehicle_id));
+                            if (vehicleIndex !== -1) {
+                                driverName = `driver ${vehicleIndex + 1}`;
+                            } else {
+                                console.error('Failed to find vehicle index for "No Driver Available" case');
+                                continue;
+                            }
                         } else if (driverId === 'custom') {
                             // Use custom driver name
                             driverName = customDriverNames[vehicle.vehicle_id] || null;
                         }
                         
                         // Check if there's an existing driver assignment for this vehicle
-                        const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                        const existingDriver = (reservationDetails?.drivers || [])?.find(driver => 
                             driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
                         );
                         
@@ -2255,71 +2401,12 @@ const DetailModal = ({
                     }
                 }
             } catch (error) {
-                if (!error.response) {
-                    toast.error('Network error: Unable to connect to server. Please check your internet connection.');
-                    setDriverError("Network error. Please check your internet connection.");
-                } else {
-                    setDriverError("Failed to assign driver(s). Please try again.");
-                }
-                return;
-            }
-        }
-        // Call the original onAccept, passing assignments if needed
-        if (typeof onAccept === 'function') {
-            await onAccept(vehicleDriverAssignments);
-        }
-    };
-
-    // Accept handler that bypasses driver checks (used for Admin stage only)
-    const handleAcceptWithoutDriverCheck = async () => {
-        // For Admin stage: if any drivers are selected by Admin, insert them before approval, but do not require all
-        try {
-            if (reservationDetails?.vehicles && reservationDetails.vehicles.length > 0) {
-                for (const vehicle of reservationDetails.vehicles) {
-                    const driverId = vehicleDriverAssignments[vehicle.vehicle_id];
-                    if (driverId !== undefined) {
-                        // Insert driver assignment (null for no driver available, or actual driver ID)
-                        let driverName = null;
-                        if (driverId === null) {
-                            // Calculate driver number for "No Driver Available" cases
-                            const vehicleIndex = reservationDetails.vehicles.findIndex(v => String(v.vehicle_id) === String(vehicle.vehicle_id));
-                            driverName = `driver ${vehicleIndex + 1}`;
-                        } else if (driverId === 'custom') {
-                            // Use custom driver name
-                            driverName = customDriverNames[vehicle.vehicle_id] || null;
-                        }
-                        
-                        // Check if there's an existing driver assignment for this vehicle
-                        const existingDriver = (reservationDetails.drivers || []).find(driver => 
-                            driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
-                        );
-                        
-                        // Prepare payload
-                        const payload = {
-                            operation: 'insertDriver',
-                            reservation_driver_user_id: driverId, // This can be null
-                            reservation_vehicle_id: vehicle.reservation_vehicle_id,
-                            driver_name: driverName
-                        };
-                        
-                        // If there's an existing driver assignment, include the reservation_driver_id for update
-                        if (existingDriver && existingDriver.reservation_driver_id) {
-                            payload.reservation_driver_id = existingDriver.reservation_driver_id;
-                        }
-                        
-                        // Debug logging
-                        console.log('Frontend insertDriver payload (alt path):', payload);
-                        
-                        await axios.post(`${encryptedUrl}/Admin.php`, payload);
-                    }
-                }
-            }
-        } catch (error) {
             // Soft-fail: still allow admin approval to proceed
             console.error('Optional driver insert failed (admin stage):', error);
             if (!error.response) {
                 toast.error('Network error: Unable to connect to server. Please check your internet connection.');
             }
+        }
         }
         if (typeof onAccept === 'function') {
             await onAccept(vehicleDriverAssignments);
@@ -2328,20 +2415,20 @@ const DetailModal = ({
 
     // Helper function to get current approver from approval sequence
     const getCurrentApproverFromSequence = () => {
-        if (!reservationDetails?.approval_sequence || reservationDetails.approval_sequence.length === 0) {
+        if (!reservationDetails?.approval_sequence || reservationDetails?.approval_sequence?.length === 0) {
             return null;
         }
 
         const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
         
         // Find the first approver who hasn't approved yet
-        for (let i = 0; i < reservationDetails.approval_sequence.length; i++) {
-            const approver = reservationDetails.approval_sequence[i];
+        for (let i = 0; i < reservationDetails?.approval_sequence?.length; i++) {
+            const approver = reservationDetails?.approval_sequence[i];
             
             // If this approver hasn't approved yet
             if (!approver.has_approved) {
                 // Check if all previous approvers have approved
-                const previousApprovers = reservationDetails.approval_sequence.slice(0, i);
+                const previousApprovers = reservationDetails?.approval_sequence?.slice(0, i);
                 const allPreviousApproved = previousApprovers.every(prev => prev.has_approved);
                 
                 // If all previous approved and current user is this approver
@@ -2385,210 +2472,236 @@ const DetailModal = ({
     };
 
     // Helper used by last-approver reschedule flow
-    const handleReschedule = async ({ startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames } = {}) => {
-        try {
-            let didUpdateSomething = false;
+    // const handleReschedule = async ({ startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames } = {}) => {
+    //     try {
+    //         let didUpdateSomething = false;
 
-            // Update dates if provided
-            if (startDate && endDate) {
-                // Use NEW venue/vehicle IDs if changing resources, otherwise use current ones
-                const venueIds = newVenueIds && newVenueIds.length > 0 
-                    ? newVenueIds 
-                    : (reservationDetails?.venues?.map(v => v.venue_id) || []);
-                const vehicleIds = newVehicleIds && newVehicleIds.length > 0 
-                    ? newVehicleIds 
-                    : (reservationDetails?.vehicles?.map(v => v.vehicle_id) || []);
+    //         // Update dates if provided
+    //         if (startDate && endDate) {
+    //             // Use NEW venue/vehicle IDs if changing resources, otherwise use current ones
+    //             const venueIds = newVenueIds && newVenueIds.length > 0 
+    //                 ? newVenueIds 
+    //                 : (reservationDetails?.venues?.map(v => v.venue_id) || []);
+    //             const vehicleIds = newVehicleIds && newVehicleIds.length > 0 
+    //                 ? newVehicleIds 
+    //                 : (reservationDetails?.vehicles?.map(v => v.vehicle_id) || []);
                 
-                console.log('[handleReschedule] Sending conflict check with:', { venueIds, vehicleIds, newVenueIds, newVehicleIds });
+    //             console.log('[handleReschedule] Sending conflict check with:', { venueIds, vehicleIds, newVenueIds, newVehicleIds });
                 
-                const dateResp = await axios.post(`${encryptedUrl}reservation.php`, {
-                    operation: 'updateReservationReschedule',
-                    reservation_id: reservationDetails?.reservation_id,
-                    reschedule_start_date: startDate,
-                    reschedule_end_date: endDate,
-                    user_admin_id: SecureStorage.getLocalItem('user_id'),
-                    venue_ids: venueIds,
-                    vehicle_ids: vehicleIds
-                }, { headers: { 'Content-Type': 'application/json' } });
-                if (!(dateResp?.data?.status === 'success')) {
-                    await handleRescheduleError(dateResp, reservationDetails?.reservation_id, () => setIsRescheduleModalOpen(false));
-                    return;
-                }
-                didUpdateSomething = true;
-            }
+    //             const dateResp = await axios.post(`${encryptedUrl}reservation.php`, {
+    //                 operation: 'updateReservationReschedule',
+    //                 reservation_id: reservationDetails?.reservation_id,
+    //                 reschedule_start_date: startDate,
+    //                 reschedule_end_date: endDate,
+    //                 user_admin_id: SecureStorage.getLocalItem('user_id'),
+    //                 venue_ids: venueIds,
+    //                 vehicle_ids: vehicleIds
+    //             }, { headers: { 'Content-Type': 'application/json' } });
+    //             if (!(dateResp?.data?.status === 'success')) {
+    //                 await handleRescheduleError(dateResp, reservationDetails?.reservation_id, () => setIsRescheduleModalOpen(false));
+    //                 return;
+    //             }
+    //             didUpdateSomething = true;
+    //         }
 
-            // Update venues if selection provided
-            if (Array.isArray(newVenueIds) && newVenueIds.length > 0 && Array.isArray(reservationDetails?.venues)) {
-                const venueChanges = reservationDetails.venues
-                    .map((v, idx) => {
-                        const newId = newVenueIds[idx];
-                        if (newId == null || String(newId) === String(v.venue_id)) return null;
-                        return {
-                            reservation_venue_id: v.reservation_venue_id,
-                            reservation_change_venue_id: Number(newId)
-                        };
-                    })
-                    .filter(Boolean);
-                if (venueChanges.length > 0) {
-                    const results = await Promise.allSettled(venueChanges.map(change => axios.post(`${encryptedUrl}reservation.php`, {
-                        operation: 'updateVenueReschedule',
-                        reservation_venue_id: change.reservation_venue_id,
-                        reservation_change_venue_id: change.reservation_change_venue_id,
-                        reservation_id: reservationDetails?.reservation_id
-                    }, { headers: { 'Content-Type': 'application/json' } })));
+    //         // Update venues if selection provided
+    //         if (Array.isArray(newVenueIds) && newVenueIds.length > 0 && Array.isArray(reservationDetails?.venues)) {
+    //             const venueChanges = reservationDetails?.venues
+    //                 .map((v, idx) => {
+    //                     const newId = newVenueIds[idx];
+    //                     if (newId == null || String(newId) === String(v.venue_id)) return null;
+    //                     return {
+    //                         reservation_venue_id: v.reservation_venue_id,
+    //                         reservation_change_venue_id: Number(newId)
+    //                     };
+    //                 })
+    //                 .filter(Boolean);
+    //             if (venueChanges.length > 0) {
+    //                 const results = await Promise.allSettled(venueChanges.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+    //                     operation: 'updateVenueReschedule',
+    //                     reservation_venue_id: change.reservation_venue_id,
+    //                     reservation_change_venue_id: change.reservation_change_venue_id,
+    //                     reservation_id: reservationDetails?.reservation_id
+    //                 }, { headers: { 'Content-Type': 'application/json' } })));
                     
-                    // Check for errors and handle them appropriately
-                    const failedResults = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value?.data?.status !== 'success'));
-                    if (failedResults.length > 0) {
-                        const firstError = failedResults[0].status === 'rejected' 
-                            ? failedResults[0].reason?.message
-                            : failedResults[0].value?.data?.message;
+    //                 // Check for errors and handle them appropriately
+    //                 const failedResults = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value?.data?.status !== 'success'));
+    //                 if (failedResults.length > 0) {
+    //                     const firstError = failedResults[0].status === 'rejected' 
+    //                         ? failedResults[0].reason?.message
+    //                         : failedResults[0].value?.data?.message;
                         
-                        // Check if it's a status-related error that should show error modal
-                        if (firstError && (firstError.includes('cancelled') || firstError.includes('declined') || 
-                            firstError.includes('completed') || firstError.includes('already been rescheduled') || 
-                            firstError.includes('pending reschedule'))) {
-                            setErrorMessage(firstError);
-                            setIsErrorModalOpen(true);
-                            // Refresh data to show updated status
-                            await fetchReservations();
-                            return;
-                        } else {
-                            toast.error(firstError || 'Failed to reschedule venue');
-                            return;
-                        }
-                    }
-                    didUpdateSomething = true;
-                }
-            }
+    //                     // Check if it's a status-related error that should show error modal
+    //                     if (firstError && (firstError.includes('cancelled') || firstError.includes('declined') || 
+    //                         firstError.includes('completed') || firstError.includes('already been rescheduled') || 
+    //                         firstError.includes('pending reschedule'))) {
+    //                         setErrorMessage(firstError);
+    //                         setIsErrorModalOpen(true);
+    //                         // Refresh data to show updated status
+    //                         await fetchReservations();
+    //                         return;
+    //                     } else {
+    //                         toast.error(firstError || 'Failed to reschedule venue');
+    //                         return;
+    //                     }
+    //                 }
+    //                 didUpdateSomething = true;
+    //             }
+    //         }
 
-            // Update vehicles if selection provided
-            if (Array.isArray(newVehicleIds) && newVehicleIds.length > 0 && Array.isArray(reservationDetails?.vehicles)) {
-                const vehicleChanges = reservationDetails.vehicles
-                    .map((v, idx) => {
-                        const newId = newVehicleIds[idx];
-                        if (newId == null || String(newId) === String(v.vehicle_id)) return null;
-                        return {
-                            reservation_vehicle_id: v.reservation_vehicle_id,
-                            reservation_change_vehicle_id: Number(newId)
-                        };
-                    })
-                    .filter(Boolean);
-                if (vehicleChanges.length > 0) {
-                    const results = await Promise.allSettled(vehicleChanges.map(change => axios.post(`${encryptedUrl}reservation.php`, {
-                        operation: 'updateVehicleReschedule',
-                        reservation_vehicle_id: change.reservation_vehicle_id,
-                        reservation_change_vehicle_id: change.reservation_change_vehicle_id,
-                        reservation_id: reservationDetails?.reservation_id
-                    }, { headers: { 'Content-Type': 'application/json' } })));
+    //         // Update vehicles if selection provided
+    //         if (Array.isArray(newVehicleIds) && newVehicleIds.length > 0 && Array.isArray(reservationDetails?.vehicles)) {
+    //             const vehicleChanges = reservationDetails?.vehicles
+    //                 .map((v, idx) => {
+    //                     const newId = newVehicleIds[idx];
+    //                     if (newId == null || String(newId) === String(v.vehicle_id)) return null;
+    //                     return {
+    //                         reservation_vehicle_id: v.reservation_vehicle_id,
+    //                         reservation_change_vehicle_id: Number(newId)
+    //                     };
+    //                 })
+    //                 .filter(Boolean);
+    //             if (vehicleChanges.length > 0) {
+    //                 const results = await Promise.allSettled(vehicleChanges.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+    //                     operation: 'updateVehicleReschedule',
+    //                     reservation_vehicle_id: change.reservation_vehicle_id,
+    //                     reservation_change_vehicle_id: change.reservation_change_vehicle_id,
+    //                     reservation_id: reservationDetails?.reservation_id
+    //                 }, { headers: { 'Content-Type': 'application/json' } })));
                     
-                    // Check for errors and handle them appropriately
-                    const failedResults = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value?.data?.status !== 'success'));
-                    if (failedResults.length > 0) {
-                        const firstError = failedResults[0].status === 'rejected' 
-                            ? failedResults[0].reason?.message
-                            : failedResults[0].value?.data?.message;
+    //                 // Check for errors and handle them appropriately
+    //                 const failedResults = results.filter(r => r.status === 'rejected' || (r.status === 'fulfilled' && r.value?.data?.status !== 'success'));
+    //                 if (failedResults.length > 0) {
+    //                     const firstError = failedResults[0].status === 'rejected' 
+    //                         ? failedResults[0].reason?.message
+    //                         : failedResults[0].value?.data?.message;
                         
-                        // Check if it's a status-related error that should show error modal
-                        if (firstError && (firstError.includes('cancelled') || firstError.includes('declined') || 
-                            firstError.includes('completed') || firstError.includes('already been rescheduled') || 
-                            firstError.includes('pending reschedule'))) {
-                            setErrorMessage(firstError);
-                            setIsErrorModalOpen(true);
-                            // Refresh data to show updated status
-                            await fetchReservations();
-                            return;
-                        } else {
-                            toast.error(firstError || 'Failed to reschedule vehicle');
-                            return;
-                        }
-                    }
-                    didUpdateSomething = true;
-                }
-            }
+    //                     // Check if it's a status-related error that should show error modal
+    //                     if (firstError && (firstError.includes('cancelled') || firstError.includes('declined') || 
+    //                         firstError.includes('completed') || firstError.includes('already been rescheduled') || 
+    //                         firstError.includes('pending reschedule'))) {
+    //                         setErrorMessage(firstError);
+    //                         setIsErrorModalOpen(true);
+    //                         // Refresh data to show updated status
+    //                         await fetchReservations();
+    //                         return;
+    //                     } else {
+    //                         toast.error(firstError || 'Failed to reschedule vehicle');
+    //                         return;
+    //                     }
+    //                 }
+    //                 didUpdateSomething = true;
+    //             }
+    //         }
 
-            // Update driver assignments if provided
-            if (driverAssignments && Object.keys(driverAssignments).length > 0 && Array.isArray(reservationDetails?.vehicles)) {
-                console.log('[ViewRequest] Processing driver assignments:', driverAssignments);
-                console.log('[ViewRequest] Custom driver names:', customDriverNames);
+    //         // Update driver assignments if provided
+    //         if (driverAssignments && Object.keys(driverAssignments).length > 0 && Array.isArray(reservationDetails?.vehicles)) {
+    //             console.log('[ViewRequest] Processing driver assignments:', driverAssignments);
+    //             console.log('[ViewRequest] Custom driver names:', customDriverNames);
                 
-                for (const vehicle of reservationDetails.vehicles) {
-                    const vehicleId = vehicle.vehicle_id;
-                    const driverAssignment = driverAssignments[vehicleId];
+    //             for (const vehicle of reservationDetails?.vehicles || []) {
+    //                 const vehicleId = vehicle.vehicle_id;
+    //                 const driverAssignment = driverAssignments[vehicleId];
                     
-                    // Only process if there's a driver assignment for this vehicle
-                    if (driverAssignment !== undefined) {
-                        const isCustomDriver = driverAssignment === 'custom';
-                        const customDriverName = isCustomDriver ? customDriverNames[vehicleId] : null;
-                        const driverUserId = isCustomDriver ? 'custom' : driverAssignment;
+    //                 // Only process if there's a driver assignment for this vehicle
+    //                 if (driverAssignment !== undefined) {
+    //                     const isCustomDriver = driverAssignment === 'custom';
+    //                     const customDriverName = isCustomDriver ? customDriverNames[vehicleId] : null;
+    //                     const driverUserId = isCustomDriver ? 'custom' : driverAssignment;
                         
-                        console.log('[ViewRequest] Updating driver for vehicle:', {
-                            vehicleId,
-                            reservation_vehicle_id: vehicle.reservation_vehicle_id,
-                            reservation_driver_id: vehicle.reservation_driver_id,
-                            driverUserId,
-                            customDriverName,
-                            isCustomDriver
-                        });
+    //                     console.log('[ViewRequest] Updating driver for vehicle:', {
+    //                         vehicleId,
+    //                         reservation_vehicle_id: vehicle.reservation_vehicle_id,
+    //                         reservation_driver_id: vehicle.reservation_driver_id,
+    //                         driverUserId,
+    //                         customDriverName,
+    //                         isCustomDriver
+    //                     });
                         
-                        try {
-                            const driverResp = await axios.post(`${encryptedUrl}/Admin.php`, {
-                                operation: 'insertDriver',
-                                reservation_driver_user_id: driverUserId,
-                                reservation_vehicle_id: vehicle.reservation_vehicle_id,
-                                driver_name: customDriverName,
-                                reservation_driver_id: vehicle.reservation_driver_id // This will trigger update if exists
-                            }, { headers: { 'Content-Type': 'application/json' } });
+    //                     try {
+    //                         const driverResp = await axios.post(`${encryptedUrl}/Admin.php`, {
+    //                             operation: 'insertDriver',
+    //                             reservation_driver_user_id: driverUserId,
+    //                             reservation_vehicle_id: vehicle.reservation_vehicle_id,
+    //                             driver_name: customDriverName,
+    //                             reservation_driver_id: vehicle.reservation_driver_id // This will trigger update if exists
+    //                         }, { headers: { 'Content-Type': 'application/json' } });
                             
-                            if (driverResp?.data?.status === 'success') {
-                                console.log('[ViewRequest] Driver updated successfully for vehicle', vehicleId);
-                                didUpdateSomething = true;
-                            } else {
-                                console.error('[ViewRequest] Failed to update driver for vehicle', vehicleId, driverResp?.data);
-                                toast.error(`Failed to update driver for vehicle ${vehicle.vehicle_name || vehicleId}`);
-                            }
-                        } catch (driverError) {
-                            console.error('[ViewRequest] Error updating driver:', driverError);
-                            if (!driverError.response) {
-                                toast.error('Network error: Unable to connect to server. Please check your internet connection.');
-                            } else {
-                                toast.error(`Error updating driver for vehicle ${vehicle.vehicle_name || vehicleId}`);
-                            }
-                        }
-                    }
-                }
-            }
+    //                         if (driverResp?.data?.status === 'success') {
+    //                             console.log('[ViewRequest] Driver updated successfully for vehicle', vehicleId);
+    //                             didUpdateSomething = true;
+    //                         } else {
+    //                             console.error('[ViewRequest] Failed to update driver for vehicle', vehicleId, driverResp?.data);
+    //                             toast.error(`Failed to update driver for vehicle ${vehicle.vehicle_name || vehicleId}`);
+    //                         }
+    //                     } catch (driverError) {
+    //                         console.error('[ViewRequest] Error updating driver:', driverError);
+    //                         if (!driverError.response) {
+    //                             toast.error('Network error: Unable to connect to server. Please check your internet connection.');
+    //                         } else {
+    //                             toast.error(`Error updating driver for vehicle ${vehicle.vehicle_name || vehicleId}`);
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         }
 
-            // Equipment units handling removed
+    //         // Equipment units handling removed
 
-            if (!didUpdateSomething && (!startDate || !endDate)) {
-                toast.info('No changes to update.');
-            } else {
-                toast.success('Reservation rescheduled successfully');
-                 onClose();
+    //         if (!didUpdateSomething && (!startDate || !endDate)) {
+    //             toast.info('No changes to update.');
+    //         } else {
+    //             toast.success('Reservation rescheduled successfully');
+    //              onClose();
              
-            }
+    //         }
 
          
-        } catch (error) {
-            console.error('[ViewRequest] Error in handleReschedule:', error);
-            if (!error.response) {
-                toast.error('Network error: Unable to connect to server. Please check your internet connection.');
-            } else {
-                toast.error('Error processing reschedule');
-            }
-        }
-    };
+    //     } catch (error) {
+    //         console.error('[ViewRequest] Error in handleReschedule:', error);
+    //         if (!error.response) {
+    //             toast.error('Network error: Unable to connect to server. Please check your internet connection.');
+    //         } else {
+    //             toast.error('Error processing reschedule');
+    //         }
+    //     }
+    // };
 
         const getModalFooter = () => {
         if (!reservationDetails) {
             return [<Button key="close" onClick={onClose} size="large">Close</Button>];
         }
+
+        // Pending reschedule request handling (status 11 active=0)
+        const pendingResched = reservationDetails?.status_history?.find(s => Number(s.status_id) === 11 && Number(s.reservation_active) === 0);
+        const isPendingReschedule = !!pendingResched;
+        const pendingInitiatorLevelId = pendingResched?.updated_by_level_id;
+        const isPendingFromAdmin = pendingInitiatorLevelId != null && [1, 2, 4].includes(Number(pendingInitiatorLevelId));
+        const isPendingFromSecretary = isPendingReschedule && !isPendingFromAdmin;
+
+        if (isPendingFromSecretary) {
+            return [
+                <Button key="reject" danger onClick={() => openRescheduleDecisionModal('reject')} size="large">
+                    Reject Reschedule
+                </Button>,
+                <Button key="accept" type="primary" onClick={() => openRescheduleDecisionModal('accept')} size="large">
+                    Accept Reschedule
+                </Button>,
+                <Button key="close" onClick={onClose} size="large">Close</Button>
+            ];
+        }
+        
+        // Admin-initiated reschedule request - VIEW MODE ONLY for everyone
+        // No Accept/Reject buttons should appear when admin reschedules
+        // Accept/Reject buttons only appear when requestor (from my_reservation_details.jsx) initiates reschedule
+        if (isPendingFromAdmin) {
+            return [<Button key="close" onClick={onClose} size="large">Close</Button>];
+        }
         
         // Check if reschedule request is pending department approval
         // If true, hide all action buttons (decline, approve, reschedule) and show only Close
-        const isReschedulePendingDeptApproval = reservationDetails.status_name === "Reschedule" && (() => {
-            const departmentApproval = reservationDetails.status_history?.find(
+        const isReschedulePendingDeptApproval = reservationDetails?.status_name === "Reschedule" && (() => {
+            const departmentApproval = reservationDetails?.status_history?.find(
                 status => status.status_name === 'Pending'
             );
             return departmentApproval && departmentApproval.reservation_active === 0;
@@ -2622,14 +2735,14 @@ const DetailModal = ({
             
             // Determine if current user is the last approver in the sequence
             const isLastApprover = Array.isArray(reservationDetails?.approval_sequence) &&
-                reservationDetails.approval_sequence.length > 0 && (() => {
-                    const maxSequence = Math.max(...reservationDetails.approval_sequence.map(a => parseInt(a.approval_sequence, 10)));
-                    const lastApprover = reservationDetails.approval_sequence.find(a => parseInt(a.approval_sequence, 10) === maxSequence);
+                reservationDetails?.approval_sequence?.length > 0 && (() => {
+                    const maxSequence = Math.max(...reservationDetails?.approval_sequence?.map(a => parseInt(a.approval_sequence, 10)));
+                    const lastApprover = reservationDetails?.approval_sequence?.find(a => parseInt(a.approval_sequence, 10) === maxSequence);
                     return lastApprover && String(lastApprover.users_id) === String(footerCurrentUserId);
                 })();
             
             // Debug logging for change request logic
-            const maxSequence = reservationDetails?.approval_sequence?.length > 0 ? Math.max(...reservationDetails.approval_sequence.map(a => parseInt(a.approval_sequence, 10))) : null;
+            const maxSequence = reservationDetails?.approval_sequence?.length > 0 ? Math.max(...reservationDetails?.approval_sequence?.map(a => parseInt(a.approval_sequence, 10))) : null;
             const lastApproverInSequence = reservationDetails?.approval_sequence?.find(a => parseInt(a.approval_sequence, 10) === maxSequence);
             
             console.log('Change Request Debug:', {
@@ -2649,16 +2762,16 @@ const DetailModal = ({
             // show decline, reschedule, and approve buttons (regardless of all approvers approved status)
             if (isChangeRequest && isLastApprover) {
                 const priorityCheck = checkPriority();
-                const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+                const isExpired = new Date(reservationDetails?.reservation_end_date) < new Date();
                 
                 // Check if current user can bypass venue availability restrictions
-                const currentUserLevel = reservationDetails.user_level_name;
-                const currentUserDepartment = reservationDetails.department_name;
+                const currentUserLevel = reservationDetails?.user_level_name || '';
+                const currentUserDepartment = reservationDetails?.department_name || '';
                 const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
                 const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
                 const canBypassVenueRestrictions = isDepartmentHeadFromCOO || isSecretaryFromGSD;
                 
-                const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
+                const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails?.venues && reservationDetails?.venues?.some(v => v.isAvailable === false);
                 
                 // Department Approval Progress gating
                 const hasDeptProgress = Array.isArray(deansApproval) && deansApproval.length > 0;
@@ -2677,12 +2790,12 @@ const DetailModal = ({
                 // Show all three buttons for change request final approval
                 // Change request: don't enforce driver requirement
                 // Require driver selection before rescheduling when vehicles exist
-                const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
+                const hasVehicles = Array.isArray(reservationDetails?.vehicles) && reservationDetails?.vehicles?.length > 0;
                 // Check if there are no available drivers when vehicles exist
                 const noDriversAvailable = hasVehicles && availableDrivers.length === 0;
                 const shouldDisableApprove = (!priorityCheck.hasPriority && !(isDepartmentHeadFromCOO || isSecretaryFromGSD)) || anyVenueNotAvailable || (hasDeptProgress && !allDeptProgressApproved) || noDriversAvailable;
-                const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
-                    const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails?.vehicles?.every(vehicle => {
+                    const existingDriver = (reservationDetails?.drivers || [])?.find(driver =>
                         driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
                         (driver.driver_id || driver.driver_name)
                     );
@@ -2704,17 +2817,17 @@ const DetailModal = ({
                         type="default"
                         onClick={() => {
                             const resources = {
-                                venueIds: (reservationDetails.venues || []).map(v => ({
+                                venueIds: (reservationDetails?.venues || [])?.map(v => ({
                                     venue_id: v.venue_id,
                                     change_venue_id: v.change_venue_id || null,
                                     reservation_venue_id: v.reservation_venue_id
                                 })),
-                                vehicleIds: (reservationDetails.vehicles || []).map(v => ({
+                                vehicleIds: (reservationDetails?.vehicles || [])?.map(v => ({
                                     vehicle_id: v.vehicle_id,
                                     change_vehicle_id: v.change_vehicle_id || null,
                                     reservation_vehicle_id: v.reservation_vehicle_id
                                 })),
-                                equipment: (reservationDetails.equipment || []).map(eq => ({
+                                equipment: (reservationDetails?.equipment || [])?.map(eq => ({
                                     equipment_id: eq.equipment_id,
                                     quantity: parseInt(eq.quantity, 10) || 0
                                 }))
@@ -2753,8 +2866,14 @@ const DetailModal = ({
                         resources={rescheduleResources}
                         onReschedule={async (newDates) => {
                             try {
-                                const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames } = newDates || {};
-                                console.log('[ViewRequest] RescheduleModal#1 onReschedule received:', { startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
+                                const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames, reason } = newDates || {};
+                                alert('DEBUG viewRequest: newVenueIds = ' + JSON.stringify(newVenueIds));
+                                console.log('[ViewRequest] ===== RescheduleModal#1 onReschedule RECEIVED =====');
+                                console.log('[ViewRequest] Raw newDates:', newDates);
+                                console.log('[ViewRequest] Extracted newVenueIds:', newVenueIds);
+                                console.log('[ViewRequest] Extracted newVehicleIds:', newVehicleIds);
+                                console.log('[ViewRequest] reservationDetails.venues:', reservationDetails?.venues);
+                                console.log('[ViewRequest] reservationDetails.vehicles:', reservationDetails?.vehicles);
                                 
                                 if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
                                     try {
@@ -2774,8 +2893,113 @@ const DetailModal = ({
                                         return;
                                     }
                                 }
-                                await handleReschedule({ startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
-                                setIsRescheduleModalOpen(false);
+                                // Admin action becomes a proposal, not an immediate reschedule
+                                // Prepare venue_ids and vehicle_ids for change venue/vehicle
+                                console.log('[ViewRequest] Mapping venue/vehicle IDs...');
+                                const venueIdsForProposal = (reservationDetails?.venues || []).map((v, index) => {
+                                    const changeId = Array.isArray(newVenueIds) ? newVenueIds[index] || null : null;
+                                    console.log(`[ViewRequest] Venue ${index}: reservation_venue_id=${v.reservation_venue_id}, change_venue_id=${changeId}, raw_newVenueIds[${index}]=${newVenueIds?.[index]}`);
+                                    return {
+                                        reservation_venue_id: v.reservation_venue_id,
+                                        change_venue_id: changeId
+                                    };
+                                });
+                                const vehicleIdsForProposal = (reservationDetails?.vehicles || []).map((v, index) => {
+                                    const changeId = Array.isArray(newVehicleIds) ? newVehicleIds[index] || null : null;
+                                    console.log(`[ViewRequest] Vehicle ${index}: reservation_vehicle_id=${v.reservation_vehicle_id}, change_vehicle_id=${changeId}, raw_newVehicleIds[${index}]=${newVehicleIds?.[index]}`);
+                                    return {
+                                        reservation_vehicle_id: v.reservation_vehicle_id,
+                                        change_vehicle_id: changeId
+                                    };
+                                });
+                                
+                                const proposalPayload = {
+                                    operation: 'proposeReschedule',
+                                    reservation_id: reservationDetails?.reservation_id,
+                                    reschedule_start_date: startDate,
+                                    reschedule_end_date: endDate,
+                                    user_id: currentUserId,
+                                    reason: reason || null,
+                                    venue_ids: venueIdsForProposal,
+                                    vehicle_ids: vehicleIdsForProposal
+                                };
+                             
+                                
+                                const proposeResp = await axios.post(`${encryptedUrl}reservation.php`, proposalPayload, { headers: { 'Content-Type': 'application/json' } });
+
+                                if (proposeResp.data?.status === 'success') {
+                                    // Update venue changes using separate API calls (following reservation_details.jsx pattern)
+                                    const venueChangesToApply = venueIdsForProposal.filter(v => v.change_venue_id !== null);
+                                    if (venueChangesToApply.length > 0) {
+                                       
+                                        const venueResults = await Promise.allSettled(
+                                            venueChangesToApply.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+                                                operation: 'updateVenueReschedule',
+                                                reservation_venue_id: change.reservation_venue_id,
+                                                reservation_change_venue_id: change.change_venue_id,
+                                                reservation_id: reservationDetails?.reservation_id
+                                            }))
+                                        );
+                                        console.log('[ViewRequest] Venue update results:', venueResults);
+                                    }
+
+                                    // Update vehicle changes using separate API calls
+                                    const vehicleChangesToApply = vehicleIdsForProposal.filter(v => v.change_vehicle_id !== null);
+                                    if (vehicleChangesToApply.length > 0) {
+                                        console.log('[ViewRequest] Applying vehicle changes:', vehicleChangesToApply);
+                                        const vehicleResults = await Promise.allSettled(
+                                            vehicleChangesToApply.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+                                                operation: 'updateVehicleReschedule',
+                                                reservation_vehicle_id: change.reservation_vehicle_id,
+                                                reservation_change_vehicle_id: change.change_vehicle_id,
+                                                reservation_id: reservationDetails?.reservation_id
+                                            }))
+                                        );
+                                        console.log('[ViewRequest] Vehicle update results:', vehicleResults);
+                                    }
+
+                                    // Update driver assignments if provided
+                                    if (driverAssignments && Object.keys(driverAssignments).length > 0) {
+                                        console.log('[ViewRequest] Processing driver assignments:', driverAssignments);
+                                        console.log('[ViewRequest] Custom driver names:', customDriverNames);
+                                        
+                                        for (const vehicle of reservationDetails?.vehicles || []) {
+                                            const vehicleId = vehicle.vehicle_id;
+                                            const driverAssignment = driverAssignments[vehicleId];
+                                            
+                                            if (driverAssignment !== undefined) {
+                                                const isCustomDriver = driverAssignment === 'custom';
+                                                const customDriverName = isCustomDriver ? customDriverNames[vehicleId] : null;
+                                                const driverUserId = isCustomDriver ? null : driverAssignment;
+                                                
+                                                console.log('[ViewRequest] Inserting/updating driver for vehicle:', {
+                                                    vehicleId,
+                                                    reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                                                    driverUserId,
+                                                    customDriverName
+                                                });
+                                                
+                                                try {
+                                                    await axios.post(`${encryptedUrl}Admin.php`, {
+                                                        operation: 'insertDriver',
+                                                        reservation_driver_user_id: driverUserId,
+                                                        reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                                                        driver_name: customDriverName
+                                                    });
+                                                } catch (driverError) {
+                                                    console.error('[ViewRequest] Error inserting driver:', driverError);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    toast.success('Reschedule proposal sent');
+                                    setIsRescheduleModalOpen(false);
+                                    await fetchReservationDetails(reservationDetails?.reservation_id);
+                                    await fetchReservations();
+                                } else {
+                                    toast.error(proposeResp.data?.message || 'Failed to send reschedule proposal');
+                                }
                             } catch (error) {
                                 console.error('[ViewRequest] Error in onReschedule:', error);
                                 toast.error(`Error rescheduling reservation: ${error.response?.data?.message || error.message}`);
@@ -2789,16 +3013,16 @@ const DetailModal = ({
             // show decline, reschedule, and approve buttons for any approver in the sequence
             if (isChangeRequest && currentApproverInfo.allApproved && currentApproverInfo.isCurrentUser) {
                 const priorityCheck = checkPriority();
-                const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+                const isExpired = new Date(reservationDetails?.reservation_end_date) < new Date();
                 
                 // Check if current user can bypass venue availability restrictions
-                const currentUserLevel = reservationDetails.user_level_name;
-                const currentUserDepartment = reservationDetails.department_name;
+                const currentUserLevel = reservationDetails?.user_level_name || '';
+                const currentUserDepartment = reservationDetails?.department_name || '';
                 const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
                 const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
                 const canBypassVenueRestrictions = isDepartmentHeadFromCOO || isSecretaryFromGSD;
                 
-                const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
+                const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails?.venues && reservationDetails?.venues?.some(v => v.isAvailable === false);
                 
                 // Department Approval Progress gating
                 const hasDeptProgress = Array.isArray(deansApproval) && deansApproval.length > 0;
@@ -2819,9 +3043,9 @@ const DetailModal = ({
                 const shouldDisableApprove = (!priorityCheck.hasPriority && !(isDepartmentHeadFromCOO || isSecretaryFromGSD)) || anyVenueNotAvailable || (hasDeptProgress && !allDeptProgressApproved);
                 
                 // Require driver selection before rescheduling when vehicles exist
-                const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
-                const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
-                    const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                const hasVehicles = Array.isArray(reservationDetails?.vehicles) && reservationDetails?.vehicles?.length > 0;
+                const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails?.vehicles?.every(vehicle => {
+                    const existingDriver = (reservationDetails?.drivers || [])?.find(driver =>
                         driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
                         (driver.driver_id || driver.driver_name)
                     );
@@ -2842,16 +3066,16 @@ const DetailModal = ({
                         key="reschedule"
                         type="default"
                         onClick={() => {
-                            const isChangeRequest = reservationDetails.status_name === "Change Request";
+                            const isChangeRequest = reservationDetails?.status_name === "Change Request";
                             console.log('[ViewRequest] Opening RescheduleModal - Button 3:', {
                                 isChangeRequest,
-                                venues: reservationDetails.venues,
-                                vehicles: reservationDetails.vehicles,
-                                equipment: reservationDetails.equipment
+                                venues: reservationDetails?.venues,
+                                vehicles: reservationDetails?.vehicles,
+                                equipment: reservationDetails?.equipment
                             });
                             
                             const resources = {
-                                venueIds: (reservationDetails.venues || []).map(v => {
+                                venueIds: (reservationDetails?.venues || [])?.map(v => {
                                     if (isChangeRequest) {
                                         return {
                                             venue_id: v.venue_id || v.ven_id,
@@ -2862,7 +3086,7 @@ const DetailModal = ({
                                     }
                                     return v.venue_id || v.ven_id;
                                 }),
-                                vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                                vehicleIds: (reservationDetails?.vehicles || [])?.map(v => {
                                     if (isChangeRequest) {
                                         return {
                                             vehicle_id: v.vehicle_id,
@@ -2872,7 +3096,7 @@ const DetailModal = ({
                                     }
                                     return v.vehicle_id;
                                 }),
-                                equipment: (reservationDetails.equipment || []).map(eq => ({
+                                equipment: (reservationDetails?.equipment || [])?.map(eq => ({
                                     equipment_id: eq.equipment_id || eq.equip_id,
                                     name: eq.name || eq.equipment_name,
                                     quantity: parseInt(eq.quantity, 10) || 0
@@ -2914,7 +3138,8 @@ const DetailModal = ({
                         resources={rescheduleResources}
                         onReschedule={async (newDates) => {
                             try {
-                                const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames } = newDates || {};
+                                const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames, reason } = newDates || {};
+                                alert('DEBUG viewRequest#2: newVenueIds = ' + JSON.stringify(newVenueIds));
                                 console.log('[ViewRequest] RescheduleModal#2 onReschedule received:', { startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
                                 
                                 if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
@@ -2935,8 +3160,98 @@ const DetailModal = ({
                                         return;
                                     }
                                 }
-                                await handleReschedule({ startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
-                                setIsRescheduleModalOpen(false);
+                                // Prepare venue_ids and vehicle_ids for change venue/vehicle
+                                const venueIdsForProposal = (reservationDetails?.venues || []).map((v, index) => ({
+                                    reservation_venue_id: v.reservation_venue_id,
+                                    change_venue_id: Array.isArray(newVenueIds) ? newVenueIds[index] || null : null
+                                }));
+                                const vehicleIdsForProposal = (reservationDetails?.vehicles || []).map((v, index) => ({
+                                    reservation_vehicle_id: v.reservation_vehicle_id,
+                                    change_vehicle_id: Array.isArray(newVehicleIds) ? newVehicleIds[index] || null : null
+                                }));
+                                
+                                const proposeResp = await axios.post(`${encryptedUrl}reservation.php`, {
+                                    operation: 'proposeReschedule',
+                                    reservation_id: reservationDetails?.reservation_id,
+                                    reschedule_start_date: startDate,
+                                    reschedule_end_date: endDate,
+                                    user_id: currentUserId,
+                                    reason: reason || null,
+                                    venue_ids: venueIdsForProposal,
+                                    vehicle_ids: vehicleIdsForProposal
+                                }, { headers: { 'Content-Type': 'application/json' } });
+
+                                if (proposeResp.data?.status === 'success') {
+                                    // Update venue changes using separate API calls (following reservation_details.jsx pattern)
+                                    const venueChangesToApply = venueIdsForProposal.filter(v => v.change_venue_id !== null);
+                                    if (venueChangesToApply.length > 0) {
+                                        console.log('[ViewRequest] Applying venue changes:', venueChangesToApply);
+                                        await Promise.allSettled(
+                                            venueChangesToApply.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+                                                operation: 'updateVenueReschedule',
+                                                reservation_venue_id: change.reservation_venue_id,
+                                                reservation_change_venue_id: change.change_venue_id,
+                                                reservation_id: reservationDetails?.reservation_id
+                                            }))
+                                        );
+                                    }
+
+                                    // Update vehicle changes using separate API calls
+                                    const vehicleChangesToApply = vehicleIdsForProposal.filter(v => v.change_vehicle_id !== null);
+                                    if (vehicleChangesToApply.length > 0) {
+                                        console.log('[ViewRequest] Applying vehicle changes:', vehicleChangesToApply);
+                                        await Promise.allSettled(
+                                            vehicleChangesToApply.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+                                                operation: 'updateVehicleReschedule',
+                                                reservation_vehicle_id: change.reservation_vehicle_id,
+                                                reservation_change_vehicle_id: change.change_vehicle_id,
+                                                reservation_id: reservationDetails?.reservation_id
+                                            }))
+                                        );
+                                    }
+
+                                    // Update driver assignments if provided
+                                    if (driverAssignments && Object.keys(driverAssignments).length > 0) {
+                                        console.log('[ViewRequest] Processing driver assignments:', driverAssignments);
+                                        console.log('[ViewRequest] Custom driver names:', customDriverNames);
+                                        
+                                        for (const vehicle of reservationDetails?.vehicles || []) {
+                                            const vehicleId = vehicle.vehicle_id;
+                                            const driverAssignment = driverAssignments[vehicleId];
+                                            
+                                            if (driverAssignment !== undefined) {
+                                                const isCustomDriver = driverAssignment === 'custom';
+                                                const customDriverName = isCustomDriver ? customDriverNames[vehicleId] : null;
+                                                const driverUserId = isCustomDriver ? null : driverAssignment;
+                                                
+                                                console.log('[ViewRequest] Inserting/updating driver for vehicle:', {
+                                                    vehicleId,
+                                                    reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                                                    driverUserId,
+                                                    customDriverName
+                                                });
+                                                
+                                                try {
+                                                    await axios.post(`${encryptedUrl}Admin.php`, {
+                                                        operation: 'insertDriver',
+                                                        reservation_driver_user_id: driverUserId,
+                                                        reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                                                        driver_name: customDriverName
+                                                    });
+                                                } catch (driverError) {
+                                                    console.error('[ViewRequest] Error inserting driver:', driverError);
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    toast.success('Reschedule proposal sent');
+                                    setIsRescheduleModalOpen(false);
+                                    await fetchReservationDetails(reservationDetails?.reservation_id);
+                                    await fetchReservations();
+                                } else {
+                                    toast.error(proposeResp.data?.message || 'Failed to send reschedule proposal');
+                                }
                             } catch (error) {
                                 console.error('[ViewRequest] Error in onReschedule:', error);
                                 toast.error(`Error rescheduling reservation: ${error.response?.data?.message || error.message}`);
@@ -2962,16 +3277,16 @@ const DetailModal = ({
 
             // Current user is the pending approver - show approval buttons
             const priorityCheck = checkPriority();
-            const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+            const isExpired = new Date(reservationDetails?.reservation_end_date) < new Date();
             
             // Check if current user can bypass venue availability restrictions
-            const currentUserLevel = reservationDetails.user_level_name;
-            const currentUserDepartment = reservationDetails.department_name;
+            const currentUserLevel = reservationDetails?.user_level_name || '';
+            const currentUserDepartment = reservationDetails?.department_name || '';
             const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
             const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
             const canBypassVenueRestrictions = isDepartmentHeadFromCOO || isSecretaryFromGSD;
             
-            const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
+            const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails?.venues && reservationDetails?.venues?.some(v => v.isAvailable === false);
             
             // Department Approval Progress gating
             const hasDeptProgress = Array.isArray(deansApproval) && deansApproval.length > 0;
@@ -2989,15 +3304,15 @@ const DetailModal = ({
 
             // If current approver is the last in sequence, also show Reschedule
             const isLastInSequence = Array.isArray(reservationDetails?.approval_sequence) &&
-                reservationDetails.approval_sequence.length > 0 &&
+                reservationDetails?.approval_sequence?.length > 0 &&
                 parseInt(currentApproverInfo.sequence, 10) === Math.max(
-                    ...reservationDetails.approval_sequence.map(a => parseInt(a.approval_sequence, 10))
+                    ...reservationDetails?.approval_sequence?.map(a => parseInt(a.approval_sequence, 10))
                 );
 
             // Require driver selection before rescheduling when vehicles exist
-            const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
-            const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
-                const existingDriver = (reservationDetails.drivers || []).find(driver =>
+            const hasVehicles = Array.isArray(reservationDetails?.vehicles) && reservationDetails?.vehicles?.length > 0;
+            const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails?.vehicles?.every(vehicle => {
+                const existingDriver = (reservationDetails?.drivers || [])?.find(driver =>
                     driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
                     (driver.driver_id || driver.driver_name)
                 );
@@ -3014,7 +3329,7 @@ const DetailModal = ({
             // Fix: When there's no department approval progress (hasDeptProgress = false), 
             // allDeptProgressApproved should be true, so the button should be enabled
             // For regular approval: Last approver must assign drivers before approving
-            const isRegularApproval = reservationDetails.status_name !== "Change Request";
+            const isRegularApproval = reservationDetails?.status_name !== "Change Request";
             
             // Check if there are no available drivers when vehicles exist
             const noDriversAvailable = hasVehicles && availableDrivers.length === 0;
@@ -3047,16 +3362,16 @@ const DetailModal = ({
                             key="reschedule"
                             type="default"
                             onClick={() => {
-                                const isChangeRequest = reservationDetails.status_name === "Change Request";
+                                const isChangeRequest = reservationDetails?.status_name === "Change Request";
                                 console.log('[ViewRequest] Opening RescheduleModal - Button 2:', {
                                     isChangeRequest,
-                                    venues: reservationDetails.venues,
-                                    vehicles: reservationDetails.vehicles,
-                                    equipment: reservationDetails.equipment
+                                    venues: reservationDetails?.venues,
+                                    vehicles: reservationDetails?.vehicles,
+                                    equipment: reservationDetails?.equipment
                                 });
-                                
+
                                 const resources = {
-                                    venueIds: (reservationDetails.venues || []).map(v => {
+                                    venueIds: (reservationDetails?.venues || [])?.map(v => {
                                         if (isChangeRequest) {
                                             return {
                                                 venue_id: v.venue_id || v.ven_id,
@@ -3067,7 +3382,7 @@ const DetailModal = ({
                                         }
                                         return v.venue_id || v.ven_id;
                                     }),
-                                    vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                                    vehicleIds: (reservationDetails?.vehicles || [])?.map(v => {
                                         if (isChangeRequest) {
                                             return {
                                                 vehicle_id: v.vehicle_id,
@@ -3077,13 +3392,13 @@ const DetailModal = ({
                                         }
                                         return v.vehicle_id;
                                     }),
-                                    equipment: (reservationDetails.equipment || []).map(eq => ({
+                                    equipment: (reservationDetails?.equipment || [])?.map(eq => ({
                                         equipment_id: eq.equipment_id || eq.equip_id,
                                         name: eq.name || eq.equipment_name,
                                         quantity: parseInt(eq.quantity, 10) || 0
                                     }))
                                 };
-                                
+
                                 console.log('[ViewRequest] Button 2 - Extracted resources:', resources);
                                 setRescheduleResources(resources);
                                 setIsRescheduleModalOpen(true);
@@ -3099,11 +3414,13 @@ const DetailModal = ({
                             visible={isRescheduleModalOpen}
                             onCancel={() => setIsRescheduleModalOpen(false)}
                             reservation={reservationDetails}
+                            resources={rescheduleResources}
                             onReschedule={async (newDates) => {
+                                alert('DEBUG viewRequest#3: newVenueIds = ' + JSON.stringify(newDates.newVenueIds));
                                 try {
-                                    const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames } = newDates || {};
-                                    console.log('[ViewRequest] RescheduleModal#3 onReschedule received:', { startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
-                                    
+                                    const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, reason, driverAssignments, customDriverNames } = newDates || {};
+                                    console.log('[ViewRequest] RescheduleModal#3 onReschedule received:', { startDate, endDate, newVenueIds, newVehicleIds });
+
                                     if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
                                         try {
                                             await axios.post(`${encryptedUrl}/Admin.php`, {
@@ -3122,16 +3439,104 @@ const DetailModal = ({
                                             return;
                                         }
                                     }
-                                    await handleReschedule({ startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
-                                    setIsRescheduleModalOpen(false);
+
+                                    // Prepare venue_ids and vehicle_ids for change venue/vehicle
+                                    const venueIdsForProposal = (reservationDetails?.venues || []).map((v, index) => ({
+                                        reservation_venue_id: v.reservation_venue_id,
+                                        change_venue_id: Array.isArray(newVenueIds) ? newVenueIds[index] || null : null
+                                    }));
+                                    const vehicleIdsForProposal = (reservationDetails?.vehicles || []).map((v, index) => ({
+                                        reservation_vehicle_id: v.reservation_vehicle_id,
+                                        change_vehicle_id: Array.isArray(newVehicleIds) ? newVehicleIds[index] || null : null
+                                    }));
+
+                                    const proposeResp = await axios.post(`${encryptedUrl}reservation.php`, {
+                                        operation: 'proposeReschedule',
+                                        reservation_id: reservationDetails?.reservation_id,
+                                        reschedule_start_date: startDate,
+                                        reschedule_end_date: endDate,
+                                        user_id: currentUserId,
+                                        reason: reason || null,
+                                        venue_ids: venueIdsForProposal,
+                                        vehicle_ids: vehicleIdsForProposal
+                                    }, { headers: { 'Content-Type': 'application/json' } });
+
+                                    if (proposeResp.data?.status === 'success') {
+                                        // Update venue changes using separate API calls (following reservation_details.jsx pattern)
+                                        const venueChangesToApply = venueIdsForProposal.filter(v => v.change_venue_id !== null);
+                                        if (venueChangesToApply.length > 0) {
+                                            console.log('[ViewRequest] Applying venue changes:', venueChangesToApply);
+                                            await Promise.allSettled(
+                                                venueChangesToApply.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+                                                    operation: 'updateVenueReschedule',
+                                                    reservation_venue_id: change.reservation_venue_id,
+                                                    reservation_change_venue_id: change.change_venue_id,
+                                                    reservation_id: reservationDetails?.reservation_id
+                                                }))
+                                            );
+                                        }
+
+                                        // Update vehicle changes using separate API calls
+                                        const vehicleChangesToApply = vehicleIdsForProposal.filter(v => v.change_vehicle_id !== null);
+                                        if (vehicleChangesToApply.length > 0) {
+                                            console.log('[ViewRequest] Applying vehicle changes:', vehicleChangesToApply);
+                                            await Promise.allSettled(
+                                                vehicleChangesToApply.map(change => axios.post(`${encryptedUrl}reservation.php`, {
+                                                    operation: 'updateVehicleReschedule',
+                                                    reservation_vehicle_id: change.reservation_vehicle_id,
+                                                    reservation_change_vehicle_id: change.change_vehicle_id,
+                                                    reservation_id: reservationDetails?.reservation_id
+                                                }))
+                                            );
+                                        }
+
+                                        // Update driver assignments if provided
+                                        if (driverAssignments && Object.keys(driverAssignments).length > 0) {
+                                            console.log('[ViewRequest] Processing driver assignments:', driverAssignments);
+                                            console.log('[ViewRequest] Custom driver names:', customDriverNames);
+                                            
+                                            for (const vehicle of reservationDetails?.vehicles || []) {
+                                                const vehicleId = vehicle.vehicle_id;
+                                                const driverAssignment = driverAssignments[vehicleId];
+                                                
+                                                if (driverAssignment !== undefined) {
+                                                    const isCustomDriver = driverAssignment === 'custom';
+                                                    const customDriverName = isCustomDriver ? customDriverNames[vehicleId] : null;
+                                                    const driverUserId = isCustomDriver ? null : driverAssignment;
+                                                    
+                                                    console.log('[ViewRequest] Inserting/updating driver for vehicle:', {
+                                                        vehicleId,
+                                                        reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                                                        driverUserId,
+                                                        customDriverName
+                                                    });
+                                                    
+                                                    try {
+                                                        await axios.post(`${encryptedUrl}Admin.php`, {
+                                                            operation: 'insertDriver',
+                                                            reservation_driver_user_id: driverUserId,
+                                                            reservation_vehicle_id: vehicle.reservation_vehicle_id,
+                                                            driver_name: customDriverName
+                                                        });
+                                                    } catch (driverError) {
+                                                        console.error('[ViewRequest] Error inserting driver:', driverError);
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        toast.success('Reschedule proposal sent');
+                                        setIsRescheduleModalOpen(false);
+                                        await fetchReservationDetails(reservationDetails?.reservation_id);
+                                        await fetchReservations();
+                                    } else {
+                                        toast.error(proposeResp.data?.message || 'Failed to send reschedule proposal');
+                                    }
                                 } catch (error) {
                                     console.error('[ViewRequest] Error in onReschedule:', error);
                                     toast.error(`Error rescheduling reservation: ${error.response?.data?.message || error.message}`);
                                 }
                             }}
-                            reservationId={reservationDetails?.reservation_id}
-                            currentStartDate={reservationDetails?.reschedule_start_date || reservationDetails?.reservation_start_date}
-                            currentEndDate={reservationDetails?.reschedule_end_date || reservationDetails?.reservation_end_date}
                         />
                     </>
                 ),
@@ -3154,9 +3559,9 @@ const DetailModal = ({
         }
 
         // Check for reschedule request waiting for department approval confirmation
-        const isRescheduleStatus = reservationDetails.status_name === "Reschedule";
-        const isChangeRequestStatus = reservationDetails.status_name === "Change Request";
-        const rescheduleApproval = reservationDetails.status_history?.find(
+        const isRescheduleStatus = reservationDetails?.status_name === "Reschedule";
+        const isChangeRequestStatus = reservationDetails?.status_name === "Change Request";
+        const rescheduleApproval = reservationDetails?.status_history?.find(
             status => status.status_name === 'Pending'
         );
         const isRescheduleWaitingConfirmation = isRescheduleStatus && 
@@ -3177,7 +3582,7 @@ const DetailModal = ({
         }
 
         // Find the current pending approval
-        const currentPendingApproval = reservationDetails.status_history?.find(
+        const currentPendingApproval = reservationDetails?.status_history?.find(
             status => status.status_name === 'Pending' && status.reservation_active === 0
         );
         
@@ -3200,21 +3605,21 @@ const DetailModal = ({
         // For Change Request status, enable department approval buttons again
         const isAdminAlreadyApproved = false;
         const isAdminAlreadyDeclined = false;
-        const isChangeRequestForApproval = reservationDetails.status_name === "Change Request";
+        const isChangeRequestForApproval = reservationDetails?.status_name === "Change Request";
         // Check if current user is the last approver in the sequence
         const isLastSequenceApproverForPending = reservationDetails?.approval_sequence && 
-            reservationDetails.approval_sequence.length > 0 && 
-            parseInt(reservationDetails.approval_sequence[reservationDetails.approval_sequence.length - 1]?.users_id, 10) === currentUserId;
+            reservationDetails?.approval_sequence?.length > 0 && 
+            parseInt(reservationDetails?.approval_sequence[reservationDetails?.approval_sequence?.length - 1]?.users_id, 10) === currentUserId;
         console.log("isLastSequenceApproverForPending", isLastSequenceApproverForPending);
         
         // Check if all approvers in the sequence have approved for Change Request
         const allSequenceApproversApprovedForPending = reservationDetails?.approval_sequence && 
-            reservationDetails.approval_sequence.length > 0 && 
-            reservationDetails.approval_sequence.every(approver => approver.has_approved === true);
+            reservationDetails?.approval_sequence?.length > 0 && 
+            reservationDetails?.approval_sequence?.every(approver => approver.has_approved === true);
         
         // Check if current user is in the approval sequence for Change Request (for pending stage)
         const isCurrentUserInApprovalSequenceForPending = reservationDetails?.approval_sequence && 
-            reservationDetails.approval_sequence.some(approver => parseInt(approver.users_id, 10) === currentUserId);
+            reservationDetails?.approval_sequence?.some(approver => parseInt(approver.users_id, 10) === currentUserId);
         
         const isCurrentUserPartOfPendingStage = (
             (isAdminPending && isAdminApprover) || 
@@ -3239,11 +3644,11 @@ const DetailModal = ({
         }
 
         const priorityCheck = checkPriority();
-        const isExpired = new Date(reservationDetails.reservation_end_date) < new Date();
+        const isExpired = new Date(reservationDetails?.reservation_end_date) < new Date();
         
         // Check if current user can bypass venue availability restrictions
-        const currentUserLevel = reservationDetails.user_level_name;
-        const currentUserDepartment = reservationDetails.department_name;
+        const currentUserLevel = reservationDetails?.user_level_name || '';
+        const currentUserDepartment = reservationDetails?.department_name || '';
         const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
         const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
         const canBypassVenueRestrictions = isDepartmentHeadFromCOO || isSecretaryFromGSD;
@@ -3311,17 +3716,17 @@ const DetailModal = ({
 
         // Handle Change Request status specifically
         const isLastSequenceApprover = reservationDetails?.approval_sequence && 
-            reservationDetails.approval_sequence.length > 0 && 
-            parseInt(reservationDetails.approval_sequence[reservationDetails.approval_sequence.length - 1]?.users_id, 10) === footerCurrentUserId;
+            reservationDetails?.approval_sequence?.length > 0 && 
+            parseInt(reservationDetails?.approval_sequence[reservationDetails?.approval_sequence?.length - 1]?.users_id, 10) === footerCurrentUserId;
         
         // Check if all approvers in the sequence have approved
         const allSequenceApproversApproved = reservationDetails?.approval_sequence && 
-            reservationDetails.approval_sequence.length > 0 && 
-            reservationDetails.approval_sequence.every(approver => approver.has_approved === true);
+            reservationDetails?.approval_sequence?.length > 0 && 
+            reservationDetails?.approval_sequence?.every(approver => approver.has_approved === true);
         
         // Check if current user is in the approval sequence for Change Request
         const isCurrentUserInApprovalSequence = reservationDetails?.approval_sequence && 
-            reservationDetails.approval_sequence.some(approver => parseInt(approver.users_id, 10) === footerCurrentUserId);
+            reservationDetails?.approval_sequence?.some(approver => parseInt(approver.users_id, 10) === footerCurrentUserId);
             
         
         // Debug logging for Change Request button logic
@@ -3343,10 +3748,10 @@ const DetailModal = ({
         // For Change Request, show for any user in the approval sequence
         if (isLastSequenceApprover) {
             // Require driver selection before rescheduling when vehicles exist
-            const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
-            const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
+            const hasVehicles = Array.isArray(reservationDetails?.vehicles) && reservationDetails?.vehicles?.length > 0;
+            const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails?.vehicles?.every(vehicle => {
                 // Check existing assignment
-                const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                const existingDriver = (reservationDetails?.drivers || [])?.find(driver =>
                     driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
                     (driver.driver_id || driver.driver_name)
                 );
@@ -3372,18 +3777,18 @@ const DetailModal = ({
                             // Extract resource IDs and quantities from reservationDetails (from fetchRequestById)
                             // For Change Request status, include both original and change IDs
                             // This data will be passed to RescheduleModal for fetchAvailability calls
-                            const isChangeRequest = reservationDetails.status_name === "Change Request";
+                            const isChangeRequest = reservationDetails?.status_name === "Change Request";
                             
                             console.log('[ViewRequest] Opening RescheduleModal with fetchRequestById data:', {
                                 isChangeRequest,
-                                venues: reservationDetails.venues,
-                                vehicles: reservationDetails.vehicles,
-                                equipment: reservationDetails.equipment
+                                venues: reservationDetails?.venues,
+                                vehicles: reservationDetails?.vehicles,
+                                equipment: reservationDetails?.equipment
                             });
                             
                             // Extract venue_id from venues array
                             const resources = {
-                                venueIds: (reservationDetails.venues || []).map(v => {
+                                venueIds: (reservationDetails?.venues || [])?.map(v => {
                                     if (isChangeRequest) {
                                         // For Change Request, create object with both original and change IDs
                                         // RescheduleModal will check availability for BOTH venue_id and change_venue_id
@@ -3398,7 +3803,7 @@ const DetailModal = ({
                                     return v.venue_id || v.ven_id;
                                 }),
                                 // Extract vehicle_id from vehicles array
-                                vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                                vehicleIds: (reservationDetails?.vehicles || [])?.map(v => {
                                     if (isChangeRequest) {
                                         // For Change Request, create object with both original and change IDs
                                         // RescheduleModal will check availability for BOTH vehicle_id and change_vehicle_id
@@ -3412,7 +3817,7 @@ const DetailModal = ({
                                     return v.vehicle_id;
                                 }),
                                 // Extract equipment_id and quantity from equipment array
-                                equipment: (reservationDetails.equipment || []).map(eq => ({
+                                equipment: (reservationDetails?.equipment || [])?.map(eq => ({
                                     equipment_id: eq.equipment_id || eq.equip_id, // Support both field names
                                     name: eq.name || eq.equipment_name,
                                     quantity: parseInt(eq.quantity, 10) || 0
@@ -3513,14 +3918,14 @@ const DetailModal = ({
                                 const isChangeRequest = reservationDetails?.status_name === "Change Request";
                                 console.log('[ViewRequest] Checking equipment handling:', {
                                     isChangeRequest,
-                                    hasEquipment: !!(reservationDetails?.equipment && reservationDetails.equipment.length > 0),
+                                    hasEquipment: !!(reservationDetails?.equipment && reservationDetails?.equipment?.length > 0),
                                     equipment: reservationDetails?.equipment
                                 });
                                 
                                 // Equipment units handling removed
 
                                 // Step 2: Process venue changes with minimal payload per change (no dates)
-                                const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails.venues : [];
+                                const currentVenues = Array.isArray(reservationDetails?.venues) ? reservationDetails?.venues : [];
                                 
                                 console.log('[ViewRequest] Processing venue changes:', {
                                     currentVenues,
@@ -3567,7 +3972,7 @@ const DetailModal = ({
                                 }
 
                                 // Step 3: Process vehicle changes with minimal payload per change (no dates)
-                                const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
+                                const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails?.vehicles : [];
                                 
                                 console.log('[ViewRequest] Processing vehicle changes:', {
                                     currentVehicles,
@@ -3706,10 +4111,10 @@ const DetailModal = ({
                     }
                     
                     // Require driver selection before rescheduling when vehicles exist
-                    const hasVehicles = Array.isArray(reservationDetails.vehicles) && reservationDetails.vehicles.length > 0;
-                    const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails.vehicles.every(vehicle => {
+                    const hasVehicles = Array.isArray(reservationDetails?.vehicles) && reservationDetails?.vehicles?.length > 0;
+                    const allVehiclesHaveDriverAssigned = !hasVehicles || reservationDetails?.vehicles?.every(vehicle => {
                         // Check existing assignment
-                        const existingDriver = (reservationDetails.drivers || []).find(driver =>
+                        const existingDriver = (reservationDetails?.drivers || [])?.find(driver =>
                             driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id) &&
                             (driver.driver_id || driver.driver_name)
                         );
@@ -3733,10 +4138,10 @@ const DetailModal = ({
                                 onClick={() => {
                                     // Extract resource IDs and quantities from reservationDetails
                                     // For Change Request status, include both original and change IDs
-                                    const isChangeRequest = reservationDetails.status_name === "Change Request";
+                                    const isChangeRequest = reservationDetails?.status_name === "Change Request";
                                     
                                     const resources = {
-                                        venueIds: (reservationDetails.venues || []).map(v => {
+                                        venueIds: (reservationDetails?.venues || [])?.map(v => {
                                             if (isChangeRequest) {
                                                 // For Change Request, create object with both original and change IDs
                                                 return {
@@ -3747,7 +4152,7 @@ const DetailModal = ({
                                             }
                                             return v.venue_id;
                                         }),
-                                        vehicleIds: (reservationDetails.vehicles || []).map(v => {
+                                        vehicleIds: (reservationDetails?.vehicles || [])?.map(v => {
                                             if (isChangeRequest) {
                                                 // For Change Request, create object with both original and change IDs
                                                 return {
@@ -3758,7 +4163,7 @@ const DetailModal = ({
                                             }
                                             return v.vehicle_id;
                                         }),
-                                        equipment: (reservationDetails.equipment || []).map(eq => ({
+                                        equipment: (reservationDetails?.equipment || [])?.map(eq => ({
                                             equipment_id: eq.equipment_id,
                                             quantity: parseInt(eq.quantity, 10) || 0
                                         }))
@@ -4240,7 +4645,7 @@ const DetailModal = ({
                 key: 'venue_name',
                 render: (text, record) => {
                     const availabilityInfo = getResourceAvailabilityInfo('venue', record.venue_id);
-                    const hasVenueChange = record.change_venue_id && reservationDetails.status_name === "Reschedule";
+                    const hasVenueChange = record.change_venue_id && reservationDetails?.status_name === "Reschedule";
                     
                     return (
                         <div className="flex items-center justify-between">
@@ -4429,7 +4834,7 @@ const DetailModal = ({
                 const getCurrentApproverInfo = () => {
                     if (!reservationDetails?.approval_sequence) return { isCurrentApprover: true, hasExistingDriver: false };
                     
-                    const currentApprover = reservationDetails.approval_sequence.find(approver => !approver.has_approved);
+                    const currentApprover = reservationDetails?.approval_sequence?.find(approver => !approver.has_approved);
                     const isCurrentApprover = currentApprover && String(currentApprover.users_id) === String(currentUserId);
                     const hasExistingDriver = existingDriver && existingDriver.driver_name;
                     
@@ -4624,13 +5029,13 @@ const DetailModal = ({
 
     // Determine if any venue is not available due to class schedule
     // Check if current user can bypass venue availability restrictions
-    const currentUserLevel = reservationDetails.user_level_name;
-    const currentUserDepartment = reservationDetails.department_name;
+    const currentUserLevel = reservationDetails?.user_level_name || '';
+    const currentUserDepartment = reservationDetails?.department_name || '';
     const isDepartmentHeadFromCOO = currentUserLevel === "Department Head" && currentUserDepartment === "COO";
     const isSecretaryFromGSD = currentUserLevel === "Secretary" && currentUserDepartment === "GSD";
     const canBypassVenueRestrictions = isDepartmentHeadFromCOO || isSecretaryFromGSD;
     
-    const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails.venues && reservationDetails.venues.some(v => v.isAvailable === false);
+    const anyVenueNotAvailable = !canBypassVenueRestrictions && reservationDetails?.venues && reservationDetails.venues.some(v => v.isAvailable === false);
     
     // Get priority check result
     const priorityCheck = checkPriority();
@@ -4666,7 +5071,7 @@ const DetailModal = ({
                         <div className="text-white">
                             <p className="text-white/80 text-xs">Created on</p>
                             <p className={`font-semibold break-words ${isMobile ? 'text-xs' : 'text-xs sm:text-sm'}`}>
-                                {new Date(reservationDetails.reservation_created_at).toLocaleString()}
+                                {reservationDetails?.reservation_created_at ? new Date(reservationDetails.reservation_created_at).toLocaleString() : 'N/A'}
                             </p>
                         </div>
                     </div>
@@ -4675,7 +5080,7 @@ const DetailModal = ({
                 {/* Main Content */}
                 <div className={`${isMobile ? 'px-4 pt-0 pb-4 flex-1 overflow-auto -mt-1' : 'p-6'}`}>
                 {/* Status Alerts Section */}
-                {new Date(reservationDetails.reservation_end_date) < new Date() ? (
+                {reservationDetails?.reservation_end_date && new Date(reservationDetails.reservation_end_date) < new Date() ? (
                     <Alert
                         message={<span className="font-semibold">Priority Status: Blocked</span>}
                         description="This reservation has expired and cannot be approved."
@@ -4686,7 +5091,7 @@ const DetailModal = ({
                 ) : (
                     <>
                         {/* Status-specific alerts */}
-                        {reservationDetails.status_name === "Venue Approved" && (
+                        {reservationDetails?.status_name === "Venue Approved" && (
                             <Alert
                                 message={<span className={`font-semibold ${isMobile ? 'text-sm' : ''}`}>Venue Approved</span>}
                                 description={<span className={isMobile ? 'text-xs' : 'text-sm'}>The venue for this reservation has been approved. You may now proceed to approve or decline the reservation.</span>}
@@ -4695,7 +5100,7 @@ const DetailModal = ({
                                 className="border border-green-200 shadow-sm"
                             />
                         )}
-                        {reservationDetails.status_name === "Venue Declined" && (
+                        {reservationDetails?.status_name === "Venue Declined" && (
                             <Alert
                                 message={<span className={`font-semibold ${isMobile ? 'text-sm' : ''}`}>Venue Declined</span>}
                                 description={<span className={isMobile ? 'text-xs' : 'text-sm'}>The venue for this reservation has been declined. You may only decline this reservation.</span>}
@@ -4704,7 +5109,7 @@ const DetailModal = ({
                                 className="border border-red-200 shadow-sm"
                             />
                         )}
-                        {reservationDetails.status_name === "Registrar Approval" && (
+                        {reservationDetails?.status_name === "Registrar Approval" && (
                             <Alert
                                 message={<span className={`font-semibold ${isMobile ? 'text-sm' : ''}`}>Processing Venue Availability</span>}
                                 description={<span className={isMobile ? 'text-xs' : 'text-sm'}>This request is currently being processed for venue availability by the registrar. Please wait for the response.</span>}
@@ -4713,8 +5118,8 @@ const DetailModal = ({
                                 className="border border-blue-200 shadow-sm"
                             />
                         )}
-                        {reservationDetails.status_name === "Reschedule" && (() => {
-                            const departmentApproval = reservationDetails.status_history?.find(
+                        {reservationDetails?.status_name === "Reschedule" && (() => {
+                            const departmentApproval = reservationDetails?.status_history?.find(
                                 status => status.status_name === 'Pending'
                             );
                             return departmentApproval && departmentApproval.reservation_active === 0;
@@ -4729,8 +5134,8 @@ const DetailModal = ({
                         )}
                         {(() => {
                             const hasPendingChangeRequest =
-                                reservationDetails.status_name === "Change Request" ||
-                                (Array.isArray(reservationDetails.status_history) &&
+                                reservationDetails?.status_name === "Change Request" ||
+                                (Array.isArray(reservationDetails?.status_history) &&
                                  reservationDetails.status_history.some(s => s.status_name === 'Change Request' && s.reservation_active === 0));
                             return hasPendingChangeRequest;
                         })() && (
@@ -4744,9 +5149,9 @@ const DetailModal = ({
                         )}
 
                         {/* Priority Status Section */}
-                        {(reservationDetails.active === 0 || reservationDetails.active === 1) && (
+                        {(reservationDetails?.active === 0 || reservationDetails?.active === 1) && (
                             <div className={isMobile ? "space-y-2" : "space-y-4"}>
-                                {reservationDetails.status_name !== "Reschedule" && (
+                                {reservationDetails?.status_name !== "Reschedule" && (
                                     <Alert
                                         message={
                                             <span className="font-semibold">
@@ -4755,8 +5160,8 @@ const DetailModal = ({
                                         }
                                         description={(() => {
                                             // Check for different types of conflicts
-                                            const venuesWithClassConflict = reservationDetails.venues?.filter(v => v.hasClassScheduleConflict) || [];
-                                            const venuesWithResourceConflict = reservationDetails.venues?.filter(v => v.hasResourceConflict) || [];
+                                            const venuesWithClassConflict = reservationDetails?.venues?.filter(v => v.hasClassScheduleConflict) || [];
+                                            const venuesWithResourceConflict = reservationDetails?.venues?.filter(v => v.hasResourceConflict) || [];
                                             
                                             if (venuesWithClassConflict.length > 0 && venuesWithResourceConflict.length > 0) {
                                                 if (canBypassVenueRestrictions) {
@@ -4784,7 +5189,7 @@ const DetailModal = ({
                                 )}
                                 
                                 {/* Reschedule Status Message - Show when status is Reschedule */}
-                                {reservationDetails.status_name === "Reschedule" && (
+                                {reservationDetails?.status_name === "Reschedule" && (
                                     <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
                                         <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2">
                                             <InfoCircleOutlined className="text-blue-600" />
@@ -4811,19 +5216,19 @@ const DetailModal = ({
                                 )}
 
                                 {/* Existing Reservations - Only show if there are actual resource conflicts AND status is NOT Reschedule */}
-                                {reservationDetails.status_name !== "Reschedule" && (() => {
-                                    const hasVenueConflict = reservationDetails.venues?.some(requestedVenue => 
-                                        reservationDetails.availabilityData?.unavailable_venues?.some(unavailableVenue => 
+                                {reservationDetails?.status_name !== "Reschedule" && (() => {
+                                    const hasVenueConflict = reservationDetails?.venues?.some(requestedVenue => 
+                                        reservationDetails?.availabilityData?.unavailable_venues?.some(unavailableVenue => 
                                             String(requestedVenue.venue_id) === String(unavailableVenue.ven_id)
                                         )
                                     );
-                                    const hasVehicleConflict = reservationDetails.vehicles?.some(requestedVehicle => 
-                                        reservationDetails.availabilityData?.unavailable_vehicles?.some(unavailableVehicle => 
+                                    const hasVehicleConflict = reservationDetails?.vehicles?.some(requestedVehicle => 
+                                        reservationDetails?.availabilityData?.unavailable_vehicles?.some(unavailableVehicle => 
                                             String(requestedVehicle.vehicle_id) === String(unavailableVehicle.vehicle_id)
                                         )
                                     );
-                                    const hasEquipmentConflict = reservationDetails.equipment?.some(requestedEquipment => {
-                                        const unavailableEquipment = reservationDetails.availabilityData?.unavailable_equipment?.find(
+                                    const hasEquipmentConflict = reservationDetails?.equipment?.some(requestedEquipment => {
+                                        const unavailableEquipment = reservationDetails?.availabilityData?.unavailable_equipment?.find(
                                             e => String(e.equip_id) === String(requestedEquipment.equipment_id)
                                         );
                                         if (!unavailableEquipment) return false;
@@ -4832,7 +5237,7 @@ const DetailModal = ({
                                     });
                                     const hasResourceConflicts = hasVenueConflict || hasVehicleConflict || hasEquipmentConflict;
                                     
-                                    return hasResourceConflicts && reservationDetails.availabilityData?.reservation_users?.length > 0 && (
+                                    return hasResourceConflicts && reservationDetails?.availabilityData?.reservation_users?.length > 0 && (
                                         <div className="bg-red-50 p-4 rounded-lg border border-red-200">
                                             <h3 className="text-lg font-semibold text-red-800 mb-4 flex items-center gap-2">
                                                 <InfoCircleOutlined className="text-red-600" />
@@ -4840,7 +5245,7 @@ const DetailModal = ({
                                             </h3>
                                             
                                             <div className="space-y-3">
-                                                {reservationDetails.availabilityData.reservation_users.map((user, index) => (
+                                                {reservationDetails?.availabilityData?.reservation_users?.map((user, index) => (
                                                     <div key={index} className="bg-white p-3 rounded-lg border border-red-100">
                                                         <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
                                                             <div className="flex-1">
@@ -4908,20 +5313,20 @@ const DetailModal = ({
                                 <div className="space-y-3">
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Name</p>
-                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails.requester_name}</p>
+                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails?.requester_name || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Role</p>
-                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails.user_level_name}</p>
+                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails?.user_level_name || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Department</p>
-                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails.department_name}</p>
+                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails?.department_name || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} font-semibold text-green-700 mb-1`}>Additional Note</p>
                                         <p className={`font-medium bg-yellow-50 text-green-900 rounded ${isMobile ? 'px-2 py-1 text-xs' : 'px-3 py-2'} border border-yellow-200`}>
-                                         {reservationDetails.additional_note}
+                                         {reservationDetails?.additional_note || 'No additional note'}
                                         </p>
                                     </div>
                                 </div>
@@ -4935,30 +5340,30 @@ const DetailModal = ({
                                 <div className="space-y-3">
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Title</p>
-                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails.reservation_title}</p>
+                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails?.reservation_title || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Description</p>
-                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails.reservation_description}</p>
+                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails?.reservation_description || 'N/A'}</p>
                                     </div>
                                     <div>
                                         <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Original Date & Time</p>
-                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{formatDateRange(
+                                        <p className={`font-medium text-gray-900 ${isMobile ? 'text-sm' : ''}`}>{reservationDetails?.reservation_start_date && reservationDetails?.reservation_end_date ? formatDateRange(
                                             reservationDetails.reservation_start_date,
                                             reservationDetails.reservation_end_date
-                                        )}</p>
+                                        ) : 'N/A'}</p>
                                     </div>
                                 {(() => {
                                     // Only show "Proposed New Date & Time" for Change Request status
-                                    const isChangeRequest = reservationDetails.status_name === "Change Request";
-                                    const hasRescheduleData = reservationDetails.reschedule_start_date && reservationDetails.reschedule_end_date;
+                                    const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                    const hasRescheduleData = reservationDetails?.reschedule_start_date && reservationDetails?.reschedule_end_date;
                                     
                                     return (isChangeRequest && hasRescheduleData) ? (
                                         <div>
                                             <p className={`${isMobile ? 'text-xs' : 'text-sm'} text-gray-500 mb-1`}>Proposed New Date & Time</p>
                                             <p className={`font-medium text-blue-600 ${isMobile ? 'text-sm' : ''}`}>{formatDateRange(
-                                                reservationDetails.reschedule_start_date,
-                                                reservationDetails.reschedule_end_date
+                                                reservationDetails?.reschedule_start_date,
+                                                reservationDetails?.reschedule_end_date
                                             )}</p>
                                         </div>
                                     ) : null;
@@ -4972,17 +5377,17 @@ const DetailModal = ({
                             <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-semibold text-gray-800 mb-4`}>Requested Resources</h3>
                             <div className="space-y-4">
                                 {/* Venues */}
-                                {reservationDetails.venues?.length > 0 && (
+                                {reservationDetails?.venues?.length > 0 && (
                                     <div>
                                         <h4 className={`${isMobile ? 'text-sm' : 'text-md'} font-medium text-gray-700 mb-2 flex items-center gap-2`}>
                                             <BuildOutlined className="text-purple-500" />
-                                            Venues ({reservationDetails.venues.length})
+                                            Venues ({reservationDetails?.venues?.length})
                                         </h4>
                                         {isMobile ? (
                                             <div className="grid grid-cols-1 gap-2">
-                                                {reservationDetails.venues.map((venue) => {
+                                                {reservationDetails?.venues?.map((venue) => {
                                                     const availabilityInfo = getResourceAvailabilityInfo('venue', venue.venue_id);
-                                                    const hasVenueChange = venue.change_venue_id && reservationDetails.status_name === "Reschedule";
+                                                    const hasVenueChange = venue.change_venue_id && reservationDetails?.status_name === "Reschedule";
                                                     const hasClassConflict = venue.hasClassScheduleConflict && venue.conflictingSchedules?.length > 0;
                                                     
                                                     return (
@@ -5058,21 +5463,21 @@ const DetailModal = ({
                                         ) : (
                                             <div>
                                                 <Table 
-                                                    dataSource={reservationDetails.venues} 
+                                                    dataSource={reservationDetails?.venues || []} 
                                                     columns={columns.venue}
                                                     pagination={false}
                                                     size="small"
                                                     className="border border-blue-200 rounded-lg"
                                                 />
                                                 {/* Show class schedule conflicts for desktop */}
-                                                {reservationDetails.venues.some(v => v.hasClassScheduleConflict && v.conflictingSchedules?.length > 0) && (
+                                                {(reservationDetails?.venues || []).some(v => v.hasClassScheduleConflict && v.conflictingSchedules?.length > 0) && (
                                                     <div className="mt-3 p-3 bg-rose-50 border border-rose-100 rounded-lg">
                                                         <div className="flex items-center gap-2 mb-2">
                                                             <ScheduleOutlined className="text-rose-500" />
                                                             <span className="font-medium text-rose-800">Conflicts with Class Schedules</span>
                                                         </div>
                                                         <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                                                            {reservationDetails.venues
+                                                            {(reservationDetails?.venues || [])
                                                                 .filter(v => v.hasClassScheduleConflict && v.conflictingSchedules?.length > 0)
                                                                 .map((venue) => (
                                                                     <div key={venue.venue_id}>
@@ -5102,17 +5507,17 @@ const DetailModal = ({
                                 )}
 
                                 {/* Vehicles */}
-                                {reservationDetails.vehicles?.length > 0 && (
+                                {reservationDetails?.vehicles?.length > 0 && (
                                     <div>
                                         <h4 className={`${isMobile ? 'text-sm' : 'text-md'} font-medium text-gray-700 mb-2 flex items-center gap-2`}>
                                             <CarOutlined className="text-blue-500" />
-                                            Vehicles ({reservationDetails.vehicles.length})
+                                            Vehicles ({reservationDetails?.vehicles?.length || 0})
                                         </h4>
                                         {isMobile ? (
                                             <div className="grid grid-cols-1 gap-3">
-                                                {reservationDetails.vehicles.map((vehicle) => {
+                                                {(reservationDetails?.vehicles || []).map((vehicle) => {
                                                     const availabilityInfo = getResourceAvailabilityInfo('vehicle', vehicle.vehicle_id);
-                                                    const existingDriver = (reservationDetails.drivers || []).find(driver => 
+                                                    const existingDriver = (reservationDetails?.drivers || []).find(driver => 
                                                         driver.reservation_vehicle_id && String(driver.reservation_vehicle_id) === String(vehicle.reservation_vehicle_id)
                                                     );
                                                     // Check if current user is the CURRENT approver (their turn) or if driver is already assigned
@@ -5147,7 +5552,7 @@ const DetailModal = ({
                                                         .filter(Boolean);
                                                     
                                                     // Collect driver IDs from existing assignments in database
-                                                    const existingAssignedDriverIds = (reservationDetails.drivers || [])
+                                                    const existingAssignedDriverIds = (reservationDetails?.drivers || [])
                                                         .filter(driver => 
                                                             driver.driver_id && 
                                                             driver.reservation_vehicle_id && 
@@ -5265,7 +5670,7 @@ const DetailModal = ({
                                             </div>
                                         ) : (
                                             <Table 
-                                                dataSource={reservationDetails.vehicles.map(vehicle => ({
+                                                dataSource={(reservationDetails?.vehicles || []).map(vehicle => ({
                                                     ...vehicle,
                                                     driver: vehicleDriverAssignments[vehicle.vehicle_id] || null
                                                 }))} 
@@ -5279,15 +5684,15 @@ const DetailModal = ({
                                 )}
 
                                 {/* Equipment */}
-                                {reservationDetails.equipment?.length > 0 && (
+                                {reservationDetails?.equipment?.length > 0 && (
                                     <div>
                                         <h4 className={`${isMobile ? 'text-sm' : 'text-md'} font-medium text-gray-700 mb-2 flex items-center gap-2`}>
                                             <ToolOutlined className="text-orange-500" />
-                                            Equipment ({reservationDetails.equipment.length})
+                                            Equipment ({reservationDetails?.equipment?.length || 0})
                                         </h4>
                                         {isMobile ? (
                                             <div className="grid grid-cols-1 gap-2">
-                                                {reservationDetails.equipment.map((item) => {
+                                                {(reservationDetails?.equipment || []).map((item) => {
                                                     const availabilityInfo = getResourceAvailabilityInfo('equipment', item.equipment_id);
                                                     return (
                                                         <div key={item.reservation_equipment_id || item.equipment_id} className="p-2 border rounded-lg bg-white">
@@ -5318,7 +5723,7 @@ const DetailModal = ({
                                             </div>
                                         ) : (
                                             <Table 
-                                                dataSource={reservationDetails.equipment} 
+                                                dataSource={reservationDetails?.equipment || []} 
                                                 columns={columns.equipment}
                                                 pagination={false}
                                                 size="small"
@@ -5336,17 +5741,17 @@ const DetailModal = ({
                             <div className={`bg-gray-50 rounded-lg border border-gray-200 ${isMobile ? 'p-3' : 'p-4'}`}>
                                 <div className={`space-y-${isMobile ? '3' : '4'}`}>
                                     {/* Display Approval Sequence */}
-                                    {reservationDetails.approval_sequence && reservationDetails.approval_sequence.length > 0 ? (
-                                        reservationDetails.approval_sequence.map((approver, index) => {
+                                    {reservationDetails?.approval_sequence && reservationDetails?.approval_sequence?.length > 0 ? (
+                                        reservationDetails?.approval_sequence?.map((approver, index) => {
                                             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
                                             const isCurrentUser = currentUserId === approver.users_id;
                                             
                                             // Determine if this is the last approver in the sequence
-                                            const isLastApprover = index === reservationDetails.approval_sequence.length - 1;
+                                            const isLastApprover = index === reservationDetails?.approval_sequence?.length - 1;
                                             
                                             // Determine status based on approval data
                                             // Check if all approvers in the sequence have approved
-                                            const allApproversApproved = reservationDetails.approval_sequence.every(app => app.has_approved);
+                                            const allApproversApproved = reservationDetails?.approval_sequence?.every(app => app.has_approved);
                                             
                                             let statusInfo;
                                             if (approver.has_approved) {
@@ -5362,7 +5767,7 @@ const DetailModal = ({
                                                 };
                                             } else {
                                                 // Check if this approver should be active (previous approvers have approved)
-                                                const previousApprovers = reservationDetails.approval_sequence.slice(0, index);
+                                                const previousApprovers = reservationDetails?.approval_sequence?.slice(0, index);
                                                 const allPreviousApproved = previousApprovers.every(prev => prev.has_approved);
                                                 
                                                 statusInfo = {
@@ -5512,7 +5917,8 @@ const DetailModal = ({
     );
 
     const getMobileFooter = () => {
-        const footerButtons = getModalFooter();
+        // Get buttons from the same logic as desktop footer
+        const footerButtons = getModalFooter() || [];
         if (!footerButtons || footerButtons.length === 0) return null;
         
         return (

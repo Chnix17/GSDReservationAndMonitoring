@@ -16,6 +16,7 @@ import {
     EditOutlined,
     SaveOutlined,
     CloseOutlined,
+    CalendarOutlined,
 } from '@ant-design/icons';
 import { format } from 'date-fns';
 import { toast } from 'react-toastify';
@@ -70,6 +71,9 @@ const ReservationDetails = ({
     const [isLoadingDeans, setIsLoadingDeans] = useState(false);
     const [isProcessingReschedule, setIsProcessingReschedule] = useState(false);
     const [isRescheduleModalOpen, setIsRescheduleModalOpen] = useState(false);
+    const [isRescheduleDecisionModalOpen, setIsRescheduleDecisionModalOpen] = useState(false);
+    const [rescheduleDecisionAction, setRescheduleDecisionAction] = useState(null);
+    const [rescheduleDecisionReason, setRescheduleDecisionReason] = useState('');
     // const [rescheduleResources, setRescheduleResources] = useState(null);
 
     // Edit functionality state
@@ -130,9 +134,53 @@ const ReservationDetails = ({
                 setIsLoadingDeans(false);
             }
         };
-
         fetchDeansApproval();
     }, [visible, reservationDetails, baseUrl]);
+
+    const openRescheduleDecisionModal = (action) => {
+        setRescheduleDecisionAction(action);
+        setRescheduleDecisionReason('');
+        setIsRescheduleDecisionModalOpen(true);
+    };
+
+    const handleSubmitRescheduleDecision = async () => {
+        try {
+            const userId = SecureStorage.getLocalItem('user_id');
+            if (!userId) {
+                toast.error('User session expired');
+                return;
+            }
+
+            const isAccepted = rescheduleDecisionAction === 'accept';
+            const resp = await axios.post(`${baseUrl}reservation.php`, {
+                operation: 'respondToRescheduleProposal',
+                reservation_id: reservationDetails?.reservation_id,
+                is_accepted: isAccepted,
+                user_id: Number(userId),
+                reason: rescheduleDecisionReason || null
+            }, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            if (resp.data?.status === 'success') {
+                toast.success(resp.data?.message || 'Response submitted');
+                setIsRescheduleDecisionModalOpen(false);
+                if (onRefresh) {
+                    await onRefresh();
+                }
+                onClose();
+            } else {
+                toast.error(resp.data?.message || 'Failed to submit response');
+            }
+        } catch (error) {
+            console.error('Error submitting reschedule proposal response:', error);
+            if (!error.response || error.message === 'Network Error' || error.name === 'TypeError' || !navigator.onLine) {
+                toast.error('Network connection lost. Unable to submit response.');
+            } else {
+                toast.error('Failed to submit response. Please try again.');
+            }
+        }
+    };
 
     // Function to fetch request by ID (similar to viewReserve.jsx)
     const fetchRequestById = useCallback(async () => {
@@ -1047,7 +1095,7 @@ const ReservationDetails = ({
         status => status.status_name === "Cancelled"
     );
 
-    const isDeclined = statusHistory.some(
+    const isReservationDeclined = statusHistory.some(
         status => {
             const declinedById = status.status_id === 2;
             const declinedByName = status.status_name === "Decline";
@@ -1055,6 +1103,15 @@ const ReservationDetails = ({
             return (declinedById || declinedByName) && isActiveStatus;
         }
     ) || (localReservationDetails.status_name?.toLowerCase() === "decline");
+
+    const isRescheduleDeclined = statusHistory.some(
+        status => {
+            const reschedDeclinedById = Number(status.status_id) === 13;
+            const name = String(status.status_name || '').toLowerCase();
+            const reschedDeclinedByName = name.includes('reschedule') && name.includes('declin');
+            return reschedDeclinedById || reschedDeclinedByName;
+        }
+    );
 
     const isCompleted = statusHistory.some(
         status => {
@@ -1081,6 +1138,46 @@ const ReservationDetails = ({
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
         return name.includes('reschedule') && activeVal === 0;
     });
+
+    const latestRescheduleUpdate = (() => {
+        const toDateValue = (val) => {
+            if (!val) return null;
+            const d = new Date(val);
+            return Number.isNaN(d.getTime()) ? null : d;
+        };
+
+        const candidates = (statusArr || [])
+            .filter(s => [10, 11, 13, 14].includes(Number(s.status_id)))
+            .map(s => {
+                const updatedAt = toDateValue(s.reservation_updated_at || s.updated_at || s.created_at);
+                return {
+                    ...s,
+                    __updatedAt: updatedAt,
+                    __fallbackId: Number(s.reservation_status_id || s.id || 0)
+                };
+            });
+
+        if (!candidates.length) return null;
+
+        candidates.sort((a, b) => {
+            const at = a.__updatedAt ? a.__updatedAt.getTime() : 0;
+            const bt = b.__updatedAt ? b.__updatedAt.getTime() : 0;
+            if (bt !== at) return bt - at;
+            return (b.__fallbackId || 0) - (a.__fallbackId || 0);
+        });
+
+        const latest = candidates[0];
+        const sid = Number(latest.status_id);
+
+        if (sid === 10 || sid === 14) {
+            const acceptedReasonEntry = (candidates.find(c => Number(c.status_id) === 14 && c.reservation_reason && String(c.reservation_reason).trim() !== '')) || null;
+            return { kind: 'accepted', entry: latest, reasonEntry: acceptedReasonEntry };
+        }
+        if (sid === 13) {
+            return { kind: 'declined', entry: latest };
+        }
+        return { kind: 'pending', entry: latest };
+    })();
     const venueChanges = Array.isArray(localReservationDetails.venues)
         ? localReservationDetails.venues.filter(v => (
             (v.change_venue_name && v.change_venue_name.trim() !== '') ||
@@ -1137,6 +1234,7 @@ const ReservationDetails = ({
     const isDuringReservationWindow = (startDate && endDate) ? (now >= startDate && now < endDate) : false;
     const isPastEndDate = (endDate) ? (now > endDate) : false;
     const isActiveRecord = String(localReservationDetails.active) === "1";
+    const isActiveRecordEffective = isActiveRecord || isRescheduleDeclined;
 
     // Status-based button logic based on requirements:
     // - If status is "Proccessed" (status_id 7): disable both Request Reschedule and Cancel Reservation
@@ -1145,20 +1243,32 @@ const ReservationDetails = ({
 
     const currentStatusId = localReservationDetails.status_id;
     const currentStatusName = localReservationDetails.status_name?.toLowerCase();
+    // const currentUserLevelId = parseInt(SecureStorage.getLocalItem('user_level_id'), 10);
+    const adminLevelIds = [1, 2, 4];
+
+    const pendingRescheduleEntry = normalizedStatusHistory.find(s => Number(s.status_id) === 11 && Number(s.reservation_active) === 0);
+    const pendingInitiatorLevelId = pendingRescheduleEntry?.updated_by_level_id;
+    const isPendingReschedule = !!pendingRescheduleEntry;
+    const isPendingRescheduleFromAdmin = isPendingReschedule && pendingInitiatorLevelId != null && adminLevelIds.includes(Number(pendingInitiatorLevelId));
 
     // Check if status is being processed (status_id 7 or status_name "proccessed")
     const isBeingProcessed = currentStatusId === 7 || currentStatusName === 'proccessed';
+
+    const isRescheduleDeclinedStatusName = !!currentStatusName && currentStatusName.includes('reschedule') && currentStatusName.includes('declin');
+    const allowsRescheduleRequest = (currentStatusName === 'reserved' || currentStatusName === 'reschedule' || isRescheduleDeclinedStatusName || isRescheduleDeclined)
+        && !isBeingProcessed
+        && !rescheduleConfirmedStatus;
 
     // Check if status allows reschedule (Reschedule or Reserved, but not Processed, and NOT Reschedule Confirmed)
     // const allowsReschedule = (currentStatusName === 'reschedule' || currentStatusName === 'reserved') && !isBeingProcessed && !rescheduleConfirmedStatus;
 
     // Check if status allows cancellation (Pending, Reserved, Reschedule, but not Processed, OR Reschedule Confirmed)
-    const allowsCancellation = ((currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'reschedule') && !isBeingProcessed) || !!rescheduleConfirmedStatus;
+    const allowsCancellation = ((currentStatusName === 'pending' || currentStatusName === 'reserved' || currentStatusName === 'reschedule' || isRescheduleDeclinedStatusName || isRescheduleDeclined) && !isBeingProcessed) || !!rescheduleConfirmedStatus;
 
     // Final disable logic for Cancel and Reschedule buttons
     // For Pending status, allow cancellation even if active is 0 (not yet processed)
     // For Reschedule Confirmed status, allow cancellation but disable reschedule
-    const baseDisableCancel = ((currentStatusName !== 'pending' && !isActiveRecord) && !rescheduleConfirmedStatus) || isDuringReservationWindow || isBeingProcessed || !allowsCancellation;
+    const baseDisableCancel = ((currentStatusName !== 'pending' && !isActiveRecordEffective) && !rescheduleConfirmedStatus) || isDuringReservationWindow || isBeingProcessed || !allowsCancellation;
     // const baseDisableReschedule = (!isActiveRecord) || isDuringReservationWindow || isBeingProcessed || !allowsReschedule;
 
     // If there's any proposal, allow actions unless being processed
@@ -1234,14 +1344,13 @@ const ReservationDetails = ({
                 return;
             }
 
-            const response = await axios.post(`${baseUrl}faculty&staff.php`, {
+            const response = await axios.post(`${baseUrl}reservation.php`, {
                 operation: 'requestReschedule',
-                reservationId: reservationDetails.reservation_id,
-                newStartDate: rescheduleData.startDate,
-                newEndDate: rescheduleData.endDate,
-                newVenueIds: rescheduleData.newVenueIds,
-                newVehicleIds: rescheduleData.newVehicleIds,
-                userId: Number(userId)
+                reservation_id: reservationDetails.reservation_id,
+                reschedule_start_date: rescheduleData.startDate,
+                reschedule_end_date: rescheduleData.endDate,
+                user_id: Number(userId),
+                reason: rescheduleData.reason || null
             }, {
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -1630,7 +1739,7 @@ const ReservationDetails = ({
     const getMobileFooter = () => {
         const buttons = [];
 
-        if (!isDeclined) {
+        if (!isReservationDeclined) {
             buttons.push(
                 <Button
                     key="close"
@@ -1644,7 +1753,7 @@ const ReservationDetails = ({
             );
         }
 
-        if (isCompleted || isDeclined) {
+        if (isCompleted || isReservationDeclined) {
             buttons.push(
                 <Button
                     key="request-again"
@@ -1660,7 +1769,48 @@ const ReservationDetails = ({
             );
         }
 
-        if (!isCancelled && !isCompleted && !isDeclined && !hideButtons) {
+        if (!isCancelled && !isCompleted && !isReservationDeclined && !hideButtons) {
+            if (allowsRescheduleRequest) {
+                buttons.push(
+                    <Button
+                        key="request-reschedule"
+                        onClick={() => setIsRescheduleModalOpen(true)}
+                        disabled={isBeingProcessed}
+                        size="large"
+                        block
+                        className="mb-2"
+                    >
+                        Request Reschedule
+                    </Button>
+                );
+            }
+
+            if (isPendingRescheduleFromAdmin) {
+                buttons.push(
+                    <Button
+                        key="accept-proposal"
+                        type="primary"
+                        onClick={() => openRescheduleDecisionModal('accept')}
+                        size="large"
+                        block
+                        className="mb-2"
+                    >
+                        Accept Reschedule
+                    </Button>
+                );
+                buttons.push(
+                    <Button
+                        key="decline-proposal"
+                        danger
+                        onClick={() => openRescheduleDecisionModal('decline')}
+                        size="large"
+                        block
+                        className="mb-2"
+                    >
+                        Decline Reschedule
+                    </Button>
+                );
+            }
             buttons.push(
                 // <Button
                 //     key="request-reschedule"
@@ -2232,6 +2382,68 @@ const ReservationDetails = ({
                             )}
 
                             {/* Reschedule Confirmed Section - Show venue/vehicle changes and reschedule dates */}
+                            {latestRescheduleUpdate && (
+                                <div className={`p-4 rounded-lg border shadow-sm mb-6 ${
+                                    latestRescheduleUpdate.kind === 'accepted'
+                                        ? 'bg-green-50 border-green-200'
+                                        : latestRescheduleUpdate.kind === 'declined'
+                                            ? 'bg-red-50 border-red-200'
+                                            : 'bg-orange-50 border-orange-200'
+                                }`}>
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div>
+                                            <h3 className="text-md font-medium text-gray-800">Latest Reschedule Request Update</h3>
+                                            <div className="mt-1 text-sm text-gray-700">
+                                                {latestRescheduleUpdate.kind === 'accepted' && (
+                                                    <span>Your reschedule request has been accepted.</span>
+                                                )}
+                                                {latestRescheduleUpdate.kind === 'declined' && (
+                                                    <span>Your reschedule request has been declined.</span>
+                                                )}
+                                                {latestRescheduleUpdate.kind === 'pending' && (
+                                                    <span>Your reschedule request is pending review.</span>
+                                                )}
+                                            </div>
+                                            {(() => {
+                                                const rawReason = latestRescheduleUpdate.entry?.reservation_reason;
+                                                const acceptedFallbackReason = latestRescheduleUpdate.reasonEntry?.reservation_reason;
+                                                const finalReason = (rawReason && String(rawReason).trim() !== '')
+                                                    ? String(rawReason).trim()
+                                                    : (acceptedFallbackReason && String(acceptedFallbackReason).trim() !== '')
+                                                        ? String(acceptedFallbackReason).trim()
+                                                        : null;
+
+                                                if (!finalReason) return null;
+
+                                                return (
+                                                    <div className="mt-2 text-sm text-gray-700">
+                                                        <span className="font-medium">Reason:</span> <span className="italic">"{finalReason}"</span>
+                                                    </div>
+                                                );
+                                            })()}
+                                            {latestRescheduleUpdate.entry?.reservation_updated_at && (
+                                                <div className="mt-1 text-xs text-gray-500">
+                                                    {new Date(latestRescheduleUpdate.entry.reservation_updated_at).toLocaleString()}
+                                                </div>
+                                            )}
+                                        </div>
+                                        <Tag color={
+                                            latestRescheduleUpdate.kind === 'accepted'
+                                                ? 'green'
+                                                : latestRescheduleUpdate.kind === 'declined'
+                                                    ? 'red'
+                                                    : 'orange'
+                                        }>
+                                            {latestRescheduleUpdate.kind === 'accepted'
+                                                ? 'Accepted'
+                                                : latestRescheduleUpdate.kind === 'declined'
+                                                    ? 'Declined'
+                                                    : 'Pending'}
+                                        </Tag>
+                                    </div>
+                                </div>
+                            )}
+
                             {rescheduleConfirmedStatus && (
                                 <div className="bg-green-50 p-6 rounded-lg border border-green-200 shadow-sm mb-6">
                                     <h3 className="text-lg font-medium text-gray-800 mb-4">Reschedule Confirmed</h3>
@@ -2278,6 +2490,111 @@ const ReservationDetails = ({
                                                         <Tag color="green">{(vc.change_vehicle_model && vc.change_vehicle_model.trim()) || `ID ${vc.change_vehicle_id}`}{vc.change_vehicle_license ? ` (${vc.change_vehicle_license})` : ''}</Tag>
                                                     </div>
                                                 ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {/* To Be Reschedule Section - Show proposed reschedule info for status_id 11 */}
+                            {isPendingReschedule && (
+                                <div className="bg-orange-50 p-6 rounded-lg border border-orange-200 shadow-sm mb-6">
+                                    <div className="flex items-center gap-2 mb-4">
+                                        <InfoCircleOutlined className="text-orange-500 text-lg" />
+                                        <h3 className="text-lg font-medium text-gray-800">Reschedule Proposal</h3>
+                                    </div>
+                                    <p className="text-sm text-orange-700 mb-4">
+                                        An administrator has proposed changes to your reservation. Please review and accept or decline the proposal.
+                                    </p>
+
+                                    {/* Reschedule Reason */}
+                                    {(() => {
+                                        const pendingRescheduleEntry = localReservationDetails?.status_history?.find(
+                                            s => Number(s.status_id) === 11 && Number(s.reservation_active) === 0
+                                        );
+                                        if (pendingRescheduleEntry?.reservation_reason) {
+                                            return (
+                                                <div className="bg-white border border-orange-200 rounded-lg p-4 mb-4">
+                                                    <h4 className="font-semibold text-gray-800 mb-2">Reason for Reschedule</h4>
+                                                    <p className="text-sm text-gray-700 italic">
+                                                        "{pendingRescheduleEntry.reservation_reason}"
+                                                    </p>
+                                                    <p className="text-xs text-gray-500 mt-2">
+                                                        Proposed by: {pendingRescheduleEntry.updated_by_name} on {new Date(pendingRescheduleEntry.reservation_updated_at).toLocaleString()}
+                                                    </p>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })()}
+
+                                    {/* Proposed Dates */}
+                                    {localReservationDetails?.reschedule_start_date && localReservationDetails?.reschedule_end_date && (
+                                        <div className="bg-white border border-blue-200 rounded-lg p-4 mb-4">
+                                            <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                                                <CalendarOutlined />
+                                                Proposed Schedule
+                                            </h4>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                                                <div>
+                                                    <p className="text-gray-600 mb-1">Original Dates:</p>
+                                                    <p className="font-medium text-gray-800">
+                                                        {format(new Date(localReservationDetails.reservation_start_date), 'MMM dd, yyyy h:mm a')} -
+                                                        {format(new Date(localReservationDetails.reservation_end_date), 'h:mm a')}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-blue-600 mb-1">Proposed Dates:</p>
+                                                    <p className="font-medium text-blue-800">
+                                                        {format(new Date(localReservationDetails.reschedule_start_date), 'MMM dd, yyyy h:mm a')} -
+                                                        {format(new Date(localReservationDetails.reschedule_end_date), 'h:mm a')}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Venue Changes */}
+                                    {localReservationDetails?.venues?.some(v => v.change_venue_id || v.change_venue_name) && (
+                                        <div className="bg-white border border-orange-200 rounded-lg p-4 mb-4">
+                                            <h4 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                                                <BuildOutlined />
+                                                Venue Changes
+                                            </h4>
+                                            <div className="space-y-3">
+                                                {localReservationDetails.venues
+                                                    .filter(v => v.change_venue_id || v.change_venue_name)
+                                                    .map((venue, idx) => (
+                                                        <div key={idx} className="flex items-center gap-3 text-sm">
+                                                            <Tag color="default">{venue.venue_name}</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="gold">{venue.change_venue_name || 'Unknown'}</Tag>
+                                                            {venue.change_venue_building_name && (
+                                                                <span className="text-xs text-gray-500">({venue.change_venue_building_name})</span>
+                                                            )}
+                                                        </div>
+                                                    ))}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Vehicle Changes */}
+                                    {localReservationDetails?.vehicles?.some(v => v.change_vehicle_id || v.change_vehicle_model) && (
+                                        <div className="bg-white border border-purple-200 rounded-lg p-4 mb-4">
+                                            <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                                                <CarOutlined />
+                                                Vehicle Changes
+                                            </h4>
+                                            <div className="space-y-3">
+                                                {localReservationDetails.vehicles
+                                                    .filter(v => v.change_vehicle_id || v.change_vehicle_model)
+                                                    .map((vehicle, idx) => (
+                                                        <div key={idx} className="flex items-center gap-3 text-sm">
+                                                            <Tag color="default">{vehicle.model} ({vehicle.license})</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="purple">{vehicle.change_vehicle_model || 'Unknown'} {vehicle.change_vehicle_license ? `(${vehicle.change_vehicle_license})` : ''}</Tag>
+                                                        </div>
+                                                    ))}
                                             </div>
                                         </div>
                                     )}
@@ -3152,12 +3469,12 @@ const ReservationDetails = ({
                     width={isTablet ? 900 : 1150}
                     style={{ top: 20 }}
                     footer={[
-                        !isDeclined && (
+                        !isReservationDeclined && (
                             <Button key="close" onClick={onClose} size="large">
                                 Close
                             </Button>
                         ),
-                        (isCompleted || isDeclined) && (
+                        (isCompleted || isReservationDeclined) && (
                             <Button
                                 key="request-again"
                                 onClick={handleRequestAgainClick}
@@ -3181,7 +3498,7 @@ const ReservationDetails = ({
                         //         {showReschedulePendingCard ? 'Request New Reschedule' : 'Request Reschedule'}
                         //     </Button>
                         // ),
-                        (!isCancelled && !isCompleted && !isDeclined && !hideButtons) && (
+                        (!isCancelled && !isCompleted && !isReservationDeclined && !hideButtons) && (
                             <Button
                                 key="cancel"
                                 onClick={checkCancelEligibility}
@@ -3190,6 +3507,37 @@ const ReservationDetails = ({
                                 size="large"
                             >
                                 Cancel Reservation
+                            </Button>
+                        ),
+                        (!isCancelled && !isCompleted && !isReservationDeclined && !hideButtons && allowsRescheduleRequest) && (
+                            <Button
+                                key="request-reschedule"
+                                onClick={() => setIsRescheduleModalOpen(true)}
+                                disabled={isBeingProcessed}
+                                size="large"
+                            >
+                                Request Reschedule
+                            </Button>
+                        ),
+                        // Accept/Decline buttons for "To be reschedule" status (status_id 11)
+                        isPendingRescheduleFromAdmin && (
+                            <Button
+                                key="accept-proposal"
+                                type="primary"
+                                onClick={() => openRescheduleDecisionModal('accept')}
+                                size="large"
+                            >
+                                Accept Reschedule
+                            </Button>
+                        ),
+                        isPendingRescheduleFromAdmin && (
+                            <Button
+                                key="decline-proposal"
+                                danger
+                                onClick={() => openRescheduleDecisionModal('decline')}
+                                size="large"
+                            >
+                                Decline Reschedule
                             </Button>
                         )
                     ]}
@@ -3296,9 +3644,160 @@ const ReservationDetails = ({
                 // resources={rescheduleResources}
                 originalStart={reservationDetails?.reservation_start_date}
                 originalEnd={reservationDetails?.reservation_end_date}
+                disableDriverAssignment={true}
                 showRequestAgainButton={true} // Always show "Request Again to Reschedule" button
                 hideRescheduleButton={true} // Always hide regular "Reschedule" button
             />
+
+            {isRescheduleDecisionModalOpen && (
+                <Modal
+                    title={rescheduleDecisionAction === 'accept' ? 'Accept Reschedule' : 'Decline Reschedule'}
+                    open={isRescheduleDecisionModalOpen}
+                    onCancel={() => setIsRescheduleDecisionModalOpen(false)}
+                    footer={[
+                        <Button key="cancel" onClick={() => setIsRescheduleDecisionModalOpen(false)}>
+                            Cancel
+                        </Button>,
+                        <Button
+                            key="confirm"
+                            type="primary"
+                            danger={rescheduleDecisionAction !== 'accept'}
+                            onClick={handleSubmitRescheduleDecision}
+                            disabled={rescheduleDecisionAction === 'decline' && !rescheduleDecisionReason.trim()}
+                        >
+                            Confirm
+                        </Button>
+                    ]}
+                    width={600}
+                >
+                    <div className="space-y-4">
+                        {/* Proposed Dates Section */}
+                        {localReservationDetails?.reschedule_start_date && localReservationDetails?.reschedule_end_date && (
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-blue-800 mb-3 flex items-center gap-2">
+                                    <CalendarOutlined />
+                                    Proposed Schedule
+                                </h4>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                                    <div>
+                                        <p className="text-gray-600 mb-1">Original Dates:</p>
+                                        <p className="font-medium text-gray-800">
+                                            {new Date(localReservationDetails.reservation_start_date).toLocaleString()} - {new Date(localReservationDetails.reservation_end_date).toLocaleString()}
+                                        </p>
+                                    </div>
+                                    <div>
+                                        <p className="text-blue-600 mb-1">Proposed Dates:</p>
+                                        <p className="font-medium text-blue-800">
+                                            {new Date(localReservationDetails.reschedule_start_date).toLocaleString()} - {new Date(localReservationDetails.reschedule_end_date).toLocaleString()}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Venue Changes Section */}
+                        {localReservationDetails?.venues?.some(v => v.change_venue_id || v.change_venue_name) && (
+                            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-orange-800 mb-3 flex items-center gap-2">
+                                    <BuildOutlined />
+                                    Venue Changes
+                                </h4>
+                                <div className="space-y-2">
+                                    {localReservationDetails.venues
+                                        .filter(v => v.change_venue_id || v.change_venue_name)
+                                        .map((venue, idx) => (
+                                            <div key={idx} className="text-sm">
+                                                <p className="text-gray-600">
+                                                    From: <span className="font-medium text-gray-800">{venue.venue_name}</span>
+                                                </p>
+                                                <p className="text-orange-600">
+                                                    To: <span className="font-medium text-orange-800">{venue.change_venue_name || 'Unknown'}</span>
+                                                </p>
+                                                {venue.change_venue_event_type && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        Event Type: {venue.change_venue_event_type}
+                                                    </p>
+                                                )}
+                                                {venue.change_venue_area_type && (
+                                                    <p className="text-xs text-gray-500">
+                                                        Area Type: {venue.change_venue_area_type}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Vehicle Changes Section */}
+                        {localReservationDetails?.vehicles?.some(v => v.change_vehicle_id || v.change_vehicle_model) && (
+                            <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                                <h4 className="font-semibold text-purple-800 mb-3 flex items-center gap-2">
+                                    <CarOutlined />
+                                    Vehicle Changes
+                                </h4>
+                                <div className="space-y-2">
+                                    {localReservationDetails.vehicles
+                                        .filter(v => v.change_vehicle_id || v.change_vehicle_model)
+                                        .map((vehicle, idx) => (
+                                            <div key={idx} className="text-sm">
+                                                <p className="text-gray-600">
+                                                    From: <span className="font-medium text-gray-800">{vehicle.model} ({vehicle.license})</span>
+                                                </p>
+                                                <p className="text-purple-600">
+                                                    To: <span className="font-medium text-purple-800">{vehicle.change_vehicle_model || 'Unknown'} {vehicle.change_vehicle_license ? `(${vehicle.change_vehicle_license})` : ''}</span>
+                                                </p>
+                                            </div>
+                                        ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Reschedule Reason Section */}
+                        {(() => {
+                            const pendingRescheduleEntry = localReservationDetails?.status_history?.find(
+                                s => Number(s.status_id) === 11 && Number(s.reservation_active) === 0
+                            );
+                            if (pendingRescheduleEntry?.reservation_reason) {
+                                return (
+                                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+                                        <h4 className="font-semibold text-gray-800 mb-2">
+                                            Reason for Reschedule
+                                        </h4>
+                                        <p className="text-sm text-gray-700 italic">
+                                            "{pendingRescheduleEntry.reservation_reason}"
+                                        </p>
+                                        <p className="text-xs text-gray-500 mt-2">
+                                            Proposed by: {pendingRescheduleEntry.updated_by_name} on {new Date(pendingRescheduleEntry.reservation_updated_at).toLocaleString()}
+                                        </p>
+                                    </div>
+                                );
+                            }
+                            return null;
+                        })()}
+
+                        {/* Reason Input Section - Only show for decline */}
+                        {rescheduleDecisionAction === 'decline' && (
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-2">
+                                    Reason for Declining (Required)
+                                </label>
+                                <Input.TextArea
+                                    rows={4}
+                                    value={rescheduleDecisionReason}
+                                    onChange={(e) => setRescheduleDecisionReason(e.target.value)}
+                                    placeholder="Please provide a reason for declining..."
+                                />
+                                {!rescheduleDecisionReason.trim() && (
+                                    <p className="text-xs text-red-500 mt-1">
+                                        * Reason is required when declining
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </Modal>
+            )}
         </>
     );
 };

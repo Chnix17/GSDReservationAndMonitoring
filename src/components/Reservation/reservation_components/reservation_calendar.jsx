@@ -238,8 +238,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
               const reservationActive = parseInt(reservation.reservation_active);
               const hasReschedule = reservation.reschedule_start_date && reservation.reschedule_end_date;
               
-              // Status 14 + active=1: Use ONLY reschedule dates (confirmed reschedule)
-              if (statusId === 14 && reservationActive === 1 && hasReschedule) {
+              // Status 10, 14 + active=1: Use ONLY reschedule dates (accepted/confirmed reschedule)
+              if ((statusId === 10 || statusId === 14) && reservationActive === 1 && hasReschedule) {
                 const rescheduleRangeKey = `${reservation.reschedule_start_date}_${reservation.reschedule_end_date}`;
                 
                 if (!dateRangeMap[rescheduleRangeKey]) {
@@ -254,8 +254,8 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
                 dateRangeMap[rescheduleRangeKey].totalReservedQty += parseInt(reservation.reserved_quantity);
                 dateRangeMap[rescheduleRangeKey].reservationIds.push(reservation.reservation_id);
               }
-              // Status 10: Use BOTH original and reschedule dates (pending reschedule)
-              else if (statusId === 10 && hasReschedule) {
+              // Status 11: Use BOTH original and reschedule dates (change request/pending reschedule)
+              else if (statusId === 11 && hasReschedule) {
                 // Add original dates entry
                 const originalRangeKey = `${reservation.reservation_start_date}_${reservation.reservation_end_date}`;
                 
@@ -462,39 +462,71 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
         }
       );
       if (response.data.status === 'success') {
-        const formattedReservations = (response.data.data || []).map(res => {
+        const formattedReservations = (response.data.data || []).flatMap(res => {
+          const statusIdRaw = res.reservation_status_status_id;
+          const statusId = typeof statusIdRaw === 'string' ? parseInt(statusIdRaw) : statusIdRaw;
 
-          
-          return {
-            // Unique identifiers
+          const isReserved = statusId === 6 || statusId === 3 || statusId === 1 ||
+                             statusId === 7 || statusId === 9 || statusId === 10 ||
+                             statusId === 11 || statusId === 14;
+
+          // Note: We deliberately exclude reschedule_start_date/end_date here 
+          // so the calendar logic treats this flattened block as a final, absolute time slot
+          const baseObj = {
             reservation_id: res.reservation_id,
-            startDate: res.reservation_start_date,
-            endDate: res.reservation_end_date,
-            status: res.reservation_status_status_id,
-            isReserved: res.reservation_status_status_id === 6 || res.reservation_status_status_id === '6' || 
-                        res.reservation_status_status_id === 3 || res.reservation_status_status_id === '3' || 
-                        res.reservation_status_status_id === 1 || res.reservation_status_status_id === '1' || 
-                        res.reservation_status_status_id === 7 || res.reservation_status_status_id === '7' || 
-                        res.reservation_status_status_id === 9 || res.reservation_status_status_id === '9' || 
-                       res.reservation_status_status_id === 10 || res.reservation_status_status_id === '10' || 
-                       res.reservation_status_status_id === 11 || res.reservation_status_status_id === '11' || 
-                       res.reservation_status_status_id === 14 || res.reservation_status_status_id === '14',
-            // User ownership info - try different possible field names
+            status: statusId,
+            isReserved: isReserved,
             reservation_user_id: res.reservation_user_id || res.user_id || res.res_user_id,
             user_level_name: res.user_level_name || res.level_name || res.user_level,
             department_name: res.department_name || res.dept_name || res.department,
-            // Venue details
             venueName: res.ven_name,
             venueOccupancy: res.ven_occupancy,
-            // Vehicle details
             vehicleMake: res.vehicle_make_name,
             vehicleModel: res.vehicle_model_name,
             vehicleLicense: res.vehicle_license,
-            // Common
             resourceType: selectedResource.type,
             title: res.reservation_title
           };
+
+          const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
+
+          // Status 10 or 14 (Accepted Reschedule): Use ONLY reschedule dates
+          if ((statusId === 10 || statusId === 14) && hasReschedule) {
+            return [{
+              ...baseObj,
+              unique_key: `${res.reservation_id}_resched`,
+              startDate: res.reschedule_start_date,
+              endDate: res.reschedule_end_date
+            }];
+          }
+
+          // Status 11 (Pending Reschedule): Use BOTH original and reschedule dates
+          if (statusId === 11 && hasReschedule) {
+            return [
+              {
+                ...baseObj,
+                unique_key: `${res.reservation_id}_orig`,
+                startDate: res.reservation_start_date,
+                endDate: res.reservation_end_date
+              },
+              {
+                ...baseObj,
+                unique_key: `${res.reservation_id}_resched`,
+                startDate: res.reschedule_start_date,
+                endDate: res.reschedule_end_date
+              }
+            ];
+          }
+
+          // Default: Use original dates only
+          return [{
+            ...baseObj,
+            unique_key: `${res.reservation_id}_orig`,
+            startDate: res.reservation_start_date,
+            endDate: res.reservation_end_date
+          }];
         });
+        
         setReservations(formattedReservations);
         setIsDataLoaded(true);
         setHasNetworkError(false);
@@ -1520,10 +1552,11 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
     if (!dayDetails) return null;
 
     // Utility to deduplicate by a key
-    const dedupeById = (arr, idKey = 'reservation_id', fallbackKeyFn) => {
+    // Utility to deduplicate by a key
+    const dedupeById = (arr, idKey = 'unique_key', fallbackKeyFn) => {
       const seen = new Set();
       return arr.filter(item => {
-        const key = item[idKey] || (fallbackKeyFn ? fallbackKeyFn(item) : undefined);
+        const key = item[idKey] || item.reservation_id || (fallbackKeyFn ? fallbackKeyFn(item) : undefined);
         if (!key || seen.has(key)) return false;
         seen.add(key);
         return true;
@@ -1758,13 +1791,15 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
       const origEnd = res?.endDate ? new Date(res.endDate) : null;
       const reschedStart = hasResched ? new Date(res.reschedule_start_date) : null;
       const reschedEnd = hasResched ? new Date(res.reschedule_end_date) : null;
-      if ((statusId === 10) || statusStr.includes('pending reschedule')) {
+      // Status 11 (change request): show BOTH original and reschedule dates
+      if ((statusId === 11) || statusStr.includes('pending reschedule')) {
         const iv = [];
         if (origStart && origEnd) iv.push({ start: origStart, end: origEnd });
         if (reschedStart && reschedEnd) iv.push({ start: reschedStart, end: reschedEnd });
         return iv;
       }
-      if ((statusId === 14) || statusStr.includes('rescheduled')) {
+      // Status 10 (accepted reschedule) or 14 (rescheduled): show ONLY reschedule dates
+      if ((statusId === 10 || statusId === 14) || statusStr.includes('rescheduled')) {
         if (reschedStart && reschedEnd) return [{ start: reschedStart, end: reschedEnd }];
       }
       if (origStart && origEnd) return [{ start: origStart, end: origEnd }];
@@ -1797,13 +1832,15 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             const oE = existingRes?.endDate ? new Date(existingRes.endDate) : null;
             const rS = hasResched ? new Date(existingRes.reschedule_start_date) : null;
             const rE = hasResched ? new Date(existingRes.reschedule_end_date) : null;
-            if ((statusId === 10) || statusStr.includes('pending reschedule')) {
+            // Status 11 (change request): show BOTH original and reschedule dates
+            if ((statusId === 11) || statusStr.includes('pending reschedule')) {
               const iv = [];
               if (oS && oE) iv.push({ start: oS, end: oE });
               if (rS && rE) iv.push({ start: rS, end: rE });
               return iv;
             }
-            if ((statusId === 14) || statusStr.includes('rescheduled')) {
+            // Status 10 (accepted reschedule) or 14 (rescheduled): show ONLY reschedule dates
+            if ((statusId === 10 || statusId === 14) || statusStr.includes('rescheduled')) {
               if (rS && rE) return [{ start: rS, end: rE }];
             }
             if (oS && oE) return [{ start: oS, end: oE }];
@@ -1822,13 +1859,15 @@ const ReservationCalendar = ({ onDateSelect, selectedResource, initialData, sele
             const oE = existingRes?.endDate ? new Date(existingRes.endDate) : null;
             const rS = hasResched ? new Date(existingRes.reschedule_start_date) : null;
             const rE = hasResched ? new Date(existingRes.reschedule_end_date) : null;
-            if ((statusId === 10) || statusStr.includes('pending reschedule')) {
+            // Status 11 (change request): show BOTH original and reschedule dates
+            if ((statusId === 11) || statusStr.includes('pending reschedule')) {
               const iv = [];
               if (oS && oE) iv.push({ start: oS, end: oE });
               if (rS && rE) iv.push({ start: rS, end: rE });
               return iv;
             }
-            if ((statusId === 14) || statusStr.includes('rescheduled')) {
+            // Status 10 (accepted reschedule) or 14 (rescheduled): show ONLY reschedule dates
+            if ((statusId === 10 || statusId === 14) || statusStr.includes('rescheduled')) {
               if (rS && rE) return [{ start: rS, end: rE }];
             }
             if (oS && oE) return [{ start: oS, end: oE }];
@@ -2992,16 +3031,16 @@ const getEffectiveReservationIntervals = (reservation) => {
   //   reschedEnd: reschedEnd?.toISOString()
   // });
 
-  // Pending Reschedule: consider BOTH original and reschedule windows
-  if ((statusId === 10) || statusStr.includes('pending reschedule')) {
+  // Status 11 (change request): show BOTH original and reschedule windows
+  if ((statusId === 11) || statusStr.includes('pending reschedule')) {
     const intervals = [];
     if (origStart && origEnd) intervals.push({ start: origStart, end: origEnd });
     if (reschedStart && reschedEnd) intervals.push({ start: reschedStart, end: reschedEnd });
     return intervals;
   }
 
-  // Rescheduled: use reschedule window only
-  if ((statusId === 14) || statusStr.includes('rescheduled')) {
+  // Status 10 (accepted reschedule) or 14 (rescheduled): show ONLY reschedule window
+  if ((statusId === 10 || statusId === 14) || statusStr.includes('rescheduled')) {
     if (reschedStart && reschedEnd) return [{ start: reschedStart, end: reschedEnd }];
   }
 

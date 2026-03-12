@@ -20,6 +20,193 @@ class Reservation {
         $this->conn = $conn;
     }
 
+    private function setLatestStatusInactive($reservationId) {
+        $sql = "UPDATE tbl_reservation_status rs
+                INNER JOIN (
+                    SELECT reservation_status_id
+                    FROM tbl_reservation_status
+                    WHERE reservation_reservation_id = :reservation_id
+                    ORDER BY reservation_status_id DESC
+                    LIMIT 1
+                ) latest ON latest.reservation_status_id = rs.reservation_status_id
+                SET rs.reservation_active = 0";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    private function insertStatus($reservationId, $statusId, $active, $userId, $reason = null) {
+        $sql = "INSERT INTO tbl_reservation_status
+                (reservation_status_status_id, reservation_reservation_id, reservation_active, reservation_updated_at, reservation_users_id, reservation_reason)
+                VALUES (:status_id, :reservation_id, :active, NOW(), :user_id, :reason)";
+        $stmt = $this->conn->prepare($sql);
+        $stmt->bindValue(':status_id', (int)$statusId, PDO::PARAM_INT);
+        $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+        $stmt->bindValue(':active', (int)$active, PDO::PARAM_INT);
+        if ($userId === null || $userId === '') {
+            $stmt->bindValue(':user_id', null, PDO::PARAM_NULL);
+        } else {
+            $stmt->bindValue(':user_id', (int)$userId, PDO::PARAM_INT);
+        }
+        if ($reason === null || trim((string)$reason) === '') {
+            $stmt->bindValue(':reason', null, PDO::PARAM_NULL);
+        } else {
+            $stmt->bindValue(':reason', (string)$reason, PDO::PARAM_STR);
+        }
+        $stmt->execute();
+    }
+
+    private function clearRescheduleDates($reservationId) {
+        $stmt = $this->conn->prepare("UPDATE tbl_reservation
+            SET reschedule_start_date = NULL,
+                reschedule_end_date = NULL
+            WHERE reservation_id = :reservation_id");
+        $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    private function applyRescheduleDates($reservationId) {
+        $stmt = $this->conn->prepare("UPDATE tbl_reservation
+            SET reservation_start_date = reschedule_start_date,
+                reservation_end_date = reschedule_end_date
+            WHERE reservation_id = :reservation_id");
+        $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    public function requestReschedule($reservationId, $startDateTime, $endDateTime, $userId, $reason = null) {
+        try {
+            if (!$reservationId || !$startDateTime || !$endDateTime || !$userId) {
+                return json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+            }
+
+            $this->conn->beginTransaction();
+
+            $stmt = $this->conn->prepare("UPDATE tbl_reservation
+                SET reschedule_start_date = :start_dt,
+                    reschedule_end_date = :end_dt
+                WHERE reservation_id = :reservation_id");
+            $stmt->bindValue(':start_dt', (string)$startDateTime, PDO::PARAM_STR);
+            $stmt->bindValue(':end_dt', (string)$endDateTime, PDO::PARAM_STR);
+            $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            $this->insertStatus($reservationId, 11, 0, $userId, $reason);
+
+            $this->conn->commit();
+
+            return json_encode(['status' => 'success', 'message' => 'Reschedule request submitted']);
+        } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            error_log('Database error in requestReschedule: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function proposeReschedule($reservationId, $startDateTime, $endDateTime, $userId, $reason = null, $venueIds = [], $vehicleIds = []) {
+        try {
+            if (!$reservationId || !$startDateTime || !$endDateTime || !$userId) {
+                return json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+            }
+
+            $this->conn->beginTransaction();
+
+            $stmt = $this->conn->prepare("UPDATE tbl_reservation
+                SET reschedule_start_date = :start_dt,
+                    reschedule_end_date = :end_dt
+                WHERE reservation_id = :reservation_id");
+            $stmt->bindValue(':start_dt', (string)$startDateTime, PDO::PARAM_STR);
+            $stmt->bindValue(':end_dt', (string)$endDateTime, PDO::PARAM_STR);
+            $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+            $stmt->execute();
+
+            // Update change_venue_id for each venue if provided
+            if (!empty($venueIds) && is_array($venueIds)) {
+                foreach ($venueIds as $venueData) {
+                    if (isset($venueData['reservation_venue_id'])) {
+                        $changeVenueId = isset($venueData['change_venue_id']) ? $venueData['change_venue_id'] : null;
+                        $updateVenueStmt = $this->conn->prepare("
+                            UPDATE tbl_reservation_venue
+                            SET reservation_change_venue_id = :change_venue_id
+                            WHERE reservation_venue_id = :reservation_venue_id
+                        ");
+                        $updateVenueStmt->bindValue(':change_venue_id', $changeVenueId, $changeVenueId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                        $updateVenueStmt->bindValue(':reservation_venue_id', (int)$venueData['reservation_venue_id'], PDO::PARAM_INT);
+                        $updateVenueStmt->execute();
+                    }
+                }
+            }
+
+            // Update change_vehicle_id for each vehicle if provided
+            if (!empty($vehicleIds) && is_array($vehicleIds)) {
+                foreach ($vehicleIds as $vehicleData) {
+                    if (isset($vehicleData['reservation_vehicle_id'])) {
+                        $changeVehicleId = isset($vehicleData['change_vehicle_id']) ? $vehicleData['change_vehicle_id'] : null;
+                        $updateVehicleStmt = $this->conn->prepare("
+                            UPDATE tbl_reservation_vehicle
+                            SET reservation_change_vehicle_id = :change_vehicle_id
+                            WHERE reservation_vehicle_id = :reservation_vehicle_id
+                        ");
+                        $updateVehicleStmt->bindValue(':change_vehicle_id', $changeVehicleId, $changeVehicleId === null ? PDO::PARAM_NULL : PDO::PARAM_INT);
+                        $updateVehicleStmt->bindValue(':reservation_vehicle_id', (int)$vehicleData['reservation_vehicle_id'], PDO::PARAM_INT);
+                        $updateVehicleStmt->execute();
+                    }
+                }
+            }
+
+            // Insert status 3 before status 11
+            $this->insertStatus($reservationId, 3, 0, $userId, $reason);
+            $this->insertStatus($reservationId, 11, 0, $userId, $reason);
+
+            $this->conn->commit();
+
+            return json_encode(['status' => 'success', 'message' => 'Reschedule proposal sent']);
+        } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            error_log('Database error in proposeReschedule: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function respondToRescheduleRequest($reservationId, $isAccepted, $userId, $reason = null) {
+        try {
+            if (!$reservationId || $userId === null) {
+                return json_encode(['status' => 'error', 'message' => 'Missing required parameters']);
+            }
+
+            $this->conn->beginTransaction();
+
+            if ($isAccepted) {
+                $this->setLatestStatusInactive($reservationId);
+                $this->insertStatus($reservationId, 14, 0, $userId, $reason);
+                $this->insertStatus($reservationId, 10, 1, $userId, null);
+                $this->applyRescheduleDates($reservationId);
+            } else {
+                $this->clearRescheduleDates($reservationId);
+                $this->insertStatus($reservationId, 13, 0, $userId, $reason);
+           
+            }
+
+            $this->conn->commit();
+
+            return json_encode(['status' => 'success', 'message' => $isAccepted ? 'Reschedule accepted' : 'Reschedule rejected']);
+        } catch (PDOException $e) {
+            if ($this->conn->inTransaction()) {
+                $this->conn->rollBack();
+            }
+            error_log('Database error in respondToRescheduleRequest: ' . $e->getMessage());
+            return json_encode(['status' => 'error', 'message' => 'Database error: ' . $e->getMessage()]);
+        }
+    }
+
+    public function respondToRescheduleProposal($reservationId, $isAccepted, $userId, $reason = null) {
+        return $this->respondToRescheduleRequest($reservationId, $isAccepted, $userId, $reason);
+    }
+
 
     public function fetchAvailability($itemType, $itemId, $inputQuantities = [], $startDateTime = null, $endDateTime = null) {
         try {
@@ -2137,6 +2324,8 @@ class Reservation {
                     rs.reservation_active,
                     rs.reservation_updated_at,
                     rs.reservation_users_id,
+                    rs.reservation_reason,
+                    u.users_user_level_id AS updated_by_level_id,
                     CONCAT_WS(' ', u.users_fname, u.users_mname, u.users_lname) AS updated_by_name
                 FROM tbl_reservation_status rs
                 JOIN tbl_status_master sm ON rs.reservation_status_status_id = sm.status_master_id
@@ -5313,6 +5502,42 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if (isset($data['operation'])) {
         switch ($data['operation']) {
+            case "requestReschedule":
+                $reservationId = $data['reservation_id'] ?? null;
+                $startDateTime = $data['reschedule_start_date'] ?? null;
+                $endDateTime = $data['reschedule_end_date'] ?? null;
+                $userId = $data['user_id'] ?? null;
+                $reason = $data['reason'] ?? null;
+                echo $reservation->requestReschedule($reservationId, $startDateTime, $endDateTime, $userId, $reason);
+                break;
+
+            case "proposeReschedule":
+                $reservationId = $data['reservation_id'] ?? null;
+                $startDateTime = $data['reschedule_start_date'] ?? null;
+                $endDateTime = $data['reschedule_end_date'] ?? null;
+                $userId = $data['user_id'] ?? null;
+                $reason = $data['reason'] ?? null;
+                $venueIds = $data['venue_ids'] ?? [];
+                $vehicleIds = $data['vehicle_ids'] ?? [];
+                echo $reservation->proposeReschedule($reservationId, $startDateTime, $endDateTime, $userId, $reason, $venueIds, $vehicleIds);
+                break;
+
+            case "respondToRescheduleRequest":
+                $reservationId = $data['reservation_id'] ?? null;
+                $isAccepted = $data['is_accepted'] ?? false;
+                $userId = $data['user_id'] ?? null;
+                $reason = $data['reason'] ?? null;
+                echo $reservation->respondToRescheduleRequest($reservationId, $isAccepted ? 1 : 0, $userId, $reason);
+                break;
+
+            case "respondToRescheduleProposal":
+                $reservationId = $data['reservation_id'] ?? null;
+                $isAccepted = $data['is_accepted'] ?? false;
+                $userId = $data['user_id'] ?? null;
+                $reason = $data['reason'] ?? null;
+                echo $reservation->respondToRescheduleProposal($reservationId, $isAccepted ? 1 : 0, $userId, $reason);
+                break;
+
             case "fetchAvailableDrivers":
                 $restrictionIds = $data['restriction_ids'] ?? ($_POST['restriction_ids'] ?? null);
                 echo $reservation->fetchAvailableDrivers($restrictionIds);

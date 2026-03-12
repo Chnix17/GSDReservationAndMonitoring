@@ -19,7 +19,7 @@
  * - fetchAvailableDrivers: Gets driver availability and schedules
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { Modal, Drawer, Form, Button, DatePicker, TimePicker, Select, Spin, message, Alert } from 'antd';
+import { Modal, Drawer, Form, Button, DatePicker, TimePicker, Select, Spin, message, Alert, Input } from 'antd';
 import { useMediaQuery } from 'react-responsive';
 // import { CloseOutlined } from '@ant-design/icons';
 import { toast } from 'react-toastify';
@@ -84,7 +84,8 @@ const RescheduleModal = ({
   originalEnd,   // ISO string or parseable datetime
   onRequestAgain, // New prop for handling "Request Again to Reschedule"
   showRequestAgainButton = false, // New prop to control visibility of "Request Again to Reschedule" button
-  hideRescheduleButton = false // New prop to hide the regular "Reschedule" button
+  hideRescheduleButton = false, // New prop to hide the regular "Reschedule" button
+  disableDriverAssignment = false // New prop to disable driver assignment functionality
 }) => {
   // Responsive breakpoints
   const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -107,10 +108,10 @@ const RescheduleModal = ({
   const startTimeVal = Form.useWatch('startTime', form);
   const endDateVal = Form.useWatch('endDate', form);
   const endTimeVal = Form.useWatch('endTime', form);
-  const isOriginalDate = useCallback((curDay) => {
+  const isOriginalDate = useCallback((day) => {
     try {
-      if (!curDay) return false;
-      const d = dayjs(curDay);
+      if (!day) return false;
+      const d = dayjs(day);
       if (!d.isValid()) return false;
       // Fallback to reservation's original dates when explicit props are not provided
       const startRaw = originalStart || reservation?.reservation_start_date;
@@ -1313,20 +1314,23 @@ const RescheduleModal = ({
       console.error('[RescheduleModal] Error checking conflicts:', e);
       setConflictInfo(null);
     }
-  }, [visible, startDateVal, startTimeVal, endDateVal, endTimeVal, availabilityBlocks, originalStart, originalEnd]);
+  }, [visible, startDateVal, startTimeVal, endDateVal, endTimeVal, availabilityBlocks, originalStart, originalEnd, reservation?.reservation_id]);
 
   const handleSubmit = async () => {
     try {
       setLoading(true);
-      console.log('[RescheduleModal] handleSubmit started');
+
+
       const values = await form.validateFields();
-      console.log('[RescheduleModal] Form values validated:', values);
+    
+     
+    
       
       const isAvailable = await checkAvailability(values);
-      console.log('[RescheduleModal] Availability check result:', isAvailable);
+
       
       if (!isAvailable) {
-        console.log('[RescheduleModal] Time slot not available, stopping submission');
+    
         message.error('Selected time slot is not available. Please choose another time.');
         return;
       }
@@ -1372,6 +1376,7 @@ const RescheduleModal = ({
       };
       
       console.log('[RescheduleModal] Calling onReschedule with data:', rescheduleData);
+      alert('DEBUG: Sending newVenueIds = ' + JSON.stringify(processedVenueIds));
       await onReschedule(rescheduleData);
     } catch (error) {
       console.error('[RescheduleModal] Error submitting form:', error);
@@ -1545,6 +1550,12 @@ const RescheduleModal = ({
 
   // Helper function to check if all vehicles have driver assignments
   const areAllVehiclesAssigned = () => {
+    // If driver assignment is disabled, return true (skip validation)
+    if (disableDriverAssignment) {
+      console.log('[RescheduleModal] Driver assignment is disabled, skipping validation');
+      return true;
+    }
+    
     // If no vehicles, return true (no validation needed)
     if (!reservation?.vehicles || reservation.vehicles.length === 0) {
       return true;
@@ -1876,6 +1887,17 @@ const RescheduleModal = ({
             }}
           </Form.Item>
 
+          <Form.Item
+            label="Reason (Optional)"
+            name="reason"
+          >
+            <Input.TextArea
+              rows={3}
+              placeholder="Enter reason (optional)"
+              allowClear
+            />
+          </Form.Item>
+
           {/* Guidance: resource changes optional */}
           <div style={{ 
             marginBottom: isMobile ? 6 : 8, 
@@ -1895,7 +1917,7 @@ const RescheduleModal = ({
             />
           )}
 
-          {(reservation?.vehicles || []).length > 0 && !areAllVehiclesAssigned() && (
+          {(reservation?.vehicles || []).length > 0 && !disableDriverAssignment && !areAllVehiclesAssigned() && (
             <Alert
               type="warning"
               showIcon
@@ -2058,114 +2080,149 @@ const RescheduleModal = ({
                     </Form.Item>
 
                     {/* Driver Assignment Section */}
-                    <div style={{ marginTop: isMobile ? 8 : 12 }}>
-                      <div style={{ 
-                        fontSize: isMobile ? 12 : 13,
-                        fontWeight: 500,
-                        marginBottom: 8,
-                        color: '#374151'
-                      }}>
-                        Driver Assignment {(() => {
-                          // Find driver from reservation.drivers array
-                          const assignedDriver = (reservation.drivers || []).find(driver => 
-                            driver.reservation_vehicle_id && 
-                            String(driver.reservation_vehicle_id) === String(veh.reservation_vehicle_id)
-                          );
-                          
-                          if (assignedDriver && assignedDriver.driver_name) {
-                            return `(Current: ${assignedDriver.driver_name})`;
-                          } else if (currentDriver && veh.driver_name) {
-                            return `(Current: ${veh.driver_name})`;
-                          } else {
-                            return '(No driver assigned)';
+                    {!disableDriverAssignment && (
+                      <div style={{ marginTop: isMobile ? 8 : 12 }}>
+                        <div style={{ 
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: 500,
+                          marginBottom: 8,
+                          color: '#374151'
+                        }}>
+                          Driver Assignment {(() => {
+                            // Find driver from reservation.drivers array
+                            const assignedDriver = (reservation.drivers || []).find(driver => 
+                              driver.reservation_vehicle_id && 
+                              String(driver.reservation_vehicle_id) === String(veh.reservation_vehicle_id)
+                            );
+                            
+                            if (assignedDriver && assignedDriver.driver_name) {
+                              return `(Current: ${assignedDriver.driver_name})`;
+                            } else if (currentDriver && veh.driver_name) {
+                              return `(Current: ${veh.driver_name})`;
+                            } else {
+                              return '(No driver assigned)';
+                            }
+                          })()}
+                        </div>
+                        
+                        <Select
+                          placeholder={
+                            conflictInfo?.hasConflict 
+                              ? "Resolve time conflict first" 
+                              : !isDateTimeRangeReady 
+                                ? "Select date & time first" 
+                                : "Select driver type"
                           }
-                        })()}
-                      </div>
-                      
-                      <Select
-                        placeholder={
-                          conflictInfo?.hasConflict 
-                            ? "Resolve time conflict first" 
-                            : !isDateTimeRangeReady 
-                              ? "Select date & time first" 
-                              : "Select driver type"
-                        }
-                        value={driverAssignment || undefined}
-                        size={isMobile ? "large" : "default"}
-                        style={{ width: '100%' }}
-                        disabled={!isDateTimeRangeReady || resourceLoading || conflictInfo?.hasConflict}
-                        allowClear
-                        onChange={(val) => {
-                          console.log('[RescheduleModal] Driver assignment changed:', { vehicleId, val });
-                          setVehicleDriverAssignments(prev => ({
-                            ...prev,
-                            [vehicleId]: val || undefined
-                          }));
-                          // Clear custom driver name if switching away from custom
-                          if (val !== 'custom') {
-                            setCustomDriverNames(prev => {
-                              const updated = { ...prev };
-                              delete updated[vehicleId];
-                              return updated;
-                            });
-                          }
-                        }}
-                        getPopupContainer={(trigger) => trigger.parentNode}
-                      >
-                        <Option value="custom">Custom Driver Name</Option>
-                        {drivers && drivers.length > 0 && (
-                          <>
-                            {drivers
-                              .filter(driver => {
-                                const driverUserId = String(driver.users_id);
-                                
-                                // Check if driver is already assigned to another vehicle in the form
-                                const isAssignedToOtherVehicle = Object.entries(vehicleDriverAssignments).some(
-                                  ([assignedVehicleId, assignedDriverId]) => {
-                                    // Skip the current vehicle
-                                    if (String(assignedVehicleId) === String(vehicleId)) return false;
-                                    // Check if this driver is assigned to another vehicle
-                                    return String(assignedDriverId) === driverUserId;
-                                  }
-                                );
-                                
-                                // Don't show drivers already assigned to other vehicles
-                                if (isAssignedToOtherVehicle) {
-                                  console.log('[RescheduleModal] Filtering out driver already assigned to another vehicle:', {
-                                    driverName: `${driver.users_fname} ${driver.users_lname}`,
-                                    driverId: driverUserId,
-                                    currentVehicle: vehicleId
-                                  });
-                                  return false;
-                                }
-                                
-                                // Show available drivers and drivers already assigned to this vehicle
-                                const isAvailable = !driver.reservations || driver.reservations.length === 0;
-                                const isAssignedToThis = currentDriver && String(driver.users_id) === String(veh.driver_id);
-                                return isAvailable || isAssignedToThis;
-                              })
-                              .map(driver => (
-                                <Option key={driver.users_id} value={String(driver.users_id)}>
-                                  {`${driver.users_fname} ${driver.users_lname}`.trim()} 
-                                  {driver.reservations && driver.reservations.length > 0 && ` (Reserved)`}
-                                </Option>
-                              ))}
-                          </>
-                        )}
-                      </Select>
-
-                      {/* Custom Driver Name Input */}
-                      {driverAssignment === 'custom' && (
-                        <CustomDriverInput
-                          vehicleId={vehicleId}
-                          value={customDriverName}
-                          onChange={handleCustomDriverName}
+                          value={driverAssignment || undefined}
+                          size={isMobile ? "large" : "default"}
+                          style={{ width: '100%' }}
                           disabled={!isDateTimeRangeReady || resourceLoading || conflictInfo?.hasConflict}
-                          placeholder={conflictInfo?.hasConflict ? "Resolve time conflict first" : "Enter custom driver name"}
-                          isMobile={isMobile}
-                        />
-                      )}
-                    </div>
+                          allowClear
+                          onChange={(val) => {
+                            console.log('[RescheduleModal] Driver assignment changed:', { vehicleId, val });
+                            setVehicleDriverAssignments(prev => ({
+                              ...prev,
+                              [vehicleId]: val || undefined
+                            }));
+                            // Clear custom driver name if switching away from custom
+                            if (val !== 'custom') {
+                              setCustomDriverNames(prev => {
+                                const updated = { ...prev };
+                                delete updated[vehicleId];
+                                return updated;
+                              });
+                            }
+                          }}
+                          getPopupContainer={(trigger) => trigger.parentNode}
+                        >
+                          <Option value="custom">Custom Driver Name</Option>
+                          {drivers && drivers.length > 0 && (
+                            <>
+                              {drivers
+                                .filter(driver => {
+                                  const driverUserId = String(driver.users_id);
+                                  
+                                  // Check if driver is already assigned to another vehicle in the form
+                                  const isAssignedToOtherVehicle = Object.entries(vehicleDriverAssignments).some(
+                                    ([assignedVehicleId, assignedDriverId]) => {
+                                      // Skip the current vehicle
+                                      if (String(assignedVehicleId) === String(vehicleId)) return false;
+                                      // Check if this driver is assigned to another vehicle
+                                      return String(assignedDriverId) === driverUserId;
+                                    }
+                                  );
+                                  
+                                  // Don't show drivers already assigned to other vehicles
+                                  if (isAssignedToOtherVehicle) {
+                                    console.log('[RescheduleModal] Filtering out driver already assigned to another vehicle:', {
+                                      driverName: `${driver.users_fname} ${driver.users_lname}`,
+                                      driverId: driverUserId,
+                                      currentVehicle: vehicleId
+                                    });
+                                    return false;
+                                  }
+                                  
+                                  // Show available drivers and drivers already assigned to this vehicle
+                                  const isAvailable = !driver.reservations || driver.reservations.length === 0;
+                                  const isAssignedToThis = currentDriver && String(driver.users_id) === String(veh.driver_id);
+                                  return isAvailable || isAssignedToThis;
+                                })
+                                .map(driver => (
+                                  <Option key={driver.users_id} value={String(driver.users_id)}>
+                                    {`${driver.users_fname} ${driver.users_lname}`.trim()} 
+                                    {driver.reservations && driver.reservations.length > 0 && ` (Reserved)`}
+                                  </Option>
+                                ))}
+                            </>
+                          )}
+                        </Select>
+
+                        {/* Custom Driver Name Input */}
+                        {driverAssignment === 'custom' && (
+                          <CustomDriverInput
+                            vehicleId={vehicleId}
+                            value={customDriverName}
+                            onChange={handleCustomDriverName}
+                            disabled={!isDateTimeRangeReady || resourceLoading || conflictInfo?.hasConflict}
+                            placeholder={conflictInfo?.hasConflict ? "Resolve time conflict first" : "Enter custom driver name"}
+                            isMobile={isMobile}
+                          />
+                        )}
+                      </div>
+                    )}
+                    {disableDriverAssignment && (
+                      <div style={{ 
+                        marginTop: isMobile ? 8 : 12,
+                        padding: isMobile ? '8px 12px' : '12px 16px',
+                        backgroundColor: '#f3f4f6',
+                        borderRadius: 6,
+                        border: '1px solid #e5e7eb'
+                      }}>
+                        <div style={{ 
+                          fontSize: isMobile ? 12 : 13,
+                          fontWeight: 500,
+                          marginBottom: 4,
+                          color: '#6b7280'
+                        }}>
+                          Driver Assignment
+                        </div>
+                        <div style={{ 
+                          fontSize: isMobile ? 11 : 12,
+                          color: '#9ca3af'
+                        }}>
+                          Driver assignment cannot be modified during reschedule.
+                        </div>
+                        {currentDriver && veh.driver_name && (
+                          <div style={{ 
+                            fontSize: isMobile ? 11 : 12,
+                            color: '#6b7280',
+                            marginTop: 4
+                          }}>
+                            Current: {veh.driver_name}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}
