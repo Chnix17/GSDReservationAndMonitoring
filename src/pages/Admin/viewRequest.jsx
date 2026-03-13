@@ -2909,13 +2909,7 @@ const DetailModal = ({
                         onReschedule={async (newDates) => {
                             try {
                                 const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames, reason } = newDates || {};
-                                alert('DEBUG viewRequest: newVenueIds = ' + JSON.stringify(newVenueIds));
-                                console.log('[ViewRequest] ===== RescheduleModal#1 onReschedule RECEIVED =====');
-                                console.log('[ViewRequest] Raw newDates:', newDates);
-                                console.log('[ViewRequest] Extracted newVenueIds:', newVenueIds);
-                                console.log('[ViewRequest] Extracted newVehicleIds:', newVehicleIds);
-                                console.log('[ViewRequest] reservationDetails.venues:', reservationDetails?.venues);
-                                console.log('[ViewRequest] reservationDetails.vehicles:', reservationDetails?.vehicles);
+                           ;
                                 
                                 if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
                                     try {
@@ -3181,8 +3175,7 @@ const DetailModal = ({
                         onReschedule={async (newDates) => {
                             try {
                                 const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, driverAssignments, customDriverNames, reason } = newDates || {};
-                                alert('DEBUG viewRequest#2: newVenueIds = ' + JSON.stringify(newVenueIds));
-                                console.log('[ViewRequest] RescheduleModal#2 onReschedule received:', { startDate, endDate, newVenueIds, newVehicleIds, driverAssignments, customDriverNames });
+                             
                                 
                                 if (overrideConflicts && conflictData?.reservation_users?.length > 0) {
                                     try {
@@ -3458,7 +3451,7 @@ const DetailModal = ({
                             reservation={reservationDetails}
                             resources={rescheduleResources}
                             onReschedule={async (newDates) => {
-                                alert('DEBUG viewRequest#3: newVenueIds = ' + JSON.stringify(newDates.newVenueIds));
+                               
                                 try {
                                     const { startDate, endDate, newVenueIds, newVehicleIds, conflictData, overrideConflicts, reason, driverAssignments, customDriverNames } = newDates || {};
                                     console.log('[ViewRequest] RescheduleModal#3 onReschedule received:', { startDate, endDate, newVenueIds, newVehicleIds });
