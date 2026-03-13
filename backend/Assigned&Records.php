@@ -50,7 +50,7 @@ class Assigned {
                 LEFT JOIN tbl_venue_building cvb ON cv.venue_building_id = cvb.venue_building_id
                 LEFT JOIN tbl_status_availability tsa ON v.status_availability_id = tsa.status_availability_id
                 LEFT JOIN tbl_status_availability ctsa ON cv.status_availability_id = ctsa.status_availability_id
-                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+                WHERE rs.reservation_status_status_id IN (4, 5, 6, 10, 14)
                 ORDER BY rv.reservation_reservation_id DESC
             ";
             $stmtVenues = $this->conn->query($sqlVenues);
@@ -62,7 +62,7 @@ class Assigned {
             
             // Step 1b: Get all venue checklists
             $sqlVenueChecklists = "
-                SELECT
+                SELECT DISTINCT
                     rc.reservation_venue_id,
                     rc.checklist_venue_id,
                     rc.reservation_checklist_venue_id,
@@ -75,7 +75,7 @@ class Assigned {
                 INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
                 INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
                 LEFT JOIN tbl_checklist_venue_master cvm ON rc.checklist_venue_id = cvm.checklist_venue_id
-                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+                WHERE rs.reservation_status_status_id IN (4, 5, 6, 10, 14)
             ";
             $stmtVenueChecklists = $this->conn->query($sqlVenueChecklists);
             if ($stmtVenueChecklists === false) {
@@ -149,7 +149,7 @@ class Assigned {
                 LEFT JOIN tbl_vehicle_category cvc ON cvmd.vehicle_category_id = cvc.vehicle_category_id
                 LEFT JOIN tbl_status_availability tsa ON vm.status_availability_id = tsa.status_availability_id
                 LEFT JOIN tbl_status_availability ctsa ON cv.status_availability_id = ctsa.status_availability_id
-                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+                WHERE rs.reservation_status_status_id IN (4, 5, 6, 10, 14)
                 ORDER BY rv.reservation_reservation_id DESC
             ";
             $stmtVehicles = $this->conn->query($sqlVehicles);
@@ -174,7 +174,7 @@ class Assigned {
                 INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
                 INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
                 LEFT JOIN tbl_checklist_vehicle_master cvm ON rc.checklist_vehicle_id = cvm.checklist_vehicle_id
-                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+                WHERE rs.reservation_status_status_id IN (4, 5, 6, 10, 14)
             ";
             $stmtVehicleChecklists = $this->conn->query($sqlVehicleChecklists);
             if ($stmtVehicleChecklists === false) {
@@ -214,7 +214,7 @@ class Assigned {
                 LEFT JOIN tbl_equipments e ON re.reservation_equipment_equip_id = e.equip_id
                 LEFT JOIN tbl_equipment_quantity eq ON re.reservation_equipment_equip_id = eq.equip_id
                 LEFT JOIN tbl_status_availability tsa ON eq.status_availability_id = tsa.status_availability_id
-                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+                WHERE rs.reservation_status_status_id IN (4, 5, 6, 10, 14)
                 ORDER BY re.reservation_reservation_id DESC
             ";
             $stmtEquipments = $this->conn->query($sqlEquipments);
@@ -239,7 +239,7 @@ class Assigned {
                 INNER JOIN tbl_reservation r ON re.reservation_reservation_id = r.reservation_id
                 INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
                 LEFT JOIN tbl_checklist_equipment_master cvm ON rc.checklist_equipment_id = cvm.checklist_equipment_id
-                WHERE rs.reservation_status_status_id IN (4, 5, 6)
+                WHERE rs.reservation_status_status_id IN (4, 5, 6, 10, 14)
             ";
             $stmtEquipmentChecklists = $this->conn->query($sqlEquipmentChecklists);
             if ($stmtEquipmentChecklists === false) {
@@ -3874,6 +3874,10 @@ class Assigned {
     
     public function fetchAllReassign() {
         try {
+            // This function shows reservations that:
+            // 1. Have a change venue or change vehicle (from original to new)
+            // 2. Have assigned personnel on the OLD venue/vehicle checklists
+            // 3. Do NOT have assigned personnel on the NEW venue/vehicle checklists yet
             $sql = "
                 SELECT DISTINCT
                     r.reservation_id, 
@@ -3885,6 +3889,7 @@ class Assigned {
                     ) AS requestor_name,
                     r.reservation_start_date, 
                     r.reservation_end_date,
+                    rs.reservation_status_status_id,
                     GROUP_CONCAT(
                         DISTINCT CONCAT(
                             COALESCE(CONCAT(pu.users_fname, ' ', 
@@ -3914,33 +3919,56 @@ class Assigned {
                 LEFT JOIN tbl_reservation_checklist_vehicle cvh ON rvh.reservation_vehicle_id = cvh.reservation_vehicle_id
                 LEFT JOIN tbl_users pu ON (cv.personnel_id = pu.users_id OR cvh.personnel_id = pu.users_id)
                 WHERE 
-                    (rs.reservation_status_status_id IN (10, 14) AND rs.reservation_active = 1)
+                    rs.reservation_active = 1
                     AND r.reservation_id IS NOT NULL
+                    AND rs.reservation_status_status_id IN (6, 10, 14)
                     AND (
-                        -- Show venue changes that need checklist updates (personnel not yet updated to new venue checklists)
-                        (rv.reservation_change_venue_id IS NOT NULL 
-                         AND rv.reservation_change_venue_id != rv.reservation_venue_venue_id
-                         AND NOT EXISTS (
-                             SELECT 1 FROM tbl_reservation_checklist_venue rcv_updated
-                             INNER JOIN tbl_checklist_venue_master cvm_updated ON rcv_updated.checklist_venue_id = cvm_updated.checklist_venue_id
-                             WHERE rcv_updated.reservation_venue_id = rv.reservation_venue_id 
-                             AND cvm_updated.checklist_venue_ven_id = rv.reservation_change_venue_id
-                             AND rcv_updated.personnel_id IS NOT NULL
-                         ))
+                        -- Venue change: has change_venue_id AND personnel assigned to OLD venue AND NOT yet assigned to NEW venue
+                        (
+                            rv.reservation_change_venue_id IS NOT NULL 
+                            AND rv.reservation_change_venue_id != rv.reservation_venue_venue_id
+                            -- Has assigned personnel on OLD venue checklists
+                            AND EXISTS (
+                                SELECT 1 FROM tbl_reservation_checklist_venue rcv_old
+                                INNER JOIN tbl_checklist_venue_master cvm_old ON rcv_old.checklist_venue_id = cvm_old.checklist_venue_id
+                                WHERE rcv_old.reservation_venue_id = rv.reservation_venue_id 
+                                AND cvm_old.checklist_venue_ven_id = rv.reservation_venue_venue_id
+                                AND rcv_old.personnel_id IS NOT NULL
+                            )
+                            -- NOT yet assigned to NEW venue checklists
+                            AND NOT EXISTS (
+                                SELECT 1 FROM tbl_reservation_checklist_venue rcv_new
+                                INNER JOIN tbl_checklist_venue_master cvm_new ON rcv_new.checklist_venue_id = cvm_new.checklist_venue_id
+                                WHERE rcv_new.reservation_venue_id = rv.reservation_venue_id 
+                                AND cvm_new.checklist_venue_ven_id = rv.reservation_change_venue_id
+                                AND rcv_new.personnel_id IS NOT NULL
+                            )
+                        )
                         OR 
-                        -- Show vehicle changes that need checklist updates (personnel not yet updated to new vehicle checklists)
-                        (rvh.reservation_change_vehicle_id IS NOT NULL 
-                         AND rvh.reservation_change_vehicle_id != rvh.reservation_vehicle_vehicle_id
-                         AND NOT EXISTS (
-                             SELECT 1 FROM tbl_reservation_checklist_vehicle rcvh_updated
-                             INNER JOIN tbl_checklist_vehicle_master cvhm_updated ON rcvh_updated.checklist_vehicle_id = cvhm_updated.checklist_vehicle_id
-                             WHERE rcvh_updated.reservation_vehicle_id = rvh.reservation_vehicle_id 
-                             AND cvhm_updated.checklist_vehicle_vehicle_id = rvh.reservation_change_vehicle_id
-                             AND rcvh_updated.personnel_id IS NOT NULL
-                         ))
+                        -- Vehicle change: has change_vehicle_id AND personnel assigned to OLD vehicle AND NOT yet assigned to NEW vehicle
+                        (
+                            rvh.reservation_change_vehicle_id IS NOT NULL 
+                            AND rvh.reservation_change_vehicle_id != rvh.reservation_vehicle_vehicle_id
+                            -- Has assigned personnel on OLD vehicle checklists
+                            AND EXISTS (
+                                SELECT 1 FROM tbl_reservation_checklist_vehicle rcvh_old
+                                INNER JOIN tbl_checklist_vehicle_master cvhm_old ON rcvh_old.checklist_vehicle_id = cvhm_old.checklist_vehicle_id
+                                WHERE rcvh_old.reservation_vehicle_id = rvh.reservation_vehicle_id 
+                                AND cvhm_old.checklist_vehicle_vehicle_id = rvh.reservation_vehicle_vehicle_id
+                                AND rcvh_old.personnel_id IS NOT NULL
+                            )
+                            -- NOT yet assigned to NEW vehicle checklists
+                            AND NOT EXISTS (
+                                SELECT 1 FROM tbl_reservation_checklist_vehicle rcvh_new
+                                INNER JOIN tbl_checklist_vehicle_master cvhm_new ON rcvh_new.checklist_vehicle_id = cvhm_new.checklist_vehicle_id
+                                WHERE rcvh_new.reservation_vehicle_id = rvh.reservation_vehicle_id 
+                                AND cvhm_new.checklist_vehicle_vehicle_id = rvh.reservation_change_vehicle_id
+                                AND rcvh_new.personnel_id IS NOT NULL
+                            )
+                        )
                     )
                 GROUP BY 
-                    r.reservation_id, r.reservation_title, requestor_name, r.reservation_start_date, r.reservation_end_date
+                    r.reservation_id, r.reservation_title, requestor_name, r.reservation_start_date, r.reservation_end_date, rs.reservation_status_status_id
                 ORDER BY 
                     r.reservation_created_at DESC
             ";

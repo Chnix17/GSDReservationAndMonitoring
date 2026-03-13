@@ -130,7 +130,7 @@ const ViewPersonnelTask = () => {
 
       if (response.data.status === 'success') {
         const tasksWithFormattedDates = response.data.data
-          .filter(task => task.reservation_status === 'Reserved' || task.reservation_status === 'Reschedule Confirmed' || task.reservation_status === 'On Going')
+          .filter(task => task.reservation_status === 'Reserved' || task.reservation_status === 'Reschedule' || task.reservation_status === 'Reschedule Confirmed' || task.reservation_status === 'On Going')
           .map(task => ({
             ...task,
             formattedStartDate: formatDateTime(getEffectiveStart(task)),
@@ -265,7 +265,7 @@ const ViewPersonnelTask = () => {
 
       if (response.data.status === 'success') {
         const closedTasks = response.data.data
-          .filter(task => task.reservation_status === 'Completed' || task.reservation_status === 'Cancelled')
+          .filter(task => task.reservation_status === 'Completed' || task.reservation_status === 'Cancelled' || task.reservation_status === 'Declined')
           .map(task => ({
             ...task,
             formattedStartDate: formatDateTime(getEffectiveStart(task)),

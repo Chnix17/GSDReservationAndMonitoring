@@ -284,7 +284,7 @@ const ReservationRequests = () => {
                 try {
                     // Prefer reschedule dates when present or when status is Change Request
                     const hasRescheduleDates = !!(details.reschedule_start_date && details.reschedule_end_date);
-                    const isChangeRequest = details.status_name === "Change Request";
+                    const isChangeRequest = details.status_name === "To be reschedule";
                     const startDateTime = (hasRescheduleDates || isChangeRequest) && details.reschedule_start_date
                         ? details.reschedule_start_date
                         : details.reservation_start_date;
@@ -317,7 +317,7 @@ const ReservationRequests = () => {
                 try {
                     // Prefer reschedule dates when present or when status is Change Request
                     const hasRescheduleDates = !!(details.reschedule_start_date && details.reschedule_end_date);
-                    const isChangeRequest = details.status_name === "Change Request";
+                    const isChangeRequest = details.status_name === "To be reschedule";
                     const startDateTime = (hasRescheduleDates || isChangeRequest) && details.reschedule_start_date
                         ? details.reschedule_start_date
                         : details.reservation_start_date;
@@ -558,7 +558,7 @@ const ReservationRequests = () => {
         try {
             // Prefer reschedule dates when present or when status is Change Request
             const hasRescheduleDates = !!(reservationDetails?.reschedule_start_date && reservationDetails?.reschedule_end_date);
-            const isChangeRequest = reservationDetails?.status_name === "Change Request";
+            const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
             const startDateTime = (hasRescheduleDates || isChangeRequest) && reservationDetails?.reschedule_start_date
                 ? reservationDetails.reschedule_start_date
                 : reservationDetails?.reservation_start_date;
@@ -693,7 +693,7 @@ const ReservationRequests = () => {
         setIsAccepting(true);
         try {
             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
-            if (reservationDetails?.status_name === "Change Request") {
+            if (reservationDetails?.status_name === "To be reschedule") {
                 const isFinalApproverForChange = Boolean(reservationDetails?.approval_sequence) && (() => {
                     const approvers = reservationDetails?.approval_sequence;
                     if (!Array.isArray(approvers) || approvers.length === 0) return false;
@@ -984,7 +984,7 @@ const ReservationRequests = () => {
             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
             
             // Handle Change Request status with specific API
-            if (reservationDetails?.status_name === "Change Request") {
+            if (reservationDetails?.status_name === "To be reschedule") {
                 const response = await axios.post(`${encryptedUrl}reservation.php`, {
                     operation: 'updateChangeReschedule',
                     reservation_id: currentRequest.reservation_id,
@@ -2755,7 +2755,7 @@ const DetailModal = ({
         
         // Debug logging for Change Request - in getModalFooter
         const footerCurrentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
-        if (reservationDetails?.status_name === "Change Request") {
+        if (reservationDetails?.status_name === "To be reschedule") {
             console.log('=== GET MODAL FOOTER DEBUG ===');
             console.log('getModalFooter called for Change Request');
             console.log('Current User ID:', footerCurrentUserId);
@@ -2773,7 +2773,7 @@ const DetailModal = ({
         // Use approval sequence logic if available
         if (currentApproverInfo) {
             // Check if this is a change request and current user is the last approver
-            const isChangeRequest = reservationDetails?.status_name === "Change Request";
+            const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
             
             // Determine if current user is the last approver in the sequence
             const isLastApprover = Array.isArray(reservationDetails?.approval_sequence) &&
@@ -3108,7 +3108,7 @@ const DetailModal = ({
                         key="reschedule"
                         type="default"
                         onClick={() => {
-                            const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                            const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                             console.log('[ViewRequest] Opening RescheduleModal - Button 3:', {
                                 isChangeRequest,
                                 venues: reservationDetails?.venues,
@@ -3371,7 +3371,7 @@ const DetailModal = ({
             // Fix: When there's no department approval progress (hasDeptProgress = false), 
             // allDeptProgressApproved should be true, so the button should be enabled
             // For regular approval: Last approver must assign drivers before approving
-            const isRegularApproval = reservationDetails?.status_name !== "Change Request";
+            const isRegularApproval = reservationDetails?.status_name !== "To be reschedule";
             
             // Check if there are no available drivers when vehicles exist
             const noDriversAvailable = hasVehicles && availableDrivers.length === 0;
@@ -3404,7 +3404,7 @@ const DetailModal = ({
                             key="reschedule"
                             type="default"
                             onClick={() => {
-                                const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                                 console.log('[ViewRequest] Opening RescheduleModal - Button 2:', {
                                     isChangeRequest,
                                     venues: reservationDetails?.venues,
@@ -3602,7 +3602,7 @@ const DetailModal = ({
 
         // Check for reschedule request waiting for department approval confirmation
         const isRescheduleStatus = reservationDetails?.status_name === "Reschedule";
-        const isChangeRequestStatus = reservationDetails?.status_name === "Change Request";
+        const isChangeRequestStatus = reservationDetails?.status_name === "To be reschedule";
         const rescheduleApproval = reservationDetails?.status_history?.find(
             status => status.status_name === 'Pending'
         );
@@ -3647,7 +3647,7 @@ const DetailModal = ({
         // For Change Request status, enable department approval buttons again
         const isAdminAlreadyApproved = false;
         const isAdminAlreadyDeclined = false;
-        const isChangeRequestForApproval = reservationDetails?.status_name === "Change Request";
+        const isChangeRequestForApproval = reservationDetails?.status_name === "To be reschedule";
         // Check if current user is the last approver in the sequence
         const isLastSequenceApproverForPending = reservationDetails?.approval_sequence && 
             reservationDetails?.approval_sequence?.length > 0 && 
@@ -3819,7 +3819,7 @@ const DetailModal = ({
                             // Extract resource IDs and quantities from reservationDetails (from fetchRequestById)
                             // For Change Request status, include both original and change IDs
                             // This data will be passed to RescheduleModal for fetchAvailability calls
-                            const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                            const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                             
                             console.log('[ViewRequest] Opening RescheduleModal with fetchRequestById data:', {
                                 isChangeRequest,
@@ -3957,7 +3957,7 @@ const DetailModal = ({
                                 }
 
                                 // Step 1.5: Handle equipment units insertion for non-Change Request reschedules
-                                const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                                 console.log('[ViewRequest] Checking equipment handling:', {
                                     isChangeRequest,
                                     hasEquipment: !!(reservationDetails?.equipment && reservationDetails?.equipment?.length > 0),
@@ -4180,7 +4180,7 @@ const DetailModal = ({
                                 onClick={() => {
                                     // Extract resource IDs and quantities from reservationDetails
                                     // For Change Request status, include both original and change IDs
-                                    const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                    const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                                     
                                     const resources = {
                                         venueIds: (reservationDetails?.venues || [])?.map(v => {
@@ -4294,7 +4294,7 @@ const DetailModal = ({
                                         }
 
                                         // Step 1.5: Handle equipment units insertion for non-Change Request reschedules
-                                        const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                        const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                                         console.log('[ViewRequest] Checking equipment handling:', {
                                             isChangeRequest,
                                             hasEquipment: !!(reservationDetails?.equipment && reservationDetails.equipment.length > 0),
@@ -4687,7 +4687,7 @@ const DetailModal = ({
                 key: 'venue_name',
                 render: (text, record) => {
                     const availabilityInfo = getResourceAvailabilityInfo('venue', record.venue_id);
-                    const hasVenueChange = record.change_venue_id && reservationDetails?.status_name === "Reschedule";
+                    const hasVenueChange = record.change_venue_id && (reservationDetails?.status_name === "Reschedule" || reservationDetails?.status_name === "To be reschedule" || (reservationDetails?.reschedule_start_date && reservationDetails?.reschedule_end_date));
                     
                     return (
                         <div className="flex items-center justify-between">
@@ -4761,7 +4761,7 @@ const DetailModal = ({
                 key: 'model',
                 render: (text, record) => {
                     const availabilityInfo = getResourceAvailabilityInfo('vehicle', record.vehicle_id);
-                    const hasVehicleChange = record.change_vehicle_id && reservationDetails.status_name === "Reschedule";
+                    const hasVehicleChange = record.change_vehicle_id && (reservationDetails?.status_name === "Reschedule" || reservationDetails?.status_name === "To be reschedule" || (reservationDetails?.reschedule_start_date && reservationDetails?.reschedule_end_date));
                     
                     return (
                         <div className="flex items-center justify-between">
@@ -5433,7 +5433,7 @@ const DetailModal = ({
                                     </div>
                                 {(() => {
                                     // Only show "Proposed New Date & Time" for Change Request status
-                                    const isChangeRequest = reservationDetails?.status_name === "Change Request";
+                                    const isChangeRequest = reservationDetails?.status_name === "To be reschedule";
                                     const hasRescheduleData = reservationDetails?.reschedule_start_date && reservationDetails?.reschedule_end_date;
                                     
                                     return (isChangeRequest && hasRescheduleData) ? (

@@ -113,7 +113,7 @@ class User {
                 INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
                     AND rs.reservation_active = 1
                 WHERE rc.personnel_id = :personnel_id
-                  AND (rs.reservation_status_status_id IN (2, 4, 5, 6) OR rs.reservation_status_status_id = 14)
+                  AND (rs.reservation_status_status_id IN (2, 4, 5, 6, 10) OR rs.reservation_status_status_id = 14)
             ";
             $stmtResIdsVenue = $this->conn->prepare($sqlResIdsVenue);
             $stmtResIdsVenue->execute(['personnel_id' => $personnel_id]);
@@ -124,11 +124,16 @@ class User {
                 $resIdPlaceholdersVenue = implode(',', array_fill(0, count($reservationIdsVenue), '?'));
                 
                 // Step 1b: Get ALL venues for those reservations
+                // FIX: Use CASE to return change_venue_id if rescheduled, and grab only the MAX active status to prevent duplicates
                 $sqlVenues = "
                     SELECT DISTINCT
                         rv.reservation_reservation_id,
                         rv.reservation_venue_id,
-                        rv.reservation_venue_venue_id,
+                        CASE 
+                            WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_venue_id IS NOT NULL 
+                            THEN rv.reservation_change_venue_id 
+                            ELSE rv.reservation_venue_venue_id 
+                        END AS reservation_venue_venue_id,
                         rv.reservation_change_venue_id,
                         rv.reservation_participants,
                         rv.active AS venue_active,
@@ -149,7 +154,16 @@ class User {
                         END AS venue_availability_status_name
                     FROM tbl_reservation_venue rv
                     INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
-                    INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                    INNER JOIN (
+                        SELECT rs1.reservation_reservation_id, rs1.reservation_status_status_id
+                        FROM tbl_reservation_status rs1
+                        INNER JOIN (
+                            SELECT reservation_reservation_id, MAX(reservation_status_id) AS latest_status_id
+                            FROM tbl_reservation_status
+                            GROUP BY reservation_reservation_id
+                        ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id AND rs1.reservation_status_id = rs2.latest_status_id
+                        WHERE rs1.reservation_active = 1
+                    ) rs ON r.reservation_id = rs.reservation_reservation_id
                     LEFT JOIN tbl_venue v ON rv.reservation_venue_venue_id = v.ven_id
                     LEFT JOIN tbl_venue_building vb ON v.venue_building_id = vb.venue_building_id
                     LEFT JOIN tbl_venue cv ON rv.reservation_change_venue_id = cv.ven_id
@@ -217,7 +231,7 @@ class User {
                 INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id
                     AND rs.reservation_active = 1
                 WHERE rc.personnel_id = :personnel_id
-                  AND (rs.reservation_status_status_id IN (2, 4, 5, 6) OR rs.reservation_status_status_id = 14)
+                  AND (rs.reservation_status_status_id IN (2, 4, 5, 6, 10) OR rs.reservation_status_status_id = 14)
             ";
             $stmtResIds = $this->conn->prepare($sqlResIds);
             $stmtResIds->execute(['personnel_id' => $personnel_id]);
@@ -228,11 +242,16 @@ class User {
                 $resIdPlaceholders = implode(',', array_fill(0, count($reservationIds), '?'));
                 
                 // 2b) Get ALL vehicles for those reservations
+                // FIX: Use CASE to return change_vehicle_id if rescheduled, and grab only MAX active status
                 $sqlVehicles = "
                     SELECT DISTINCT
                         rv.reservation_reservation_id,
                         rv.reservation_vehicle_id,
-                        rv.reservation_vehicle_vehicle_id,
+                        CASE 
+                            WHEN rs.reservation_status_status_id IN (6, 10, 14) AND rv.reservation_change_vehicle_id IS NOT NULL 
+                            THEN rv.reservation_change_vehicle_id 
+                            ELSE rv.reservation_vehicle_vehicle_id 
+                        END AS reservation_vehicle_vehicle_id,
                         rv.reservation_change_vehicle_id,
                         rv.active AS vehicle_active,
                         CASE 
@@ -252,7 +271,16 @@ class User {
                         END AS vehicle_availability_status_name
                     FROM tbl_reservation_vehicle rv
                     INNER JOIN tbl_reservation r ON rv.reservation_reservation_id = r.reservation_id
-                    INNER JOIN tbl_reservation_status rs ON r.reservation_id = rs.reservation_reservation_id AND rs.reservation_active = 1
+                    INNER JOIN (
+                        SELECT rs1.reservation_reservation_id, rs1.reservation_status_status_id
+                        FROM tbl_reservation_status rs1
+                        INNER JOIN (
+                            SELECT reservation_reservation_id, MAX(reservation_status_id) AS latest_status_id
+                            FROM tbl_reservation_status
+                            GROUP BY reservation_reservation_id
+                        ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id AND rs1.reservation_status_id = rs2.latest_status_id
+                        WHERE rs1.reservation_active = 1
+                    ) rs ON r.reservation_id = rs.reservation_reservation_id
                     LEFT JOIN tbl_vehicle vm ON rv.reservation_vehicle_vehicle_id = vm.vehicle_id
                     LEFT JOIN tbl_vehicle cv ON rv.reservation_change_vehicle_id = cv.vehicle_id
                     LEFT JOIN tbl_status_availability tsa ON vm.status_availability_id = tsa.status_availability_id
@@ -332,7 +360,6 @@ class User {
                     // Format driver data
                     $formattedDrivers = [];
                     foreach ($vehicleDrivers as $driver) {
-                        // If driver_name is provided, use it; otherwise use user's full name
                         $displayName = !empty($driver['driver_name']) 
                             ? $driver['driver_name'] 
                             : trim($driver['users_fname'] . ' ' . $driver['users_mname'] . ' ' . $driver['users_lname']);
@@ -355,6 +382,7 @@ class User {
             }
 
             // 3) Equipment checklist items with availability status name
+            // FIX: Applied MAX status subquery to prevent duplication
             $sqlEquipment = "
                 SELECT DISTINCT
                     rc_equipment.checklist_equipment_id,
@@ -402,9 +430,16 @@ class User {
                     ON rc_equipment.checklist_equipment_id = cvce.checklist_equipment_id
                 INNER JOIN tbl_reservation r
                     ON re.reservation_reservation_id = r.reservation_id
-                INNER JOIN tbl_reservation_status rs
-                    ON r.reservation_id = rs.reservation_reservation_id
-                    AND rs.reservation_active = 1
+                INNER JOIN (
+                    SELECT rs1.reservation_reservation_id, rs1.reservation_status_status_id
+                    FROM tbl_reservation_status rs1
+                    INNER JOIN (
+                        SELECT reservation_reservation_id, MAX(reservation_status_id) AS latest_status_id
+                        FROM tbl_reservation_status
+                        GROUP BY reservation_reservation_id
+                    ) rs2 ON rs1.reservation_reservation_id = rs2.reservation_reservation_id AND rs1.reservation_status_id = rs2.latest_status_id
+                    WHERE rs1.reservation_active = 1
+                ) rs ON r.reservation_id = rs.reservation_reservation_id
                 -- JOIN to get equipment quantity and availability status
                 LEFT JOIN tbl_equipment_quantity eq
                     ON re.reservation_equipment_equip_id = eq.equip_id
@@ -421,10 +456,7 @@ class User {
                 LEFT JOIN titles tp
                     ON up.title_id = tp.id
                 WHERE rc_equipment.personnel_id = :personnel_id
-                  AND (
-                        rs.reservation_status_status_id IN (4, 5, 6)
-                     OR rs.reservation_status_status_id = 14
-                  )
+                  AND (rs.reservation_status_status_id IN (4, 5, 6, 10) OR rs.reservation_status_status_id = 14)
             ";
             $stmtEquipment = $this->conn->prepare($sqlEquipment);
             $stmtEquipment->execute(['personnel_id' => $personnel_id]);
@@ -439,10 +471,6 @@ class User {
                         'reservation_id'          => $rid,
                         'reservation_title'       => '',
                         'reservation_description' => '',
-                        // Dates will be set conditionally below based on status 10 & active 1
-                        // If active reschedule: include only reschedule_* dates
-                        // Else: include only reservation_* dates
-                        // reservation_participants moved to tbl_reservation_venue
                         'reservation_user_id'     => '',
                         'user_details'            => [],
                         'venues'                  => [],
@@ -486,7 +514,6 @@ class User {
                         'reservation_id'          => $rid,
                         'reservation_title'       => '',
                         'reservation_description' => '',
-                        // reservation_participants moved to tbl_reservation_venue
                         'reservation_user_id'     => '',
                         'user_details'            => [],
                         'venues'                  => [],
@@ -545,7 +572,6 @@ class User {
                         'reservation_id'          => $rid,
                         'reservation_title'       => '',
                         'reservation_description' => '',
-                        // reservation_participants moved to tbl_reservation_venue
                         'reservation_user_id'     => '',
                         'user_details'            => [],
                         'venues'                  => [],
@@ -662,7 +688,6 @@ class User {
             }
 
             // 5) Fetch conditions for all resources
-            // Get all reservation IDs
             $allReservationIds = array_keys($reservations);
             
             // Fetch equipment conditions
@@ -806,32 +831,22 @@ class User {
             
             // 6) Clean up any cross-contaminated resource arrays
             foreach ($reservations as &$res) {
-                // Filter venues array to only contain actual venue objects
-                $res['venues'] = array_filter($res['venues'], function($item) {
+                $res['venues'] = array_values(array_filter($res['venues'], function($item) {
                     return isset($item['reservation_venue_id']);
-                });
-                // Re-index array
-                $res['venues'] = array_values($res['venues']);
+                }));
                 
-                // Filter vehicles array to only contain actual vehicle objects
-                $res['vehicles'] = array_filter($res['vehicles'], function($item) {
+                $res['vehicles'] = array_values(array_filter($res['vehicles'], function($item) {
                     return isset($item['reservation_vehicle_id']);
-                });
-                // Re-index array
-                $res['vehicles'] = array_values($res['vehicles']);
+                }));
                 
-                // Filter equipment array to only contain actual equipment objects
-                $res['equipments'] = array_filter($res['equipments'], function($item) {
+                $res['equipments'] = array_values(array_filter($res['equipments'], function($item) {
                     return isset($item['reservation_equipment_id']);
-                });
-                // Re-index array
-                $res['equipments'] = array_values($res['equipments']);
+                }));
             }
             unset($res);
             
             // 7) Inject conditions into resources
             foreach ($reservations as &$res) {
-                // Add conditions to venues
                 foreach ($res['venues'] as &$venue) {
                     if (isset($venue['reservation_venue_id'])) {
                         $venue['conditions'] = $venueConditions[$venue['reservation_venue_id']] ?? [];
@@ -840,7 +855,6 @@ class User {
                     }
                 }
                 
-                // Add conditions to vehicles
                 foreach ($res['vehicles'] as &$vehicle) {
                     if (isset($vehicle['reservation_vehicle_id'])) {
                         $vehicle['conditions'] = $vehicleConditions[$vehicle['reservation_vehicle_id']] ?? [];
@@ -849,12 +863,10 @@ class User {
                     }
                 }
                 
-                // Add conditions to equipment
                 foreach ($res['equipments'] as &$equip) {
                     $equipId = $equip['reservation_equipment_id'];
                     $equipConditions = $equipmentConditions[$equipId] ?? [];
                     
-                    // Calculate good and bad quantities for bulk equipment
                     $totalQtyBad = 0;
                     foreach ($equipConditions as $cond) {
                         $totalQtyBad += (int)$cond['qty_bad'];
@@ -866,7 +878,6 @@ class User {
                     $equip['qty_good'] = $qtyGood;
                     $equip['qty_bad'] = $totalQtyBad;
                     
-                    // Add conditions to units (display all units that have conditions)
                     foreach ($equip['units'] as &$unit) {
                         $unitId = $unit['reservation_unit_id'];
                         $unit['conditions'] = $unitConditions[$unitId] ?? [];
@@ -876,104 +887,98 @@ class User {
             unset($res, $venue, $vehicle, $equip, $unit);
 
             // 8) Fetch reservation header & user info
-foreach ($reservations as $rid => &$res) {
-    $sqlR = "
-        SELECT
-            r.reservation_title,
-            r.reservation_description,
-            r.reservation_start_date,
-            r.reservation_end_date,
-            r.reschedule_start_date,
-            r.reschedule_end_date,
-            -- reservation_participants moved to tbl_reservation_venue
-            r.reservation_user_id,
-            u.users_fname,
-            u.users_mname,
-            u.users_lname,
-            d.departments_name,
-            ul.user_level_name AS role,
-            (EXISTS (
-                SELECT 1 FROM tbl_reservation_status s
-                WHERE s.reservation_reservation_id = r.reservation_id
-                  AND s.reservation_status_status_id IN (10, 14)
-                  AND s.reservation_active = 1
-            )) AS has_active_reschedule,
-            sm.status_master_name AS reservation_status,
-            CASE 
-                WHEN EXISTS (
-                    SELECT 1 FROM tbl_reservation_vehicle rv 
-                    WHERE rv.reservation_reservation_id = r.reservation_id
-                ) THEN 'Trip'
-                WHEN EXISTS (
-                    SELECT 1 FROM tbl_reservation_venue rven 
-                    WHERE rven.reservation_reservation_id = r.reservation_id
-                ) THEN 'Activity/Event'
-                WHEN EXISTS (
-                    SELECT 1 FROM tbl_reservation_equipment re 
-                    WHERE re.reservation_reservation_id = r.reservation_id
-                ) THEN 'EQ'
-                ELSE 'Unknown'
-            END AS reservation_type
-        FROM tbl_reservation r
-        INNER JOIN tbl_users u
-            ON r.reservation_user_id = u.users_id
-        LEFT JOIN tbl_departments d
-            ON u.users_department_id = d.departments_id
-        LEFT JOIN tbl_user_level ul
-            ON u.users_user_level_id = ul.user_level_id
-        LEFT JOIN (
-            SELECT rs.*
-            FROM tbl_reservation_status rs
-            INNER JOIN (
-                SELECT reservation_reservation_id, MAX(reservation_status_id) AS latest_status_id
-                FROM tbl_reservation_status
-                GROUP BY reservation_reservation_id
-            ) latest_rs
-                ON rs.reservation_reservation_id = latest_rs.reservation_reservation_id
-                AND rs.reservation_status_id = latest_rs.latest_status_id
-        ) rs_latest ON rs_latest.reservation_reservation_id = r.reservation_id
-        LEFT JOIN tbl_status_master sm
-            ON rs_latest.reservation_status_status_id = sm.status_master_id
-        WHERE r.reservation_id = :rid
-        ORDER BY r.reservation_id DESC
-    ";
+            foreach ($reservations as $rid => &$res) {
+                $sqlR = "
+                    SELECT
+                        r.reservation_title,
+                        r.reservation_description,
+                        r.reservation_start_date,
+                        r.reservation_end_date,
+                        r.reschedule_start_date,
+                        r.reschedule_end_date,
+                        r.reservation_user_id,
+                        u.users_fname,
+                        u.users_mname,
+                        u.users_lname,
+                        d.departments_name,
+                        ul.user_level_name AS role,
+                        (EXISTS (
+                            SELECT 1 FROM tbl_reservation_status s
+                            WHERE s.reservation_reservation_id = r.reservation_id
+                              AND s.reservation_status_status_id IN (10, 14)
+                              AND s.reservation_active = 1
+                        )) AS has_active_reschedule,
+                        sm.status_master_name AS reservation_status,
+                        CASE 
+                            WHEN EXISTS (
+                                SELECT 1 FROM tbl_reservation_vehicle rv 
+                                WHERE rv.reservation_reservation_id = r.reservation_id
+                            ) THEN 'Trip'
+                            WHEN EXISTS (
+                                SELECT 1 FROM tbl_reservation_venue rven 
+                                WHERE rven.reservation_reservation_id = r.reservation_id
+                            ) THEN 'Activity/Event'
+                            WHEN EXISTS (
+                                SELECT 1 FROM tbl_reservation_equipment re 
+                                WHERE re.reservation_reservation_id = r.reservation_id
+                            ) THEN 'EQ'
+                            ELSE 'Unknown'
+                        END AS reservation_type
+                    FROM tbl_reservation r
+                    INNER JOIN tbl_users u
+                        ON r.reservation_user_id = u.users_id
+                    LEFT JOIN tbl_departments d
+                        ON u.users_department_id = d.departments_id
+                    LEFT JOIN tbl_user_level ul
+                        ON u.users_user_level_id = ul.user_level_id
+                    LEFT JOIN (
+                        SELECT rs.*
+                        FROM tbl_reservation_status rs
+                        INNER JOIN (
+                            SELECT reservation_reservation_id, MAX(reservation_status_id) AS latest_status_id
+                            FROM tbl_reservation_status
+                            GROUP BY reservation_reservation_id
+                        ) latest_rs
+                            ON rs.reservation_reservation_id = latest_rs.reservation_reservation_id
+                            AND rs.reservation_status_id = latest_rs.latest_status_id
+                    ) rs_latest ON rs_latest.reservation_reservation_id = r.reservation_id
+                    LEFT JOIN tbl_status_master sm
+                        ON rs_latest.reservation_status_status_id = sm.status_master_id
+                    WHERE r.reservation_id = :rid
+                    ORDER BY r.reservation_id DESC
+                ";
 
-    $st = $this->conn->prepare($sqlR);
-    $st->execute(['rid' => $rid]);
-    $hdr = $st->fetch(PDO::FETCH_ASSOC);
+                $st = $this->conn->prepare($sqlR);
+                $st->execute(['rid' => $rid]);
+                $hdr = $st->fetch(PDO::FETCH_ASSOC);
 
-    if ($hdr) {
-        $res['reservation_title']        = $hdr['reservation_title'];
-        $res['reservation_description']  = $hdr['reservation_description'];
-        // Only display two date fields, decided by active reschedule (status_id IN (10,14) and active = 1)
-        if (!empty($hdr['has_active_reschedule'])) {
-            $res['reschedule_start_date'] = $hdr['reschedule_start_date'];
-            $res['reschedule_end_date']   = $hdr['reschedule_end_date'];
-        } else {
-            $res['reservation_start_date'] = $hdr['reservation_start_date'];
-            $res['reservation_end_date']   = $hdr['reservation_end_date'];
-        }
-        // reservation_participants moved to tbl_reservation_venue (now in venues array)
-        $res['reservation_user_id']      = $hdr['reservation_user_id'];
-        $res['reservation_status']       = $hdr['reservation_status'] ?? 'N/A';
-        $res['reservation_type']         = $hdr['reservation_type'];
+                if ($hdr) {
+                    $res['reservation_title']        = $hdr['reservation_title'];
+                    $res['reservation_description']  = $hdr['reservation_description'];
+                    if (!empty($hdr['has_active_reschedule'])) {
+                        $res['reschedule_start_date'] = $hdr['reschedule_start_date'];
+                        $res['reschedule_end_date']   = $hdr['reschedule_end_date'];
+                    } else {
+                        $res['reservation_start_date'] = $hdr['reservation_start_date'];
+                        $res['reservation_end_date']   = $hdr['reservation_end_date'];
+                    }
+                    $res['reservation_user_id']      = $hdr['reservation_user_id'];
+                    $res['reservation_status']       = $hdr['reservation_status'] ?? 'N/A';
+                    $res['reservation_type']         = $hdr['reservation_type'];
 
-        $fullName = trim(
-            $hdr['users_fname'] . ' ' .
-            (!empty($hdr['users_mname']) ? $hdr['users_mname'] . ' ' : '') .
-            $hdr['users_lname']
-        );
+                    $fullName = trim(
+                        $hdr['users_fname'] . ' ' .
+                        (!empty($hdr['users_mname']) ? $hdr['users_mname'] . ' ' : '') .
+                        $hdr['users_lname']
+                    );
 
-        $res['user_details'] = [
-            'full_name'  => $fullName,
-            'department' => $hdr['departments_name'] ?? 'N/A',
-            'role'       => $hdr['role'] ?? 'N/A'
-        ];
-        
-    }
-}
-
-
+                    $res['user_details'] = [
+                        'full_name'  => $fullName,
+                        'department' => $hdr['departments_name'] ?? 'N/A',
+                        'role'       => $hdr['role'] ?? 'N/A'
+                    ];
+                }
+            }
             unset($res); // Unset the last reference
 
             // Filter reservations that have associated items
@@ -994,8 +999,6 @@ foreach ($reservations as $rid => &$res) {
             ]);
         }
     }
-    
-
     public function fetchTaskById($data) {
         if (!isset($data['checklist_id'])) {
             return json_encode(['status' => 'error', 'message' => 'Checklist ID is required']);
