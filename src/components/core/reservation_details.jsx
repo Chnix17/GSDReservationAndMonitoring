@@ -78,6 +78,7 @@ const ReservationDetails = ({
     const [isLoadingResourceOptions, setIsLoadingResourceOptions] = useState(false);
     const availabilityDebounceRef = useRef(null);
     const isAutoAdjustingScheduleRef = useRef(false);
+    const editFormRef = useRef(null);
 
     useEffect(() => {
         return () => {
@@ -285,6 +286,48 @@ const ReservationDetails = ({
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
         return (name === 'Reschedule' || String(s.status_id) === '10') && activeVal === 1;
     });
+
+    // Latest Reschedule Update - determines accepted/declined/pending status
+    const latestRescheduleUpdate = (() => {
+        const toDateValue = (val) => {
+            if (!val) return null;
+            const d = new Date(val);
+            return Number.isNaN(d.getTime()) ? null : d;
+        };
+
+        const candidates = (statusArr || [])
+            .filter(s => [10, 11, 13, 14].includes(Number(s.status_id)))
+            .map(s => {
+                const updatedAt = toDateValue(s.reservation_updated_at || s.updated_at || s.created_at);
+                return {
+                    ...s,
+                    __updatedAt: updatedAt,
+                    __fallbackId: Number(s.reservation_status_id || s.id || 0)
+                };
+            });
+
+        if (!candidates.length) return null;
+
+        candidates.sort((a, b) => {
+            const at = a.__updatedAt ? a.__updatedAt.getTime() : 0;
+            const bt = b.__updatedAt ? b.__updatedAt.getTime() : 0;
+            if (bt !== at) return bt - at;
+            return (b.__fallbackId || 0) - (a.__fallbackId || 0);
+        });
+
+        const latest = candidates[0];
+        const sid = Number(latest.status_id);
+
+        if (sid === 10 || sid === 14) {
+            const acceptedReasonEntry = (candidates.find(c => Number(c.status_id) === 14 && c.reservation_reason && String(c.reservation_reason).trim() !== '')) || null;
+            return { kind: 'accepted', entry: latest, reasonEntry: acceptedReasonEntry };
+        }
+        if (sid === 13) {
+            return { kind: 'declined', entry: latest };
+        }
+        return { kind: 'pending', entry: latest };
+    })();
+
     const venueChanges = Array.isArray(reservationDetails.venues)
         ? reservationDetails.venues.filter(v => (
             (v.change_venue_name && v.change_venue_name.trim() !== '') ||
@@ -617,6 +660,13 @@ const ReservationDetails = ({
             startDateTime.format('YYYY-MM-DD HH:mm:ss'),
             endDateTime.format('YYYY-MM-DD HH:mm:ss')
         );
+
+        // Scroll to the edit form after a short delay to allow rendering
+        setTimeout(() => {
+            if (editFormRef.current) {
+                editFormRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }, 100);
     };
 
     const handleCancelEdit = () => {
@@ -716,23 +766,28 @@ const ReservationDetails = ({
             const currentVehicles = Array.isArray(reservationDetails?.vehicles) ? reservationDetails.vehicles : [];
             const newVenueIds = Array.isArray(values?.venueIds) ? values.venueIds : [];
             const newVehicleIds = Array.isArray(values?.vehicleIds) ? values.vehicleIds : [];
-            const venueIdsForCheck = (newVenueIds && newVenueIds.length > 0)
-                ? newVenueIds
-                : currentVenues.map(v => v.venue_id || v.ven_id).filter(Boolean);
-            const vehicleIdsForCheck = (newVehicleIds && newVehicleIds.length > 0)
-                ? newVehicleIds
-                : currentVehicles.map(v => v.vehicle_id).filter(Boolean);
 
-            // Update only reschedule dates, do not overwrite original reservation_start_date/end_date
+            // Prepare venue_ids and vehicle_ids for proposeReschedule API (matching viewRequest.jsx pattern)
+            const venueIdsForProposal = currentVenues.map((v, index) => ({
+                reservation_venue_id: v.reservation_venue_id,
+                change_venue_id: Array.isArray(newVenueIds) ? newVenueIds[index] || null : null
+            }));
+            const vehicleIdsForProposal = currentVehicles.map((v, index) => ({
+                reservation_vehicle_id: v.reservation_vehicle_id,
+                change_vehicle_id: Array.isArray(newVehicleIds) ? newVehicleIds[index] || null : null
+            }));
+
+            // Use proposeReschedule API (same as viewRequest.jsx)
             const response = await axios.post(`${baseUrl}reservation.php`, {
-                operation: 'updateReservationReschedule',
+                operation: 'proposeReschedule',
                 reservation_id: reservationId,
                 reschedule_start_date: startDateTime,
                 reschedule_end_date: endDateTime,
-                user_admin_id: SecureStorage.getLocalItem('user_id'),
-                venue_ids: venueIdsForCheck,
-                vehicle_ids: vehicleIdsForCheck
-            });
+                user_id: userId,
+                reason: null,
+                venue_ids: venueIdsForProposal,
+                vehicle_ids: vehicleIdsForProposal
+            }, { headers: { 'Content-Type': 'application/json' } });
 
             if (response.data?.status === 'success') {
 
@@ -743,34 +798,14 @@ const ReservationDetails = ({
                     reschedule_end_date: endDateTime
                 }));
 
-                const venueChangesToApply = currentVenues
-                    .map((v, idx) => {
-                        const newId = newVenueIds[idx];
-                        if (newId == null || newId === undefined || String(newId) === String(v.venue_id || v.ven_id)) return null;
-                        return {
-                            reservation_venue_id: v.reservation_venue_id,
-                            reservation_change_venue_id: Number(newId)
-                        };
-                    })
-                    .filter(Boolean);
-
-                const vehicleChangesToApply = currentVehicles
-                    .map((v, idx) => {
-                        const newId = newVehicleIds[idx];
-                        if (newId == null || newId === undefined || String(newId) === String(v.vehicle_id)) return null;
-                        return {
-                            reservation_vehicle_id: v.reservation_vehicle_id,
-                            reservation_change_vehicle_id: Number(newId)
-                        };
-                    })
-                    .filter(Boolean);
-
+                // Update venue changes using separate API calls (matching viewRequest.jsx pattern)
+                const venueChangesToApply = venueIdsForProposal.filter(v => v.change_venue_id !== null);
                 if (venueChangesToApply.length > 0) {
                     const results = await Promise.allSettled(
                         venueChangesToApply.map(change => axios.post(`${baseUrl}reservation.php`, {
                             operation: 'updateVenueReschedule',
                             reservation_venue_id: change.reservation_venue_id,
-                            reservation_change_venue_id: change.reservation_change_venue_id,
+                            reservation_change_venue_id: change.change_venue_id,
                             reservation_id: reservationId
                         }))
                     );
@@ -784,12 +819,14 @@ const ReservationDetails = ({
                     }
                 }
 
+                // Update vehicle changes using separate API calls (matching viewRequest.jsx pattern)
+                const vehicleChangesToApply = vehicleIdsForProposal.filter(v => v.change_vehicle_id !== null);
                 if (vehicleChangesToApply.length > 0) {
                     const results = await Promise.allSettled(
                         vehicleChangesToApply.map(change => axios.post(`${baseUrl}reservation.php`, {
                             operation: 'updateVehicleReschedule',
                             reservation_vehicle_id: change.reservation_vehicle_id,
-                            reservation_change_vehicle_id: change.reservation_change_vehicle_id,
+                            reservation_change_vehicle_id: change.change_vehicle_id,
                             reservation_id: reservationId
                         }))
                     );
@@ -1041,6 +1078,7 @@ const ReservationDetails = ({
                                             </div>
                                             <div className="space-y-3">
                                                 {isEditMode ? (
+                                                    <div ref={editFormRef}>
                                                     <Form form={editForm} layout="vertical" className="space-y-3" onValuesChange={handleEditFormValuesChange}>
                                                         <Form.Item
                                                             name="title"
@@ -1115,10 +1153,15 @@ const ReservationDetails = ({
                                                                             className="w-full"
                                                                             loading={isLoadingResourceOptions}
                                                                             optionFilterProp="label"
-                                                                            options={(vehicleOptions || []).map(opt => ({
-                                                                                value: String(opt.vehicle_id),
-                                                                                label: opt.vehicle_name || opt.vehicle_model_name || opt.model_name || opt.model || `Vehicle ${opt.vehicle_id}`
-                                                                            }))}
+                                                                            options={(vehicleOptions || []).map(opt => {
+                                                                                const vehicleName = opt.vehicle_name || opt.vehicle_model_name || opt.model_name || opt.model || `Vehicle ${opt.vehicle_id}`;
+                                                                                const license = opt.vehicle_license || opt.license || '';
+                                                                                const label = license ? `${vehicleName} (${license})` : vehicleName;
+                                                                                return {
+                                                                                    value: String(opt.vehicle_id),
+                                                                                    label
+                                                                                };
+                                                                            })}
                                                                         />
                                                                     </Form.Item>
                                                                 ))}
@@ -1224,6 +1267,7 @@ const ReservationDetails = ({
                                                             </Button>
                                                         </div>
                                                     </Form>
+                                                    </div>
                                                 ) : (
                                                     <>
                                                         <div>
@@ -1334,6 +1378,120 @@ const ReservationDetails = ({
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
+                                )}
+
+                                {/* Proposed Reschedule Section - Display only, no buttons */}
+                                {(localReservationDetails.reschedule_start_date || localReservationDetails.reschedule_end_date) && !rescheduleConfirmedStatus && (
+                                    <div className={`bg-yellow-50 ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-yellow-200 shadow-sm mb-6`}>
+                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 mb-4`}>Proposed Reschedule</h3>
+                                        <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-1 gap-5' : 'grid-cols-2 gap-6'}`}>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Original Date & Time</p>
+                                                <p className="font-medium">{formatDateRange(
+                                                    localReservationDetails.reservation_start_date || reservationDetails.reservation_start_date,
+                                                    localReservationDetails.reservation_end_date || reservationDetails.reservation_end_date
+                                                )}</p>
+                                            </div>
+                                            <div>
+                                                <p className="text-sm text-gray-500">Proposed Date & Time</p>
+                                                <p className="font-medium">{formatDateRange(
+                                                    localReservationDetails.reschedule_start_date || localReservationDetails.reservation_start_date,
+                                                    localReservationDetails.reschedule_end_date || localReservationDetails.reservation_end_date
+                                                )}</p>
+                                            </div>
+                                        </div>
+                                        {hasVenueChange && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-500">Proposed Venue Change</p>
+                                                <div className="space-y-2">
+                                                    {venueChanges.map(vc => (
+                                                        <div key={vc.reservation_venue_id} className="flex items-center gap-2 text-sm">
+                                                            <Tag color="default">{vc.venue_name}</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="gold">{(vc.change_venue_name && vc.change_venue_name.trim()) || `ID ${vc.change_venue_id}`}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                        {hasVehicleChange && (
+                                            <div className="mt-4">
+                                                <p className="text-sm text-gray-500">Proposed Vehicle Change</p>
+                                                <div className="space-y-2">
+                                                    {vehicleChanges.map(vc => (
+                                                        <div key={vc.reservation_vehicle_id} className="flex items-center gap-2 text-sm">
+                                                            <Tag color="default">{vc.model} ({vc.license})</Tag>
+                                                            <span className="text-gray-500">→</span>
+                                                            <Tag color="gold">{(vc.change_vehicle_model && vc.change_vehicle_model.trim()) || `ID ${vc.change_vehicle_id}`}{vc.change_vehicle_license ? ` (${vc.change_vehicle_license})` : ''}</Tag>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {/* Latest Reschedule Request Update Section */}
+                                {latestRescheduleUpdate && (
+                                    <div className={`p-4 rounded-lg border shadow-sm mb-6 ${
+                                        latestRescheduleUpdate.kind === 'accepted'
+                                            ? 'bg-green-50 border-green-200'
+                                            : latestRescheduleUpdate.kind === 'declined'
+                                                ? 'bg-red-50 border-red-200'
+                                                : 'bg-orange-50 border-orange-200'
+                                    }`}>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <h3 className={`${isMobile ? 'text-sm' : 'text-md'} font-medium text-gray-800`}>Latest Reschedule Request Update</h3>
+                                                <div className="mt-1 text-sm text-gray-700">
+                                                    {latestRescheduleUpdate.kind === 'accepted' && (
+                                                        <span>The reschedule request has been accepted.</span>
+                                                    )}
+                                                    {latestRescheduleUpdate.kind === 'declined' && (
+                                                        <span>The reschedule request has been declined.</span>
+                                                    )}
+                                                    {latestRescheduleUpdate.kind === 'pending' && (
+                                                        <span>The reschedule request is pending review.</span>
+                                                    )}
+                                                </div>
+                                                {(() => {
+                                                    const rawReason = latestRescheduleUpdate.entry?.reservation_reason;
+                                                    const acceptedFallbackReason = latestRescheduleUpdate.reasonEntry?.reservation_reason;
+                                                    const finalReason = (rawReason && String(rawReason).trim() !== '')
+                                                        ? String(rawReason).trim()
+                                                        : (acceptedFallbackReason && String(acceptedFallbackReason).trim() !== '')
+                                                            ? String(acceptedFallbackReason).trim()
+                                                            : null;
+
+                                                    if (!finalReason) return null;
+
+                                                    return (
+                                                        <div className="mt-2 text-sm text-gray-700">
+                                                            <span className="font-medium">Reason:</span> <span className="italic">"{finalReason}"</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {latestRescheduleUpdate.entry?.reservation_updated_at && (
+                                                    <div className="mt-1 text-xs text-gray-500">
+                                                        {new Date(latestRescheduleUpdate.entry.reservation_updated_at).toLocaleString()}
+                                                    </div>
+                                                )}
+                                            </div>
+                                            <Tag color={
+                                                latestRescheduleUpdate.kind === 'accepted'
+                                                    ? 'green'
+                                                    : latestRescheduleUpdate.kind === 'declined'
+                                                        ? 'red'
+                                                        : 'orange'
+                                            }>
+                                                {latestRescheduleUpdate.kind === 'accepted'
+                                                    ? 'Accepted'
+                                                    : latestRescheduleUpdate.kind === 'declined'
+                                                        ? 'Declined'
+                                                        : 'Pending'}
+                                            </Tag>
+                                        </div>
                                     </div>
                                 )}
 

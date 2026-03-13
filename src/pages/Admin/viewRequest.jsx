@@ -1852,6 +1852,48 @@ const DetailModal = ({
     // const isDepartmentStageForCurrentUser = isCurrentApprover || !!(departmentApproval && String(departmentApproval.reservation_users_id) === String(currentUserId) && departmentApproval.reservation_active === 0);
     // const isAdminStageForCurrentUser = isCurrentApprover || !!(adminApprovalStage && String(adminApprovalStage.reservation_users_id) === String(currentUserId) && adminApprovalStage.reservation_active === 0);
 
+    // Latest Reschedule Update - determines accepted/declined/pending status
+    const latestRescheduleUpdate = (() => {
+        const statusArr = reservationDetails?.status_history || [];
+        const toDateValue = (val) => {
+            if (!val) return null;
+            const d = new Date(val);
+            return Number.isNaN(d.getTime()) ? null : d;
+        };
+
+        const candidates = (statusArr || [])
+            .filter(s => [10, 11, 13, 14].includes(Number(s.status_id)))
+            .map(s => {
+                const updatedAt = toDateValue(s.reservation_updated_at || s.updated_at || s.created_at);
+                return {
+                    ...s,
+                    __updatedAt: updatedAt,
+                    __fallbackId: Number(s.reservation_status_id || s.id || 0)
+                };
+            });
+
+        if (!candidates.length) return null;
+
+        candidates.sort((a, b) => {
+            const at = a.__updatedAt ? a.__updatedAt.getTime() : 0;
+            const bt = b.__updatedAt ? b.__updatedAt.getTime() : 0;
+            if (bt !== at) return bt - at;
+            return (b.__fallbackId || 0) - (a.__fallbackId || 0);
+        });
+
+        const latest = candidates[0];
+        const sid = Number(latest.status_id);
+
+        if (sid === 10 || sid === 14) {
+            const acceptedReasonEntry = (candidates.find(c => Number(c.status_id) === 14 && c.reservation_reason && String(c.reservation_reason).trim() !== '')) || null;
+            return { kind: 'accepted', entry: latest, reasonEntry: acceptedReasonEntry };
+        }
+        if (sid === 13) {
+            return { kind: 'declined', entry: latest };
+        }
+        return { kind: 'pending', entry: latest };
+    })();
+
     useEffect(() => {
         const fetchDeansApproval = async () => {
             if (!visible || !reservationDetails?.reservation_id) {
@@ -5188,29 +5230,65 @@ const DetailModal = ({
                                     />
                                 )}
                                 
-                                {/* Reschedule Status Message - Show when status is Reschedule */}
-                                {reservationDetails?.status_name === "Reschedule" && (
-                                    <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-                                        <h3 className="text-lg font-semibold text-blue-800 mb-4 flex items-center gap-2">
-                                            <InfoCircleOutlined className="text-blue-600" />
-                                            Reschedule Proposal
-                                        </h3>
-                                        
-                                        <div className="space-y-3">
-                                            <div className="bg-white p-3 rounded-lg border border-blue-100">
-                                              
-                                                
-                                          
-                                                    <div className="flex items-center gap-2">
-                                                        <Tag color="orange" className="shrink-0">
-                                                            Proposal Pending
-                                                        </Tag>
-                                                        <p className="text-sm text-gray-600">
-                                                            The reschedule proposal for the requester is now pending approval.
-                                                        </p>
+                                {/* Latest Reschedule Request Update Section */}
+                                {latestRescheduleUpdate && (
+                                    <div className={`p-4 rounded-lg border shadow-sm ${
+                                        latestRescheduleUpdate.kind === 'accepted'
+                                            ? 'bg-green-50 border-green-200'
+                                            : latestRescheduleUpdate.kind === 'declined'
+                                                ? 'bg-red-50 border-red-200'
+                                                : 'bg-orange-50 border-orange-200'
+                                    }`}>
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div>
+                                                <h3 className={`${isMobile ? 'text-sm' : 'text-md'} font-medium text-gray-800`}>Latest Reschedule Request Update</h3>
+                                                <div className="mt-1 text-sm text-gray-700">
+                                                    {latestRescheduleUpdate.kind === 'accepted' && (
+                                                        <span>The reschedule request has been accepted.</span>
+                                                    )}
+                                                    {latestRescheduleUpdate.kind === 'declined' && (
+                                                        <span>The reschedule request has been declined.</span>
+                                                    )}
+                                                    {latestRescheduleUpdate.kind === 'pending' && (
+                                                        <span>The reschedule request is pending review.</span>
+                                                    )}
+                                                </div>
+                                                {(() => {
+                                                    const rawReason = latestRescheduleUpdate.entry?.reservation_reason;
+                                                    const acceptedFallbackReason = latestRescheduleUpdate.reasonEntry?.reservation_reason;
+                                                    const finalReason = (rawReason && String(rawReason).trim() !== '')
+                                                        ? String(rawReason).trim()
+                                                        : (acceptedFallbackReason && String(acceptedFallbackReason).trim() !== '')
+                                                            ? String(acceptedFallbackReason).trim()
+                                                            : null;
+
+                                                    if (!finalReason) return null;
+
+                                                    return (
+                                                        <div className="mt-2 text-sm text-gray-700">
+                                                            <span className="font-medium">Reason:</span> <span className="italic">"{finalReason}"</span>
+                                                        </div>
+                                                    );
+                                                })()}
+                                                {latestRescheduleUpdate.entry?.reservation_updated_at && (
+                                                    <div className="mt-1 text-xs text-gray-500">
+                                                        {new Date(latestRescheduleUpdate.entry.reservation_updated_at).toLocaleString()}
                                                     </div>
-                                              
+                                                )}
                                             </div>
+                                            <Tag color={
+                                                latestRescheduleUpdate.kind === 'accepted'
+                                                    ? 'green'
+                                                    : latestRescheduleUpdate.kind === 'declined'
+                                                        ? 'red'
+                                                        : 'orange'
+                                            }>
+                                                {latestRescheduleUpdate.kind === 'accepted'
+                                                    ? 'Accepted'
+                                                    : latestRescheduleUpdate.kind === 'declined'
+                                                        ? 'Declined'
+                                                        : 'Pending'}
+                                            </Tag>
                                         </div>
                                     </div>
                                 )}

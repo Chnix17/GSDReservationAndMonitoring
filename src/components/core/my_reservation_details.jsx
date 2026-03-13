@@ -2507,26 +2507,7 @@ const ReservationDetails = ({
                                         An administrator has proposed changes to your reservation. Please review and accept or decline the proposal.
                                     </p>
 
-                                    {/* Reschedule Reason */}
-                                    {(() => {
-                                        const pendingRescheduleEntry = localReservationDetails?.status_history?.find(
-                                            s => Number(s.status_id) === 11 && Number(s.reservation_active) === 0
-                                        );
-                                        if (pendingRescheduleEntry?.reservation_reason) {
-                                            return (
-                                                <div className="bg-white border border-orange-200 rounded-lg p-4 mb-4">
-                                                    <h4 className="font-semibold text-gray-800 mb-2">Reason for Reschedule</h4>
-                                                    <p className="text-sm text-gray-700 italic">
-                                                        "{pendingRescheduleEntry.reservation_reason}"
-                                                    </p>
-                                                    <p className="text-xs text-gray-500 mt-2">
-                                                        Proposed by: {pendingRescheduleEntry.updated_by_name} on {new Date(pendingRescheduleEntry.reservation_updated_at).toLocaleString()}
-                                                    </p>
-                                                </div>
-                                            );
-                                        }
-                                        return null;
-                                    })()}
+                                 
 
                                     {/* Proposed Dates */}
                                     {localReservationDetails?.reschedule_start_date && localReservationDetails?.reschedule_end_date && (
@@ -3520,7 +3501,8 @@ const ReservationDetails = ({
                             </Button>
                         ),
                         // Accept/Decline buttons for "To be reschedule" status (status_id 11)
-                        isPendingRescheduleFromAdmin && (
+                        // Hide buttons if reschedule is declined (status_id: 13)
+                        isPendingRescheduleFromAdmin && !isRescheduleDeclined && (
                             <Button
                                 key="accept-proposal"
                                 type="primary"
@@ -3530,7 +3512,7 @@ const ReservationDetails = ({
                                 Accept Reschedule
                             </Button>
                         ),
-                        isPendingRescheduleFromAdmin && (
+                        isPendingRescheduleFromAdmin && !isRescheduleDeclined && (
                             <Button
                                 key="decline-proposal"
                                 danger

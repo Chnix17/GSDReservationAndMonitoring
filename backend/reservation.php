@@ -156,8 +156,21 @@ class Reservation {
                 }
             }
 
-            // Insert status 3 before status 11
-            $this->insertStatus($reservationId, 3, 0, $userId, $reason);
+            // Check if status 3 already exists in reservation history
+            $stmt = $this->conn->prepare("
+                SELECT COUNT(*) 
+                FROM tbl_reservation_status 
+                WHERE reservation_reservation_id = :reservation_id 
+                AND reservation_status_status_id = 3
+            ");
+            $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
+            $stmt->execute();
+            $status3Exists = $stmt->fetchColumn() > 0;
+
+            // Only insert status 3 if it doesn't already exist
+            if (!$status3Exists) {
+                $this->insertStatus($reservationId, 3, 0, $userId, $reason);
+            }
             $this->insertStatus($reservationId, 11, 0, $userId, $reason);
 
             $this->conn->commit();
