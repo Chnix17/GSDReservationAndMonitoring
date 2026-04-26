@@ -344,19 +344,19 @@ const VenueEntry = () => {
                                                                     <br />
                                                                     <Tag 
                                                                         value={
-                                                                            venue.status_availability_id === 1 ? 'Available' :
-                                                                            venue.status_availability_id === 5 ? 'In Use' :
-                                                                            venue.status_availability_id === 6 ? 'For Inspection' :
-                                                                            venue.status_availability_id === 7 ? 'Missing' :
-                                                                            venue.status_availability_id === 8 ? 'Damaged' :
+                                                                            venue.status_availability_id === 1 || venue.status_availability_id === '1' ? 'Available' : 
+                                                                            venue.status_availability_id === 5 || venue.status_availability_id === '5' ? 'In Use' :
+                                                                            venue.status_availability_id === 6 || venue.status_availability_id === '6' ? 'For Inspection' :
+                                                                            venue.status_availability_id === 7 || venue.status_availability_id === '7' ? 'Missing' :
+                                                                            venue.status_availability_id === 8 || venue.status_availability_id === '8' ? 'Damaged' :
                                                                             'Not Available'
                                                                         }
                                                                         severity={
-                                                                            venue.status_availability_id === 1 ? 'success' :
-                                                                            venue.status_availability_id === 5 ? 'info' :
-                                                                            venue.status_availability_id === 6 ? 'warning' :
-                                                                            venue.status_availability_id === 7 ? 'danger' :
-                                                                            venue.status_availability_id === 8 ? 'danger' :
+                                                                            venue.status_availability_id === 1 || venue.status_availability_id === '1' ? 'success' :
+                                                                            venue.status_availability_id === 5 || venue.status_availability_id === '5' ? 'info' :
+                                                                            venue.status_availability_id === 6 || venue.status_availability_id === '6' ? 'warning' :
+                                                                            venue.status_availability_id === 7 || venue.status_availability_id === '7' ? 'danger' :
+                                                                            venue.status_availability_id === 8 || venue.status_availability_id === '8' ? 'danger' :
                                                                             'danger'
                                                                         }
                                                                         className="px-2 py-1 text-xs font-semibold"
@@ -515,19 +515,19 @@ const VenueEntry = () => {
                                                                 <td className={isTablet ? 'px-3 py-3' : 'px-4 py-4'}>
                                                                     <Tag 
                                                                         value={
-                                                                            venue.status_availability_id === 1 ? 'Available' :
-                                                                            venue.status_availability_id === 5 ? 'In Use' :
-                                                                            venue.status_availability_id === 6 ? 'For Inspection' :
-                                                                            venue.status_availability_id === 7 ? 'Missing' :
-                                                                            venue.status_availability_id === 8 ? 'Damaged' :
+                                                                            venue.status_availability_id === 1 || venue.status_availability_id === '1' ? 'Available' :
+                                                                            venue.status_availability_id === 5 || venue.status_availability_id === '5' ? 'In Use' :
+                                                                            venue.status_availability_id === 6 || venue.status_availability_id === '6' ? 'For Inspection' :
+                                                                            venue.status_availability_id === 7 || venue.status_availability_id === '7' ? 'Missing' :
+                                                                            venue.status_availability_id === 8 || venue.status_availability_id === '8' ? 'Damaged' :
                                                                             'Not Available'
                                                                         }
                                                                         severity={
-                                                                            venue.status_availability_id === 1 ? 'success' :
-                                                                            venue.status_availability_id === 5 ? 'info' :
-                                                                            venue.status_availability_id === 6 ? 'warning' :
-                                                                            venue.status_availability_id === 7 ? 'danger' :
-                                                                            venue.status_availability_id === 8 ? 'danger' :
+                                                                            venue.status_availability_id === 1 || venue.status_availability_id === '1' ? 'success' :
+                                                                            venue.status_availability_id === 5 || venue.status_availability_id === '5' ? 'info' :
+                                                                            venue.status_availability_id === 6 || venue.status_availability_id === '6' ? 'warning' :
+                                                                            venue.status_availability_id === 7 || venue.status_availability_id === '7' ? 'danger' :
+                                                                            venue.status_availability_id === 8 || venue.status_availability_id === '8' ? 'danger' :
                                                                             'danger'
                                                                         }
                                                                         className="px-2 py-1 text-xs font-semibold"

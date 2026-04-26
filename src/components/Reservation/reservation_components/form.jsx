@@ -156,11 +156,11 @@ const BasicInformationForm = ({
               {formData.venues && formData.venues.length > 0 ? (
                 <div className="space-y-3">
                   {formData.venues.map(venueId => {
-                    const venue = venues.find(v => v.ven_id === venueId);
+                    const venue = venues.find(v => String(v.ven_id) === String(venueId));
                     if (!venue) return null;
                     
-                    const minCapacity = venue.ven_minimum || 1;
-                    const maxCapacity = venue.ven_occupancy || 0;
+                    const minCapacity = parseInt(venue.ven_minimum, 10) || 1;
+                    const maxCapacity = parseInt(venue.ven_occupancy, 10) || 0;
                     const currentValue = venueParticipants[venueId] || '';
                     const isInvalid = currentValue === '' || 
                                      parseInt(currentValue) < minCapacity || 

@@ -118,15 +118,15 @@ const AddReservation = () => {
     venues: [], 
     purpose: '',
     destination: '',
-    owner: '', // Add owner field
+    owner: '', 
     passengers: [],
     driverType: 'default',
     driverName: '',
     tripTicketDriver: null,
-    driverShortage: false, // Flag to indicate driver shortage
-    availableDrivers: 0, // Number of available drivers
-    totalVehicles: 0, // Total number of vehicles
-    additionalNote: '', // Add this line for additional note
+    driverShortage: false, 
+    availableDrivers: 0, 
+    totalVehicles: 0, 
+    additionalNote: '', 
     workRequestLocationCategoryId: '',
     workRequestLocationId: '',
     workRequestSubject: '',
@@ -845,8 +845,8 @@ const validateCurrentStep = () => {
           if (!venue) continue;
           
           const participantCount = venueParticipants[venueId];
-          const minCapacity = venue.ven_minimum || 1;
-          const maxCapacity = venue.ven_occupancy || 0;
+          const minCapacity = parseInt(venue.ven_minimum, 10) || 1;
+          const maxCapacity = parseInt(venue.ven_occupancy, 10) || 0;
           
           // Check if participants entered
           if (!participantCount || participantCount === '' || parseInt(participantCount) <= 0) {

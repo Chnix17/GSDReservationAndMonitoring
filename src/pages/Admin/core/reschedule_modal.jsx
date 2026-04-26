@@ -114,8 +114,10 @@ const RescheduleModal = ({
       const d = dayjs(day);
       if (!d.isValid()) return false;
       // Fallback to reservation's original dates when explicit props are not provided
-      const startRaw = originalStart || reservation?.reservation_start_date;
-      const endRaw = originalEnd || reservation?.reservation_end_date;
+      // Use reschedule dates if available (for status 14 and other rescheduled reservations)
+      const hasReschedule = reservation?.reschedule_start_date && reservation?.reschedule_end_date;
+      const startRaw = originalStart || (hasReschedule ? reservation?.reschedule_start_date : reservation?.reservation_start_date);
+      const endRaw = originalEnd || (hasReschedule ? reservation?.reschedule_end_date : reservation?.reservation_end_date);
       const oStart = dayjs(startRaw);
       const oEnd = dayjs(endRaw);
       if (!oStart.isValid() || !oEnd.isValid()) return false;
@@ -252,8 +254,8 @@ const RescheduleModal = ({
             const reservationActive = parseInt(reservation.reservation_active);
             const hasReschedule = reservation.reschedule_start_date && reservation.reschedule_end_date;
             
-            // Status 10 + active=1: Use ONLY reschedule dates (confirmed reschedule)
-            if (statusId === 10 && reservationActive === 1 && hasReschedule) {
+            // Status 10 + active=1 OR status 14: Use ONLY reschedule dates (confirmed reschedule)
+            if ((statusId === 10 && reservationActive === 1 && hasReschedule) || (statusId === 14 && hasReschedule)) {
               equipmentBlocks.push({
                 start: dayjs(reservation.reschedule_start_date),
                 end: dayjs(reservation.reschedule_end_date),
@@ -315,19 +317,61 @@ const RescheduleModal = ({
       return equipmentBlocks.filter(b => b.start.isValid() && b.end.isValid() && b.end.isAfter(b.start));
     }
     
-    // For venues and vehicles, use the original logic
+    // For venues and vehicles, use reschedule dates when available
     return items
-      .filter(it => it.reservation_start_date && it.reservation_end_date)
-      .map(it => ({
-        start: dayjs(it.reservation_start_date),
-        end: dayjs(it.reservation_end_date),
-        reservation_id: it.reservation_id,
-        // Include resource IDs for exclusion logic
-        ven_id: it.ven_id,
-        vehicle_id: it.vehicle_id,
-        equipment_id: it.equipment_id
-      }))
-      .filter(b => b.start.isValid() && b.end.isValid() && b.end.isAfter(b.start));
+      .map(it => {
+        const statusId = parseInt(it.reservation_status_status_id);
+        const reservationActive = parseInt(it.reservation_active);
+        const hasReschedule = it.reschedule_start_date && it.reschedule_end_date;
+        
+        // Status 10 + active=1 OR status 14: Use ONLY reschedule dates (confirmed reschedule)
+        if ((statusId === 10 && reservationActive === 1 && hasReschedule) || (statusId === 14 && hasReschedule)) {
+          return {
+            start: dayjs(it.reschedule_start_date),
+            end: dayjs(it.reschedule_end_date),
+            reservation_id: it.reservation_id,
+            ven_id: it.ven_id,
+            vehicle_id: it.vehicle_id,
+            equipment_id: it.equipment_id
+          };
+        }
+        // Status 10: Use BOTH original and reschedule dates (pending reschedule)
+        else if (statusId === 10 && hasReschedule) {
+          // Return both blocks for pending reschedule
+          return [
+            {
+              start: dayjs(it.reservation_start_date),
+              end: dayjs(it.reservation_end_date),
+              reservation_id: it.reservation_id,
+              ven_id: it.ven_id,
+              vehicle_id: it.vehicle_id,
+              equipment_id: it.equipment_id
+            },
+            {
+              start: dayjs(it.reschedule_start_date),
+              end: dayjs(it.reschedule_end_date),
+              reservation_id: it.reservation_id,
+              ven_id: it.ven_id,
+              vehicle_id: it.vehicle_id,
+              equipment_id: it.equipment_id
+            }
+          ];
+        }
+        // Default: Use original dates only
+        else if (it.reservation_start_date && it.reservation_end_date) {
+          return {
+            start: dayjs(it.reservation_start_date),
+            end: dayjs(it.reservation_end_date),
+            reservation_id: it.reservation_id,
+            ven_id: it.ven_id,
+            vehicle_id: it.vehicle_id,
+            equipment_id: it.equipment_id
+          };
+        }
+        return null;
+      })
+      .flat()
+      .filter(b => b && b.start.isValid() && b.end.isValid() && b.end.isAfter(b.start));
   }, []);
 
   // Enhanced fetchAvailability function similar to reservation_calendar.jsx
@@ -1376,7 +1420,7 @@ const RescheduleModal = ({
       };
       
       console.log('[RescheduleModal] Calling onReschedule with data:', rescheduleData);
-      alert('DEBUG: Sending newVenueIds = ' + JSON.stringify(processedVenueIds));
+     
       await onReschedule(rescheduleData);
     } catch (error) {
       console.error('[RescheduleModal] Error submitting form:', error);
@@ -1698,11 +1742,16 @@ const RescheduleModal = ({
       {reservation && (
         <div className={`${isMobile ? 'text-xs' : 'text-sm'} font-normal text-gray-600 mt-1`}>
           {reservation.reservation_title || reservation.title || `Reservation ID: ${reservation.reservation_id}`}
-          {reservation.reservation_start_date && reservation.reservation_end_date && (
-            <div className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-500 mt-0.5`}>
-              Current: {dayjs(reservation.reservation_start_date).format('MMM DD, YYYY HH:mm')} - {dayjs(reservation.reservation_end_date).format('MMM DD, YYYY HH:mm')}
-            </div>
-          )}
+          {(() => {
+            const hasReschedule = reservation?.reschedule_start_date && reservation?.reschedule_end_date;
+            const displayStart = hasReschedule ? reservation.reschedule_start_date : reservation?.reservation_start_date;
+            const displayEnd = hasReschedule ? reservation.reschedule_end_date : reservation?.reservation_end_date;
+            return displayStart && displayEnd && (
+              <div className={`${isMobile ? 'text-xs' : 'text-xs'} text-gray-500 mt-0.5`}>
+                Current: {dayjs(displayStart).format('MMM DD, YYYY HH:mm')} - {dayjs(displayEnd).format('MMM DD, YYYY HH:mm')}
+              </div>
+            );
+          })()}
         </div>
       )}
     </div>

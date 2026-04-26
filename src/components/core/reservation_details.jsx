@@ -358,12 +358,12 @@ const ReservationDetails = ({
     const showReschedulePendingCard = false;
 
     // Effective dates - use localReservationDetails for latest data
-    const startDateStr = (hasActiveReschedule && localReservationDetails.reschedule_start_date)
-        ? localReservationDetails.reschedule_start_date
-        : localReservationDetails.reservation_start_date;
-    const endDateStr = (hasActiveReschedule && localReservationDetails.reschedule_end_date)
-        ? localReservationDetails.reschedule_end_date
-        : localReservationDetails.reservation_end_date;
+    const startDateStr = (hasActiveReschedule && localReservationDetails?.reschedule_start_date)
+        ? localReservationDetails?.reschedule_start_date
+        : localReservationDetails?.reservation_start_date;
+    const endDateStr = (hasActiveReschedule && localReservationDetails?.reschedule_end_date)
+        ? localReservationDetails?.reschedule_end_date
+        : localReservationDetails?.reservation_end_date;
     // Resources rendered as responsive list cards (no Antd Table columns needed)
 
     const currentStatusName = String(localReservationDetails?.status_name || reservationDetails?.status_name || '').toLowerCase();
@@ -519,7 +519,7 @@ const ReservationDetails = ({
                         const reservationActive = parseInt(res.reservation_active);
                         const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
 
-                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
+                        if ((statusId === 10 && reservationActive === 1 && hasReschedule) || (statusId === 14 && hasReschedule)) {
                             allBlocks.push({ start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) });
                         } else if (statusId === 10 && hasReschedule) {
                             allBlocks.push(
@@ -532,7 +532,7 @@ const ReservationDetails = ({
 
                         let resStart;
                         let resEnd;
-                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
+                        if ((statusId === 10 && reservationActive === 1 && hasReschedule) || (statusId === 14 && hasReschedule)) {
                             resStart = dayjs(res.reschedule_start_date);
                             resEnd = dayjs(res.reschedule_end_date);
                         } else if (statusId === 10 && hasReschedule) {
@@ -575,7 +575,7 @@ const ReservationDetails = ({
                         const reservationActive = parseInt(res.reservation_active);
                         const hasReschedule = res.reschedule_start_date && res.reschedule_end_date;
 
-                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
+                        if ((statusId === 10 && reservationActive === 1 && hasReschedule) || (statusId === 14 && hasReschedule)) {
                             allBlocks.push({ start: dayjs(res.reschedule_start_date), end: dayjs(res.reschedule_end_date) });
                         } else if (statusId === 10 && hasReschedule) {
                             allBlocks.push(
@@ -588,7 +588,7 @@ const ReservationDetails = ({
 
                         let resStart;
                         let resEnd;
-                        if (statusId === 10 && reservationActive === 1 && hasReschedule) {
+                        if ((statusId === 10 && reservationActive === 1 && hasReschedule) || (statusId === 14 && hasReschedule)) {
                             resStart = dayjs(res.reschedule_start_date);
                             resEnd = dayjs(res.reschedule_end_date);
                         } else if (statusId === 10 && hasReschedule) {
@@ -642,8 +642,9 @@ const ReservationDetails = ({
         setIsEditMode(true);
         setAvailabilityError(null);
 
-        const startDateTime = dayjs(localReservationDetails?.reservation_start_date || reservationDetails?.reservation_start_date);
-        const endDateTime = dayjs(localReservationDetails?.reservation_end_date || reservationDetails?.reservation_end_date);
+        const hasReschedule = localReservationDetails?.reschedule_start_date && localReservationDetails?.reschedule_end_date;
+        const startDateTime = dayjs(hasReschedule ? localReservationDetails?.reschedule_start_date : (localReservationDetails?.reservation_start_date || reservationDetails?.reservation_start_date));
+        const endDateTime = dayjs(hasReschedule ? localReservationDetails?.reschedule_end_date : (localReservationDetails?.reservation_end_date || reservationDetails?.reservation_end_date));
 
         editForm.setFieldsValue({
             title: localReservationDetails?.reservation_title || reservationDetails?.reservation_title,
@@ -1336,8 +1337,8 @@ const ReservationDetails = ({
                                             <div>
                                                 <p className="text-sm text-gray-500">Original Date & Time</p>
                                                 <p className="font-medium">{formatDateRange(
-                                                    reservationDetails.reservation_start_date,
-                                                    reservationDetails.reservation_end_date
+                                                    reservationDetails?.reservation_start_date,
+                                                    reservationDetails?.reservation_end_date
                                                 )}</p>
                                             </div>
                                             {(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && (
@@ -1381,29 +1382,29 @@ const ReservationDetails = ({
                                     </div>
                                 )}
 
-                                {/* Proposed Reschedule Section - Display only, no buttons */}
-                                {(localReservationDetails.reschedule_start_date || localReservationDetails.reschedule_end_date) && !rescheduleConfirmedStatus && (
-                                    <div className={`bg-yellow-50 ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-yellow-200 shadow-sm mb-6`}>
-                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 mb-4`}>Proposed Reschedule</h3>
+                                {/* Proposed Reschedule Section - Display only, no buttons */}x
+                                {(localReservationDetails?.reschedule_start_date || localReservationDetails?.reschedule_end_date) && !rescheduleConfirmedStatus && (
+                                    <div className={`bg-green-50 ${isMobile ? 'p-4' : 'p-6'} rounded-lg border border-green-200 shadow-sm mb-6`}>
+                                        <h3 className={`${isMobile ? 'text-base' : 'text-lg'} font-medium text-gray-800 mb-4`}>Confirmed Reschedule</h3>
                                         <div className={`grid ${isMobile ? 'grid-cols-1 gap-4' : isTablet ? 'grid-cols-1 gap-5' : 'grid-cols-2 gap-6'}`}>
                                             <div>
                                                 <p className="text-sm text-gray-500">Original Date & Time</p>
                                                 <p className="font-medium">{formatDateRange(
-                                                    localReservationDetails.reservation_start_date || reservationDetails.reservation_start_date,
-                                                    localReservationDetails.reservation_end_date || reservationDetails.reservation_end_date
+                                                    localReservationDetails?.reservation_start_date || reservationDetails?.reservation_start_date,
+                                                    localReservationDetails?.reservation_end_date || reservationDetails?.reservation_end_date
                                                 )}</p>
                                             </div>
                                             <div>
-                                                <p className="text-sm text-gray-500">Proposed Date & Time</p>
+                                                <p className="text-sm text-gray-500">Confirmed Date & Time</p>
                                                 <p className="font-medium">{formatDateRange(
-                                                    localReservationDetails.reschedule_start_date || localReservationDetails.reservation_start_date,
-                                                    localReservationDetails.reschedule_end_date || localReservationDetails.reservation_end_date
+                                                    localReservationDetails?.reschedule_start_date || localReservationDetails?.reservation_start_date,
+                                                    localReservationDetails?.reschedule_end_date || localReservationDetails?.reservation_end_date
                                                 )}</p>
                                             </div>
                                         </div>
                                         {hasVenueChange && (
                                             <div className="mt-4">
-                                                <p className="text-sm text-gray-500">Proposed Venue Change</p>
+                                                <p className="text-sm text-gray-500">Confirmed Venue Change</p>
                                                 <div className="space-y-2">
                                                     {venueChanges.map(vc => (
                                                         <div key={vc.reservation_venue_id} className="flex items-center gap-2 text-sm">
@@ -1417,7 +1418,7 @@ const ReservationDetails = ({
                                         )}
                                         {hasVehicleChange && (
                                             <div className="mt-4">
-                                                <p className="text-sm text-gray-500">Proposed Vehicle Change</p>
+                                                <p className="text-sm text-gray-500">Confirmed Vehicle Change</p>
                                                 <div className="space-y-2">
                                                     {vehicleChanges.map(vc => (
                                                         <div key={vc.reservation_vehicle_id} className="flex items-center gap-2 text-sm">
@@ -1503,16 +1504,16 @@ const ReservationDetails = ({
                                             <div>
                                                 <p className="text-sm text-gray-500">Original Date & Time</p>
                                                 <p className="font-medium">{formatDateRange(
-                                                    reservationDetails.reservation_start_date,
-                                                    reservationDetails.reservation_end_date
+                                                    reservationDetails?.reservation_start_date,
+                                                    reservationDetails?.reservation_end_date
                                                 )}</p>
                                             </div>
-                                            {(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && (
+                                            {(reservationDetails?.reschedule_start_date || reservationDetails?.reschedule_end_date) && (
                                                 <div>
                                                     <p className="text-sm text-gray-500">New Date & Time</p>
                                                     <p className="font-medium">{formatDateRange(
-                                                        reservationDetails.reschedule_start_date || reservationDetails.reservation_start_date,
-                                                        reservationDetails.reschedule_end_date || reservationDetails.reservation_end_date
+                                                        reservationDetails?.reschedule_start_date || reservationDetails?.reservation_start_date,
+                                                        reservationDetails?.reschedule_end_date || reservationDetails?.reservation_end_date
                                                     )}</p>
                                                 </div>
                                             )}

@@ -29,13 +29,27 @@ export function generateReservationReport(data, monthStr) {
   }
 
   // Prepare detailed reservation data with formatted dates
-  const flatData = data.map(({ passengers, reservation_id, reservation_user_id, user_level_name, venues, vehicles, equipment, drivers, active, status_history, ...rest }) => ({
-    ...rest,
-    role: user_level_name,
-    reservation_start_date: formatDateTime(rest.reservation_start_date),
-    reservation_end_date: formatDateTime(rest.reservation_end_date),
-    reservation_created_at: formatDateTime(rest.reservation_created_at)
-  }));
+  const flatData = data.map(({ passengers, reservation_id, reservation_user_id, user_level_name, venues, vehicles, equipment, drivers, active, status_history, ...rest }) => {
+    // Format venues and vehicles into a readable string
+    const venueNames = Array.isArray(venues) 
+      ? venues.map(v => v.venue_name || '').filter(Boolean).join(', ') 
+      : '';
+    const vehicleNames = Array.isArray(vehicles) 
+      ? vehicles.map(v => `${v.model || v.name || ''}${v.license ? ` (${v.license})` : ''}`).filter(Boolean).join(', ')
+      : '';
+    const resources = [venueNames, vehicleNames].filter(Boolean).join(' | ');
+    
+    return {
+      ...rest,
+      role: user_level_name,
+      resources: resources || '-',
+      reservation_start_date: formatDateTime(rest.reservation_start_date),
+      reservation_end_date: formatDateTime(rest.reservation_end_date),
+      reservation_created_at: formatDateTime(rest.reservation_created_at),
+      reschedule_start_date: formatDateTime(rest.reschedule_start_date),
+      reschedule_end_date: formatDateTime(rest.reschedule_end_date)
+    };
+  });
 
   if (!flatData.length) return false;
 

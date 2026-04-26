@@ -13,7 +13,7 @@ import {
     RedoOutlined,
     CheckCircleOutlined,
     ClockCircleOutlined,
-    EditOutlined,
+    
     SaveOutlined,
     CloseOutlined,
     CalendarOutlined,
@@ -1131,7 +1131,7 @@ const ReservationDetails = ({
     const statusArr = localReservationDetails.status_history || localReservationDetails.statusHistory || [];
     const rescheduleConfirmedStatus = statusArr.find(s => {
         const activeVal = Number(s.reservation_active ?? s.is_approved ?? 0);
-        return String(s.status_id) === '10' && activeVal === 1;
+        return (String(s.status_id) === '10' && activeVal === 1) || String(s.status_id) === '14';
     });
     const pendingRescheduleStatus = statusArr.find(s => {
         const name = (s.status_name || '').toLowerCase();
@@ -1181,7 +1181,8 @@ const ReservationDetails = ({
     const venueChanges = Array.isArray(localReservationDetails.venues)
         ? localReservationDetails.venues.filter(v => (
             (v.change_venue_name && v.change_venue_name.trim() !== '') ||
-            (v.change_venue_id && String(v.change_venue_id) !== String(v.venue_id))
+            (v.change_venue_id && String(v.change_venue_id) !== String(v.venue_id)) ||
+            (v.change_venue_id !== null && v.change_venue_id !== undefined)
         ))
         : [];
     const hasVenueChange = venueChanges.length > 0;
@@ -1189,7 +1190,9 @@ const ReservationDetails = ({
         ? localReservationDetails.vehicles.filter(v => (
             (v.change_vehicle_model && v.change_vehicle_model.trim() !== '') ||
             (v.change_vehicle_id && String(v.change_vehicle_id) !== String(v.vehicle_id)) ||
-            (v.change_vehicle_license && String(v.change_vehicle_license).trim() !== '' && String(v.change_vehicle_license) !== String(v.license))
+            (v.change_vehicle_license && String(v.change_vehicle_license).trim() !== '' && String(v.change_vehicle_license) !== String(v.license)) ||
+            (v.change_vehicle_id !== null && v.change_vehicle_id !== undefined) ||
+            (v.change_vehicle_model !== null && v.change_vehicle_model !== undefined)
         ))
         : [];
     const hasVehicleChange = vehicleChanges.length > 0;
@@ -1595,35 +1598,35 @@ const ReservationDetails = ({
     };
 
     // Edit functionality handlers
-    const handleEditClick = async () => {
-        // Only allow editing if status is Pending (status_id = 1)
-        if (localReservationDetails.status_id !== 1) {
-            toast.error('You can only edit reservations that are in Pending status');
-            return;
-        }
+    // const handleEditClick = async () => {
+    //     // Only allow editing if status is Pending (status_id = 1)
+    //     if (localReservationDetails.status_id !== 1) {
+    //         toast.error('You can only edit reservations that are in Pending status');
+    //         return;
+    //     }
 
-        setIsEditMode(true);
+    //     setIsEditMode(true);
 
-        // Parse existing dates
-        const startDateTime = dayjs(localReservationDetails.reservation_start_date);
-        const endDateTime = dayjs(localReservationDetails.reservation_end_date);
+    //     // Parse existing dates
+    //     const startDateTime = dayjs(localReservationDetails.reservation_start_date);
+    //     const endDateTime = dayjs(localReservationDetails.reservation_end_date);
 
-        editForm.setFieldsValue({
-            title: localReservationDetails.reservation_title,
-            description: localReservationDetails.reservation_description,
-            startDate: startDateTime,
-            startTime: startDateTime,
-            endDate: endDateTime,
-            endTime: endDateTime
-        });
+    //     editForm.setFieldsValue({
+    //         title: localReservationDetails.reservation_title,
+    //         description: localReservationDetails.reservation_description,
+    //         startDate: startDateTime,
+    //         startTime: startDateTime,
+    //         endDate: endDateTime,
+    //         endTime: endDateTime
+    //     });
 
-        // Check current availability immediately when entering edit mode
-        console.log('[Edit] Checking current date availability on edit open...');
-        const currentStartDateTime = startDateTime.format('YYYY-MM-DD HH:mm:ss');
-        const currentEndDateTime = endDateTime.format('YYYY-MM-DD HH:mm:ss');
+    //     // Check current availability immediately when entering edit mode
+    //     console.log('[Edit] Checking current date availability on edit open...');
+    //     const currentStartDateTime = startDateTime.format('YYYY-MM-DD HH:mm:ss');
+    //     const currentEndDateTime = endDateTime.format('YYYY-MM-DD HH:mm:ss');
 
-        await checkAvailability(currentStartDateTime, currentEndDateTime);
-    };
+    //     await checkAvailability(currentStartDateTime, currentEndDateTime);
+    // };
 
     const handleCancelEdit = () => {
         setIsEditMode(false);
@@ -1920,7 +1923,7 @@ const ReservationDetails = ({
                                                 <h3 className="text-md font-semibold text-gray-800">
                                                     Reservation Details
                                                 </h3>
-                                                {!isEditMode && localReservationDetails.status_id === 1 && (
+                                                {/* {!isEditMode && localReservationDetails.status_id === 1 && (
                                                     <Button
                                                         type="text"
                                                         icon={<EditOutlined />}
@@ -1930,7 +1933,7 @@ const ReservationDetails = ({
                                                     >
                                                         Edit
                                                     </Button>
-                                                )}
+                                                )} */}
                                             </div>
 
                                             {isEditMode ? (
@@ -2382,7 +2385,7 @@ const ReservationDetails = ({
                             )}
 
                             {/* Reschedule Confirmed Section - Show venue/vehicle changes and reschedule dates */}
-                            {latestRescheduleUpdate && (
+                            {/* {latestRescheduleUpdate && (
                                 <div className={`p-4 rounded-lg border shadow-sm mb-6 ${
                                     latestRescheduleUpdate.kind === 'accepted'
                                         ? 'bg-green-50 border-green-200'
@@ -2442,7 +2445,7 @@ const ReservationDetails = ({
                                         </Tag>
                                     </div>
                                 </div>
-                            )}
+                            )} */}
 
                             {rescheduleConfirmedStatus && (
                                 <div className="bg-green-50 p-6 rounded-lg border border-green-200 shadow-sm mb-6">
@@ -2451,16 +2454,16 @@ const ReservationDetails = ({
                                         <div>
                                             <p className="text-sm text-gray-500">Original Date & Time</p>
                                             <p className="font-medium">
-                                                {format(new Date(reservationDetails.reservation_start_date), 'MMM dd, yyyy h:mm a')} -
-                                                {format(new Date(reservationDetails.reservation_end_date), 'h:mm a')}
+                                                {format(new Date(localReservationDetails.reservation_start_date), 'MMM dd, yyyy h:mm a')} -
+                                                {format(new Date(localReservationDetails.reservation_end_date), 'h:mm a')}
                                             </p>
                                         </div>
-                                        {(reservationDetails.reschedule_start_date || reservationDetails.reschedule_end_date) && (
+                                        {(localReservationDetails.reschedule_start_date || localReservationDetails.reschedule_end_date) && (
                                             <div>
                                                 <p className="text-sm text-gray-500">New Date & Time</p>
                                                 <p className="font-medium">
-                                                    {reservationDetails.reschedule_start_date ? format(new Date(reservationDetails.reschedule_start_date), 'MMM dd, yyyy h:mm a') : '-'} -
-                                                    {reservationDetails.reschedule_end_date ? format(new Date(reservationDetails.reschedule_end_date), 'h:mm a') : '-'}
+                                                    {localReservationDetails.reschedule_start_date ? format(new Date(localReservationDetails.reschedule_start_date), 'MMM dd, yyyy h:mm a') : '-'} -
+                                                    {localReservationDetails.reschedule_end_date ? format(new Date(localReservationDetails.reschedule_end_date), 'h:mm a') : '-'}
                                                 </p>
                                             </div>
                                         )}

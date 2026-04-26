@@ -690,6 +690,7 @@ const ReservationRequests = () => {
     };
 
     const handleAccept = async (vehicleDriverAssignments = {}) => {
+        console.log('handleAccept called with vehicleDriverAssignments:', vehicleDriverAssignments);
         setIsAccepting(true);
         try {
             const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
@@ -741,7 +742,7 @@ const ReservationRequests = () => {
             const isAdminApprovalPending = adminApproval?.reservation_active === 0;
 
             // Determine if current user is the FINAL approver in the approval sequence
-            const isFinalApprover = reservationDetails?.approval_sequence && (() => {
+            let isFinalApprover = reservationDetails?.approval_sequence && (() => {
                 const approvers = reservationDetails?.approval_sequence;
                 if (!approvers || approvers.length === 0) return true;
                 const maxSequence = Math.max(...approvers.map(a => a.approval_sequence));
@@ -838,6 +839,7 @@ const ReservationRequests = () => {
             });
 
             if (response.data?.status === 'success') {
+                console.log('APPROVAL SUCCESS - Starting assign modal logic');
                 toast.success('Reservation accepted successfully!', {
                     icon: '✅',
                     duration: 3000,
@@ -845,35 +847,51 @@ const ReservationRequests = () => {
                 
                 // Check if this was the FINAL approver to show assign modal
                 const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+                console.log('Current user ID:', currentUserId);
                 
-                // Check if current user is the final approver in sequence
-                const isFinalApprover = reservationDetails?.approval_sequence && (() => {
+                // Check if current user is the final approver in sequence (BEFORE approval)
+                let isFinalApprover = (() => {
                     const approvers = reservationDetails?.approval_sequence;
-                    if (!approvers || approvers.length === 0) return true;
+                    console.log('Approvers:', approvers);
+                    if (!approvers || approvers.length === 0) {
+                        console.log('No approvers found, returning true');
+                        return true;
+                    }
                     
-                    // Find the highest sequence number
-                    const maxSequence = Math.max(...approvers.map(a => a.approval_sequence));
-                    const finalApprover = approvers.find(a => a.approval_sequence === maxSequence);
+                    // Find the highest sequence number (convert to numbers since API returns strings)
+                    const maxSequence = Math.max(...approvers.map(a => parseInt(a.approval_sequence, 10)));
+                    console.log('Max sequence:', maxSequence);
+                    const finalApprover = approvers.find(a => parseInt(a.approval_sequence, 10) === maxSequence);
+                    console.log('Final approver:', finalApprover);
                     
-                    return finalApprover && String(finalApprover.users_id) === String(currentUserId);
+                    const result = finalApprover && String(finalApprover.users_id) === String(currentUserId);
+                    console.log('isFinalApprover result:', result);
+                    return result;
                 })();
                 
                 console.log('Assignment Modal Debug:', {
                     currentUserId,
                     approvalSequence: reservationDetails?.approval_sequence,
                     isFinalApprover,
-                    shouldShowAssignModal: isFinalApprover
+                    shouldShowAssignModal: isFinalApprover,
+                    responseData: response.data
                 });
                 
+                console.log('Calling fetchReservations...');
                 await fetchReservations();
-                setIsDetailModalOpen(false);
+                console.log('fetchReservations completed');
                 
-                // Only show assign option modal if this was the FINAL approver
+                setIsDetailModalOpen(false);
+                console.log('Detail modal closed');
+                
+                // Show assign option modal if this was the FINAL approver
+                // We use the pre-calculation since fetchReservations might not update state immediately
+                console.log('Checking isFinalApprover for modal:', isFinalApprover);
                 if (isFinalApprover) {
                     console.log('Showing assignment modal - final approver completed approval');
                     setIsAssignOptionModalOpen(true);
                 } else {
-                    console.log('Skipping assignment modal - not department head approval');
+                    console.log('Skipping assignment modal - not final approver');
                 }
             } else {
                 toast.error('Failed to accept reservation.');
@@ -921,6 +939,7 @@ const ReservationRequests = () => {
             });
 
             if (response.data?.status === 'success') {
+                console.log('OVERRIDE APPROVAL SUCCESS - Starting assign modal logic');
                 toast.success('Reservation accepted successfully!', {
                     icon: '✅',
                     duration: 3000,
@@ -928,24 +947,39 @@ const ReservationRequests = () => {
                 
                 // Check if this was the FINAL approver to show assign modal
                 const currentUserId = parseInt(SecureStorage.getLocalItem('user_id'), 10);
+                console.log('Current user ID (override):', currentUserId);
                 
                 // Check if current user is the final approver in sequence
-                const isFinalApprover = reservationDetails?.approval_sequence && (() => {
+                let isFinalApprover = (() => {
                     const approvers = reservationDetails?.approval_sequence;
-                    if (!approvers || approvers.length === 0) return true;
+                    console.log('Approvers (override):', approvers);
+                    if (!approvers || approvers.length === 0) {
+                        console.log('No approvers found (override), returning true');
+                        return true;
+                    }
                     
-                    // Find the highest sequence number
-                    const maxSequence = Math.max(...approvers.map(a => a.approval_sequence));
-                    const finalApprover = approvers.find(a => a.approval_sequence === maxSequence);
+                    // Find the highest sequence number (convert to numbers since API returns strings)
+                    const maxSequence = Math.max(...approvers.map(a => parseInt(a.approval_sequence, 10)));
+                    console.log('Max sequence (override):', maxSequence);
+                    const finalApprover = approvers.find(a => parseInt(a.approval_sequence, 10) === maxSequence);
+                    console.log('Final approver (override):', finalApprover);
                     
-                    return finalApprover && String(finalApprover.users_id) === String(currentUserId);
+                    const result = finalApprover && String(finalApprover.users_id) === String(currentUserId);
+                    console.log('isFinalApprover result (override):', result);
+                    return result;
                 })();
                 
+                console.log('Calling fetchReservations (override)...');
                 await fetchReservations();
+                console.log('fetchReservations completed (override)');
+                
                 setIsDetailModalOpen(false);
                 setIsPriorityConflictModalOpen(false);
+                console.log('Modals closed (override)');
                 
-                // Only show assign option modal if this was the FINAL approver
+                // Show assign option modal if this was the FINAL approver
+                // We use the pre-calculation since fetchReservations might not update state immediately
+                console.log('Checking isFinalApprover for modal (override):', isFinalApprover);
                 if (isFinalApprover) {
                     console.log('Showing assignment modal - final approver completed approval (override)');
                     setIsAssignOptionModalOpen(true);

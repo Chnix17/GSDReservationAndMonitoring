@@ -157,21 +157,8 @@ class Reservation {
             }
 
             // Check if status 3 already exists in reservation history
-            $stmt = $this->conn->prepare("
-                SELECT COUNT(*) 
-                FROM tbl_reservation_status 
-                WHERE reservation_reservation_id = :reservation_id 
-                AND reservation_status_status_id = 3
-            ");
-            $stmt->bindValue(':reservation_id', (int)$reservationId, PDO::PARAM_INT);
-            $stmt->execute();
-            $status3Exists = $stmt->fetchColumn() > 0;
-
-            // Only insert status 3 if it doesn't already exist
-            if (!$status3Exists) {
-                $this->insertStatus($reservationId, 3, 0, $userId, $reason);
-            }
-            $this->insertStatus($reservationId, 11, 0, $userId, $reason);
+            // Only insert status 14 when rescheduling
+            $this->insertStatus($reservationId, 14, 1, $userId, $reason);
 
             $this->conn->commit();
 
@@ -675,8 +662,11 @@ class Reservation {
                     } else {
                         // For all other reservations, show as normal
                         // Clean up helper fields
-                        unset($result['reschedule_start_date']);
-                        unset($result['reschedule_end_date']);
+                        // Keep reschedule dates for status 14
+                        if ($statusId !== 14) {
+                            unset($result['reschedule_start_date']);
+                            unset($result['reschedule_end_date']);
+                        }
                         unset($result['venue_type']);
                         unset($result['has_active_reschedule']);
                         unset($result['reservation_change_venue_id']);
@@ -697,6 +687,7 @@ class Reservation {
                                 break;
                             case 10:
                             case 11:
+                            case 14:
                                 $result['reservation_status'] = 'Rescheduled';
                                 break;
                             default:
@@ -1197,8 +1188,11 @@ class Reservation {
                     } else {
                         // For all other reservations, show as normal
                         // Clean up helper fields
-                        unset($result['reschedule_start_date']);
-                        unset($result['reschedule_end_date']);
+                        // Keep reschedule dates for status 14
+                        if ($statusId !== 14) {
+                            unset($result['reschedule_start_date']);
+                            unset($result['reschedule_end_date']);
+                        }
                         unset($result['vehicle_type']);
                         unset($result['has_active_reschedule']);
                         unset($result['reservation_change_vehicle_id']);
@@ -1218,6 +1212,7 @@ class Reservation {
                                 $result['reservation_status'] = 'Pending Department Approval';
                                 break;
                             case 10:
+                            case 11:
                             case 14:
                                 $result['reservation_status'] = 'Rescheduled';
                                 break;
