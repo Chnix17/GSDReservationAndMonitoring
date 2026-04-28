@@ -1139,50 +1139,49 @@ const ReservationDetails = ({
         return name.includes('reschedule') && activeVal === 0;
     });
 
-    const latestRescheduleUpdate = (() => {
-        const toDateValue = (val) => {
-            if (!val) return null;
-            const d = new Date(val);
-            return Number.isNaN(d.getTime()) ? null : d;
-        };
+    // const latestRescheduleUpdate = (() => {
+    //     const toDateValue = (val) => {
+    //         if (!val) return null;
+    //         const d = new Date(val);
+    //         return Number.isNaN(d.getTime()) ? null : d;
+    //     };
 
-        const candidates = (statusArr || [])
-            .filter(s => [10, 11, 13, 14].includes(Number(s.status_id)))
-            .map(s => {
-                const updatedAt = toDateValue(s.reservation_updated_at || s.updated_at || s.created_at);
-                return {
-                    ...s,
-                    __updatedAt: updatedAt,
-                    __fallbackId: Number(s.reservation_status_id || s.id || 0)
-                };
-            });
+    //     const candidates = (statusArr || [])
+    //         .filter(s => [10, 11, 13, 14].includes(Number(s.status_id)))
+    //         .map(s => {
+    //             const updatedAt = toDateValue(s.reservation_updated_at || s.updated_at || s.created_at);
+    //             return {
+    //                 ...s,
+    //                 __updatedAt: updatedAt,
+    //                 __fallbackId: Number(s.reservation_status_id || s.id || 0)
+    //             };
+    //         });
 
-        if (!candidates.length) return null;
+    //     if (!candidates.length) return null;
 
-        candidates.sort((a, b) => {
-            const at = a.__updatedAt ? a.__updatedAt.getTime() : 0;
-            const bt = b.__updatedAt ? b.__updatedAt.getTime() : 0;
-            if (bt !== at) return bt - at;
-            return (b.__fallbackId || 0) - (a.__fallbackId || 0);
-        });
+    //     candidates.sort((a, b) => {
+    //         const at = a.__updatedAt ? a.__updatedAt.getTime() : 0;
+    //         const bt = b.__updatedAt ? b.__updatedAt.getTime() : 0;
+    //         if (bt !== at) return bt - at;
+    //         return (b.__fallbackId || 0) - (a.__fallbackId || 0);
+    //     });
 
-        const latest = candidates[0];
-        const sid = Number(latest.status_id);
+    //     const latest = candidates[0];
+    //     const sid = Number(latest.status_id);
 
-        if (sid === 10 || sid === 14) {
-            const acceptedReasonEntry = (candidates.find(c => Number(c.status_id) === 14 && c.reservation_reason && String(c.reservation_reason).trim() !== '')) || null;
-            return { kind: 'accepted', entry: latest, reasonEntry: acceptedReasonEntry };
-        }
-        if (sid === 13) {
-            return { kind: 'declined', entry: latest };
-        }
-        return { kind: 'pending', entry: latest };
-    })();
+    //     if (sid === 10 || sid === 14) {
+    //         const acceptedReasonEntry = (candidates.find(c => Number(c.status_id) === 14 && c.reservation_reason && String(c.reservation_reason).trim() !== '')) || null;
+    //         return { kind: 'accepted', entry: latest, reasonEntry: acceptedReasonEntry };
+    //     }
+    //     if (sid === 13) {
+    //         return { kind: 'declined', entry: latest };
+    //     }
+    //     return { kind: 'pending', entry: latest };
+    // })();
     const venueChanges = Array.isArray(localReservationDetails.venues)
         ? localReservationDetails.venues.filter(v => (
             (v.change_venue_name && v.change_venue_name.trim() !== '') ||
-            (v.change_venue_id && String(v.change_venue_id) !== String(v.venue_id)) ||
-            (v.change_venue_id !== null && v.change_venue_id !== undefined)
+            (v.change_venue_id && String(v.change_venue_id).trim() !== '' && String(v.change_venue_id) !== String(v.venue_id))
         ))
         : [];
     const hasVenueChange = venueChanges.length > 0;
@@ -3493,16 +3492,16 @@ const ReservationDetails = ({
                                 Cancel Reservation
                             </Button>
                         ),
-                        (!isCancelled && !isCompleted && !isReservationDeclined && !hideButtons && allowsRescheduleRequest) && (
-                            <Button
-                                key="request-reschedule"
-                                onClick={() => setIsRescheduleModalOpen(true)}
-                                disabled={isBeingProcessed}
-                                size="large"
-                            >
-                                Request Reschedule
-                            </Button>
-                        ),
+                        // (!isCancelled && !isCompleted && !isReservationDeclined && !hideButtons && allowsRescheduleRequest) && (
+                        //     <Button
+                        //         key="request-reschedule"
+                        //         onClick={() => setIsRescheduleModalOpen(true)}
+                        //         disabled={isBeingProcessed}
+                        //         size="large"
+                        //     >
+                        //         Request Reschedule
+                        //     </Button>
+                        // ),
                         // Accept/Decline buttons for "To be reschedule" status (status_id 11)
                         // Hide buttons if reschedule is declined (status_id: 13)
                         isPendingRescheduleFromAdmin && !isRescheduleDeclined && (

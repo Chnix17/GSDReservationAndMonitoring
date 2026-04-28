@@ -121,7 +121,8 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile, showSele
     );
     
     // Apply selected filter - automatically show all if no items are selected
-    const isSelected = selectedVehicles.includes(vehicle.vehicle_id);
+    const vehicleId = parseInt(vehicle.vehicle_id, 10);
+    const isSelected = selectedVehicles.includes(vehicleId);
     const hasSelectedItems = selectedVehicles.length > 0;
     const matchesSelectedFilter = !showSelectedOnly || !hasSelectedItems || isSelected;
     
@@ -275,16 +276,19 @@ const ResourceVehicle = ({ selectedVehicles, onVehicleSelect, isMobile, showSele
         ) : (
           <AnimatePresence>
             <div className={`flex flex-col ${isMobile ? 'gap-1.5' : 'gap-2.5'}`}>
-              {currentVehicles.map((vehicle, idx) => (
-                <VehicleCard
-                  key={vehicle.vehicle_id}
-                  vehicle={vehicle}
-                  isSelected={selectedVehicles.includes(vehicle.vehicle_id)}
-                  onClick={() => onVehicleSelect(vehicle.vehicle_id)}
-                  isMobile={isMobile}
-                  ref={idx === 0 ? firstVehicleRef : undefined}
-                />
-              ))}
+              {currentVehicles.map((vehicle, idx) => {
+                const vehicleId = parseInt(vehicle.vehicle_id, 10);
+                return (
+                  <VehicleCard
+                    key={vehicle.vehicle_id}
+                    vehicle={vehicle}
+                    isSelected={selectedVehicles.includes(vehicleId)}
+                    onClick={() => onVehicleSelect(vehicleId)}
+                    isMobile={isMobile}
+                    ref={idx === 0 ? firstVehicleRef : undefined}
+                  />
+                );
+              })}
             </div>
 
             {filteredVehicles.length === 0 && (

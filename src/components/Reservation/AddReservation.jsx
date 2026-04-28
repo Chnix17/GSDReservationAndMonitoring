@@ -1646,7 +1646,7 @@ const renderReviewSection = () => {
     .map(id => parseInt(id, 10))
     .filter(id => !isNaN(id));
   const selectedVenues = venues.filter(v => selectedVenueIds.includes(parseInt(v.ven_id, 10)));
-  const selectedVehicleDetails = vehicles.filter(v => selectedModels.includes(v.vehicle_id));
+  const selectedVehicleDetails = vehicles.filter(v => selectedModels.includes(parseInt(v.vehicle_id, 10)));
 
   // Add debug logging for equipment
   console.log('Selected Equipment in AddReservation:', {

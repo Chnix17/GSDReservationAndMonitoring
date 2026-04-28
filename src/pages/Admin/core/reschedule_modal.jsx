@@ -1422,6 +1422,8 @@ const RescheduleModal = ({
       console.log('[RescheduleModal] Calling onReschedule with data:', rescheduleData);
      
       await onReschedule(rescheduleData);
+      setLoading(false);
+      onCancel();
     } catch (error) {
       console.error('[RescheduleModal] Error submitting form:', error);
       setLoading(false);

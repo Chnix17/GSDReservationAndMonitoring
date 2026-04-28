@@ -1653,6 +1653,7 @@ const ReservationRequests = () => {
                         fetchReservations={fetchReservations}
                         handleRescheduleError={handleRescheduleError}
                         openRescheduleDecisionModal={openRescheduleDecisionModal}
+                        setIsDetailModalOpen={setIsDetailModalOpen}
                     />
 
                     {/* Reschedule Decision Modal */}
@@ -1856,7 +1857,8 @@ const DetailModal = ({
     setIsErrorModalOpen, 
     fetchReservations,
     handleRescheduleError,
-    openRescheduleDecisionModal
+    openRescheduleDecisionModal,
+    setIsDetailModalOpen
 }) => {
     // Responsive breakpoints
     const isMobile = useMediaQuery({ maxWidth: 767 });
@@ -2743,6 +2745,9 @@ const DetailModal = ({
     //     }
     // };
 
+    // Set to true to hide reschedule button for the last approver
+    const hideRescheduleForLastApprover = true;
+
         const getModalFooter = () => {
         if (!reservationDetails) {
             return [<Button key="close" onClick={onClose} size="large">Close</Button>];
@@ -2888,6 +2893,7 @@ const DetailModal = ({
                     <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
                         Decline
                     </Button>,
+                    ...(hideRescheduleForLastApprover ? [] : [
                     <Button
                         key="reschedule"
                         type="default"
@@ -2917,7 +2923,8 @@ const DetailModal = ({
                         disabled={hasVehicles && !allVehiclesHaveDriverAssigned}
                     >
                         Reschedule
-                    </Button>,
+                    </Button>
+                    ]),
                     <Button 
                         key="approve" 
                         type="primary" 
@@ -3064,8 +3071,10 @@ const DetailModal = ({
                                     }
 
                                     toast.success('Reschedule proposal sent');
-                                    setIsRescheduleModalOpen(false);
-                                    await fetchReservationDetails(reservationDetails?.reservation_id);
+                                    setTimeout(() => {
+                                        setIsRescheduleModalOpen(false);
+                                        setIsDetailModalOpen(false);
+                                    }, 0);
                                     await fetchReservations();
                                 } else {
                                     toast.error(proposeResp.data?.message || 'Failed to send reschedule proposal');
@@ -3315,8 +3324,10 @@ const DetailModal = ({
                                     }
 
                                     toast.success('Reschedule proposal sent');
-                                    setIsRescheduleModalOpen(false);
-                                    await fetchReservationDetails(reservationDetails?.reservation_id);
+                                    setTimeout(() => {
+                                        setIsRescheduleModalOpen(false);
+                                        setIsDetailModalOpen(false);
+                                    }, 0);
                                     await fetchReservations();
                                 } else {
                                     toast.error(proposeResp.data?.message || 'Failed to send reschedule proposal');
@@ -3425,7 +3436,7 @@ const DetailModal = ({
                 <Button key="decline" danger loading={isDeclining} onClick={(e) => { e.stopPropagation(); handleOpenDeclineReasonModal(); }} size="large" icon={<CloseCircleOutlined />}>
                     Decline
                 </Button>,
-                isLastInSequence && (
+                isLastInSequence && !hideRescheduleForLastApprover && (
                     <>
                         <Button
                             key="reschedule"
@@ -3595,8 +3606,10 @@ const DetailModal = ({
                                         }
 
                                         toast.success('Reschedule proposal sent');
-                                        setIsRescheduleModalOpen(false);
-                                        await fetchReservationDetails(reservationDetails?.reservation_id);
+                                        setTimeout(() => {
+                                            setIsRescheduleModalOpen(false);
+                                            setIsDetailModalOpen(false);
+                                        }, 0);
                                         await fetchReservations();
                                     } else {
                                         toast.error(proposeResp.data?.message || 'Failed to send reschedule proposal');

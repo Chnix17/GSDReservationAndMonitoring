@@ -184,7 +184,7 @@ class User {
                 vb.venue_building_name
                 FROM tbl_venue v
                 LEFT JOIN tbl_venue_building vb ON v.venue_building_id = vb.venue_building_id
-                WHERE v.is_active = 1 ORDER BY v.ven_id DESC";
+                WHERE v.is_active = 1  AND v.status_availability_id != 2 ORDER BY v.ven_id DESC";
         return $this->executeQuery($sql);
     }
 
